@@ -241,6 +241,9 @@ def _compute_japan_monetary() -> float | None:
     if jgb_score is None:
         return usdjpy_score
     return round(usdjpy_score * 0.5 + jgb_score * 0.5, 1)
+
+
+def compute_grv() -> dict:
     """
     计算 GRV 向量。
     结构：

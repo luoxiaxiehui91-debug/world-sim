@@ -3735,3 +3735,19 @@ body 首行固定：⚠️ 低置信度推演 · 社会类上限🟡，仅供参
 --- 
 
 ---
+
+## v3.5.41 — 2026-07-10 (by Claude)
+
+### Bug 修复
+
+**[P0] geo_risk_vector.py：修复 `compute_grv` NameError 导致 GRV 每日停止更新**
+
+- **根因**：`_compute_japan_monetary()` 函数末尾 `return` 语句之后跟了一段三引号字符串字面量，其后的 `compute_grv()` 函数体成为不可达死代码，导致 `compute_grv` 从未被定义为独立函数
+- **症状**：2026-07-10 06:10 scheduler 触发后抛 `NameError: name 'compute_grv' is not defined`，`grv_latest.json` 卡在 07-09，`japan_monetary` 字段永远缺失
+- **修复**：在第 243 行（`_compute_japan_monetary` 的最后一个 `return` 之后）将误嵌的函数体提取为独立的顶层函数，加入 `def compute_grv() -> dict:` 声明
+- **验证**：
+  - python ast.parse 语法检查通过，`compute_grv` 出现在函数列表 ✅
+  - 容器内手动触发3次，均退出码0 ✅
+  - `grv_latest.json` 写入 `japan_monetary: 45.5` ✅
+  - `grv_history.jsonl` 追加新记录（507条），同日去重机制正常（不重复追加）✅
+  - 3次运行输出完全一致（幂等）✅
