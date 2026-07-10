@@ -1,0 +1,303 @@
+# synthesis_rules.yaml — 弱信号共振推演规则集 v1.0
+#
+# 热加载：修改此文件后下次扫描自动生效，无需重启容器。
+# STAGING_MODE=True 期间：所有规则仅打印检测结果，不调 LLM，不推 ntfy。
+#
+# 字段说明：
+#   trigger.categories    必须与 ALERT_KEYWORDS 的 key 完全一致（逐字匹配）
+#   gdelt_dimension       gdelt_scores.json scores 下的键名（可选）
+#   gdelt_threshold       该维度任意国家分数需 >= 此值
+#   min_avg_ratio         news.db signal_episodes 触发类别的平均 ratio 下限
+#   cooldown_days         同一规则成功推演后静默天数
+#   priority              1=最高优先（优先占当日配额）/ 2=次优先
+
+global_config:
+  daily_llm_limit: 2       # 每日自动推演最多触发次数（0=禁用）
+  min_data_days: 30        # news.db 积累不足此天数时仅输出诊断，不调 LLM
+
+rules:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # R01：信用压力×衰退信号 — 金融危机前兆
+  # ─────────────────────────────────────────────────────────────────────────
+  - rule_id: R01_credit_recession_stress
+    name: "信用压力×衰退信号共振"
+    enabled: true
+    cooldown_days: 7
+    priority: 1
+    trigger:
+      window_days: 7
+      categories: ["信用风险", "衰退信号"]
+      min_categories: 2
+      min_scan_count: 2
+      min_avg_ratio: 2.0
+      min_articles_per_category: 3   # 每类别至少3篇独立文章，防止单篇双命中虚假共振
+    hypothesis_template: >
+      {category_names}领域出现共振信号（过去{window_days}天，{scan_count}次扫描触发，
+      平均强度{avg_ratio}x基线）。代表性新闻：{trigger_titles}。
+      当前GRV：台海={grv_taiwan}，中美={grv_us_china}。
+      请推演当前宏观背景下信用收缩向实体经济传导的路径，参考2008金融危机
+      和2010欧债危机传导机制，重点分析：
+      ①银行信贷收紧对企业融资的影响链；
+      ②衰退预期自我实现的正反馈机制；
+      ③当前美债曲线和高收益利差背景下的关键风险节点。
+    report_prefix: "[自动推演]"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # R02：日元套利×流动性危机 — 跨资产去杠杆（最快传染路径）
+  # ─────────────────────────────────────────────────────────────────────────
+  - rule_id: R02_yen_carry_liquidity
+    name: "日元套利×流动性危机共振（跨资产去杠杆）"
+    enabled: true
+    cooldown_days: 5
+    priority: 1
+    trigger:
+      window_days: 7
+      categories: ["日元套利", "流动性危机"]
+      min_categories: 2
+      min_scan_count: 2
+      min_avg_ratio: 2.5
+      min_articles_per_category: 3
+    hypothesis_template: >
+      {category_names}信号同期出现（过去{window_days}天，{scan_count}次扫描触发，
+      平均强度{avg_ratio}x）。代表性新闻：{trigger_titles}。
+      当前GRV：台海={grv_taiwan}，中美={grv_us_china}。
+      请推演日元套利平仓的跨资产传染路径，参考2024年8月5日
+      日元套利崩盘时序机制，重点分析：
+      ①当前全球日元套利仓位的脆弱节点；
+      ②套利平仓→新兴市场资金外流→汇率贬值的传导链；
+      ③美联储24-72小时内的可能干预路径及有效性。
+    report_prefix: "[自动推演]"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # R03：通胀失控×地缘升级 — 滞胀冲击路径
+  # ─────────────────────────────────────────────────────────────────────────
+  - rule_id: R03_inflation_geo_stagflation
+    name: "通胀失控×地缘升级共振（滞胀路径）"
+    enabled: true
+    cooldown_days: 10
+    priority: 2
+    trigger:
+      window_days: 14
+      categories: ["通胀失控", "地缘升级"]
+      min_categories: 2
+      min_scan_count: 3
+      min_avg_ratio: 2.0
+      min_articles_per_category: 3
+    hypothesis_template: >
+      {category_names}在近两周内持续共振（{scan_count}次扫描触发）。
+      代表性新闻：{trigger_titles}。
+      当前GRV：台海={grv_taiwan}，中美={grv_us_china}。
+      请推演供给侧冲击引发滞胀的传导路径，参考1973年石油危机
+      和2022年俄乌战争的双冲击传导机制，重点分析：
+      ①当前地缘紧张对能源/粮食供应链的具体冲击节点；
+      ②美联储在高通胀+衰退风险并存时的政策两难；
+      ③新兴市场在本币贬值+进口通胀双压下的脆弱性排序。
+    report_prefix: "[自动推演]"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # R04：三类信号共振（摘要模式） — 全局风险规避宽口径探测
+  # push_summary_only=true：只推结构化摘要，不调 LLM
+  # ─────────────────────────────────────────────────────────────────────────
+  - rule_id: R04_triple_risk_off
+    name: "三类信号共振（全局风险规避摘要）"
+    enabled: true
+    cooldown_days: 7
+    priority: 2
+    trigger:
+      window_days: 14
+      categories: ["信用风险", "衰退信号", "地缘升级"]
+      min_categories: 3
+      min_scan_count: 4
+      min_avg_ratio: 2.0
+      min_articles_per_category: 3
+    hypothesis_template: >
+      [共振信号检测] {category_names}三类信号持续共振
+      （过去{window_days}天，各类别>=4次扫描触发）。
+      代表信号：{trigger_titles}。
+      当前GRV：台海={grv_taiwan}，中美={grv_us_china}。
+      请推演当前宏观体制是否正在发生切换，重点分析三类信号并发的历史频率
+      和后续6个月资产表现，以及中国需求侧同步承压对全球传导链的放大效应。
+    report_prefix: "[共振信号]"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # R05：信用×流动性 — 金融体系内部蔓延
+  # ─────────────────────────────────────────────────────────────────────────
+  - rule_id: R05_credit_liquidity_crunch
+    name: "信用×流动性联动（金融体系蔓延）"
+    enabled: true
+    cooldown_days: 7
+    priority: 1
+    trigger:
+      window_days: 7
+      categories: ["信用风险", "流动性危机"]
+      min_categories: 2
+      min_scan_count: 2
+      min_avg_ratio: 3.0
+      min_articles_per_category: 3
+    hypothesis_template: >
+      {category_names}信号同时超阈值（过去{window_days}天，强度{avg_ratio}x）。
+      代表性新闻：{trigger_titles}。
+      当前GRV：台海={grv_taiwan}，中美={grv_us_china}。
+      请推演银行间市场传导路径，参考2008年雷曼倒闭后货币市场基金崩盘
+      和2022年英国LDI危机时序机制，重点分析：
+      ①当前美联储利率环境下流动性压力的传导速度；
+      ②抵押品价值下跌→强制去杠杆→价格进一步下跌的正反馈链；
+      ③哪些资产类别最先承压（高收益债/新兴市场/长久期股权）。
+    report_prefix: "[自动推演]"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # R06：大规模抗议×政治危机 — 社会信号（双重门槛）
+  # ─────────────────────────────────────────────────────────────────────────
+  - rule_id: R06_protest_political_crisis
+    name: "大规模抗议×政治危机"
+    enabled: true
+    cooldown_days: 5
+    priority: 2
+    trigger:
+      window_days: 7
+      categories: ["社会政治危机"]
+      min_categories: 1
+      min_scan_count: 2
+      min_avg_ratio: 2.5
+    gdelt_dimension: "protest"
+    gdelt_threshold: 50      # 要求 protest 分值超过香港2019峰值的57%
+    hypothesis_template: >
+      {category_names}领域出现持续信号（过去{window_days}天，{scan_count}次扫描触发）。
+      代表性新闻：{trigger_titles}。当前GRV：台海={grv_taiwan}，中美={grv_us_china}。
+      请推演（置信度上限🟡，社会传导链长，结论仅供参考）：
+      ①抗议/政治危机发生在哪些关键国家（参考GDELT高分国家）；
+      ②对该国货币、股市及美元流动性的短期影响路径（3-6个月）；
+      ③是否存在溢出效应导致新兴市场资本外流；
+      ④需要特别关注的尾风险情景。
+    report_prefix: "[社会推演🟡]"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # R07：宗教暴力×能源政治 — 社会信号（初期关闭，等数据积累）
+  # ✅ enabled: true — 2026-07-10 启用，religious_conflict 近14天 58/63 条有效
+  # ─────────────────────────────────────────────────────────────────────────
+  - rule_id: R07_religious_energy
+    name: "宗教暴力×能源政治"
+    enabled: true
+    cooldown_days: 7
+    priority: 2
+    trigger:
+      window_days: 7
+      categories: ["宗教族群冲突", "能源政治"]
+      min_categories: 2
+      min_scan_count: 1
+      min_avg_ratio: 2.0
+    gdelt_dimension: "religious_conflict"
+    gdelt_threshold: 40
+    hypothesis_template: >
+      {category_names}领域出现共振信号（过去{window_days}天，{scan_count}次扫描触发）。
+      代表性新闻：{trigger_titles}。当前GRV：台海={grv_taiwan}，中美={grv_us_china}。
+      请推演（置信度上限🟡）：
+      ①宗教/族群冲突与主要能源基础设施（输油管/港口/炼油厂）的距离；
+      ②能源供应中断的概率区间及持续时长预估；
+      ③油价冲击路径（现货→通胀预期→央行政策→股债汇联动）；
+      ④中国能源进口替代路径是否受影响。
+    report_prefix: "[社会推演🟡]"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # R09：社会压力持续 — 多国同步悲观情绪积累（Phase 2B，初期关闭）
+  # ⚠️ enabled: false — 等 social_stress 维度积累 3 周数据后手动开启
+  # ─────────────────────────────────────────────────────────────────────────
+  - rule_id: R09_social_pressure_buildup
+    name: "社会压力持续（多国情绪同步悲观）"
+    enabled: false
+    cooldown_days: 14
+    priority: 2
+    trigger:
+      window_days: 14
+      categories: ["社会政治危机"]
+      min_categories: 1
+      min_scan_count: 3
+      min_avg_ratio: 2.0
+    gdelt_dimension: "social_stress"
+    gdelt_threshold: 35
+    hypothesis_template: >
+      {category_names}领域持续出现社会压力信号（过去{window_days}天，{scan_count}次扫描触发）。
+      代表性新闻：{trigger_titles}。当前GRV：台海={grv_taiwan}，中美={grv_us_china}。
+      请推演（置信度上限🟡）：
+      ①社会情绪压力高企的国家/地区（参考GDELT社会压力高分国家）；
+      ②社会不满积累是否正接近政治风险临界点（参考失业率/通胀/基尼系数背景）；
+      ③对新兴市场资产、避险资产和大宗商品的传导预期；
+      ④需重点关注的3个月内政治窗口期（选举/议会投票/央行会议）。
+    report_prefix: "[社会推演🟡]"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # R10：文化贸易摩擦×地缘升级 — 消费品/科技跨国企业风险（Phase 2D，初期关闭）
+  # ⚠️ enabled: false — 等 cultural_friction 维度积累 3 周数据后手动开启
+  # ─────────────────────────────────────────────────────────────────────────
+  - rule_id: R10_cultural_trade_friction
+    name: "文化摩擦×地缘升级（消费品/科技企业风险）"
+    enabled: false
+    cooldown_days: 21
+    priority: 2
+    trigger:
+      window_days: 14
+      categories: ["文化贸易摩擦", "地缘升级"]
+      min_categories: 2
+      min_scan_count: 2
+      min_avg_ratio: 2.0
+    gdelt_dimension: "cultural_friction"
+    gdelt_threshold: 20
+    hypothesis_template: >
+      {category_names}信号同期出现（过去{window_days}天，{scan_count}次扫描触发）。
+      代表性新闻：{trigger_titles}。当前GRV：台海={grv_taiwan}，中美={grv_us_china}。
+      请推演（置信度上限🟡，参考新疆棉花H&M抵制2021案例，calibration_score=0.55）：
+      ①哪些跨国消费品/科技企业最暴露于文化摩擦风险（参考供应链和品牌资产地域分布）；
+      ②消费者抵制运动的规模化条件和时间线；
+      ③对相关企业收入和估值的量化压力路径（参考H&M案例：中国市场收入下降~30%）；
+      ④政府层面可能的对等贸易措施及其传导影响。
+    report_prefix: "[社会推演🟡]"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # R11：气候×社会压力共振（Phase 2，初期关闭）
+  # ─────────────────────────────────────────────────────────────────────────
+  - rule_id: R11_climate_social_resonance
+    name: "气候冲击×社会压力共振（粮食→社会级联）"
+    enabled: false
+    cooldown_days: 21
+    priority: 2
+    trigger:
+      window_days: 30
+      categories: ["社会政治危机"]
+      min_categories: 1
+      min_scan_count: 3
+      min_avg_ratio: 2.0
+    gdelt_dimension: "social_stress"
+    gdelt_threshold: 35
+    hypothesis_template: >
+      {category_names}与气候压力信号同期出现（过去{window_days}天，{scan_count}次触发）。
+      代表性新闻：{trigger_titles}。当前GRV：台海={grv_taiwan}，中美={grv_us_china}。
+      请推演（置信度上限🟡）：
+      ①当前气候状态对哪些粮食主产区影响最大（参考气候风险传导框架）；
+      ②粮食价格→新兴市场通胀→社会不满的传导时序；
+      ③哪些国家四维脆弱性最高，触发政治危机概率；
+      ④反面条件：何种情景下链条不触发（粮食储备/政府补贴/外援）。
+    report_prefix: "[气候社会推演🟡]"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # R12：多域系统性风险（Phase 2，初期关闭）
+  # ─────────────────────────────────────────────────────────────────────────
+  - rule_id: R12_systemic_multi_domain
+    name: "多域系统性风险（金融+社会+地缘三类压力）"
+    enabled: false
+    cooldown_days: 14
+    priority: 1
+    trigger:
+      window_days: 14
+      categories: ["信用风险", "社会政治危机", "流动性危机"]
+      min_categories: 3
+      min_scan_count: 2
+      min_avg_ratio: 1.8
+    hypothesis_template: >
+      [多域系统性风险] {category_names}三类信号同期压力（过去{window_days}天各类别均触发）。
+      代表性新闻：{trigger_titles}。当前GRV：台海={grv_taiwan}，中美={grv_us_china}。
+      请推演是否正在向复合危机演化（参考2022斯里兰卡多重叠加路径），重点分析：
+      ①三类信号并发的历史频率和典型演化路径；
+      ②金融、社会、地缘三维度之间的相互放大效应；
+      ③最需关注的3个月内触发节点和预警指标。
+    report_prefix: "[多域风险🔴]"

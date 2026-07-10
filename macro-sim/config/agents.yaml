@@ -1,0 +1,178 @@
+# agents.yaml — 12个宏观Agent配置
+# 修改此文件不需要重建镜像（热挂载）
+# 新增角色只需添加一条，代码无需改动（预留接口）
+
+agents:
+  - id: A1
+    name: 美联储
+    role: fed
+    class: financial.FedAgent
+    info_delay: 4        # 4个月延迟（政策会议节奏）
+    activation_prob: 0.30
+    knowledge_base_ref: "知识库/财经知识库/02_分析框架/央行决策框架.md"
+    transmission_coefficients:
+      to_A2: 0.60   # 美联储政策对商业银行信贷的传导
+      to_A7: 0.45   # 美联储加息对新兴市场资本外流的传导
+      to_A12: 0.55  # 美联储加息对日本套息平仓的传导
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: A2
+    name: 商业银行
+    role: commercial_bank
+    class: financial.CommercialBankAgent
+    info_delay: 2
+    activation_prob: 0.70
+    transmission_coefficients:
+      to_A3: 0.40   # 信贷收紧对对冲基金流动性的影响
+      to_A10: 0.35  # 信贷收紧对散户情绪的传导
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: A3
+    name: 对冲基金
+    role: hedge_fund
+    class: financial.HedgeFundAgent
+    info_delay: 0        # 即时，最灵敏
+    activation_prob: 1.00
+    transmission_coefficients:
+      to_A6: 0.50   # 对冲基金做空是媒体的信号来源
+      to_A10: 0.60  # 对冲基金行为直接影响散户跟风
+      to_A5: 0.40   # 对冲基金做空触发机构降险
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: A4
+    name: 能源国(OPEC+)
+    role: energy_gov
+    class: geopolitical.EnergyGovAgent
+    info_delay: 5        # 最慢，决策周期长
+    activation_prob: 0.20
+    transmission_coefficients:
+      to_A8: 0.35   # 能源供给变化对中国经济的传导
+      to_A7: 0.40   # 能源价格对新兴市场的冲击
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: A5
+    name: 机构投资者
+    role: institution
+    class: financial.InstitutionAgent
+    info_delay: 2
+    activation_prob: 0.60
+    transmission_coefficients:
+      to_A2: 0.30   # 机构降险时商业银行感知到流动性变化
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: A6
+    name: 媒体/舆论
+    role: media
+    class: social.MediaAgent
+    info_delay: 1
+    activation_prob: 0.80
+    transmission_coefficients:
+      to_A10: 0.70  # 媒体是散户行为的最主要驱动
+      to_A5: 0.20   # 媒体报道对机构情绪的微弱影响
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: A7
+    name: 新兴市场央行
+    role: em_central_bank
+    class: geopolitical.EMCentralBankAgent
+    info_delay: 3
+    activation_prob: 0.40
+    transmission_coefficients:
+      to_A4: 0.25   # 新兴市场资本管制对大宗商品需求的影响
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: A8
+    name: 中国央行/财政
+    role: china_pboc
+    class: geopolitical.ChinaPBOCAgent
+    info_delay: 3
+    activation_prob: 0.50
+    knowledge_base_ref: "知识库/财经知识库/02_按经济体/中国/"
+    transmission_coefficients:
+      to_A7: 0.48   # 中国信用扩张对新兴市场的传导（跨国联动矩阵）
+      to_A4: 0.30   # 中国需求对能源国的传导
+      to_A3: 0.28   # 中国政策对全球对冲基金的影响
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: A9
+    name: 美国财政部
+    role: us_treasury
+    class: financial.USTreasuryAgent
+    info_delay: 4
+    activation_prob: 0.30
+    transmission_coefficients:
+      to_A1: 0.40   # 财政政策与货币政策的协调/冲突
+      to_A3: 0.35   # 财政刺激对市场情绪的提振
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: A10
+    name: 散户/羊群
+    role: retail
+    class: social.RetailAgent
+    info_delay: 0        # 即时，最容易被驱动
+    activation_prob: 0.90
+    transmission_coefficients:
+      to_A6: 0.40   # 散户情绪反过来影响媒体报道角度
+      to_A2: 0.25   # 散户恐慌性挤兑影响商业银行
+    params:
+      sensitivity: 1.2  # 散户比专业机构更敏感
+      threshold: 0.4
+      magnitude: 0.8    # 但单个散户影响幅度小
+
+  - id: A11
+    name: 欧洲央行
+    role: ecb
+    class: financial.ECBAgent
+    info_delay: 4
+    activation_prob: 0.30
+    knowledge_base_ref: "知识库/财经知识库/02_按经济体/欧元区/"
+    transmission_coefficients:
+      to_A7: 0.35   # 欧央行政策对新兴市场的溢出
+      to_A12: 0.25  # 欧美联动影响日元套息
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: A12
+    name: 日本央行
+    role: boj
+    class: financial.BOJAgent
+    info_delay: 4
+    activation_prob: 0.25
+    knowledge_base_ref: "知识库/财经知识库/02_按经济体/日本/"
+    transmission_coefficients:
+      to_A3: 0.65   # 日本放弃YCC触发全球套息平仓，对冲基金最先感知
+      to_A5: 0.50   # 套息平仓冲击机构投资者
+      to_A7: 0.45   # 日元升值冲击新兴市场
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.5  # BOJ行动幅度大（YCC放弃是非线性事件）

@@ -1,0 +1,49 @@
+# === 敏感信息 ===
+key.txt
+docker-compose.yml
+.env
+
+# === 运行时数据 ===
+data/
+logs/
+
+# === 备份 ===
+备份/
+*.zip
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+.eggs/
+*.egg-info/
+
+# === IDE ===
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# === 临时文件 ===
+*.log
+.DS_Store
+
+# === 测试输出 ===
+gpr_fetch_test.log
+
+# === 运行时生成报告（容器持续写入）===
+docs/分析报告/
+docs/新闻库/
+docs/问题追踪_*.md
+
+# === 知识库生成物 ===
+知识库/财经知识库/07_分析报告/
+知识库/财经知识库/_update_tmp/
+知识库/财经知识库/*/_raw/
+知识库/财经知识库/*/*/_raw/
+
+# === 临时调试文件 ===
+核心代码/pyrun_tmp.py
+核心代码/*.bak
+核心代码/*.bak.*

@@ -1,0 +1,182 @@
+# 世界推演系统 INDEX
+
+> 生成时间：2026-06-30 | 版本：V3.5.26 | **只读索引，修改请更新 CHANGELOG**
+
+---
+
+## 活跃容器
+
+| 容器 | 镜像 | 端口 | 验证命令 | 备注 |
+|:---|:---|:---|:---|:---|
+| macro-scan-macro-scan-1 | macro-scan:v7 | 8899 (Web UI) | `docker ps --filter name=macro-scan --format '{{.Image}} {{.Status}}'` | 主容器，代码热挂载 S:盘 |
+
+---
+
+## 定时任务（scheduler.py）
+
+> 来源：`scheduler.py` JOBS 列表。所有时间 = 北京时间 (Asia/Shanghai)。
+
+| 任务 | 时间 | 频率 | 命令 | 状态 |
+|:---|:---|:---|:---|:---|
+| disaster | 05:25 | 每日 | `fetch_disaster_signals.py` | ✅ |
+| fred_fetch | 05:30 | 每日 | `fetch_fred_history.py` | ✅ |
+| gpr_fetch | 05:40 | 每日 | `fetch_gpr.py` | ✅ |
+| china_fetch | 05:45 | 每日 | `fetch_china_data.py` | ✅ |
+| weak_signal | 00:00 | 每日 | `scan_weak_signals.py` | ✅ |
+| weak_signal | 06:00 | 每日 | `scan_weak_signals.py` | ✅ |
+| weak_signal | 12:00 | 每日 | `scan_weak_signals.py` | ✅ |
+| weak_signal | 18:00 | 每日 | `scan_weak_signals.py` | ✅ |
+| grv_update | 06:10 | 每日 | `geo_risk_vector.py` | ✅ |
+| morning | 07:30 | 工作日 | `run_macro_analysis.py` | ✅ |
+| us_daily | 20:00 | 工作日 | `run_macro_analysis.py` | ✅ |
+| china_daily | 20:15 | 工作日 | `run_macro_analysis.py` | ✅ |
+| verify | 09:00 | 每月1日 | `verify_predictions.py` | ✅ |
+| kb_update | 09:05 | 每月1日 | `update_kb_numbers.py` | ✅ |
+| climate | 09:10 | 每月1日 | `fetch_climate_signals.py` | ✅ |
+| daily_narrative | 07:00 | 每日 | `daily_narrative.py` | ✅ |
+| news_export | 07:05 | 每日 | `news_exporter.py` | ✅ |
+| situation_detect | 06:30 | 每日 | `situation_detector.py` | ✅ |
+| weekly_synthesis | 20:00 | 周五 | `weekly_synthesis.py` | ✅ |
+| dashboard | 20:30 | 工作日 | `dashboard.py` | ✅ |
+| verify_auto | 09:15 | 每月1日 | `verify_hypothesis.py` | ✅ |
+| news_prune | 09:20 | 每月1日 | `` | ✅ |
+
+---
+
+## 数据管道
+
+| 管道 | 输入 | 输出 | 验证命令 | 备注 |
+|:---|:---|:---|:---|:---|
+| FRED | api.stlouisfed.org (36序列) | `data/fred_history/*.csv` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/fred_history/ \| wc -l` | 走 mihomo 代理 |
+| GPR | matteoiacoviello.com (7系列) | `data/fred_history/gpr_*.csv` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/fred_history/ \| grep gpr \| wc -l` | timeout=300s |
+| AkShare（中国） | akshare API | `data/china_history.jsonl` | `docker exec macro-scan-macro-scan-1 wc -l /workspace/data/china_history.jsonl` | 8 指标（含 LPR） |
+| GDELT 弱信号 | api.gdeltproject.org | `data/gdelt_scores.json` + `weak_signal_log.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/gdelt_scores.json')); print(list(d.keys()))"` | 每 6h 更新 |
+| GRV 地缘向量 | GDELT + GPR 聚合 | `data/grv_latest.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/grv_latest.json')); print({k:round(v,1) for k,v in d.items() if isinstance(v,(int,float))})"` | 5维向量 |
+| ChromaDB 向量库 | `知识库/` (558 .md) | `data/chroma_db/` (4156块) | `docker exec macro-scan-macro-scan-1 python3 -c "import chromadb; c=chromadb.PersistentClient(path='/workspace/data/chroma_db'); print(c.list_collections())"` | BAAI/bge-m3 嵌入 |
+| 新闻库 | RSSHub + Crucix | `data/news.db` + `latest_news.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import sqlite3; c=sqlite3.connect('/workspace/data/news.db'); print(c.execute('SELECT COUNT(*) FROM articles').fetchone()[0])"` | 双源 |
+| ntfy 推送 | `run_macro_analysis.py` | ntfy.sh/***REMOVED*** | `curl -s ntfy.sh/***REMOVED***/json?poll=1` | 强制直连 |
+
+---
+
+## LLM 调用链
+
+> Embedding 走硅基流动 BAAI/bge-m3（Ollama 已于 v3.5.25 移除）
+
+| 层级 | 模型 | API 端点 | 验证命令 | 状态 |
+|:---|:---|:---|:---|:---|
+| 主力 | MiniMax-M3 | api.minimaxi.com/anthropic | `grep -c "call_minimax" S:\macro-scan\核心代码\hybrid_llm.py` | ✅ |
+| 降级1 | MiMo v2.5 Pro | token-plan-cn.xiaomimimo.com/v1 | `docker exec macro-scan-macro-scan-1 env \| grep OPENAI_COMPAT` | ✅ |
+| 降级2 | SiliconFlow Qwen3.5-27B | api.siliconflow.cn/v1 | `docker exec macro-scan-macro-scan-1 env \| grep SILICONFLOW` | ✅ |
+| 兜底 | 纯数据报告 | N/A | N/A | ✅ |
+
+---
+
+## 关键文件路径
+
+| 文件 | 路径 | 用途 |
+|:---|:---|:---|
+| VERSION | `VERSION` | 语义化版本号 |
+| CHANGELOG | `TuiYan_CHANGELOG.md` | 变更日志（Keep a Changelog） |
+| 人类说明文档 | `世界推演系统_人类说明文档.md` | 使用维护手册 |
+| 系统 Prompt | `system_prompt.md` | LLM 分析框架 |
+| scheduler | `核心代码/scheduler.py` | Python 定时调度 |
+| 主入口 | `核心代码/run_macro_analysis.py` | 宏观分析主流水线 |
+| LLM 引擎 | `核心代码/hybrid_llm.py` | LLM 调用 + 降级链 |
+| 假设引擎 | `核心代码/hypothesis_engine.py` | 假设推演（H0-H12，详见 `docs/假设推演功能设计方案.md`） |
+| docker-compose | `docker-compose.yml` | 容器编排 |
+| entrypoint | `entrypoint.sh` | 容器启动脚本（改后需重建镜像） |
+
+---
+
+## 关键约束（维护铁律）
+
+1. 修改前：读 `TuiYan_CHANGELOG.md`（了解最新变更）
+2. 修改后：追加 `TuiYan_CHANGELOG.md` → bump `VERSION`（PATCH） → 更新对应文档
+3. 每次里程碑：打 zip 存 `备份/`
+4. ntfy 推送**强制直连**，不走代理（OUTBOUND_PROXY 仅给 FRED）
+5. `entrypoint.sh` 变更需重建镜像，文件必须无 BOM
+6. docker-compose.yml 改 env 后需 `up -d --force-recreate`（`restart` 不重新注入）
+7. 代码热挂载：改 `S:\macro-scan\核心代码\*.py` → 容器内 `/app/` 即时生效
+8. `/workspace/` 本身不挂载，只有子目录挂载
+
+---
+
+## 快速诊断
+
+```bash
+# 容器状态
+docker ps --filter name=macro-scan
+
+# scheduler 最新日志
+docker exec macro-scan-macro-scan-1 tail -20 /var/log/macro-scan/scheduler.log
+
+# 最新 GRV
+docker exec macro-scan-macro-scan-1 cat /workspace/data/grv_latest.json
+
+# 最近推送
+curl -s "https://ntfy.sh/***REMOVED***/json?poll=1&since=1h"
+
+# 所有状态一键 (Web UI)
+curl -s http://192.168.31.108:8899/api/data | python3 -m json.tool | head -30
+```
+
+---
+
+## ntfy 指令速查
+
+向 `***REMOVED***` 发消息，格式 `1900 <指令>`：
+
+| 指令 | 效果 |
+|:-----|:-----|
+| `1900 analysis` | 触发宏观分析报告生成（异步执行，立即返回不阻塞轮询循环） |
+| `1900 status` | 推送容器运行时间、最新报告文件名、news.db 文章数、定时任务计划等系统状态摘要 |
+| `1900 last` | 以文件附件形式重新推送最新分析报告，args[0] 可指定 china/us/both 过滤 |
+| `1900 news` | 触发新闻弱信号扫描（异步执行，立即返回不阻塞轮询循环） |
+| `1900 verify` | 触发预测校验（异步执行，立即返回不阻塞轮询循环） |
+| `1900 hypothesis` | 触发假设推演 |
+| `1900 ask` | 自由提问 |
+| `1900 situations` | 列出当前追踪的所有事件状态 |
+| `1900 confirm_situation` | 确认追踪自动检测的新情况，去掉 needs_review 标记 |
+| `1900 dismiss_situation` | 忽略并归档自动检测的情况（话题再次升温会自动恢复） |
+| `1900 narrative` | 立即生成并推送今日世界摘要（不等待07:00定时任务） |
+| `1900 weekly` | 立即生成并推送本周综合报告 |
+| `1900 help` | 推送所有可用指令列表（含语法示例）到 ntfy |
+| `1900 synthesize` | 手动触发指定 synthesis 规则（跳过冷却检查） |
+| `1900 silence` | 静默指定 synthesis 规则 N 天（写入虚拟冷却记录） |
+
+---
+
+## 路线图（时间门控）
+
+| 解锁时间 | 任务 |
+|:---------|:-----|
+| **2026-07-10**（C线上线30天后）| C线切Live：`signal_synthesizer.py` `STAGING_MODE=False`；R07开启 |
+| 2026-09-10（GDELT运行3个月）| 校准 religious_conflict/regime_change 的 scale 参数 |
+| 2026-11-19（N1上线180天）| N2 反向查询（宏观快照→历史新闻分布） |
+| 2027-05-23（N1上线1年）| N3 信号月度校验 |
+| 真实地缘事件发生后 | M2-4 校准闭环激活（见 `docs/假设推演功能设计方案.md` §校准闭环命令） |
+
+---
+
+## 宏观体制（regime）判断規則
+
+> 来源：`核心代码/regime_detector.py`。改此文件后必须同步本节。
+
+| 指标 | risk-on | risk-off/stress |
+|:-----|:--------|:----------------|
+| VIX | <15 → +1 | >25 → -1；>35 → stress直触 |
+| T10Y2Y | >0 → +1 | <-50bp → -1 |
+| BAA10Y | <1.8% → +1 | >3.5% → -1；>4.5% → stress |
+| DFF | <2% → +1 | 月环比>25bp → -1 |
+
+**三档体制**（`regime_detector.py` 返回全小写）：
+
+| 体制 | 触发条件 | 关键系数 |
+|:-----|:---------|:---------|
+| `normal` | 无压力信号 | rate_gdp_impact=-0.30，credit_multiplier=1.2 |
+| `stress` | 连续2季度触发 Z-score 压力阈值 | rate_gdp_impact=-0.80，credit_multiplier=2.5 |
+| `crisis` | NBER 衰退期 + VIX/BAA Z-score>1.5 | rate_gdp_impact=-1.50，credit_multiplier=4.0 |
+
+> 压力信号计数（满分8）：VIX_z / BAA_z / T10_z / unrate_3m / PPI>7% / CPI>3.5% / WTI>90 / GSCPI>1.5
+
+ 

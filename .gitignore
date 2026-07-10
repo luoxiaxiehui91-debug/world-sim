@@ -1,0 +1,21 @@
+# 生成文件/运行时文件
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.DS_Store
+**/Thumbs.db
+
+# 数据目录（各子项目运行时产生，不纳入版本控制）
+macro-scan/data/
+macro-scan/logs/
+macro-scan/docs/分析报告/
+macro-scan/docs/新闻库/
+macro-scan/docs/macro_dashboard.html
+
+# 敏感配置（各子项目保留自己的 .gitignore 处理 key.txt 等）
+macro-scan/key.txt
+macro-scan/docker-compose.yml
+
+# macro-sim 运行时
+macro-sim/output/
+macro-sim/sim_log.db

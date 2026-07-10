@@ -1,0 +1,205 @@
+# 假设推演情景模板（热加载）
+# 结构：aliases + categories + severity_params + synergy_rules
+
+aliases:
+  台海: {type: GEO, subtype: TAIWAN, severity: L2, label: "台海军事冲突升级"}
+  日元: {type: FIN, subtype: JPY_CARRY, severity: L2, label: "日元套利崩解"}
+  美债: {type: MACRO, subtype: UST, severity: L1, label: "美债信用降级/拍卖失败"}
+  油价: {type: ENERGY, subtype: OIL, severity: L2, label: "油价暴涨（供应冲击）"}
+  美联储: {type: FIN, subtype: FED_SURPRISE, severity: L1, label: "美联储意外加息"}
+  朝鲜: {type: GEO, subtype: DPRK, severity: L2, label: "朝鲜半岛军事紧张"}
+  俄乌: {type: GEO, subtype: RUSSIA_UKRAINE, severity: L2, label: "俄乌冲突升级"}
+  银行: {type: FIN, subtype: BANKING, severity: L2, label: "区域性银行危机"}
+  芯片: {type: TRADE, subtype: CHIP, severity: L2, label: "芯片禁令升级"}
+  关税: {type: TRADE, subtype: TARIFF, severity: L1, label: "关税战升级"}
+  # ── Phase 2 新增别名 ──────────────────────────────────────────────────────
+  厄尔尼诺: {type: CLIMATE, subtype: EL_NINO,       severity: L1, label: "厄尔尼诺导致粮食/社会冲击"}
+  拉尼娜:   {type: CLIMATE, subtype: LA_NINA,        severity: L1, label: "拉尼娜导致气候异常"}
+  粮食危机: {type: CLIMATE, subtype: FOOD,           severity: L2, label: "全球粮食供应危机"}
+  旱灾:     {type: CLIMATE, subtype: DROUGHT,        severity: L2, label: "持续干旱导致农业减产"}
+  洪灾:     {type: CLIMATE, subtype: FLOOD,          severity: L1, label: "极端洪涝灾害"}
+  社会动荡: {type: SOCIAL,  subtype: UNREST,         severity: L2, label: "大规模社会动荡"}
+  政变:     {type: POLITICAL, subtype: COUP,         severity: L3, label: "军事政变或政权强制更迭"}
+  政治危机: {type: POLITICAL, subtype: INSTABILITY,  severity: L2, label: "政治体制危机"}
+  文化抵制: {type: CULTURAL, subtype: BOYCOTT,       severity: L1, label: "跨国文化摩擦与消费者抵制"}
+  # ── 地缘覆盖扩展（HQ-20260611-001/002）────────────────────────────────────
+  伊朗:     {type: GEO, subtype: MIDDLE_EAST,        severity: L2, label: "伊朗地缘冲突或制裁升级"}
+  中东:     {type: GEO, subtype: MIDDLE_EAST,        severity: L2, label: "中东地区地缘风险上升"}
+  以色列:   {type: GEO, subtype: MIDDLE_EAST,        severity: L2, label: "以色列/中东军事冲突"}
+  沙特:     {type: ENERGY, subtype: OIL,             severity: L2, label: "沙特/OPEC能源供应冲击"}
+  印度:     {type: GEO, subtype: INDIA,              severity: L1, label: "印度地缘/经济风险"}
+  霍尔木兹: {type: ENERGY, subtype: HORMUZ,          severity: L2, label: "霍尔木兹海峡封锁/油价冲击"}
+  马六甲:   {type: TRADE, subtype: MALACCA,          severity: L2, label: "马六甲海峡航运中断"}
+  苏伊士:   {type: TRADE, subtype: SUEZ,             severity: L2, label: "苏伊士运河航运中断"}
+  # ── 超级大国别名（HQ-20260611-002，9.1条）────────────────────────────────
+  美国:     {type: MACRO, subtype: US_DOMESTIC,      severity: L1, label: "美国经济/政治风险"}
+  中国:     {type: MACRO, subtype: CN_DOMESTIC,      severity: L1, label: "中国经济/政治风险"}
+  # ── 南亚/土耳其/非洲深度覆盖 ──────────────────────────────────────────────
+  巴基斯坦: {type: GEO,  subtype: SOUTH_ASIA,        severity: L2, label: "巴基斯坦政治/经济危机"}
+  土耳其:   {type: GEO,  subtype: TURKEY,             severity: L1, label: "土耳其地缘/货币风险"}
+  尼日利亚: {type: GEO,  subtype: AFRICA,             severity: L1, label: "尼日利亚/非洲政治经济风险"}
+  埃及:     {type: GEO,  subtype: AFRICA,             severity: L1, label: "埃及/北非政治经济风险"}
+  # ── 战略矿产 ────────────────────────────────────────────────────────────
+  稀土:     {type: TRADE, subtype: RARE_EARTH,        severity: L2, label: "稀土/战略矿产出口管制"}
+  锂矿:     {type: TRADE, subtype: LITHIUM,           severity: L2, label: "锂矿/新能源矿产供应危机"}
+  # ── 科技竞争 ────────────────────────────────────────────────────────────
+  AI监管:   {type: CRISIS, subtype: AI_REGULATION,   severity: L1, label: "AI监管收紧/科技政策冲击"}
+  量子:     {type: CRISIS, subtype: QUANTUM,          severity: L1, label: "量子技术突破/安全冲击"}
+  太空:     {type: GEO,   subtype: SPACE,             severity: L1, label: "太空军事化/卫星反制"}
+  # ── 自然灾害 ────────────────────────────────────────────────────────────
+  地震:     {type: CRISIS, subtype: EARTHQUAKE,       severity: L2, label: "大规模地震/基础设施冲击"}
+  海啸:     {type: CRISIS, subtype: TSUNAMI,          severity: L2, label: "海啸/极端自然灾害"}
+  火山:     {type: CRISIS, subtype: VOLCANO,          severity: L1, label: "火山喷发/航运/气候冲击"}
+
+categories:
+  GEO:
+    name: 地缘政治冲突
+    keywords_zh: [台海, 军事冲突, 战争, 武统, 朝鲜, 俄乌, 中印, 南海, 地缘, 制裁, 封锁,
+                  伊朗, 霍尔木兹, 波斯湾, 中东, 核协议, 以色列, 真主党, 哈马斯,
+                  沙特, 阿布盖格, 胡塞武装, 红海, 印度, 边境冲突, 克什米尔,
+                  马六甲, 苏伊士, 巴拿马运河, 航道封锁, 曼德海峡,
+                  巴基斯坦, 伊斯兰堡, 印巴, 土耳其, 安卡拉, 里拉,
+                  尼日利亚, 拉各斯, 埃及, 开罗, 非洲, 太空, 卫星, 反卫星]
+    keywords_en: [Taiwan strait, military conflict, war, geopolitical, sanction, blockade,
+                  Iran, Hormuz, Persian Gulf, Middle East, nuclear deal, Israel, Hezbollah, Hamas,
+                  Saudi, Houthi, Red Sea, India, border conflict, Kashmir,
+                  Malacca, Suez Canal, Panama Canal, shipping disruption, Bab-el-Mandeb,
+                  Pakistan, Islamabad, Turkey, Ankara, lira, Nigeria, Lagos, Egypt, Cairo,
+                  space warfare, anti-satellite, ASAT, satellite jamming]
+    rag_queries:
+      - 大国博弈框架地缘冲突传导路径
+      - 地缘政治危机跨资产冲击历史案例
+      - 危机阈值框架军事冲突市场影响
+
+  FIN:
+    name: 金融市场冲击
+    keywords_zh: [加息, 降息, 美联储, 银行危机, 汇率崩溃, 信用收缩, 流动性枯竭, 日元, 套利]
+    keywords_en: [rate hike, Fed, banking crisis, currency crash, liquidity, carry trade]
+    rag_queries:
+      - 央行决策框架货币政策冲击历史案例
+      - 收益率曲线信用利差金融危机传导
+      - 银行危机流动性枯竭系统性风险
+
+  ENERGY:
+    name: 能源供应危机
+    keywords_zh: [油价, 天然气, OPEC, 能源, 石油, 管道, 断供, 原油暴涨]
+    keywords_en: [oil price, natural gas, OPEC, energy supply, crude oil spike]
+    rag_queries:
+      - 跨资产危机阈值能源冲击传导路径
+      - 板块轮动能源价格通胀历史案例
+      - 原油暴涨经济衰退历史相关性
+
+  TRADE:
+    name: 贸易与制裁
+    keywords_zh: [芯片禁令, 关税, 制裁, 出口管制, 供应链切断, 脱钩, 贸易战,
+                  稀土, 稀土管制, 锂矿, 钴, 镍, 战略矿产, 矿产禁令, 资源武器化]
+    keywords_en: [chip ban, tariff, sanction, export control, supply chain, decoupling,
+                  rare earth, rare earth ban, lithium, cobalt, nickel, critical minerals,
+                  mineral weaponization, resource sanctions]
+    rag_queries:
+      - 贸易战制裁供应链中断历史案例
+      - 芯片禁令半导体出口管制影响
+      - 关税战经济传导路径历史类比
+
+  MACRO:
+    name: 宏观经济变局
+    keywords_zh: [美债, 信用降级, 日元, 套利崩解, 衰退, 通缩, 债务危机, 财政悬崖]
+    keywords_en: [US debt downgrade, yen carry unwind, recession, deflation, debt crisis]
+    rag_queries:
+      - macro_regime_framework宏观体制切换
+      - VIX分析市场恐慌历史案例
+      - 美债信用降级财政风险传导
+
+  CRISIS:
+    name: 突发系统危机
+    keywords_zh: [疫情, 核事故, 基础设施, 网络攻击, 系统崩溃, 停电, 瘫痪,
+                  地震, 海啸, 火山, 自然灾害, 核泄漏,
+                  AI监管, 人工智能法案, 量子突破, 太空冲突, 卫星攻击, 无人机蜂群]
+    keywords_en: [pandemic, nuclear, infrastructure, cyberattack, blackout, systemic,
+                  earthquake, tsunami, volcanic eruption, natural disaster, nuclear leak,
+                  AI regulation, AI act, quantum breakthrough, space conflict, satellite attack,
+                  drone swarm, anti-satellite weapon]
+    rag_queries:
+      - 系统性危机传导机制历史案例
+      - 突发黑天鹅事件市场影响
+      - 全球供应链中断经济影响
+
+  CLIMATE:
+    name: 气候与自然环境冲击
+    keywords_zh: [厄尔尼诺, 拉尼娜, 粮食危机, 旱灾, 洪灾, 气候, 季风失败, 台风,
+                  飓风, 极端天气, 农业减产, 粮食价格, ONI指数]
+    keywords_en: [el nino, la nina, drought, flood, food crisis, crop failure,
+                  climate, monsoon, typhoon, hurricane, extreme weather, agriculture]
+    rag_queries:
+      - 气候风险传导框架粮食通胀社会影响
+      - 厄尔尼诺拉尼娜主产区农业冲击历史案例
+      - 极端天气粮食价格新兴市场社会稳定
+
+  CULTURAL:
+    name: 文化摩擦与软实力冲突
+    keywords_zh: [抵制, 软实力, 文化冲突, 品牌抵制, 消费者抵制, 官媒, 本土替代,
+                  信息战, 媒体禁令, 舆论战]
+    keywords_en: [boycott, soft power, cultural conflict, brand ban, consumer boycott,
+                  information warfare, media ban, cultural friction]
+    rag_queries:
+      - 文化摩擦软实力冲突企业营收影响
+      - 消费者抵制品牌抵制历史案例量化
+      - 贸易摩擦文化因素本土替代效应
+
+severity_params:
+  L1:
+    name: 压力/紧张
+    description: 外交摩擦、言辞升级、制裁威胁
+    vix_mult: 0.30
+    lambda_mult: 1.5
+    sigma_mult: 1.2
+    regime_force: risk-off
+    keywords: [紧张, 摩擦, 威胁, 警告, 制裁威胁, L1, 轻度, 压力]
+
+  L2:
+    name: 冲突/震荡
+    description: 局部军事行动、市场大幅波动
+    vix_mult: 0.80
+    lambda_mult: 2.5
+    sigma_mult: 1.8
+    regime_force: stress
+    keywords: [冲突, 军事行动, 震荡, 暴跌, 爆发, L2, 中度, 冲突]
+
+  L3:
+    name: 危机/断裂
+    description: 全面战争、金融系统性崩溃
+    vix_mult: 1.50
+    lambda_mult: 4.0
+    sigma_mult: 2.5
+    regime_force: stress
+    keywords: [全面战争, 崩溃, 系统性, 断裂, 危机, L3, 极端, 灾难]
+
+synergy_rules:
+  - primary: GEO
+    secondary: ENERGY
+    energy_disruption_mult: 1.5
+    note: "地缘冲突+能源危机：能源供应中断概率显著放大"
+  - primary: GEO
+    secondary: TRADE
+    supply_chain_mult: 1.4
+    note: "地缘冲突+贸易制裁：供应链重构压力叠加"
+  - primary: FIN
+    secondary: MACRO
+    recession_mult: 1.6
+    note: "金融冲击+宏观下行：衰退加速效应"
+  - primary: FIN
+    secondary: ENERGY
+    stagflation_mult: 1.3
+    note: "金融收紧+能源涨价：滞胀风险上升"
+  - primary: CLIMATE
+    secondary: SOCIAL
+    cascade_mult: 1.6
+    note: "气候冲击×社会脆弱性：粮食通胀→社会压力非线性放大"
+  - primary: CLIMATE
+    secondary: TRADE
+    supply_shock_mult: 1.5
+    note: "气候冲击×贸易制裁：供给端双重压缩（粮食/商品出口受阻）"
+  - primary: CULTURAL
+    secondary: TRADE
+    retaliation_mult: 1.4
+    note: "文化摩擦×贸易制裁：从消费层面上升至政策层面报复"
