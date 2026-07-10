@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-NTFY_URL    = "http://192.168.31.108:2586/macro-tsx-9005"
+NTFY_URL    = "https://ntfy.sh/macro-tsx-9005"
 REPORT_DIR  = Path(os.environ.get("REPORT_DIR", "/app/reports"))
 TRIGGER_PATH = Path("/app/sim_trigger.json")
 
