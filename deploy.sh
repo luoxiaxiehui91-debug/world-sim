@@ -15,6 +15,8 @@ deploy_scan() {
     --exclude='data/' \
     --exclude='logs/' \
     --exclude='知识库/财经知识库/07_分析报告/' \
+    --exclude='知识库/财经知识库/_update_tmp/' \
+    --exclude='知识库/财经知识库/*/_raw/' \
     --exclude='docker-compose.yml' \
     --exclude='key.txt' \
     --exclude='docs/分析报告/' \
