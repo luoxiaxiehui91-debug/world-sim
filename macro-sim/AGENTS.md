@@ -138,7 +138,7 @@ git add -A && git commit -m "..." && git push origin main
 
 | macro-scan | macro-sim | 接口 schema |
 |---|---|---|
-| v3.5.33+ | v2.0.0+ | grv v1.0 / news v1.0 |
+| v3.5.41+   | v2.0.2+   | grv v1.0 / news v1.0 |
 
 **接口变更三步走：**
 1. 同时更新两边 AGENTS.md 的本节
@@ -147,9 +147,9 @@ git add -A && git commit -m "..." && git push origin main
 
 **macro-scan → macro-sim 数据文件：**
 
-- `grv_history.jsonl`：月度 GRV 快照，校准循环读取
-- `grv_latest.json`：当前 GRV，需含 `_schema_version: "1.0"`
-- `fred_history/T10Y2Y.csv` / `BAA10Y.csv` / `DFF.csv`：FRED 日度数据，单位 `%`
+- `grv_history.jsonl`：GRV 快照序列（1985~2026-06 月频，2026-07 起日频），校准循环读取。⚠️ **读基线时应按日期范围（6个月前）查找，不应用行偏移 `lines[-N]`**
+- `grv_latest.json`：当前 GRV，需含 `_schema_version: "1.0"`；v3.5.41 起稳定包含 `japan_monetary` 字段
+- `fred_history/T10Y2Y.csv` / `BAA10Y.csv` / `DFF.csv`：FRED 日度数据，单位 `%`，读取后 ×100 转 bp
 - `news_export.json`：近7天新闻，需含 `_schema_version: "1.0"`
 - `sim_trigger.json`：触发文件，格式 `{"level":3,"event":"...","triggered_at":"..."}`
 

@@ -1,6 +1,6 @@
 # 世界推演系统 INDEX
 
-> 生成时间：2026-06-30 | 版本：V3.5.26 | **只读索引，修改请更新 CHANGELOG**
+> 生成时间：2026-07-10 | 版本：v3.5.41 | **只读索引，修改请更新 CHANGELOG**
 
 ---
 
@@ -51,7 +51,7 @@
 | GPR | matteoiacoviello.com (7系列) | `data/fred_history/gpr_*.csv` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/fred_history/ \| grep gpr \| wc -l` | timeout=300s |
 | AkShare（中国） | akshare API | `data/china_history.jsonl` | `docker exec macro-scan-macro-scan-1 wc -l /workspace/data/china_history.jsonl` | 8 指标（含 LPR） |
 | GDELT 弱信号 | api.gdeltproject.org | `data/gdelt_scores.json` + `weak_signal_log.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/gdelt_scores.json')); print(list(d.keys()))"` | 每 6h 更新 |
-| GRV 地缘向量 | GDELT + GPR 聚合 | `data/grv_latest.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/grv_latest.json')); print({k:round(v,1) for k,v in d.items() if isinstance(v,(int,float))})"` | 5维向量 |
+| GRV 地缘向量 | GDELT + GPR 聚合 + japan_monetary | `data/grv_latest.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/grv_latest.json')); print({k:round(v,1) for k,v in d.items() if isinstance(v,(int,float))})"` | 8维向量（含 japan_monetary），每日 06:10 原子写入 |
 | ChromaDB 向量库 | `知识库/` (558 .md) | `data/chroma_db/` (4156块) | `docker exec macro-scan-macro-scan-1 python3 -c "import chromadb; c=chromadb.PersistentClient(path='/workspace/data/chroma_db'); print(c.list_collections())"` | BAAI/bge-m3 嵌入 |
 | 新闻库 | RSSHub + Crucix | `data/news.db` + `latest_news.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import sqlite3; c=sqlite3.connect('/workspace/data/news.db'); print(c.execute('SELECT COUNT(*) FROM articles').fetchone()[0])"` | 双源 |
 | ntfy 推送 | `run_macro_analysis.py` | ntfy.sh/macro-tsx-9005 | `curl -s ntfy.sh/macro-tsx-9005/json?poll=1` | 强制直连 |
