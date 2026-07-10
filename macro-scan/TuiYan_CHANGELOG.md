@@ -3736,6 +3736,21 @@ body 首行固定：⚠️ 低置信度推演 · 社会类上限🟡，仅供参
 
 ---
 
+## v3.5.42 — 2026-07-10 (by Claude)
+
+### 文档
+
+**新建根级 `AGENTS.md`：monorepo 统一入口文档**
+
+- **根因**：`S:\world-sim\` 根目录仅有 README.md（部署说明），新 session 打开 monorepo 时无法定位阅读路径，入口混乱
+- **修改**：
+  - 新建 `S:\world-sim\AGENTS.md`：一句话系统定位、两个子系统对比表、新 session 阅读路径（4步）、关键操作约束（git/deploy/热挂载/COPY模式）、数据接口契约摘要、子系统 AGENTS.md 链接
+  - `macro-scan/AGENTS.md`："新 session 快速继续"节开头加一行 monorepo 入口提示（`../AGENTS.md`）
+  - `macro-sim/AGENTS.md`：同上
+- **验证**：按新 AGENTS.md 指定的阅读路径走通，所有文件路径可找到，内容无矛盾
+
+---
+
 ## v3.5.41 — 2026-07-10 (by Claude)
 
 ### Bug 修复

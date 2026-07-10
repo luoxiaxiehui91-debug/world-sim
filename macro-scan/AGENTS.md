@@ -159,6 +159,8 @@ pre-commit install   # 在源码区 S:\world-sim\macro-scan\ 执行一次即可
 
 ## 新 session 快速继续
 
+> 如在 monorepo 中工作，先读根目录 `../AGENTS.md`（系统全貌 + 阅读路径入口）。
+
 ```
 读 AGENTS.md（本文件）→ 读 TuiYan_CHANGELOG.md（最新变更）→ 按需读 INDEX.md（运行状态）
 → 告知当前版本和最新状态，然后开始工作。

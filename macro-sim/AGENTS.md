@@ -155,6 +155,8 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 
 ## 新 session 快速继续
 
+> 如在 monorepo 中工作，先读根目录 `../AGENTS.md`（系统全貌 + 阅读路径入口）。
+
 ```
 读 AGENTS.md → 读 docs/design_v2.md → 看 CHANGELOG.md 最新条目
 → 确认当前版本和状态，然后开始工作
