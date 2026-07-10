@@ -1,6 +1,6 @@
 # FILE_MANIFEST — 文件清单与职责说明
 
-> 版本：v3.5.32 | 最后更新：2026-07-08
+> 版本：v3.5.41 | 最后更新：2026-07-10
 > 本文档描述 macro-scan 项目各文件的职责、挂载路径和修改影响。
 
 ---
@@ -64,7 +64,7 @@
 | `scan_weak_signals.py` | 弱信号扫描（GDELT + RSS，每6h） |
 | `situation_detector.py` | 事件情势检测与分级 |
 | `situation_tracker.py` | 持续情势追踪与状态机 |
-| `geo_risk_vector.py` | GRV 地缘风险向量聚合（5维） |
+| `geo_risk_vector.py` | GRV 地缘风险向量聚合（8维：5地缘+climate+disaster+japan_monetary）；v3.5.41 修复 `compute_grv` NameError |
 | `grv_threshold.py` | GRV 阈值判断与告警 |
 | `assess_structural_dimensions.py` | 结构性维度评估（L1-L4） |
 | `sector_rotation.py` | 板块轮动分析 |
