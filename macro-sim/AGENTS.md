@@ -13,7 +13,7 @@
 ## 目录结构
 
 ```
-macro-sim-src/
+macro-sim/                ← 本地工作目录（S:\world-sim\macro-sim\，git 仓库子目录）
 ├── core/
 │   ├── agents/
 │   │   ├── base.py         # MacroAgent 基类 + AgentParams（三参数接口）
@@ -86,16 +86,14 @@ python run.py --predict-only --level 2 --event "测试"
 ## 修改工作流
 
 ```bash
-# 本地修改后同步到 NAS
-rsync -av --exclude='.git' --exclude='output/' --exclude='sim_log.db' \
-  macro-sim-src/ /vol2/1000/software/macro-sim/
-cd /vol2/1000/software/macro-sim
-docker build -t macro-sim:latest .
-docker compose up -d --force-recreate
+# macro-sim 是 COPY 模式，改代码后需重建镜像，用 deploy.sh 部署
+# 在 world-sim monorepo 根目录执行：
+bash /s/world-sim/deploy.sh macro-sim
 
-# push 到 GitHub
-cd /s/macro-sim-src
-git add -A && git commit -m "..." && git push origin main
+# push 到 GitHub（在 S:\world-sim\ 执行）
+git -C /s/world-sim add macro-sim/
+git -C /s/world-sim commit -m "..."
+git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 ```
 
 ---

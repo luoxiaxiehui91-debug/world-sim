@@ -25,7 +25,7 @@
 ## 目录结构
 
 ```
-macro-scan-src/               ← 本地工作目录（git 仓库）
+macro-scan/               ← 本地工作目录（S:\world-sim\macro-scan\，git 仓库子目录）
 ├── 核心代码/                 ← Python 源码（容器内挂载为 /app）
 ├── 知识库/财经知识库/         ← 人工维护的分析框架、历史案例、知识库文档
 ├── docs/                     ← 文档（设计方案、操作日志、runbooks；分析报告不在git里）
@@ -116,7 +116,7 @@ git -c http.proxy=http://192.168.31.108:7890 push origin main
 4. **绝对不要** 把 `核心代码/` 内的 .py 分子目录
 5. **ntfy 推送强制直连**，不走代理
 6. `entrypoint.sh` 必须无 UTF-8 BOM
-7. **只在源码区改代码**（`S:\macro-scan-src\`），改完验证后再推 NAS 和 GitHub
+7. **只在源码区改代码**（`S:\world-sim\macro-scan\`），改完验证后再推 NAS 和 GitHub
 
 ### 联动矩阵（改了左边 → 必须同时更新右边）
 
@@ -141,7 +141,7 @@ git -c http.proxy=http://192.168.31.108:7890 push origin main
 
 ```bash
 pip install pre-commit
-pre-commit install   # 在源码区 S:\macro-scan-src\ 执行一次即可
+pre-commit install   # 在源码区 S:\world-sim\macro-scan\ 执行一次即可
 ```
 
 ---
