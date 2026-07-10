@@ -44,6 +44,9 @@ class MacroWorldState:
     china_credit_impulse: float = 0.0 # 中国信用脉冲 [-1,1]，正=扩张
     us_fiscal_pressure: float = 0.0   # 美国财政压力 [0,1]
     yen_carry_risk: float = 0.0       # 日元套息平仓风险 [0,1]
+    usd_cny: float = 7.1              # 美元/人民币汇率
+    ecb_rate: float = 3.0             # 欧央行利率 %
+    sp500_change: float = 0.0         # 标普500 6个月涨跌幅 [0,1] 归一（负=下跌）
 
     # ── 仿真元数据 ────────────────────────────────────────
     cycle: int = 0
@@ -112,12 +115,19 @@ class MacroWorldState:
         if agent_role == "china_pboc":
             ctx["china_credit_impulse"] = round(self.china_credit_impulse, 3)
             ctx["us_china_grv"]         = round(self.us_china_grv, 3)
+            ctx["usd_cny"]              = round(self.usd_cny, 4)
 
         if agent_role == "us_treasury":
             ctx["us_fiscal_pressure"] = round(self.us_fiscal_pressure, 3)
 
         if agent_role == "boj":
             ctx["yen_carry_risk"] = round(self.yen_carry_risk, 3)
+
+        if agent_role == "ecb":
+            ctx["ecb_rate"] = round(self.ecb_rate, 2)
+
+        if agent_role in ("hedge_fund", "institution"):
+            ctx["sp500_change"] = round(self.sp500_change, 4)
 
         if agent_role == "retail":
             ctx["retail_panic"] = round(self.retail_panic, 3)
@@ -144,6 +154,9 @@ class MacroWorldState:
             "china_credit_impulse":   round(self.china_credit_impulse, 3),
             "us_fiscal_pressure":     round(self.us_fiscal_pressure, 3),
             "yen_carry_risk":         round(self.yen_carry_risk, 3),
+            "usd_cny":                round(self.usd_cny, 4),
+            "ecb_rate":               round(self.ecb_rate, 2),
+            "sp500_change":           round(self.sp500_change, 4),
             "consecutive_negative_steps": self.consecutive_negative_steps,
         }
 
@@ -392,11 +405,32 @@ def load_from_macro_scan(
     t10y2y_raw    = read_latest("T10Y2Y.csv")
     credit_raw    = read_latest("BAA10Y.csv")
     dff_raw       = read_latest("DFF.csv")
+    dexjpus_raw   = read_latest("DEXJPUS.csv")
+    dexchus_raw   = read_latest("DEXCHUS.csv")
+    ecbdfr_raw    = read_latest("ECBDFR.csv")
+    sp500_latest  = read_latest("SP500.csv")
+    sp500_6m_ago  = read_baseline("SP500.csv", lookback=6)
 
     # FRED 存储单位是 %，t10y2y 和 credit_spread 换算成 bps（×100）
     t10y2y        = (t10y2y_raw * 100) if t10y2y_raw is not None else -10.0
     credit_spread = (credit_raw * 100) if credit_raw is not None else 250.0
     dff           = dff_raw if dff_raw is not None else 5.0
+
+    # DEXJPUS → yen_carry_risk，>155 高风险，按 (val-120)/50 归一化到 [0,1]
+    yen_carry_risk = 0.0
+    if dexjpus_raw is not None:
+        yen_carry_risk = max(0.0, min(1.0, (dexjpus_raw - 120.0) / 50.0))
+
+    # DEXCHUS → usd_cny
+    usd_cny = dexchus_raw if dexchus_raw is not None else 7.1
+
+    # ECBDFR → ecb_rate（单位直接是 %）
+    ecb_rate = ecbdfr_raw if ecbdfr_raw is not None else 3.0
+
+    # SP500 6个月涨跌幅
+    sp500_change = 0.0
+    if sp500_latest is not None and sp500_6m_ago is not None and sp500_6m_ago != 0:
+        sp500_change = (sp500_latest - sp500_6m_ago) / sp500_6m_ago
 
     grv_hist_path = os.path.join(os.path.dirname(grv_path), "grv_history.jsonl")
     grv_baseline_val = grv_composite
@@ -430,6 +464,25 @@ def load_from_macro_scan(
     except Exception:
         pass
 
+    # 从 situations.yaml 读取 escalating 事件，补充 trigger_event 和 recent_news
+    situations_path = os.path.join(os.path.dirname(fred_path), "situations.yaml")
+    try:
+        import yaml
+        with open(situations_path) as f:
+            sit_data = yaml.safe_load(f)
+        escalating = [s for s in sit_data.get("situations", []) if s.get("status") == "escalating"]
+        for sit in escalating:
+            name = sit.get("name", "")
+            signals = sit.get("recent_signals", [])
+            first_signal = signals[0] if signals else ""
+            if not trigger_event and name:
+                trigger_event = name
+            if name and first_signal:
+                recent_news.append(f"[{name}] {first_signal}")
+        recent_news = recent_news[:8]
+    except Exception as e:
+        print(f"[world_state] situations.yaml 读取失败：{e}")
+
     return MacroWorldState(
         vix=float(vix), vix_baseline=float(vix_baseline),
         grv=float(grv_composite), grv_baseline=float(grv_baseline_val),
@@ -440,6 +493,10 @@ def load_from_macro_scan(
         t10y2y=float(t10y2y),
         credit_spread=float(credit_spread),
         dff=float(dff),
+        yen_carry_risk=float(yen_carry_risk),
+        usd_cny=float(usd_cny),
+        ecb_rate=float(ecb_rate),
+        sp500_change=float(sp500_change),
         situation_level=situation_level,
         trigger_event=trigger_event,
         recent_news=recent_news,
