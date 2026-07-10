@@ -1,0 +1,359 @@
+"""
+混合LLM调用层：日常简报用 SiliconFlow，复杂推演可选 Claude API。
+"""
+import os
+import time
+import requests
+import concurrent.futures
+from optim_config import ANTHROPIC_API_KEY
+
+_TMP_DIR = os.environ.get("TMPDIR", "/tmp")
+CLAUDECODE_PROMPT_FILE   = os.path.join(_TMP_DIR, "llm_prompt.txt")
+CLAUDECODE_RESPONSE_FILE = os.path.join(_TMP_DIR, "llm_response.txt")
+CLAUDECODE_TIMEOUT       = 600   # 秒
+
+SILICONFLOW_URL   = "https://api.siliconflow.cn/v1"
+SILICONFLOW_KEY   = os.environ.get("SILICONFLOW_API_KEY", "")
+SILICONFLOW_MODEL = os.environ.get("SILICONFLOW_MODEL", "Qwen/Qwen3.5-27B")
+
+MINIMAX_URL   = os.environ.get("MINIMAX_URL", "https://api.minimaxi.com/anthropic")
+MINIMAX_KEY   = os.environ.get("MINIMAX_API_KEY", "")
+MINIMAX_MODEL = os.environ.get("MINIMAX_MODEL", "MiniMax-M3")
+
+# 重试配置
+_CALL_LOCAL_MAX_RETRIES = 1      # 空响应/可重试错误最多重试次数（1次重试+原始=共2次即降级）
+_CALL_LOCAL_RETRY_DELAY = 5      # 重试间隔（秒）
+
+# 宏观推演专用 system prompt
+MACRO_SYSTEM_PROMPT = """你是一位严谨的宏观经济推演专家，擅长多步因果链分析。
+
+分析要求：
+1. 每个推演步骤必须说明：变量→传导机制→下游影响，并给出方向和量级估计
+2. 区分短期（1-3个月）、中期（3-12个月）、长期（>12个月）影响
+3. 明确说明关键假设和主要不确定性来源
+4. 结论给出概率区间，而非单点预测
+5. 如果与历史案例有可比性，请引用并说明异同
+
+禁止：空泛描述、无依据的断言、忽略不确定性。"""
+
+
+def _estimate_tokens(text: str) -> int:
+    """粗估 token 数（英文约4字符/token，中文约2字符/token）。"""
+    chinese = sum(1 for c in text if '一' <= c <= '鿿')
+    other   = len(text) - chinese
+    return chinese // 2 + other // 4
+
+
+def call_claudecode(prompt: str, system: str = "") -> str:
+    """通过文件与 Claude Code 交互：写 prompt，等待响应文件出现。
+    用 PID 命名文件，避免多进程互相抢占。
+    """
+    pid = os.getpid()
+    _tmp = os.environ.get("TMPDIR", "/tmp")
+    prompt_file   = os.path.join(_tmp, f"llm_prompt_{pid}.txt")
+    response_file = os.path.join(_tmp, f"llm_response_{pid}.txt")
+    pid_pointer   = os.path.join(_tmp, "llm_latest_pid.txt")
+
+    # 清理本 PID 可能的残留
+    for f in (prompt_file, response_file):
+        if os.path.exists(f):
+            try: os.remove(f)
+            except OSError: pass
+
+    # 写 PID 指针（方便外部找到当前 prompt 文件）
+    os.makedirs(_tmp, exist_ok=True)
+    with open(pid_pointer, "w", encoding="utf-8") as f:
+        f.write(str(pid))
+
+    # 写 prompt
+    with open(prompt_file, "w", encoding="utf-8") as f:
+        f.write(f"[SYSTEM]\n{system or MACRO_SYSTEM_PROMPT}\n\n[PROMPT]\n{prompt}")
+
+    print(f"[claudecode] prompt 已写入 {prompt_file}，等待 Claude Code 响应...")
+
+    deadline = time.time() + CLAUDECODE_TIMEOUT
+    while time.time() < deadline:
+        if os.path.exists(response_file):
+            time.sleep(0.8)   # 等写入完成
+            try:
+                with open(response_file, "r", encoding="utf-8") as f:
+                    response = f.read().strip()
+                if response:
+                    for f in (response_file, prompt_file, pid_pointer):
+                        try: os.remove(f)
+                        except OSError: pass
+                    return response
+            except (FileNotFoundError, PermissionError):
+                pass  # 文件刚好被其他进程抢走，继续轮询
+        time.sleep(2)
+
+    raise TimeoutError(f"Claude Code 未在 {CLAUDECODE_TIMEOUT}s 内响应")
+
+
+def _do_siliconflow_request(prompt: str, system: str, max_tokens: int):
+    """执行单次 SiliconFlow API 请求，返回 (result_str, response_obj, elapsed)。
+    result_str 为 None 表示空响应（需要重试）。
+    抛出可重试异常（HTTPError 429/503）或不可重试异常。
+    """
+    start_ts = time.time()
+    try:
+        resp = requests.post(
+            f"{SILICONFLOW_URL}/chat/completions",
+            headers={"Authorization": f"Bearer {SILICONFLOW_KEY}", "Content-Type": "application/json"},
+            json={
+                "model": SILICONFLOW_MODEL,
+                "max_tokens": max_tokens,
+                "temperature": 0.3,
+                "messages": [
+                    {"role": "system", "content": system or MACRO_SYSTEM_PROMPT},
+                    {"role": "user",   "content": prompt},
+                ],
+            },
+            timeout=180,
+        )
+        elapsed = time.time() - start_ts
+        rl_remain = resp.headers.get("X-RateLimit-Remaining", "N/A")
+        rl_reset  = resp.headers.get("X-RateLimit-Reset", "N/A")
+        print(f"[call_local] RESPONSE | status={resp.status_code} elapsed={elapsed:.1f}s rateLimit_remain={rl_remain} reset={rl_reset}")
+        resp.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        elapsed = time.time() - start_ts
+        status = e.response.status_code if e.response is not None else 0
+        print(f"[call_local] HTTP ERROR | status={status} elapsed={elapsed:.1f}s body={e.response.text[:500]}")
+        # 429/503 可重试
+        if status in (429, 503):
+            raise _RetryableError(f"HTTP {status}, 可重试") from e
+        raise
+    except requests.exceptions.Timeout:
+        elapsed = time.time() - start_ts
+        print(f"[call_local] TIMEOUT | elapsed={elapsed:.1f}s (>{180}s)")
+        raise _RetryableError("请求超时, 可重试")
+    except Exception as e:
+        elapsed = time.time() - start_ts
+        import traceback
+        print(f"[call_local] ERROR | elapsed={elapsed:.1f}s exception={type(e).__name__}: {e}")
+        traceback.print_exc()
+        raise
+
+    try:
+        result = resp.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as e:
+        raise ValueError(f"SiliconFlow 响应格式异常: {e} | 原始响应: {resp.text[:300]}")
+
+    if not result:
+        # 空响应，标记为可重试
+        return None, resp, elapsed
+
+    return result, resp, elapsed
+
+
+class _RetryableError(Exception):
+    """可重试的异常标记。"""
+    pass
+
+
+def call_local(prompt: str, system: str = "", max_tokens: int = 2048) -> str:
+    """调用 SiliconFlow API 生成报告（原 Ollama 接口，已迁移至 SiliconFlow）。
+
+    支持自动重试：空响应、429/503、超时时自动重试最多 _CALL_LOCAL_MAX_RETRIES 次。
+    """
+    if not SILICONFLOW_KEY:
+        raise ValueError("SILICONFLOW_API_KEY 未设置")
+
+    prompt_tokens = _estimate_tokens(prompt)
+    system_tokens = _estimate_tokens(system or MACRO_SYSTEM_PROMPT)
+    total_tokens = prompt_tokens + system_tokens
+    print(f"[call_local] START | prompt_tokens≈{prompt_tokens} system_tokens≈{system_tokens} total≈{total_tokens} max_tokens={max_tokens}")
+
+    last_error = None
+    for attempt in range(1, _CALL_LOCAL_MAX_RETRIES + 2):  # 1次原始 + N次重试
+        if attempt > 1:
+            delay = _CALL_LOCAL_RETRY_DELAY * (attempt - 1)
+            print(f"[call_local] RETRY #{attempt-1}/{_CALL_LOCAL_MAX_RETRIES} | 等待 {delay}s...")
+            time.sleep(delay)
+
+        try:
+            result, resp, elapsed = _do_siliconflow_request(prompt, system, max_tokens)
+            if result is None:
+                # 空响应
+                print(f"[call_local] 空响应 | attempt={attempt} elapsed={elapsed:.1f}s")
+                last_error = ValueError(f"SiliconFlow 返回空响应（模型={SILICONFLOW_MODEL}）")
+                continue  # 重试
+            print(f"[call_local] OK | result_chars={len(result)} elapsed={elapsed:.1f}s attempt={attempt}")
+            return result
+        except _RetryableError as e:
+            print(f"[call_local] 可重试错误 | attempt={attempt} error={e}")
+            last_error = e
+            continue  # 重试
+        except Exception:
+            raise  # 不可重试错误，直接抛出
+
+    # 所有重试耗尽
+    if last_error:
+        raise last_error
+    raise ValueError(f"SiliconFlow 返回空响应（模型={SILICONFLOW_MODEL}，重试{_CALL_LOCAL_MAX_RETRIES}次后仍失败）")
+
+
+def call_openai_compat(prompt: str, system: str = "", max_tokens: int = 4096) -> str:
+    """用 OpenAI 兼容端点调用 LLM（如 MiMo），无需 openai 包，直接用 requests。"""
+    base_url = os.environ.get("OPENAI_COMPAT_URL", "").rstrip("/")
+    api_key  = os.environ.get("OPENAI_COMPAT_KEY") or ANTHROPIC_API_KEY
+    model    = os.environ.get("OPENAI_COMPAT_MODEL") or os.environ.get("CLAUDE_MODEL", "gpt-4o")
+    if not base_url:
+        raise ValueError("未设置 OPENAI_COMPAT_URL")
+    if not api_key:
+        raise ValueError("未设置 OPENAI_COMPAT_KEY 或 ANTHROPIC_API_KEY")
+
+    if _estimate_tokens(prompt) > 150_000:
+        prompt = prompt[:400_000] + "\n\n[输入过长，已截断]"
+
+    print(f"[call_openai_compat] START | prompt_tokens={_estimate_tokens(prompt)} max_tokens={max_tokens} url={base_url}")
+    start_ts = time.time()
+    resp = requests.post(
+        f"{base_url}/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": [
+                {"role": "system", "content": system or MACRO_SYSTEM_PROMPT},
+                {"role": "user",   "content": prompt},
+            ],
+        },
+        timeout=180,
+    )
+    elapsed = time.time() - start_ts
+    rl_remain = resp.headers.get("X-RateLimit-Remaining", "N/A")
+    rl_reset  = resp.headers.get("X-RateLimit-Reset", "N/A")
+    print(f"[call_openai_compat] RESPONSE | status={resp.status_code} elapsed={elapsed:.1f}s rateLimit_remain={rl_remain}")
+    resp.raise_for_status()
+    try:
+        result = resp.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as e:
+        raise ValueError(f"OpenAI兼容端点响应格式异常: {e} | 原始响应: {resp.text[:300]}")
+    if not result:
+        raise ValueError("OpenAI兼容端点返回空响应")
+    print(f"[call_openai_compat] OK | result_chars={len(result)} elapsed={time.time()-start_ts:.1f}s")
+    return result
+
+
+def call_claude(prompt: str, system: str = "", max_tokens: int = 4096) -> str:
+    """调用 Anthropic Claude API（需 ANTHROPIC_API_KEY 和 anthropic 包）。"""
+    if not ANTHROPIC_API_KEY:
+        raise ValueError("未设置 ANTHROPIC_API_KEY")
+
+    try:
+        import anthropic
+    except ImportError:
+        raise ImportError("请先安装: pip install anthropic")
+
+    # 超长输入保护：超过 150K token 截断
+    if _estimate_tokens(prompt) > 150_000:
+        prompt = prompt[:400_000] + "\n\n[输入过长，已截断]"
+
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    msg = client.messages.create(
+        model=_CLAUDE_MODEL,
+        max_tokens=max_tokens,
+        system=system or MACRO_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return msg.content[0].text
+
+
+def call_minimax(prompt: str, system: str = "", max_tokens: int = 8192) -> str:
+    """调用 MiniMax-M3（Anthropic 兼容 API）。"""
+    if not MINIMAX_KEY:
+        raise ValueError("MINIMAX_API_KEY 未设置")
+
+    try:
+        import anthropic
+    except ImportError:
+        raise ImportError("请先安装: pip install anthropic")
+
+    if _estimate_tokens(prompt) > 150_000:
+        prompt = prompt[:400_000] + "\n\n[输入过长，已截断]"
+
+    print(f"[call_minimax] START | prompt_tokens≈{_estimate_tokens(prompt)} max_tokens={max_tokens} model={MINIMAX_MODEL}")
+    start_ts = time.time()
+    client = anthropic.Anthropic(api_key=MINIMAX_KEY, base_url=MINIMAX_URL)
+    msg = client.messages.create(
+        model=MINIMAX_MODEL,
+        max_tokens=max_tokens,
+        system=system or MACRO_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    elapsed = time.time() - start_ts
+    # CON-2: msg.content 可能为空列表（content policy 拒绝或空响应）
+    if not msg.content:
+        raise ValueError(f"MiniMax 返回空 content 列表（model={MINIMAX_MODEL}）")
+    result = msg.content[0].text
+    if not result or not result.strip():
+        raise ValueError(f"MiniMax 返回空文本（model={MINIMAX_MODEL}）")
+    print(f"[call_minimax] OK | result_chars={len(result)} elapsed={elapsed:.1f}s")
+    return result
+
+
+_USE_EXTERNAL_LLM = os.environ.get("USE_EXTERNAL_LLM", "0").strip().lower() in ("1", "true", "yes")
+_CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+
+# CON-3: auto 模式降级链总超时上限（秒）
+# 最坏情况 MiniMax+MiMo+SiliconFlow×2 ≈ 725s，加此上限防止主线程长时间阻塞
+_AUTO_TOTAL_TIMEOUT = int(os.environ.get("LLM_AUTO_TIMEOUT", "300"))
+
+
+def reason(prompt: str, system: str = "", mode: str = "auto",
+           max_tokens: int = 3000) -> str:
+    """
+    统一推理入口。
+
+    mode:
+      "local"      → SiliconFlow（Qwen3.5-27B）
+      "claude"     → 强制 Claude API（需 ANTHROPIC_API_KEY）
+      "claudecode" → 通过文件与 Claude Code CLI 交互
+      "openai"     → OpenAI 兼容端点（MiMo）
+      "minimax"    → 强制 MiniMax-M3
+      "auto"       → MiniMax-M3 → MiMo v2.5-pro → SiliconFlow Qwen3.5-27B（总超时 _AUTO_TOTAL_TIMEOUT s）
+    """
+    # 思维链模型 reasoning 消耗大量 token，强制最小值保护
+    max_tokens = max(max_tokens, 8192)
+
+    if mode == "claudecode":
+        return call_claudecode(prompt, system)
+    if mode == "local":
+        return call_local(prompt, system, max_tokens)
+    if mode == "claude":
+        return call_claude(prompt, system, max_tokens)
+    if mode == "openai":
+        return call_openai_compat(prompt, system, max_tokens)
+    if mode == "minimax":
+        return call_minimax(prompt, system, max_tokens)
+
+    # auto：MiniMax-M3 → MiMo v2.5-pro → SiliconFlow
+    # CON-3: 用 ThreadPoolExecutor 限制整个 auto 降级链的总等待时间
+    # 注意：不使用 `with` 语句，避免 __exit__ 调用 shutdown(wait=True) 使超时失效
+    def _auto_chain():
+        if MINIMAX_KEY:
+            try:
+                return call_minimax(prompt, system, max_tokens)
+            except Exception as e:
+                print(f"[hybrid_llm] MiniMax 失败，降级 MiMo: {e}")
+        if os.environ.get("OPENAI_COMPAT_URL"):
+            try:
+                return call_openai_compat(prompt, system, max_tokens)
+            except Exception as e:
+                print(f"[hybrid_llm] MiMo 失败，降级 SiliconFlow: {e}")
+        return call_local(prompt, system, max_tokens)
+
+    _ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    _future = _ex.submit(_auto_chain)
+    try:
+        return _future.result(timeout=_AUTO_TOTAL_TIMEOUT)
+    except concurrent.futures.TimeoutError:
+        _ex.shutdown(wait=False, cancel_futures=True)  # 不阻塞等待，让后台线程自然结束
+        print(f"[hybrid_llm] auto 降级链超过总超时 {_AUTO_TOTAL_TIMEOUT}s，返回纯数据占位")
+        return f"[LLM超时] 降级链总耗时超过 {_AUTO_TOTAL_TIMEOUT}s\n\n原始数据（节选）：{prompt[:1000]}"
+    except Exception as e:
+        _ex.shutdown(wait=False, cancel_futures=True)
+        print(f"[hybrid_llm] 所有LLM均失败，返回纯数据占位: {e}")
+        return f"[LLM不可用] {e}\n\n原始数据（节选）：{prompt[:1000]}"

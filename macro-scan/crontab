@@ -1,0 +1,28 @@
+# macro-scan crontab
+# 时区：Asia/Shanghai（容器内已设定）
+# 格式：分 时 日 月 周  命令
+# 注意：scan_weak_signals 与 run_macro_analysis 须错开 ≥15 分钟
+
+# ── 数据拉取（每日 05:30，FRED/AkShare 增量更新）────────────────────────────
+30 5 * * * root cd /app && python3 fetch_fred_history.py >> /var/log/macro-scan/fred.log 2>&1
+45 5 * * * root cd /app && python3 fetch_china_data.py   >> /var/log/macro-scan/china.log 2>&1
+
+# ── 弱信号扫描（每6小时：00:00 / 06:00 / 12:00 / 18:00）────────────────────
+0 0,6,12,18 * * * root cd /app && python3 scan_weak_signals.py >> /var/log/macro-scan/scan.log 2>&1
+
+# ── 宏观晨报（工作日 07:30，扫描结束 ≥90min 后）────────────────────────────
+30 7 * * 1-5 root cd /app && python3 run_macro_analysis.py --country both --depth quick >> /var/log/macro-scan/morning.log 2>&1
+
+# ── 美国日报（工作日 20:00，18:00 扫描结束 ≥120min）─────────────────────────
+0 20 * * 1-5 root cd /app && python3 run_macro_analysis.py --country us --depth standard >> /var/log/macro-scan/us_daily.log 2>&1
+
+# ── 中国日报（工作日 20:05，避免与美国日报并发）──────────────────────────────
+5 20 * * 1-5 root cd /app && python3 run_macro_analysis.py --country china --depth standard >> /var/log/macro-scan/china_daily.log 2>&1
+
+# ── 预测验证（每月 1 日 09:00）────────────────────────────────────────────────
+0 9 1 * * root cd /app && python3 verify_predictions.py >> /var/log/macro-scan/verify.log 2>&1
+
+# ── 知识库数值自动更新（每月 1 日 09:05，verify_predictions 之后）────────────
+5 9 1 * * root cd /app && python3 update_kb_numbers.py >> /var/log/macro-scan/kb_update.log 2>&1
+
+# 空行（crontab 文件必须以换行结尾）

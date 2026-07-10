@@ -1,0 +1,21 @@
+# 敏感文件
+.env
+*.key
+key.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+
+# 仿真输出（数据不进 git）
+output/
+sim_log.db
+*.json
+
+# Docker
+.dockerignore
+
+# macOS
+.DS_Store

@@ -1,0 +1,1235 @@
+# propagation_paths.yaml — 宏观情景传导路径知识库
+# M1-3：10条核心传导路径，供 hypothesis_engine.py 结构化注入 [PATHS] 节
+# 热挂载文件，修改后立即生效（无需重启容器）
+#
+# 字段说明：
+#   id:               唯一标识符
+#   scenario_type:    对应 hypothesis_templates.yaml 情景类型
+#   subtype:          情景子类型
+#   label:            人可读名称
+#   calibration_score: 综合置信度 [0-1]，经历史事件校验后可升级
+#   data_quality:     数据来源质量说明
+#   causal_chain:     传导链步骤列表
+#     - step:           步骤编号
+#       event:          触发事件描述
+#       lag_days:       从上一步到本步的估算延迟（天）
+#       magnitude:      {base: %, range: [低,高]}，百分比影响
+#       confidence:     该步数据置信度 [0-1]
+#       source:         数据来源类型
+#   dampening_factors: 降温因素列表（含调制系数 scale）
+#   amplifying_factors: 放大因素列表（含调制系数 scale）
+#   historical_instances: 历史验证事件
+#   notes:            额外说明
+
+# ══════════════════════════════════════════════════════════════
+#  GEO / TAIWAN 情景
+# ══════════════════════════════════════════════════════════════
+
+- id: geo_taiwan_diplomatic
+  scenario_type: GEO
+  subtype: TAIWAN
+  label: 台海外交危机 → 市场恐慌 → 快速恢复
+  calibration_score: 0.70
+  data_quality: 历史数据（2022年佩洛西访台验证）
+  causal_chain:
+    - step: 1
+      event: 外交紧张升级（言辞/演习/官员访台）
+      lag_days: 0
+      magnitude: {base: 5, range: [3, 12]}
+      confidence: 0.80
+      source: historical_data
+    - step: 2
+      event: VIX 跳升，台湾/科技股下跌，台币贬值
+      lag_days: 1
+      magnitude: {base: -8, range: [-3, -18]}
+      confidence: 0.75
+      source: historical_data
+    - step: 3
+      event: ADR 折价扩大，海外资本流出台湾
+      lag_days: 3
+      magnitude: {base: -5, range: [-2, -12]}
+      confidence: 0.65
+      source: historical_data
+    - step: 4
+      event: 外交降温（无军事行动），市场逐步消化
+      lag_days: 14
+      magnitude: {base: 6, range: [2, 14]}
+      confidence: 0.70
+      source: historical_data
+  dampening_factors:
+    - factor: 美国军事表态明确（航母部署）
+      scale: 0.6
+    - factor: 外交接触信号（电话/会晤）
+      scale: 0.7
+    - factor: 台积电生产无中断
+      scale: 0.8
+  amplifying_factors:
+    - factor: 中国宣布实弹演习
+      scale: 1.5
+    - factor: 航运保险费上涨超 30%
+      scale: 1.4
+    - factor: 美国国会通过强硬法案
+      scale: 1.3
+  historical_instances:
+    - event: 2022-08 佩洛西访台
+      outcome: SPX -3.3%，台股 -3.8%，14天后基本恢复
+      verified: true
+    - event: 1996 台海危机（第三次）
+      outcome: 台币贬值，台股 -15%，美航母介入后稳定
+      verified: true
+  notes: "此路径为外交危机，无实际军事接触。是 L1 烈度标准模板。"
+
+- id: geo_taiwan_semiconductor
+  scenario_type: GEO
+  subtype: TAIWAN
+  label: 台海封锁/冲突 → 半导体断供 → 全球工业链冲击
+  calibration_score: 0.30
+  data_quality: 混合（无直接先例，基于供应链分析）
+  causal_chain:
+    - step: 1
+      event: 航运停滞 / 台积电设施受威胁
+      lag_days: 0
+      magnitude: {base: 0, range: [0, 0]}
+      confidence: 0.90
+      source: logical_inference
+    - step: 2
+      event: 全球半导体现货价格飙升，科技股暴跌
+      lag_days: 7
+      magnitude: {base: -25, range: [-15, -45]}
+      confidence: 0.55
+      source: supply_chain_analysis
+    - step: 3
+      event: 汽车/电子/数据中心厂商库存耗尽（3-6个月库存缓冲）
+      lag_days: 90
+      magnitude: {base: -8, range: [-5, -15]}
+      confidence: 0.45
+      source: industry_analysis
+    - step: 4
+      event: 全球 GDP 受拖累（制造业停产）
+      lag_days: 180
+      magnitude: {base: -2.5, range: [-1.5, -5]}
+      confidence: 0.35
+      source: llm_inference
+    - step: 5
+      event: 替代供应链重建（Intel/Samsung 扩产，耗时 3-5 年）
+      lag_days: 1095
+      magnitude: {base: 2, range: [1, 4]}
+      confidence: 0.40
+      source: llm_inference
+  dampening_factors:
+    - factor: 企业战略库存超过 6 个月
+      scale: 0.7
+    - factor: 三星/Intel 快速扩产
+      scale: 0.75
+    - factor: 冲突短暂（数天内停火）
+      scale: 0.4
+  amplifying_factors:
+    - factor: 冲突持续超过 3 个月
+      scale: 2.0
+    - factor: 台积电厂房物理损毁
+      scale: 3.0
+    - factor: 美中全面脱钩（技术封锁）
+      scale: 1.8
+  historical_instances:
+    - event: 2020-21 全球芯片短缺（COVID）
+      outcome: 汽车减产 700 万辆，电子产品涨价，持续 18 个月
+      verified: true
+      note: 规模约为台积电断供情景的 10-15%
+  notes: >
+    台积电生产全球 ~90% 先进制程（≤7nm），无法在 3-5 年内建立替代产能。
+    此路径是 L2/L3 烈度情景，calibration_score 低（0.30）表示不确定性极高。
+    LLM 在引用本路径时必须明确标注数据来源层级。
+
+- id: geo_taiwan_blockade
+  scenario_type: GEO
+  subtype: TAIWAN
+  label: 台海封锁（无武装冲突）→ 航运停滞 → 慢冲击
+  calibration_score: 0.25
+  data_quality: LLM推断为主（无直接先例）
+  causal_chain:
+    - step: 1
+      event: 解放军宣布"封锁演习"，保险公司停止承保台海航线
+      lag_days: 0
+      magnitude: {base: 0, range: [0, 0]}
+      confidence: 0.85
+      source: logical_inference
+    - step: 2
+      event: 航运绕道（马六甲→绕澳大利亚），运费+150%
+      lag_days: 3
+      magnitude: {base: -12, range: [-8, -20]}
+      confidence: 0.50
+      source: llm_inference
+    - step: 3
+      event: 台湾进出口受阻，台股下跌，台币大幅贬值
+      lag_days: 7
+      magnitude: {base: -20, range: [-12, -35]}
+      confidence: 0.45
+      source: llm_inference
+    - step: 4
+      event: 半导体出口中断，全球科技供应链库存逐渐消耗
+      lag_days: 30
+      magnitude: {base: -15, range: [-8, -30]}
+      confidence: 0.35
+      source: llm_inference
+  dampening_factors:
+    - factor: 国际社会外交压力
+      scale: 0.7
+    - factor: 台湾空中通道仍开放
+      scale: 0.8
+  amplifying_factors:
+    - factor: 美国实施反封锁行动
+      scale: 1.6
+    - factor: 日本加入制裁
+      scale: 1.4
+  historical_instances: []
+  notes: "封锁情景无直接历史先例。最接近参考：1973 石油禁运（但传导机制完全不同）。"
+
+# ══════════════════════════════════════════════════════════════
+#  TRADE 情景
+# ══════════════════════════════════════════════════════════════
+
+- id: geo_us_china_trade
+  scenario_type: TRADE
+  subtype: CHIP
+  label: 中美制裁/关税 → 科技股传导 → 供应链重构
+  calibration_score: 0.70
+  data_quality: 2018-19 贸易战有充分历史数据
+  causal_chain:
+    - step: 1
+      event: 新一轮关税/出口管制宣布
+      lag_days: 0
+      magnitude: {base: -5, range: [-3, -10]}
+      confidence: 0.85
+      source: historical_data
+    - step: 2
+      event: 科技股/半导体板块下跌
+      lag_days: 1
+      magnitude: {base: -8, range: [-4, -15]}
+      confidence: 0.80
+      source: historical_data
+    - step: 3
+      event: 企业资本支出削减，供应链重组启动
+      lag_days: 60
+      magnitude: {base: -2, range: [-1, -4]}
+      confidence: 0.65
+      source: historical_data
+    - step: 4
+      event: 通胀上行（进口成本转嫁消费端）
+      lag_days: 90
+      magnitude: {base: 0.5, range: [0.2, 1.2]}
+      confidence: 0.60
+      source: historical_data
+  dampening_factors:
+    - factor: 双边谈判进展
+      scale: 0.6
+    - factor: 企业快速调整供应链
+      scale: 0.75
+  amplifying_factors:
+    - factor: 金融脱钩（SWIFT/美元结算）
+      scale: 2.0
+    - factor: 盟友跟进制裁
+      scale: 1.5
+  historical_instances:
+    - event: 2018-19 中美贸易战
+      outcome: SPX -20%（2018Q4），随后 2019 缓和后反弹 30%
+      verified: true
+    - event: 2022-23 半导体出口管制
+      outcome: 中国芯片股跌 30-50%，全球半导体板块调整
+      verified: true
+  notes: "关税→供应链→通胀传导有充分数据，金融脱钩部分为推断。"
+
+- id: trade_tariff_escalation
+  scenario_type: TRADE
+  subtype: TARIFF
+  label: 关税升级 → 供应链重构 → 通胀
+  calibration_score: 0.65
+  data_quality: 2018-19 / 2025 关税战验证
+  causal_chain:
+    - step: 1
+      event: 关税宣布（10%-25% 范围）
+      lag_days: 0
+      magnitude: {base: -4, range: [-2, -8]}
+      confidence: 0.80
+      source: historical_data
+    - step: 2
+      event: 进口成本上升，企业盈利预警
+      lag_days: 30
+      magnitude: {base: -3, range: [-1, -6]}
+      confidence: 0.75
+      source: historical_data
+    - step: 3
+      event: CPI 上行（供给侧推动通胀）
+      lag_days: 90
+      magnitude: {base: 0.4, range: [0.1, 1.0]}
+      confidence: 0.65
+      source: historical_data
+    - step: 4
+      event: Fed 更趋鹰派（或延迟降息）
+      lag_days: 120
+      magnitude: {base: 0.3, range: [0.1, 0.8]}
+      confidence: 0.55
+      source: historical_data
+  dampening_factors:
+    - factor: 贸易协定签署/关税豁免
+      scale: 0.5
+    - factor: 美元走强抵消进口价格上涨
+      scale: 0.75
+  amplifying_factors:
+    - factor: 双向报复升级
+      scale: 1.6
+    - factor: 叠加供给冲击（能源/粮食）
+      scale: 1.8
+  historical_instances:
+    - event: 2018-19 中美贸易战
+      outcome: 通胀小幅上行（~0.3%），主要冲击在市场情绪和企业投资
+      verified: true
+    - event: 2025 关税战（145%/125%）
+      outcome: 进行中，日内瓦峰会后暂停 90 天
+      verified: false
+  notes: ""
+
+# ══════════════════════════════════════════════════════════════
+#  ENERGY 情景
+# ══════════════════════════════════════════════════════════════
+
+- id: energy_middle_east_oil
+  scenario_type: ENERGY
+  subtype: OIL
+  label: 中东冲突 → 油价冲击 → CPI
+  calibration_score: 0.82
+  data_quality: 多历史案例充分验证（1973/1979/1990/2022）
+  causal_chain:
+    - step: 1
+      event: 中东军事冲突/制裁宣布
+      lag_days: 0
+      magnitude: {base: 20, range: [10, 60]}
+      confidence: 0.85
+      source: historical_data
+    - step: 2
+      event: 油价飙升（地缘保险费 + 供给预期）
+      lag_days: 1
+      magnitude: {base: 15, range: [8, 40]}
+      confidence: 0.85
+      source: historical_data
+    - step: 3
+      event: CPI 能源分项上行，核心通胀受压
+      lag_days: 45
+      magnitude: {base: 0.8, range: [0.3, 2.0]}
+      confidence: 0.75
+      source: historical_data
+    - step: 4
+      event: Fed 政策转向（加息或暂停降息）
+      lag_days: 90
+      magnitude: {base: 0.5, range: [0.2, 1.5]}
+      confidence: 0.65
+      source: historical_data
+    - step: 5
+      event: 实体经济减速（消费/企业成本上升）
+      lag_days: 120
+      magnitude: {base: -1.0, range: [-0.5, -2.5]}
+      confidence: 0.60
+      source: historical_data
+  dampening_factors:
+    - factor: 美国页岩油增产（SPR 释放）
+      scale: 0.65
+    - factor: 全球需求疲软抵消供给冲击
+      scale: 0.75
+    - factor: 冲突快速停火
+      scale: 0.40
+  amplifying_factors:
+    - factor: 霍尔木兹海峡关闭威胁
+      scale: 2.0
+    - factor: 伊朗全面制裁
+      scale: 1.5
+    - factor: 叠加全球需求复苏
+      scale: 1.4
+  historical_instances:
+    - event: 1973 阿拉伯石油禁运
+      outcome: 油价 +400%，美国 CPI +12.3%，衰退两年
+      verified: true
+    - event: 1990 海湾战争
+      outcome: 油价 +100%（短暂），SPX -20%，3个月后战争结束反弹
+      verified: true
+    - event: 2022 俄乌战争
+      outcome: 欧洲天然气 +400%，全球油价 +80%（后回落）
+      verified: true
+  notes: "传导机制最有历史数据支撑的路径之一。能源敏感度因国而异（欧洲>>美国）。"
+
+# ══════════════════════════════════════════════════════════════
+#  GEO / RUSSIA 情景
+# ══════════════════════════════════════════════════════════════
+
+- id: geo_russia_europe
+  scenario_type: GEO
+  subtype: RUSSIA
+  label: 俄欧冲突 → 能源+金融双轨传导
+  calibration_score: 0.75
+  data_quality: 2022 俄乌战争充分验证
+  causal_chain:
+    - step: 1
+      event: 军事冲突/制裁升级
+      lag_days: 0
+      magnitude: {base: -10, range: [-5, -20]}
+      confidence: 0.85
+      source: historical_data
+    - step: 2
+      event: 天然气/石油供应中断（欧洲敞口 40%+）
+      lag_days: 7
+      magnitude: {base: 80, range: [30, 200]}
+      confidence: 0.80
+      source: historical_data
+    - step: 3
+      event: 欧元区 CPI 大幅上行，工业成本飙升
+      lag_days: 60
+      magnitude: {base: 3, range: [1.5, 6]}
+      confidence: 0.75
+      source: historical_data
+    - step: 4
+      event: ECB 加速加息，欧元区衰退风险
+      lag_days: 90
+      magnitude: {base: -1.5, range: [-0.8, -3.5]}
+      confidence: 0.70
+      source: historical_data
+    - step: 5
+      event: 全球金融条件收紧（美元走强，新兴市场压力）
+      lag_days: 30
+      magnitude: {base: 5, range: [2, 12]}
+      confidence: 0.65
+      source: historical_data
+  dampening_factors:
+    - factor: 欧洲替代能源（LNG 进口/可再生）
+      scale: 0.70
+    - factor: 谈判停火
+      scale: 0.45
+  amplifying_factors:
+    - factor: 北溪管道全面断供
+      scale: 1.5
+    - factor: 核威慑升级言辞
+      scale: 1.8
+  historical_instances:
+    - event: 2022-02 俄罗斯入侵乌克兰
+      outcome: 欧洲能源危机，天然气 +400%，欧元区通胀 8.6%，ECB 加息 450bp
+      verified: true
+  notes: ""
+
+# ══════════════════════════════════════════════════════════════
+#  FIN 情景
+# ══════════════════════════════════════════════════════════════
+
+- id: fin_banking_crisis
+  scenario_type: FIN
+  subtype: BANKING
+  label: 银行危机 → 信用收缩 → 衰退
+  calibration_score: 0.80
+  data_quality: 2008 / 2023 有充分验证
+  causal_chain:
+    - step: 1
+      event: 银行挤兑/流动性危机爆发（单家或系统性）
+      lag_days: 0
+      magnitude: {base: -10, range: [-5, -25]}
+      confidence: 0.85
+      source: historical_data
+    - step: 2
+      event: 银行间利率飙升（TED 利差扩大），信贷市场冻结
+      lag_days: 3
+      magnitude: {base: 150, range: [50, 500]}
+      confidence: 0.80
+      source: historical_data
+    - step: 3
+      event: 贷款收紧，企业/居民信用条件恶化
+      lag_days: 30
+      magnitude: {base: -3, range: [-1.5, -8]}
+      confidence: 0.75
+      source: historical_data
+    - step: 4
+      event: 消费和投资收缩，就业减少
+      lag_days: 90
+      magnitude: {base: -2, range: [-1, -5]}
+      confidence: 0.70
+      source: historical_data
+  dampening_factors:
+    - factor: Fed 紧急降息 + 流动性工具（BTFP/TARP）
+      scale: 0.50
+    - factor: FDIC 快速接管（系统性恐慌消除）
+      scale: 0.55
+  amplifying_factors:
+    - factor: 多家银行同时倒闭
+      scale: 2.0
+    - factor: 主权债务危机叠加
+      scale: 1.8
+  historical_instances:
+    - event: 2008 全球金融危机（雷曼倒闭）
+      outcome: SPX -55%，失业率 10%，衰退 18 个月
+      verified: true
+    - event: 2023 硅谷银行危机
+      outcome: 区域银行股跌 40%，Fed BTFP 介入后稳定，未蔓延系统性
+      verified: true
+  notes: ""
+
+# ══════════════════════════════════════════════════════════════
+#  MACRO 情景
+# ══════════════════════════════════════════════════════════════
+
+- id: macro_usd_debt
+  scenario_type: MACRO
+  subtype: UST
+  label: 美债危机 → 美元信用下降 → 全球去美元化
+  calibration_score: 0.30
+  data_quality: 无直接先例，主要为估算
+  causal_chain:
+    - step: 1
+      event: 美国信用评级下调 / 债务上限危机
+      lag_days: 0
+      magnitude: {base: -5, range: [-3, -12]}
+      confidence: 0.65
+      source: partial_historical
+    - step: 2
+      event: 美债收益率飙升（外国买家撤退）
+      lag_days: 7
+      magnitude: {base: 80, range: [30, 200]}
+      confidence: 0.45
+      source: llm_inference
+    - step: 3
+      event: 美元走弱，黄金/大宗商品上涨
+      lag_days: 14
+      magnitude: {base: 10, range: [5, 25]}
+      confidence: 0.50
+      source: partial_historical
+    - step: 4
+      event: 全球美元储备比例下降，人民币/欧元填补（多年进程）
+      lag_days: 365
+      magnitude: {base: -5, range: [-2, -15]}
+      confidence: 0.30
+      source: llm_inference
+  dampening_factors:
+    - factor: 美元仍为全球储备货币地位（缺乏替代品）
+      scale: 0.60
+    - factor: Fed 直接购债（美债买家 of last resort）
+      scale: 0.55
+  amplifying_factors:
+    - factor: 中国/俄罗斯主导替代结算体系
+      scale: 1.5
+    - factor: 财政赤字持续超过 GDP 7%
+      scale: 1.4
+  historical_instances:
+    - event: 2011 标普下调美国 AAA 评级
+      outcome: SPX -20%，但美债收益率反而下降（避险需求），3个月后恢复
+      verified: true
+    - event: 2026-05 穆迪下调美国 Aaa → Aa1
+      outcome: 市场短暂波动，后续持续观察中
+      verified: false
+  notes: >
+    calibration_score 极低（0.30）。美元地位短期内无替代品，
+    此路径为尾部风险，LLM 不得以此为定量分析主依据。
+
+# ══════════════════════════════════════════════════════════════
+#  CRISIS 情景
+# ══════════════════════════════════════════════════════════════
+
+- id: crisis_pandemic_supply
+  scenario_type: CRISIS
+  subtype: PANDEMIC
+  label: 重大疫情 → 供应链断裂 → 通胀
+  calibration_score: 0.72
+  data_quality: 2020 COVID 充分验证
+  causal_chain:
+    - step: 1
+      event: 重大疫情宣布 / 封控政策启动
+      lag_days: 0
+      magnitude: {base: -15, range: [-8, -35]}
+      confidence: 0.85
+      source: historical_data
+    - step: 2
+      event: 消费急剧萎缩（服务业），供应链中断
+      lag_days: 14
+      magnitude: {base: -8, range: [-4, -15]}
+      confidence: 0.80
+      source: historical_data
+    - step: 3
+      event: V 型需求反弹（财政刺激叠加），供给端恢复滞后
+      lag_days: 90
+      magnitude: {base: 5, range: [2, 12]}
+      confidence: 0.70
+      source: historical_data
+    - step: 4
+      event: 通胀急升（供给不足 + 需求过热）
+      lag_days: 180
+      magnitude: {base: 3, range: [1.5, 6]}
+      confidence: 0.75
+      source: historical_data
+    - step: 5
+      event: 央行收紧货币（与步骤4形成政策滞后）
+      lag_days: 300
+      magnitude: {base: 2.5, range: [1, 5]}
+      confidence: 0.70
+      source: historical_data
+  dampening_factors:
+    - factor: 快速疫苗研发
+      scale: 0.50
+    - factor: 精准防控（无全面封锁）
+      scale: 0.65
+  amplifying_factors:
+    - factor: 全球同步封锁
+      scale: 1.8
+    - factor: 财政超大规模刺激
+      scale: 1.5
+  historical_instances:
+    - event: 2020 COVID-19
+      outcome: SPX -34%（4周），V 型反弹 80%，后遗症通胀 9.1%
+      verified: true
+  notes: ""
+
+# ══════════════════════════════════════════════════════════════
+#  新增路径 11-14：社会/宗教/政治类（2026-06-10 WF2论证产出）
+# ══════════════════════════════════════════════════════════════
+
+- id: social_unrest_regime
+  scenario_type: SOCIAL
+  subtype: UNREST
+  label: 大规模社会动乱 → 政权稳定性压力 → 资本外流/货币危机
+  calibration_score: 0.45
+  data_quality: 部分历史数据（香港2019/法国黄背心 step1-2验证；step3-5为llm_inference）
+  applicability_scope:
+    primary: non-OECD（新兴市场、威权政体）
+    secondary: OECD（法国黄背心级别，影响幅度压缩50%）
+  causal_chain:
+    - step: 1
+      event: 持续街头抗议（>10万人，>7天）
+      lag_days: 0
+      magnitude: {base: -4, range: [-2, -8]}
+      confidence: 0.65
+      source: historical_data
+      notes: 香港2019恒指-12%（3个月），法国2018 CAC40-3.5%
+    - step: 2
+      event: 外资观望/短期资本外流，本币承压
+      lag_days: 7
+      magnitude: {base: -3, range: [-1, -9]}
+      confidence: 0.60
+      source: historical_data
+    - step: 3
+      event: 政权应对分叉（镇压/妥协/政权更迭）
+      lag_days: 30
+      magnitude: {base: 0, range: [-15, +8]}
+      confidence: 0.35
+      source: llm_inference
+      notes: 历史样本结局差异极大，强制低置信分叉节点
+    - step: 4
+      event: 货币危机或资本管制（政权更迭情景）
+      lag_days: 60
+      magnitude: {base: -12, range: [-5, -35]}
+      confidence: 0.30
+      source: llm_inference
+    - step: 5
+      event: 国际援助/IMF介入后企稳
+      lag_days: 180
+      magnitude: {base: +6, range: [+2, +15]}
+      confidence: 0.25
+      source: llm_inference
+  dampening_factors:
+    - factor: 政府快速实质性让步
+      scale: 0.5
+    - factor: OECD成熟民主体制
+      scale: 0.4
+  amplifying_factors:
+    - factor: 军队介入或暴力镇压
+      scale: 1.8
+    - factor: 多城市同步爆发
+      scale: 1.4
+  historical_instances:
+    - event: 2019-06 香港反修例运动
+      outcome: 恒指-12%（峰值），港元联系汇率防线承压，外资部分撤出
+      verified: true
+    - event: 2018-11 法国黄背心运动
+      outcome: CAC40-3.5%（1个月），旅游业损失约20亿欧元
+      verified: true
+  notes: "step3分叉警告：香港维稳 vs 阿拉伯之春政权更迭结局差异过大，step3以下不作point estimate"
+
+- id: religious_violence_energy
+  scenario_type: RELIGIOUS
+  subtype: CONFLICT
+  label: 宗教极端主义暴力 → 产油区/航运中断 → 能源价格冲击
+  calibration_score: 0.62
+  data_quality: 较充分历史数据（2014 ISIS/摩苏尔 + 2023-2024胡塞武装/红海 均有量化锚点）
+  causal_chain:
+    - step: 1
+      event: 宗教武装发动重大攻击/控制关键节点（油田/航运咽喉）
+      lag_days: 0
+      magnitude: {base: +8, range: [+3, +18]}
+      confidence: 0.75
+      source: historical_data
+      notes: 2014-06 ISIS占摩苏尔→布油+11%（2周内）
+    - step: 2
+      event: 航运保险费率跳升，船只改道
+      lag_days: 3
+      magnitude: {base: +15, range: [+5, +40]}
+      confidence: 0.70
+      source: historical_data
+      notes: 2023-12胡塞武装→集装箱运费+400%（6周），好望角绕行+14天
+    - step: 3
+      event: 原油/LNG现货价格持续上行，通胀预期抬升
+      lag_days: 14
+      magnitude: {base: +12, range: [+5, +25]}
+      confidence: 0.65
+      source: historical_data
+    - step: 4
+      event: 主要央行政策响应（加息预期上升或暂缓降息）
+      lag_days: 45
+      magnitude: {base: -2, range: [-5, +1]}
+      confidence: 0.50
+      source: mixed
+    - step: 5
+      event: 军事介入或外交斡旋后航运恢复，价格回落
+      lag_days: 90
+      magnitude: {base: -8, range: [-3, -20]}
+      confidence: 0.55
+      source: historical_data
+  dampening_factors:
+    - factor: 美国战略石油储备释放
+      scale: 0.7
+    - factor: OPEC+增产对冲
+      scale: 0.6
+  amplifying_factors:
+    - factor: 冲突扩散至沙特/波斯湾核心产油区
+      scale: 2.0
+    - factor: 多条航运线路同时受威胁
+      scale: 1.6
+  historical_instances:
+    - event: 2014-06 ISIS占领摩苏尔及北伊拉克油田
+      outcome: 布伦特原油+11%（2周），伊拉克出口中断约30万桶/日
+      verified: true
+    - event: 2023-12至2024 胡塞武装红海袭击
+      outcome: 集装箱运费（上海-欧洲）+400%，苏伊士运河过境量-50%，全球通胀再抬头
+      verified: true
+  notes: "与 energy_middle_east_oil 路径的区别：本路径聚焦宗教武装行为者驱动，而非纯地缘政治冲突"
+
+- id: political_instability_capital
+  scenario_type: POLITICAL
+  subtype: INSTABILITY
+  label: 政治危机/政变 → 新兴市场资本外逃 → 主权债/货币崩溃
+  calibration_score: 0.45
+  data_quality: 部分历史数据（缅甸2021/巴基斯坦2022/尼日尔2023）
+  applicability_scope: emerging_markets_only
+  notes: >
+    本路径仅适用于新兴市场政变/政治危机（Freedom House评分低于40分）。
+    不适用于成熟民主国家政府更迭（如法国/德国换届）。
+    触发建议：Freedom House评分<40 且 外汇储备月数<3个月。
+  causal_chain:
+    - step: 1
+      event: 政变宣布/政权更迭/宪政危机爆发
+      lag_days: 0
+      magnitude: {base: 0, range: [0, 0]}
+      confidence: 0.85
+      source: historical_data
+    - step: 2
+      event: 银行挤兑/资本管制宣布/外国使馆撤员
+      lag_days: 2
+      magnitude: {base: -15, range: [-5, -40]}
+      confidence: 0.70
+      source: historical_data
+      notes: 缅甸2021：军政府接管后72小时内银行ATM排队
+    - step: 3
+      event: 外资企业暂停新增投资/开始撤离
+      lag_days: 14
+      magnitude: {base: -25, range: [-10, -60]}
+      confidence: 0.60
+      source: historical_data
+      notes: 缅甸2021 FDI下降70%；巴基斯坦2022 FDI从17亿降至9亿美元
+    - step: 4
+      event: 本国货币大幅贬值/央行外汇储备急速消耗
+      lag_days: 21
+      magnitude: {base: -30, range: [-15, -65]}
+      confidence: 0.55
+      source: historical_data
+      notes: 巴基斯坦2022：卢比全年贬值~30%；缅甸缅元2021贬值约50%
+    - step: 5
+      event: IMF/世界银行介入谈判或制裁生效
+      lag_days: 60
+      magnitude: {base: 0, range: [-10, +15]}
+      confidence: 0.45
+      source: historical_data
+      notes: 方向不确定：制裁加深危机，IMF救助可能触底反弹
+  dampening_factors:
+    - factor: 大国（中/美/俄）迅速表态支持新政权
+      scale: 0.6
+    - factor: 外汇储备超过6个月进口额
+      scale: 0.7
+  amplifying_factors:
+    - factor: 西方国家宣布制裁+资产冻结
+      scale: 1.6
+    - factor: 内战风险上升（军队内部分裂）
+      scale: 2.0
+  historical_instances:
+    - event: 2021-02 缅甸军事政变
+      outcome: FDI下降70%，缅元贬值50%，外资大规模撤离
+      verified: true
+    - event: 2022-04 巴基斯坦伊姆兰汗弹劾危机
+      outcome: KSE-100 -8%（1周），卢比贬值~30%，IMF谈判中断
+      verified: true
+    - event: 2023-07 尼日尔政变
+      outcome: ECOWAS制裁，铀出口中断，法国军队撤离，CFA外汇管制
+      verified: true
+
+- id: cultural_trade_boycott
+  scenario_type: SOCIAL
+  subtype: BOYCOTT
+  label: 文化/政治冲突触发消费者抵制 → 目标企业营收下滑
+  calibration_score: 0.55
+  data_quality: 有量化锚点（2021新疆棉花事件为主锚点；韩国THAAD/澳中为辅助）
+  notes: >
+    本路径为"慢燃"路径，全链条时间跨度90-270天。
+    关键触发门槛：纯民间自发抵制历史上3-6个月内消退，无持久经济影响。
+    需官方媒体/政府机构背书（官媒转发/电商下架）才能规模化持续。
+    step3-5 仅在官方背书确认时激活。
+  causal_chain:
+    - step: 1
+      event: 文化/政治争议事件爆发（品牌声明/联署/代言人事件）
+      lag_days: 0
+      magnitude: {base: 0, range: [0, 0]}
+      confidence: 0.85
+      source: historical_data
+    - step: 2
+      event: 社交媒体抵制话题发酵，目标品牌声誉指数下滑
+      lag_days: 3
+      magnitude: {base: -10, range: [-3, -25]}
+      confidence: 0.75
+      source: historical_data
+      notes: 2021新疆棉花：H&M声明发布后48小时微博话题量破10亿
+    - step: 3
+      event: 目标品牌在争议国家线上销售额下滑
+      lag_days: 30
+      magnitude: {base: -35, range: [-15, -70]}
+      confidence: 0.65
+      source: historical_data
+      notes: H&M 2021Q2中国营收同比-62%；耐克同期因本地化程度高下滑较小
+    - step: 4
+      event: 竞争对手（本土品牌）市占率上升
+      lag_days: 90
+      magnitude: {base: +15, range: [+5, +30]}
+      confidence: 0.55
+      source: historical_data
+      notes: 安踏/李宁H股涨幅15-30%
+    - step: 5
+      event: 目标企业调整对华战略（退出评估/本地化加深）
+      lag_days: 180
+      magnitude: {base: 0, range: [-5, +10]}
+      confidence: 0.40
+      source: historical_inference
+      optional: true
+  dampening_factors:
+    - factor: 企业无官方背书，仅民间自发
+      scale: 0.4
+    - factor: 争议事件被后续更大新闻周期覆盖（注意力转移）
+      scale: 0.4
+  amplifying_factors:
+    - factor: 官方媒体持续点名（央视/人民日报等）
+      scale: 1.8
+    - factor: 主要电商平台下架产品
+      scale: 1.5
+    - factor: 争议与国家核心利益叙事挂钩（主权/民族）
+      scale: 2.0
+  historical_instances:
+    - event: 2021-03 新疆棉花事件（H&M、耐克、Burberry）
+      outcome: H&M中国营收Q2同比-62%，李宁/安踏股价+15-30%，天猫/京东下架
+      verified: true
+    - event: 2017 韩国THAAD部署后中国抵制韩货
+      outcome: 乐天超市被迫关店，韩国赴华游客-48%，韩流娱乐封禁
+      verified: true
+
+# ══════════════════════════════════════════════════════════════
+#  Phase 2 新增：跨域复合路径
+# ══════════════════════════════════════════════════════════════
+
+- id: climate_social_political_cascade
+  scenario_type: CLIMATE
+  applicable_scenarios: [CLIMATE, SOCIAL, POLITICAL]
+  label: 气候冲击→社会压力→政治危机级联
+  calibration_score: 0.52
+  data_quality: mixed — step1-2有FAO/USDA历史数据，step3-4依赖国家脆弱性评分
+  causal_chain:
+    - step: 1
+      event: 极端天气确认 → 主产区减产预期
+      lag_days: 30-90
+      magnitude: {base: -10, range: [-5, -20]}
+      confidence: 0.75
+      source: historical_data
+      notes: FAO/USDA季度产量预测驱动；强厄尔尼诺东南亚大米减产典型-5%~-15%
+    - step: 2
+      event: 减产预期 → 粮食期货价格跳升
+      lag_days: 0-30
+      magnitude: {base: +15, range: [+5, +40]}
+      confidence: 0.78
+      source: historical_data
+      notes: 期货市场领先实物约1个月；2010-11小麦+74%，2022-23大米+15%
+    - step: 3
+      event: 粮食价格→新兴市场进口通胀→实际工资下降→社会不满积累
+      lag_days: 90-180
+      magnitude: {base: "+20分社会压力指数（基尼>0.45国家）"}
+      confidence: 0.55
+      source: mixed
+      notes: 2010-11拉尼娜验证step1-3；弹性系数因国而异（埃及0.8，印尼0.4）
+    - step: 4
+      event: 社会不满达临界 → 街头抗议或政治危机（条件分叉）
+      lag_days: 180-365
+      magnitude: {base: "Freedom House稳定性-15分"}
+      confidence: 0.35
+      source: llm_inference
+      notes: ⚠️ 高度依赖国家脆弱性；外储<3个月+Freedom House<40时触发概率显著上升
+  negative_conditions:
+    - 全球粮食库存/消费比 > 20%（2016超强厄尔尼诺反例：气候极端但无社会危机）
+    - 受影响国外储 > 6个月进口额
+    - 政府有财力实施粮食补贴或价格管制
+    - 受影响产区有替代出口国可部分对冲
+  dampening_factors:
+    - factor: 政府快速补贴干预
+      scale: 0.4
+    - factor: 全球粮食储备充足（库存/消费比>20%）
+      scale: 0.3
+  amplifying_factors:
+    - factor: 四维脆弱性（基尼/青年失业/外储/Freedom House）≥3/4触红
+      scale: 1.8
+    - factor: 同期货币贬值（进口通胀叠加）
+      scale: 1.4
+    - factor: 气候冲击持续2个以上季度
+      scale: 1.3
+  applicable_countries: primarily emerging_markets（成熟民主国家effect压缩70%）
+  historical_instances:
+    - event: 2010-11 拉尼娜→埃及/突尼斯阿拉伯之春
+      outcome: 埃及小麦价格上涨+74%，CPI+18%，2-4月后街头抗议，政府倒台
+      verified_steps: [1, 2, 3]
+      notes: 外储仅2个月，食品补贴压力过大，触发完整链条
+    - event: 2016 超强厄尔尼诺（反例）
+      outcome: 粮食价格温和上涨，无显著社会冲击
+      verified_steps: [1, 2]
+      notes: 关键：全球库存/消费比>22%，链条在step2后断裂
+
+- id: social_political_capital_flight
+  scenario_type: SOCIAL
+  applicable_scenarios: [SOCIAL, POLITICAL]
+  label: 社会压力→政治不稳→资本外逃反馈环
+  calibration_score: 0.48
+  data_quality: mixed — step1-2部分历史数据，step3有完整验证
+  causal_chain:
+    - step: 1
+      event: 持续社会压力（>3个月）→ 外资持观望态度
+      lag_days: 30-60
+      magnitude: {base: -15, range: [-5, -30]}
+      confidence: 0.65
+      source: mixed
+      notes: 香港2019：FDI流入放缓，外资撤离开始于抗议持续第2个月
+    - step: 2
+      event: 政治应对失当（加重镇压或政策混乱）→ 外资主动撤离
+      lag_days: 60-180
+      magnitude: {base: -30, range: [-10, -70]}
+      confidence: 0.50
+      source: mixed
+      notes: 分叉点：政府有效应对（香港结果）vs 失当（斯里兰卡结果）
+    - step: 3
+      event: 资本外逃→货币贬值→进口通胀→加剧社会压力（正反馈）
+      lag_days: 30-90
+      magnitude: {base: -25, range: [-10, -50]}
+      confidence: 0.55
+      source: historical_data
+      notes: 斯里兰卡2022：外储耗尽→卢比贬值30%→进口能源中断→社会崩溃完整验证
+  negative_conditions:
+    - 有效的资本管制法律（中国/印度可封堵大部分资本外流）
+    - 政权更迭被国际社会快速承认（正统性恢复，降低不确定性）
+    - 外储充足（央行可直接干预汇率，如香港外管局）
+    - 大宗商品出口持续创汇（外储补充速度>消耗速度）
+  dampening_factors:
+    - factor: 有效资本管制
+      scale: 0.3
+    - factor: 国际社会援助/IMF协议
+      scale: 0.5
+  amplifying_factors:
+    - factor: 美元外债占GDP > 30%（贬值→债务重压放大）
+      scale: 1.6
+    - factor: 无资本管制（资金自由流动）
+      scale: 1.4
+    - factor: 国际评级机构下调主权信用
+      scale: 1.3
+  historical_instances:
+    - event: 2019-20 香港反修例（step1-2部分验证）
+      outcome: 外资观望，FDI放缓，但外储充足+联系汇率制度阻断step3
+      verified_steps: [1]
+    - event: 2022 斯里兰卡债务+社会危机（完整验证）
+      outcome: 外储耗尽→货币贬值30%→能源进口中断→政府倒台
+      verified_steps: [1, 2, 3]
+
+# ══════════════════════════════════════════════════════════════
+#  原子路径（供复合情景拼接，Phase 2 新增）
+# ══════════════════════════════════════════════════════════════
+
+atomic_paths:
+  - id: climate_to_food_price
+    from: CLIMATE
+    to: COMMODITY_FOOD
+    mechanism: 极端天气→主产区减产→粮食期货价格上涨
+    calibration_score: 0.78
+    lag_days: 0-30
+    notes: 期货市场领先实物约1个月
+
+  - id: food_price_to_em_inflation
+    from: COMMODITY_FOOD
+    to: MACRO_INFLATION
+    mechanism: 进口粮食价格上涨→食品CPI上涨（进口依赖国）
+    calibration_score: 0.65
+    lag_days: 30-90
+    notes: 弹性系数：埃及0.8/印尼0.4/印度0.2（取决于进口依存度）
+
+  - id: inflation_to_social_stress
+    from: MACRO_INFLATION
+    to: SOCIAL_STRESS
+    mechanism: 实际工资购买力下降→生活成本压力→社会不满
+    calibration_score: 0.55
+    lag_days: 90-180
+    notes: 基尼系数>0.45时效果放大1.5倍；有效补贴可完全断开此传导
+
+  - id: social_stress_to_capital_flight
+    from: SOCIAL_STRESS
+    to: MACRO_CAPITAL
+    mechanism: 社会动荡持续→外资风险溢价上升→资本撤离
+    calibration_score: 0.50
+    lag_days: 60-180
+
+  - id: capital_flight_to_currency
+    from: MACRO_CAPITAL
+    to: MACRO_CURRENCY
+    mechanism: 资本账户净流出→本币需求下降→汇率贬值
+    calibration_score: 0.72
+    lag_days: 0-30
+    notes: 无资本管制时传导极快；有管制时可能延迟或完全阻断
+
+# ══════════════════════════════════════════════════════════════
+#  自然灾害路径（2026-06-11 新增）
+# ══════════════════════════════════════════════════════════════
+
+- id: natural_disaster_supply_chain
+  scenario_type: CRISIS
+  subtype: EARTHQUAKE
+  applicable_scenarios: [CRISIS]
+  label: 极端自然灾害→供应链中断→行业冲击
+  calibration_score: 0.58
+  data_quality: mixed — step1-2有充分历史数据，step3依赖灾害地点的关键性
+  causal_chain:
+    - step: 1
+      event: 超强自然灾害（地震M≥7.5/5级台风）→ 当地基础设施瘫痪
+      lag_days: 0-7
+      magnitude: {base: -15, range: [-5, -30], unit: "受灾地区GDP%"}
+      confidence: 0.85
+      source: historical_data
+      notes: 局部基础设施损毁；港口/工厂短暂停工；人员疏散
+    - step: 2
+      event: 关键供应链节点停产→全球下游行业减产
+      lag_days: 7-30
+      magnitude: {base: -8, range: [-2, -20], unit: "受影响行业股价%"}
+      confidence: 0.65
+      source: historical_data
+      notes: 仅当灾害打击全球稀缺供应节点时触发（如台湾晶圆/日本汽车零件/荷兰化工港）；普通震区不触发
+    - step: 3
+      event: 重建需求拉动→建材/工程设备需求上升
+      lag_days: 30-180
+      magnitude: {base: +20, range: [+10, +40], unit: "建材/钢材价格%"}
+      confidence: 0.70
+      source: historical_data
+      notes: 重建效应通常对冲部分GDP损失；1-2年后受灾国GDP可能高于基准
+  negative_conditions:
+    - 震中/风眼远离工业区（农村/海洋）：冲击局限于当地，全球市场1周内消退
+    - 受灾国为小型经济体：损失规模不足以影响全球定价
+    - 供应链有冗余替代：其他地区产能可快速填补
+    - 充分保险覆盖（成熟市场）：损失被保险机制快速消化
+  amplifying_factors:
+    - factor: 震中在台湾/日本/韩国半导体产区
+      scale: 2.0
+      notes: 全球晶圆/芯片单一供应节点，无法快速替代
+    - factor: 涉及核电设施（福岛模式）
+      scale: 1.8
+      notes: 核事故是主要放大器，同等震级有无核事故冲击差距巨大
+    - factor: 主要港口（鹿特丹/横滨/高雄）受损
+      scale: 1.5
+  dampening_factors:
+    - factor: 灾区有完善的地震保险制度
+      scale: 0.5
+    - factor: 震中在经济欠发展地区
+      scale: 0.3
+  historical_instances:
+    - event: 2011-03 日本东日本大地震（M9.0+核事故）
+      outcome: 日经-15%（4天），全球汽车/半导体供应链中断2-3个月，日元套利平仓
+      verified_steps: [1, 2, 3]
+      notes: 核事故是最大放大器，没有核事故冲击会小得多
+    - event: 2023-02 土耳其卡赫拉曼马拉什地震（M7.8）
+      outcome: 土耳其股市-10%（短暂），全球市场1周内消退，重建支出提振通胀
+      verified_steps: [1]
+      notes: 非关键供应链节点，全球传导有限；政治经济学放大国内影响
+    - event: 2004-12 印度洋海啸（M9.1）
+      outcome: 全球股市1周内恢复，区域旅游/渔业损失严重，死亡>22万但金融冲击有限
+      verified_steps: [1]
+      notes: 典型反例：超强灾害 + 非工业区 = 全球市场不受影响
+
+- id: earthquake_nuclear_cascade
+  scenario_type: CRISIS
+  subtype: EARTHQUAKE
+  applicable_scenarios: [CRISIS, ENERGY]
+  label: 地震+核事故→能源替代→天然气/煤炭需求激增
+  calibration_score: 0.65
+  data_quality: historical_data — 2011年日本完整验证全链路
+  causal_chain:
+    - step: 1
+      event: 重大地震→核电站紧急停堆或事故
+      lag_days: 0-3
+      magnitude: {base: "核电出力-0~100%", range: ["视受损程度"]}
+      confidence: 0.80
+      source: historical_data
+      notes: M≥7.0 地震通常触发核电自动停堆（SCRAM），损毁程度视震中距离
+    - step: 2
+      event: 核电缺口→电力紧缺→能源替代需求
+      lag_days: 3-30
+      magnitude: {base: +30, range: [+15, +80], unit: "LNG/天然气价格%"}
+      confidence: 0.70
+      source: historical_data
+      notes: 日本2011：核电从30%→0%；欧洲进口LNG需求激增；天然气价格飙升
+    - step: 3
+      event: 受影响国弃核讨论→邻国能源政策调整
+      lag_days: 30-365
+      magnitude: {base: +10, range: [+5, +30], unit: "全球LNG长期合同价%"}
+      confidence: 0.50
+      source: historical_data
+      notes: 德国2011年宣布弃核→欧洲天然气需求长期抬升；政策效应持续多年
+    - step: 4
+      event: 能源价格上涨→欧/亚通胀压力→央行政策权衡
+      lag_days: 90-365
+      magnitude: {base: +0.3, range: [+0.1, +1.0], unit: "CPI同比百分点"}
+      confidence: 0.45
+      source: mixed
+  negative_conditions:
+    - 核电占比低于10%（影响有限）
+    - 周边地区 LNG/天然气储备充足
+    - 快速重启其他类型发电（水电/风电可弥补缺口）
+    - 震中距核电站 > 200km
+  amplifying_factors:
+    - factor: 受灾国核电占比 > 20%（法国/日本/韩国）
+      scale: 1.8
+    - factor: 事发在冬季能源消费高峰
+      scale: 1.5
+    - factor: 核事故引发其他国家同步关停同型核电机组
+      scale: 1.6
+      notes: 2011年德国/意大利/瑞士同步宣布暂停或退出核能
+  historical_instances:
+    - event: 2011-03 日本东日本大地震→福岛核事故
+      outcome: 日本核电出力 30%→0%；LNG进口+50%；欧洲天然气+20%；德国宣布弃核
+      verified_steps: [1, 2, 3, 4]
+      notes: 迄今最完整的地震→核→能源→通胀链路验证案例
+
+# ══════════════════════════════════════════════════════════════
+#  南亚/新兴市场政治危机路径（2026-06-11 新增）
+# ══════════════════════════════════════════════════════════════
+
+- id: emerging_market_political_currency_crisis
+  scenario_type: POLITICAL
+  subtype: INSTABILITY
+  applicable_scenarios: [POLITICAL, GEO, SOCIAL]
+  label: 新兴市场政治危机→货币崩溃→区域传染
+  calibration_score: 0.50
+  data_quality: mixed — step1-3有巴基斯坦/斯里兰卡/土耳其历史数据，step4依赖区域特征
+  causal_chain:
+    - step: 1
+      event: 政治危机（政变/政府更迭/宪政冲突）→ 市场信心骤降
+      lag_days: 0-14
+      magnitude: {base: -15, range: [-5, -40], unit: "本国股市%"}
+      confidence: 0.72
+      source: historical_data
+      notes: 土耳其里拉历次政治危机；巴基斯坦政权更迭→KSE指数波动±10~30%
+    - step: 2
+      event: 外资撤离→货币贬值→进口通胀
+      lag_days: 14-60
+      magnitude: {base: -20, range: [-10, -50], unit: "本币兑美元%"}
+      confidence: 0.65
+      source: historical_data
+      notes: 巴基斯坦卢比2022-30%；土耳其里拉历次-20~-50%；需外储覆盖力评估
+    - step: 3
+      event: 通胀飙升→社会压力→政策难题（加息 vs 保增长）
+      lag_days: 60-180
+      magnitude: {base: "+20ppt通胀", range: ["+5ppt", "+80ppt"]}
+      confidence: 0.60
+      source: historical_data
+      notes: 土耳其通胀峰值85%(2022)；巴基斯坦35%+(2022)；政策博弈放大不确定性
+    - step: 4
+      event: 区域传染效应（信心渠道→邻国资产承压）
+      lag_days: 30-90
+      magnitude: {base: -5, range: [-2, -15], unit: "区域新兴市场ETF%"}
+      confidence: 0.40
+      source: mixed
+      notes: 传染效应依赖相似脆弱性；独立冲击传染有限，但多国同期压力时放大
+  negative_conditions:
+    - 有充足外汇储备（>6个月进口）：可直接干预汇率，阻断step2
+    - 获得IMF/双边信用额度（沙特/中国援助巴基斯坦模式）
+    - 大宗商品出口国：出口收入补充外储，缓冲贬值
+    - 有效资本管制（阻断资本外逃）
+  amplifying_factors:
+    - factor: 外债占GDP > 40%（货币贬值→债务滚雪球）
+      scale: 1.7
+    - factor: 政治危机叠加气候/自然灾害（巴基斯坦2022双重打击）
+      scale: 1.8
+    - factor: 全球美元流动性收紧（美联储加息期，新兴市场普遍脆弱）
+      scale: 1.4
+  dampening_factors:
+    - factor: 政权更迭后快速建立合法性（国际社会认可）
+      scale: 0.5
+    - factor: 国内强大的国有企业/银行体系（可直接干预外汇市场）
+      scale: 0.6
+  applicable_countries: emerging_markets_only（成熟民主国家效应压缩80%）
+  historical_instances:
+    - event: 2022 巴基斯坦政治危机+洪灾
+      outcome: 卢比-30%；通胀+35%；外储耗尽；IMF救助
+      verified_steps: [1, 2, 3]
+    - event: 2022 土耳其通胀危机（政治独立货币政策）
+      outcome: 里拉-44%；通胀峰值85%；选举前政策转向
+      verified_steps: [1, 2, 3]
+    - event: 2021 缅甸军政变
+      outcome: FDI-70%；缅元-50%；国际制裁；step4传染效应极小（体量小）
+      verified_steps: [1, 2]
+
+- id: turkey_currency_geopolitical_pivot
+  scenario_type: GEO
+  subtype: TURKEY
+  applicable_scenarios: [GEO, POLITICAL, TRADE]
+  label: 土耳其地缘/货币危机→NATO东翼压力→能源过境风险
+  calibration_score: 0.48
+  data_quality: mixed — 里拉历史数据充分，地缘传导依赖情景
+  causal_chain:
+    - step: 1
+      event: 土耳其政治事件（选举/政策转向/地缘摩擦）→ 里拉承压
+      lag_days: 0-30
+      magnitude: {base: -15, range: [-5, -40], unit: "里拉兑美元%"}
+      confidence: 0.70
+      source: historical_data
+      notes: 土耳其里拉对政治事件极敏感；2023选举前后里拉大幅波动
+    - step: 2
+      event: 土耳其地缘摩擦（黑海/叙利亚/北约）→ 能源过境/博斯普鲁斯海峡风险
+      lag_days: 30-90
+      magnitude: {base: "保险溢价+10%~+30%", range: ["视冲突严重程度"]}
+      confidence: 0.45
+      source: mixed
+      notes: 博斯普鲁斯是俄罗斯/乌克兰谷物出口关键通道；土耳其偶尔用航运权作筹码
+    - step: 3
+      event: 区域不稳定→欧洲东南翼压力
+      lag_days: 60-180
+      magnitude: {base: -3, range: [-1, -8], unit: "欧元区相关指数%"}
+      confidence: 0.35
+      source: llm_inference
+  negative_conditions:
+    - 土耳其外储充足（实际外储被套期保值合约掩盖，需仔细评估净值）
+    - IMF/西方援助条件性贷款提供外汇支撑
+    - 土耳其与俄欧双边关系维持平衡（独特的地缘中间地位保护）
+  amplifying_factors:
+    - factor: 美联储加息周期（新兴市场货币普遍承压背景下）
+      scale: 1.5
+    - factor: 土耳其同时卷入多个地缘热点（叙利亚/黑海/库尔德）
+      scale: 1.4
+  historical_instances:
+    - event: 2022 土耳其通胀+汇率危机
+      outcome: 里拉年贬值44%；通胀85%；央行逆向操作引发信誉危机
+      verified_steps: [1]
+    - event: 2016 未遂军事政变
+      outcome: 里拉-3%（单日），1个月内恢复；地缘冲击有限
+      verified_steps: [1]
+      notes: 政变失败且政权快速稳定，冲击极小，是反例

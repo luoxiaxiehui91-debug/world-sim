@@ -1,0 +1,138 @@
+"""
+统一配置文件 — 所有模块从这里导入路径和常量。
+修改系统环境时只需改这一个文件。
+
+本地化修改（2026-05-18）：
+  - AUTH_GATEWAY_PORT 默认值从 "19000" 改为 "28789"
+  - 重命名为 optim_config.py，避免与 run_macro_analysis.py 冲突
+
+2026-05-21 补充：
+  - 新增 LEI 阈值（AWHMAN/PERMIT）
+  - 新增全球风险区域失业率历史低位参考
+  - 新增滚动精度报告窗口配置
+"""
+
+import os
+
+# ── 工作区根目录（优先从环境变量读取，便于迁移） ──────────────────────────────
+WORKSPACE = os.environ.get(
+    "OPENCLAW_WORKSPACE",
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+
+# ── 数据目录 ───────────────────────────────────────────────────────────────────
+DATA_DIR = os.path.join(WORKSPACE, "data")
+
+def ensure_dirs() -> None:
+    """创建运行所需目录，由入口脚本在 __main__ 中调用（避免 import 时副作用）。"""
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+# ── 关键文件路径 ───────────────────────────────────────────────────────────────
+PREDICTIONS_LOG   = os.path.join(DATA_DIR, "predictions_log.json")
+WEAK_SIGNAL_LOG   = os.path.join(DATA_DIR, "weak_signal_log.json")
+GEO_EVENTS_LOG    = os.path.join(WORKSPACE, "知识库", "财经知识库",
+                                  "02_核心变量因果链", "地缘事件日志.json")
+MAIN_SCRIPT       = os.path.join(WORKSPACE, "核心代码", "run_macro_analysis.py")
+KNOWLEDGE_BASE    = os.path.join(WORKSPACE, "知识库", "财经知识库")
+
+# ── 推送配置（已迁移至 ntfy，此端口仅供 scan_weak_signals.py NeoData 接口使用）──
+AUTH_GATEWAY_PORT = os.environ.get("AUTH_GATEWAY_PORT", "28789")
+# CFG-3: PUSH_ENDPOINT / CRUCIX_ENDPOINT 已删除（死代码，无任何调用者）
+# 实际推送走 ntfy_listener.py；Crucix 直连 CRUCIX_REMOTE_URL
+
+# ── FRED API ───────────────────────────────────────────────────────────────────
+# 优先从环境变量读取，如未设置则使用默认 Key
+FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
+
+# ── Crucix API（NAS本地，直连地址） ───────────────────────────────────────────
+CRUCIX_REMOTE_URL = "http://192.168.31.108:3117/api/data"  # 按实际地址修改
+
+# ── 外部 LLM API ──────────────────────────────────────────────────────────────
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY    = os.environ.get("OPENAI_API_KEY", "")
+
+# ── Dashboard 输出路径 ─────────────────────────────────────────────────────────
+DASHBOARD_OUTPUT = os.environ.get(
+    "DASHBOARD_OUTPUT",
+    os.path.join(WORKSPACE, "docs", "macro_dashboard.html")
+)
+
+# ── 验证精度容差（ppt） ────────────────────────────────────────────────────────
+GDP_HIT_TOLERANCE    = 1.5   # GDP预测命中容差 ±1.5ppt
+UNRATE_HIT_TOLERANCE = 0.5   # 失业率命中容差 ±0.5ppt
+CPI_HIT_TOLERANCE    = 0.8   # CPI YoY命中容差 ±0.8ppt
+
+# FRED 数据最大可接受滞后（天）：超出视为数据不可用，不进行验证
+FRED_MAX_LAG_DAYS = 45
+
+# ── 弱信号阈值 ────────────────────────────────────────────────────────────────
+ZSCORE_WARN_THRESHOLD  = 2.0   # ⚠️ 注意
+ZSCORE_ALERT_THRESHOLD = 3.0   # 🚨 警报
+NEWS_FREQ_WARN_RATIO   = 3.0   # 近7天日均是90天均值的3倍触发注意
+NEWS_FREQ_ALERT_RATIO  = 5.0   # 5倍触发警报
+
+# ── LEI 先行指标阈值（score_recession_risk 使用） ─────────────────────────────
+AWHMAN_WARN_THRESHOLD  = 40.5  # 制造业周工时（小时）警戒线：低于此值为偏弱
+AWHMAN_CRIT_THRESHOLD  = 40.0  # 低于此值为偏低（历史衰退前常见）
+PERMIT_WARN_THRESHOLD  = 1400  # 建筑许可（千套，SAAR）警戒线
+PERMIT_CRIT_THRESHOLD  = 1200  # 低于此值为低迷（领先住宅投资下行）
+
+# ── 全球风险评分：各经济体失业率近5年历史低位参考 ────────────────────────────
+# 用于 score_global_recession_risk() 计算失业率偏离幅度
+EU_UNRATE_HISTORICAL_LOW = 6.0   # 欧元区近5年低位（2019年约6.0%）
+JP_UNRATE_HISTORICAL_LOW = 2.5   # 日本近5年低位（2022-2023约2.5%）
+GB_UNRATE_HISTORICAL_LOW = 3.7   # 英国近5年低位（2022年约3.7%）
+IN_PMI_EXPANSION_BENCH   = 55.0  # 印度制造业PMI"强扩张"基准线
+
+# ── 滚动精度报告窗口（月） ────────────────────────────────────────────────────
+ROLLING_ACCURACY_WINDOW_MONTHS = 6  # compute_rolling_accuracy_report 默认窗口
+
+# ── 结构层评估文件 ─────────────────────────────────────────────────────────────
+STRUCTURAL_PRIORS_FILE = os.path.join(DATA_DIR, "structural_priors.json")
+NEWS_EXPORT_PATH       = os.path.join(DATA_DIR, "news_export.json")
+
+# ── 核心 FRED 指标（美国） ────────────────────────────────────────────────────
+# 原定义在 data_fetcher.py，迁至此处作为唯一配置源（与欧元区/日本阈值常量同处）
+KEY_INDICATORS = {
+    # 利率
+    "DGS10": "10Y国债收益率",
+    "DFF": "联邦基金利率",
+    "T10Y2Y": "10Y-2Y利差",
+    "BAA10Y": "BAA-10Y信用利差",
+    # 经济
+    "GDPC1": "GDP实际增长",
+    "UNRATE": "失业率",
+    "ICSA": "初请失业金人数",
+    "PAYEMS": "非农就业",
+    "MANEMP": "制造业就业",
+    "JTSJOL": "职位空缺数",
+    "INDPRO": "工业产出指数",
+    # 通胀
+    "CPIAUCSL": "CPI同比",
+    "PCEPI": "核心PCE同比",
+    "PPIACO": "PPI同比",
+    "M2SL": "M2同比",
+    # 资产
+    "DCOILWTICO": "WTI原油",
+    "SP500": "标普500",
+    # 领先指标
+    "UMCSENT": "消费者信心指数",
+    "HOUST": "新屋开工数",
+    "DTWEXBGS": "贸易加权美元指数",
+    "AWHMAN": "制造业平均周工时",
+    "PERMIT": "建筑许可数",
+    # 通胀预期
+    "DFII10": "10Y TIPS实际收益率",
+    # 信用市场
+    "BAMLH0A0HYM2": "高收益债利差",
+    "MORTGAGE30US": "30年期房贷利率",
+    # ── 欧元区（FRED 镜像序列） ───────────────────────────────────────────────
+    "IRLTLT01EZM156N":  "欧元区10Y国债收益率",
+    "LRUNTTTTEZQ156S":  "欧元区失业率",
+    "CP0000EZ19M086NEST": "欧元区CPI同比",
+    "MABMM301EZM189S":  "欧元区M1同比",
+    # ── 日本（FRED 镜像序列） ─────────────────────────────────────────────────
+    "IRLTLT01JPM156N":  "日本10Y国债收益率",
+    "LRUNTTTTJPM156S":  "日本失业率",
+    "JPNCPIALLMINMEI":  "日本CPI同比",
+}

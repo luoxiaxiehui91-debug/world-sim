@@ -1,0 +1,171 @@
+{
+  "meta": {
+    "last_update": "2026-05-25T10:00:00",
+    "version": "1.3",
+    "description": "地缘政治事件结构化日志，供 run_macro_analysis.py 自动读取"
+  },
+  "events": [
+    {
+      "id": "E001",
+      "date": "2026-05-14",
+      "event": "特朗普访华（国事访问）",
+      "summary": "美国总统特朗普抵达北京，开始为期三天的国事访问。习近平举行欢迎仪式，双方会谈。",
+      "key_signals": [
+        "习提出'新时代大国正确相处之道'",
+        "特朗普寻求能源采购、制造业投资等实质性成果",
+        "WTO裁定2000亿美元关税非法",
+        "美国恢复232钢铝关税，中国商务部反对"
+      ],
+      "risk_impact": {
+        "taiwan_strait":   {"before": 3, "after": 2, "change": -1, "reason": "高层对话重启，军事紧张短期降温"},
+        "tech_decoupling": {"before": 6, "after": 5, "change": -1, "reason": "经贸合作氛围缓和，但芯片管制结构性不变"},
+        "global_trade":    {"before": 3, "after": 3, "change": 0,  "reason": "日内瓦暂停（E006, 05-12）已将贸易紧张从8降至3；访华外交正面与232钢铝关税恢复相互抵消，净影响中性"},
+        "energy_shock":    {"before": 3, "after": 3, "change": 0,  "reason": "无直接影响"}
+      },
+      "transmission_paths": {
+        "short_term": "不确定性溢价下降 → USD/CNY回落 → 风险资产反弹",
+        "mid_term": "访华成果能否转化为可持续经贸框架（特朗普反复性高）",
+        "key_watch": ["是否取消/减免部分关税", "是否放松芯片管制", "是否达成能源采购协议"]
+      },
+      "active": true
+    },
+    {
+      "id": "E002",
+      "date": "2026-05-16",
+      "event": "穆迪正式下调美国主权评级（Aaa→Aa1）",
+      "summary": "穆迪将美国长期信用评级从最高级Aaa下调至Aa1（AA+），成为三大评级机构中最后一个降级的。原因：联邦债务/GDP达127%（超二战峰值），净利息支出占税收比约21%（超穆迪警戒线20%），财政路径不可持续。至此S&P/Fitch/Moody's三家均已将美国降至AA+/Aa1级别。",
+      "key_signals": [
+        "Aaa→Aa1（稳定展望），为穆迪历史上首次下调美国主权评级",
+        "三大评级机构全部降至AA+/Aa1，历史性信号",
+        "债务/GDP 127%，净利息/税收约21%（超穆迪20%警戒线）",
+        "10Y美债收益率4.39%，降级后短期上行约10-15bp",
+        "美元指数短暂走弱，黄金上涨"
+      ],
+      "risk_impact": {
+        "taiwan_strait":   {"before": 2, "after": 2, "change": 0,  "reason": "无直接关联"},
+        "tech_decoupling": {"before": 5, "after": 5, "change": 0,  "reason": "无直接关联"},
+        "global_trade":    {"before": 4, "after": 5, "change": 1,  "reason": "美国财政压力可能推动贸易保护主义以增加关税收入"},
+        "energy_shock":    {"before": 3, "after": 3, "change": 0,  "reason": "无直接影响"},
+        "us_credit_risk":  {"before": 2, "after": 5, "change": 3,  "reason": "穆迪明确警告，三大机构均已进入降级轨道，长端利率上行压力加大"}
+      },
+      "transmission_paths": {
+        "short_term": "穆迪警告 → 外国央行减持美债 → 拍卖覆盖率下降 → 10Y利率上行压力增加",
+        "mid_term": "财政赤字货币化预期升温 → 通胀预期上行（TIPS盈亏平衡2.48%→2.7%+） → 联储两难困境加深",
+        "key_watch": ["6月国债拍卖覆盖率（阈值<2.0x）", "FY2026预算谈判进展", "10Y收益率是否突破5%"]
+      },
+      "active": true
+    },
+    {
+      "id": "E003",
+      "date": "2026-05-18",
+      "event": "WTI原油升至112美元（中东供给风险叠加OPEC+减产）",
+      "summary": "WTI原油价格升至112.25美元，Brent 114美元。中东局势升级叠加OPEC+坚持减产，能源价格再次逼近2022年峰值。PPI同比上升至9.82%，通胀二次压力加剧。",
+      "key_signals": [
+        "WTI 112.25美元/桶（2026-05-18），较年初上涨约12%",
+        "PPI同比 9.82%（2026.04），上游成本压力重燃",
+        "美国汽油均价 4.35美元/加仑（接近2022年历史高位）",
+        "OPEC+维持Q2减产协议，沙特日产约900万桶",
+        "霍尔木兹海峡过境量每日约2000万桶（全球供应21%）"
+      ],
+      "risk_impact": {
+        "taiwan_strait":   {"before": 2, "after": 2, "change": 0,  "reason": "无直接关联"},
+        "tech_decoupling": {"before": 5, "after": 5, "change": 0,  "reason": "无直接关联"},
+        "global_trade":    {"before": 4, "after": 6, "change": 2,  "reason": "能源价格高企推高全球航运和制造成本，供应链压力"},
+        "energy_shock":    {"before": 4, "after": 8, "change": 4,  "reason": "WTI 112美元 + OPEC+减产 + 中东风险叠加，能源冲击高度激活"},
+        "us_credit_risk":  {"before": 5, "after": 6, "change": 1,  "reason": "油价高企→通胀持续→降息推迟→利息支出更高→财政压力恶化"}
+      },
+      "transmission_paths": {
+        "short_term": "油价飙升 → PPI进一步上行 → CPI从3.78%向4%+移动 → 联储加息预期重燃",
+        "mid_term": "能源通胀持续 → 企业成本上升（利润率↓）→ 消费者信心进一步下滑（密歇根53.3） → 滞胀压力",
+        "key_watch": ["WTI是否突破120美元（加速传导线）", "OPEC+6月会议增产决定", "API/EIA库存周报"]
+      },
+      "active": true
+    },
+    {
+      "id": "E004",
+      "date": "2026-05-05",
+      "event": "欧洲央行第四次降息（存款利率至2.50%）",
+      "summary": "ECB将存款利率从2.75%降至2.50%，为2024年6月以来连续第四次降息，欧元区通胀已降至2.2%接近目标。",
+      "key_signals": [
+        "ECB存款利率2.50%，vs 美联储基准3.63%",
+        "欧元区CPI 2.2%，核心通胀2.7%",
+        "欧元区GDP Q1增速0.3%（季环比）",
+        "欧美货币政策分化加大"
+      ],
+      "risk_impact": {
+        "taiwan_strait":   {"before": 2, "after": 2, "change": 0,  "reason": "无直接关联"},
+        "tech_decoupling": {"before": 5, "after": 5, "change": 0,  "reason": "无直接关联"},
+        "global_trade":    {"before": 5, "after": 4, "change": -1, "reason": "欧洲需求回暖有助于全球贸易"},
+        "energy_shock":    {"before": 8, "after": 8, "change": 0,  "reason": "无直接影响"},
+        "fx_pressure":     {"before": 3, "after": 5, "change": 2,  "reason": "欧美利差扩大 → 欧元承压 → 美元偏强"}
+      },
+      "transmission_paths": {
+        "short_term": "欧美利差扩大 → EUR/USD下行 → 美元指数走强 → 美国出口竞争力下降",
+        "mid_term": "欧洲宽松+美国高利率并存 → 资本流向美元资产 → 强美元抑制通胀进口端",
+        "key_watch": ["ECB下次会议6月时间表", "欧元/美元汇率是否跌破1.05", "欧美PMI收敛速度"]
+      },
+      "active": true
+    },
+    {
+      "id": "E005",
+      "date": "2026-04-30",
+      "event": "日本央行维持利率（超宽松政策延续）",
+      "summary": "日本央行在4月会议维持政策利率在0.1%，但暗示年内可能进一步加息。日元兑美元贬值至152附近，日本国债收益率曲线控制压力加大。",
+      "key_signals": [
+        "日本CPI同比2.8%（含能源），核心CPI 2.4%",
+        "USD/JPY 152，接近干预警戒线160",
+        "10Y JGB收益率0.85%，上行压力持续",
+        "日本工资涨幅3.5%，为30年来最高"
+      ],
+      "risk_impact": {
+        "taiwan_strait":   {"before": 2, "after": 2, "change": 0,  "reason": "无直接关联"},
+        "tech_decoupling": {"before": 5, "after": 5, "change": 0,  "reason": "无直接关联"},
+        "global_trade":    {"before": 4, "after": 4, "change": 0,  "reason": "日元弱势利好日本出口，但进口成本上升"},
+        "energy_shock":    {"before": 8, "after": 8, "change": 0,  "reason": "日本高度依赖能源进口，油价上涨加重贸易逆差"},
+        "yen_carry_unwind":{"before": 2, "after": 4, "change": 2,  "reason": "若日银被迫快速加息，日元套利平仓可能引发全球风险资产抛售"}
+      },
+      "transmission_paths": {
+        "short_term": "日元持续贬值 → 日本进口通胀 → 日银加息预期升温 → 全球利率上行联动",
+        "mid_term": "若日银快速加息 → 日元套利交易平仓 → 全球流动性收紧 → 新兴市场风险资产承压",
+        "key_watch": ["USD/JPY是否再触160干预线", "日银6月/7月会议加息信号", "日本实际工资增速是否持续"]
+      },
+      "active": true
+    },
+    {
+      "id": "E006",
+      "date": "2026-05-12",
+      "event": "中美日内瓦峰会 — 90天关税暂停协议",
+      "summary": "中美双方在日内瓦举行高级别贸易谈判，达成90天暂停协议：美方关税从145%降至30%，中方从125%降至10%。这是自2025年贸易战升级以来最重大的缓和信号。暂停期为90天（至2026-08初），双方承诺在此期间推进结构性谈判。",
+      "key_signals": [
+        "美关税145%→30%，中关税125%→10%（90天暂停）",
+        "SPX当日反弹+3.3%，人民币USD/CNY从7.28升至7.21",
+        "黄金当日小跌（避险溢价释放）",
+        "WTI短期回落（全球衰退担忧缓和）",
+        "暂停期2026-08初到期，延续谈判路径高度不确定"
+      ],
+      "risk_impact": {
+        "taiwan_strait":   {"before": 3, "after": 2, "change": -1, "reason": "中美高层对话有助于台海紧张情绪降温"},
+        "tech_decoupling": {"before": 6, "after": 5, "change": -1, "reason": "贸易缓和氛围有助于部分技术管制松动讨论"},
+        "global_trade":    {"before": 8, "after": 3, "change": -5, "reason": "90天暂停大幅降低贸易紧张度；但结构性问题未解决"},
+        "energy_shock":    {"before": 8, "after": 7, "change": -1, "reason": "全球经济衰退担忧降低，油价需求端预期改善"},
+        "us_credit_risk":  {"before": 6, "after": 5, "change": -1, "reason": "关税收入来源改变（从高关税到低关税），赤字结构微调"}
+      },
+      "transmission_paths": {
+        "short_term": "关税大幅降低 → 贸易成本下降 → PPI/CPI输入性通胀压力暂缓 → 联储降息窗口小幅重开",
+        "mid_term": "结构性问题（芯片/技术/知识产权）仍悬 → 2026-08谈判结果决定长期走向；暂停到期若破裂则市场逆转",
+        "key_watch": ["2026-08 暂停到期谈判结果", "中方是否实质增加美国农产品/能源采购", "芯片管制是否纳入谈判"]
+      },
+      "active": true
+    }
+  ],
+  "schema": {
+    "id": "事件唯一标识",
+    "date": "事件发生日期（YYYY-MM-DD）",
+    "event": "事件名称",
+    "summary": "事件简要描述",
+    "key_signals": "关键信号/要点列表",
+    "risk_impact": "对各维度风险的影响（change > 0 = 风险上升，< 0 = 风险降低）",
+    "transmission_paths": "传导路径（short_term/mid_term/key_watch）",
+    "active": "是否为当前活跃事件（true=近30天/持续影响中）"
+  }
+}

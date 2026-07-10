@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>世界推演系统 · 使用与维护手册 V3.5.26</title>
+<style>
+  :root {
+    --bg: #0f1117; --bg2: #161b22; --bg3: #1c2333;
+    --border: #30363d; --text: #c9d1d9; --text-dim: #8b949e;
+    --accent: #58a6ff; --accent2: #79c0ff;
+    --green: #3fb950; --yellow: #d29922; --red: #f85149;
+    --purple: #bc8cff; --orange: #ffa657;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif; font-size: 15px; line-height: 1.7; padding: 0 0 60px; }
+  header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 20px 40px; display: flex; align-items: center; gap: 16px; }
+  header h1 { font-size: 20px; font-weight: 700; color: var(--accent2); }
+  header .ver { background: #1f3d2d; color: var(--green); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px 40px; }
+  h2 { font-size: 18px; font-weight: 700; color: var(--accent); margin: 40px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 15px; font-weight: 600; color: var(--accent2); margin: 24px 0 12px; }
+  p { color: var(--text); margin-bottom: 12px; }
+  code { background: var(--bg3); color: var(--orange); padding: 2px 6px; border-radius: 4px; font-size: 13px; font-family: "SF Mono", Consolas, monospace; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin: 2px; }
+  .tag-green { background: #1f3d2d; color: var(--green); }
+  .tag-blue { background: #1f2d3d; color: var(--accent); }
+  .tag-yellow { background: #3d2e1f; color: var(--yellow); }
+  .tag-red { background: #3d1f1f; color: var(--red); }
+  .tag-purple { background: #2d1f3d; color: var(--purple); }
+
+  /* ── 工作原理总图 ── */
+  .arch-diagram { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin: 20px 0; overflow-x: auto; }
+  .arch-title { font-size: 13px; color: var(--text-dim); text-align: center; margin-bottom: 20px; }
+  .flow-row { display: flex; gap: 0; align-items: stretch; justify-content: center; flex-wrap: wrap; }
+  .flow-col { display: flex; flex-direction: column; gap: 8px; min-width: 140px; }
+  .flow-arrow { display: flex; align-items: center; justify-content: center; padding: 0 8px; color: var(--text-dim); font-size: 20px; flex-shrink: 0; }
+  .flow-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; min-height: 70px; display: flex; flex-direction: column; gap: 4px; }
+  .flow-box.accent { border-color: var(--accent); }
+  .flow-box.green { border-color: var(--green); }
+  .flow-box.yellow { border-color: var(--yellow); }
+  .flow-box.purple { border-color: var(--purple); }
+  .flow-box.orange { border-color: var(--orange); }
+  .flow-label { font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .flow-content { font-size: 13px; color: var(--text); }
+  .flow-sub { font-size: 11px; color: var(--text-dim); }
+
+  /* ── 完整流程图 ── */
+  .pipeline { display: flex; flex-direction: column; gap: 0; margin: 20px 0; }
+  .pipe-step { display: flex; gap: 0; }
+  .pipe-num { width: 40px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .pipe-circle { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+  .pipe-line { flex: 1; width: 2px; background: var(--border); margin: 0 auto; }
+  .pipe-body { flex: 1; padding: 4px 0 24px 16px; }
+  .pipe-body h4 { font-size: 14px; font-weight: 700; color: var(--accent2); margin-bottom: 6px; }
+  .pipe-body p { font-size: 13px; color: var(--text-dim); margin: 0; }
+  .pipe-body .detail { margin-top: 8px; background: var(--bg3); border-radius: 6px; padding: 10px 12px; font-size: 12px; color: var(--text-dim); border-left: 3px solid var(--border); }
+
+  /* ── 域覆盖图 ── */
+  .domain-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 16px 0; }
+  .domain-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .domain-card.full { border-color: var(--green); }
+  .domain-card.partial { border-color: var(--yellow); }
+  .domain-card.gap { border-color: var(--red); opacity: 0.7; }
+  .domain-name { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .domain-aliases { font-size: 11px; color: var(--text-dim); }
+
+  /* ── 表格 ── */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; background: var(--bg3); color: var(--text-dim); font-size: 12px; border-bottom: 1px solid var(--border); }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ── 时间线 ── */
+  .timeline { display: flex; gap: 0; align-items: flex-start; overflow-x: auto; padding: 16px 0; }
+  .tl-item { display: flex; flex-direction: column; align-items: center; min-width: 90px; flex: 1; }
+  .tl-time { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+  .tl-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .tl-line { flex: 1; height: 2px; background: var(--border); margin: 0 2px; align-self: center; width: 100%; }
+  .tl-label { font-size: 11px; color: var(--text-dim); text-align: center; margin-top: 6px; line-height: 1.4; }
+  .tl-icon { font-size: 18px; margin-bottom: 4px; }
+  .tl-connector { display: flex; align-items: center; width: 100%; }
+
+  /* 提示框 */
+  .info-box { background: var(--bg3); border: 1px solid var(--accent); border-radius: 8px; padding: 14px 16px; margin: 16px 0; font-size: 13px; }
+  .info-box.warn { border-color: var(--yellow); }
+  .info-box strong { color: var(--accent); }
+  .info-box.warn strong { color: var(--yellow); }
+</style>
+</head>
+<body>
+<header>
+  <span style="font-size:24px">🌐</span>
+  <h1>世界推演系统 · 使用与维护手册</h1>
+  <span class="ver">V3.5.26</span>
+  <span style="font-size:12px;color:var(--text-dim);margin-left:8px">2026-06-30 更新 · V3.5.26</span>
+</header>
+
+<div class="container">
+
+<!-- ══════════════════════════════════════════════
+     一、系统定位
+══════════════════════════════════════════════ -->
+<h2>一、这是什么</h2>
+<p>跑在家里 NAS 上的 <strong>世界理解引擎</strong>——持续监测全球多维度信号，自动推演可能发生的事，主动提醒你需要关注的变化，也能回答你对世界的任何问题。</p>
+
+<div class="arch-diagram">
+  <div class="arch-title">系统三大能力</div>
+  <div class="flow-row" style="gap:24px">
+    <div class="flow-box accent" style="flex:1;min-width:200px">
+      <div class="flow-label">📡 自动监测 + 主动提醒</div>
+      <div class="flow-content">每天自动拉取50+指标，扫描全球新闻，识别异常信号，07:00 主动推送今日摘要</div>
+    </div>
+    <div class="flow-box green" style="flex:1;min-width:200px">
+      <div class="flow-label">🧠 假设推演</div>
+      <div class="flow-content">你描述任意情景（"台海冲突""伊朗封锁霍尔木兹"），系统给出历史类比 + 传导路径 + 置信度推演</div>
+    </div>
+    <div class="flow-box yellow" style="flex:1;min-width:200px">
+      <div class="flow-label">💬 自由问答</div>
+      <div class="flow-content">随时发问（ntfy 或浏览器），系统基于实时数据快照 + 知识库回答，区分事实与推断</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     二、完整工作原理图
+══════════════════════════════════════════════ -->
+<h2>二、完整工作原理</h2>
+
+<h3>2.1 每日自动运行流程（时间线）</h3>
+
+<div class="arch-diagram">
+  <div style="display:flex;align-items:flex-start;gap:0;overflow-x:auto;padding:8px 0">
+
+    <!-- 05:25 -->
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
+      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">05:25 🆕</div>
+      <div style="font-size:20px;margin-bottom:4px">🌋</div>
+      <div style="font-size:11px;color:var(--text-dim);text-align:center">USGS地震监控<br/>M≥2.5/24h<br/>关键节点区位评分</div>
+    </div>
+    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
+
+    <!-- 05:30 -->
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
+      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">05:30</div>
+      <div style="font-size:20px;margin-bottom:4px">📊</div>
+      <div style="font-size:11px;color:var(--text-dim);text-align:center">FRED 数据拉取<br/>36个序列<br/>（小麦/玉米/失业率等）</div>
+    </div>
+    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
+
+    <!-- 05:40-05:45 -->
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
+      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">05:40~45</div>
+      <div style="font-size:20px;margin-bottom:4px">🌍</div>
+      <div style="font-size:11px;color:var(--text-dim);text-align:center">GPR 地缘风险指数<br/>+ 中国宏观数据<br/>（akshare）</div>
+    </div>
+    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
+
+    <!-- 06:00 -->
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:110px;flex:1">
+      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">06:00 ×4/天</div>
+      <div style="font-size:20px;margin-bottom:4px">🔍</div>
+      <div style="font-size:11px;color:var(--text-dim);text-align:center">弱信号扫描<br/>双源新闻入库<br/>GDELT地缘分析</div>
+    </div>
+    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
+
+    <!-- 06:10 -->
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
+      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">06:10</div>
+      <div style="font-size:20px;margin-bottom:4px">⚡</div>
+      <div style="font-size:11px;color:var(--text-dim);text-align:center">GRV 地缘向量聚合<br/>（台海/中美/俄欧/<br/>中东/全球）</div>
+    </div>
+    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
+
+    <!-- 06:30 -->
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
+      <div style="font-size:12px;font-weight:700;color:var(--yellow);margin-bottom:8px">06:30 🆕</div>
+      <div style="font-size:20px;margin-bottom:4px">🗺</div>
+      <div style="font-size:11px;color:var(--text-dim);text-align:center">情境话题检测<br/>自动发现新兴话题<br/>推送确认请求</div>
+    </div>
+    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
+
+    <!-- 07:00 -->
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
+      <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px">07:00</div>
+      <div style="font-size:20px;margin-bottom:4px">📱</div>
+      <div style="font-size:11px;color:var(--text-dim);text-align:center"><strong style="color:var(--green)">今日世界摘要</strong><br/>3件最值得关注<br/>含气候信号</div>
+    </div>
+    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
+
+    <!-- 07:30 -->
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
+      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">07:30</div>
+      <div style="font-size:20px;margin-bottom:4px">📋</div>
+      <div style="font-size:11px;color:var(--text-dim);text-align:center">中美晨报<br/>（快速模式）</div>
+    </div>
+    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
+
+    <!-- 20:00 -->
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
+      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">20:00/20:15</div>
+      <div style="font-size:20px;margin-bottom:4px">📰</div>
+      <div style="font-size:11px;color:var(--text-dim);text-align:center">美国/中国<br/>深度分析报告<br/>（工作日）</div>
+    </div>
+
+  </div>
+</div>
+
+<h3>2.2 八步分析流水线（每次生成报告）</h3>
+
+<div class="pipeline">
+
+  <div class="pipe-step">
+    <div class="pipe-num">
+      <div class="pipe-circle" style="background:#1f2d3d;color:var(--accent)">1</div>
+      <div class="pipe-line"></div>
+    </div>
+    <div class="pipe-body">
+      <h4>数据拉取 · 多源实时快照</h4>
+      <p>从 FRED（美国 36 条经济指标）、akshare（中国7个宏观指标）、crucix（英文地缘新闻 + GDELT）、RSSHub（中文财经新闻）、GPR（地缘风险指数）同步拉取数据。</p>
+      <div class="detail">关键指标：VIX / T10Y2Y（收益率曲线）/ BAA10Y（信用利差）/ DFF（联邦基金利率）/ CPIAUCSL（CPI）/ UNRATE（失业率）/ 台湾GPR指数 / Crucix GSCPI（供应链压力）</div>
+    </div>
+  </div>
+
+  <div class="pipe-step">
+    <div class="pipe-num">
+      <div class="pipe-circle" style="background:#1f3d2d;color:var(--green)">2</div>
+      <div class="pipe-line"></div>
+    </div>
+    <div class="pipe-body">
+      <h4>风险评分 · LEI 框架打分</h4>
+      <p>用6个维度（利率曲线倒挂25分 + 信用利差20分 + 萨姆规则20分 + 初请失业金15分 + 周工时/建筑许可10分 + GDP/消费信心10分）计算衰退风险分（0-100）和通胀风险分。</p>
+    </div>
+  </div>
+
+  <div class="pipe-step">
+    <div class="pipe-num">
+      <div class="pipe-circle" style="background:#2d1f3d;color:var(--purple)">3</div>
+      <div class="pipe-line"></div>
+    </div>
+    <div class="pipe-body">
+      <h4>历史情景匹配 · 41 条历史案例</h4>
+      <p>用欧几里得距离在历史案例库（41条，覆盖金融危机/地缘冲突/气候冲击/社会动荡/文化摩擦/航道封锁等）中找到最相似的 2-3 个案例，给出量化参考区间（SPX回撤 P10/P50/P90）。</p>
+      <div class="detail">V3.3 新增案例：印度洋海啸（2004）/ 日本地震+核（2011）/ 巴基斯坦政治+洪灾（2022）/ 土耳其大地震（2023）/ EU AI法案（2024，渐进式无短期冲击反例）+ V3.2新增：沙特阿布盖格/胡塞红海/苏伊士搁浅</div>
+    </div>
+  </div>
+
+  <div class="pipe-step">
+    <div class="pipe-num">
+      <div class="pipe-circle" style="background:#1f3020;color:var(--green)">4</div>
+      <div class="pipe-line"></div>
+    </div>
+    <div class="pipe-body">
+      <h4>知识库检索 · RAG 4156 块</h4>
+      <p>用 SiliconFlow BAAI/bge-m3 向量模型在 4156 块知识库文档中检索相关背景知识（558 个 .md 文件），包括分析框架、传导路径库（20条含2条跨域复合路径）、历史案例（32条）、专题报告等。</p>
+    </div>
+  </div>
+
+  <div class="pipe-step">
+    <div class="pipe-num">
+      <div class="pipe-circle" style="background:#1f2d3d;color:var(--accent)">5</div>
+      <div class="pipe-line"></div>
+    </div>
+    <div class="pipe-body">
+      <h4>体制检测 + 蒙特卡洛模拟</h4>
+      <p>判断当前宏观体制（normal/stress/crisis），然后用 GARCH+跳跃扩散模型运行 5000 条路径 × 12 个月的蒙特卡洛模拟，输出 GDP/失业率/通胀的概率分布。</p>
+      <div class="detail">体制切换时传导系数差异：危机态 vs 常态，FFR→失业率系数 ×2.5，信用利差→GDP 系数 ×2.4</div>
+    </div>
+  </div>
+
+  <div class="pipe-step">
+    <div class="pipe-num">
+      <div class="pipe-circle" style="background:#3d2e1f;color:var(--yellow)">6</div>
+      <div class="pipe-line"></div>
+    </div>
+    <div class="pipe-body">
+      <h4>构建 LLM 提示词 · 数据注入</h4>
+      <p>把步骤1-5的所有结构化数据注入 LLM 提示词：实时数据快照 + 风险评分 + 历史类比 + 知识库片段 + GRV 地缘向量 + 最新新闻标题 + Crucix 实时地缘信号。</p>
+    </div>
+  </div>
+
+  <div class="pipe-step">
+    <div class="pipe-num">
+      <div class="pipe-circle" style="background:#2d1f3d;color:var(--purple)">7</div>
+      <div class="pipe-line"></div>
+    </div>
+    <div class="pipe-body">
+      <h4>LLM 推理 · 降级链</h4>
+      <p>主力：<strong>MiniMax-M3</strong>（Anthropic 兼容接口） → 失败降级 → <strong>MiMo v2.5 Pro</strong>（OpenAI 兼容接口）→ 失败降级 → SiliconFlow Qwen3.5-27B → 纯数据报告（最终兜底）</p>
+    </div>
+  </div>
+
+  <div class="pipe-step">
+    <div class="pipe-num">
+      <div class="pipe-circle" style="background:#1f3d2d;color:var(--green)">8</div>
+      <div style="width:2px;background:transparent;flex:1"></div>
+    </div>
+    <div class="pipe-body">
+      <h4>保存 + 推送</h4>
+      <p>报告保存为 .md 文件（docs/ 目录幂等命名），通过 ntfy 以文件附件形式推送到手机；同时预测入库用于月度准确率校验。</p>
+    </div>
+  </div>
+
+</div>
+
+<h3>2.3 假设推演分支（按需触发）</h3>
+
+<div class="arch-diagram">
+  <div style="display:flex;gap:12px;align-items:stretch;flex-wrap:wrap">
+
+    <div class="flow-box accent" style="flex:1;min-width:160px">
+      <div class="flow-label">① 情景解析</div>
+      <div class="flow-content">别名识别（48个）或关键词分类 → 确定域/子类/烈度<br/><span class="flow-sub">7个域：GEO/FIN/ENERGY/TRADE/MACRO/CLIMATE/CULTURAL/...</span></div>
+    </div>
+    <div class="flow-arrow">→</div>
+
+    <div class="flow-box" style="flex:1;min-width:160px">
+      <div class="flow-label">② 历史类比</div>
+      <div class="flow-content">在41条案例中按 crisis_category + 关键词匹配，返回最相似2-3个案例及量化区间</div>
+    </div>
+    <div class="flow-arrow">→</div>
+
+    <div class="flow-box" style="flex:1;min-width:160px">
+      <div class="flow-label">③ 传导路径</div>
+      <div class="flow-content">从16条路径库中匹配，注入 [PATHS] 节；复合情景支持跨域路径匹配</div>
+    </div>
+    <div class="flow-arrow">→</div>
+
+    <div class="flow-box" style="flex:1;min-width:160px">
+      <div class="flow-label">④ 置信度计算</div>
+      <div class="flow-content">4维调和平均：历史锚定×40%+路径完整性×25%+信号时效×20%+一致性×15%<br/><span class="flow-sub">🟢≥0.65 / 🟡0.45-0.65 / 🔴&lt;0.45</span></div>
+    </div>
+    <div class="flow-arrow">→</div>
+
+    <div class="flow-box green" style="flex:1;min-width:160px">
+      <div class="flow-label">⑤ LLM 推演</div>
+      <div class="flow-content">标准模式：单次推演<br/>深度模式（deep）：三轮链式——不确定因素→概率估计→综合推演+情景树</div>
+    </div>
+
+  </div>
+</div>
+
+<h3>2.4 弱信号 → 自动告警链</h3>
+
+<div class="arch-diagram">
+  <div style="font-size:13px;color:var(--text-dim);line-height:2">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <span class="tag tag-blue">每6h扫描</span>
+      <span>→</span>
+      <span>Z-score 异常检测 + 新闻频率比（7d vs 90d）</span>
+      <span>→</span>
+      <span class="tag tag-yellow">signal_episodes 写入</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <span class="tag tag-blue">共振检测（R01-R12）</span>
+      <span>→</span>
+      <span>多类别信号在时间窗口内共振 AND GDELT 二次验证</span>
+      <span>→</span>
+      <span class="tag tag-green">触发假设推演（Live模式）</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <span class="tag tag-purple">R08 always-on</span>
+      <span>跨资产相关性突变（4对指标，Δcorr≥0.4）→ 推送告警</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="tag tag-red">B线</span>
+      <span>GRV台海≥68 OR 单日涨幅≥6 → 自动触发台海推演</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     三、推演域覆盖范围
+══════════════════════════════════════════════ -->
+<h2>三、推演域覆盖（V3.3）</h2>
+<p>输入任意别名或自然语言，系统会自动分类到对应域并调用对应的历史案例 + 传导路径。</p>
+
+<div class="domain-grid">
+  <div class="domain-card full">
+    <div class="domain-name" style="color:var(--green)">🌍 地缘政治 GEO ✅</div>
+    <div class="domain-aliases">台海 / 朝鲜 / 俄乌 / 伊朗 / 中东 / 以色列 / 沙特 / 印度 / 霍尔木兹 / 马六甲 / 苏伊士</div>
+  </div>
+  <div class="domain-card full">
+    <div class="domain-name" style="color:var(--green)">💰 金融 FIN ✅</div>
+    <div class="domain-aliases">日元 / 银行 / 美联储</div>
+  </div>
+  <div class="domain-card full">
+    <div class="domain-name" style="color:var(--green)">⛽ 能源 ENERGY ✅</div>
+    <div class="domain-aliases">油价 / 沙特 / 霍尔木兹</div>
+  </div>
+  <div class="domain-card full">
+    <div class="domain-name" style="color:var(--green)">📦 贸易 TRADE ✅</div>
+    <div class="domain-aliases">芯片 / 关税 / 马六甲 / 苏伊士 / 稀土 / 锂矿</div>
+  </div>
+  <div class="domain-card full">
+    <div class="domain-name" style="color:var(--green)">📉 宏观 MACRO ✅</div>
+    <div class="domain-aliases">美债 / <strong>美国</strong> / <strong>中国</strong></div>
+  </div>
+  <div class="domain-card full">
+    <div class="domain-name" style="color:var(--green)">🌡 气候 CLIMATE ✅</div>
+    <div class="domain-aliases">厄尔尼诺 / 拉尼娜 / 粮食危机 / 旱灾 / 洪灾</div>
+  </div>
+  <div class="domain-card full">
+    <div class="domain-name" style="color:var(--green)">✊ 社会 SOCIAL ✅</div>
+    <div class="domain-aliases">社会动荡</div>
+  </div>
+  <div class="domain-card full">
+    <div class="domain-name" style="color:var(--green)">🗳 政治 POLITICAL ✅</div>
+    <div class="domain-aliases">政变 / 政治危机</div>
+  </div>
+  <div class="domain-card full">
+    <div class="domain-name" style="color:var(--green)">🎭 文化 CULTURAL ✅</div>
+    <div class="domain-aliases">文化抵制</div>
+  </div>
+  <div class="domain-card full">
+    <div class="domain-name" style="color:var(--green)">🌋 自然灾害 CRISIS ✅</div>
+    <div class="domain-aliases">地震 / 海啸 / 火山（V3.3+USGS实时监控V3.4）</div>
+  </div>
+  <div class="domain-card full">
+    <div class="domain-name" style="color:var(--green)">🤖 科技竞争 CRISIS ✅</div>
+    <div class="domain-aliases">AI监管 / 量子 / 太空（V3.3新增）</div>
+  </div>
+  <div class="domain-card full">
+    <div class="domain-name" style="color:var(--green)">🌋 自然灾害 CRISIS ✅</div>
+    <div class="domain-aliases">地震 / 海啸 / 火山（V3.3新增）</div>
+  </div>
+  <div class="domain-card full">
+    <div class="domain-name" style="color:var(--green)">🪨 战略矿产 TRADE ✅</div>
+    <div class="domain-aliases">稀土 / 锂矿（V3.3新增）</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     四、手机操作指南
+══════════════════════════════════════════════ -->
+<h2>四、手机操作指南</h2>
+<p>手机安装 ntfy，订阅 <code>macro-tsx-9005</code> 接收报告；向 <code>macro-tsx-9005-cmd</code> 发指令，格式：<code>1900 &lt;指令&gt;</code></p>
+
+<h3>常用指令速查</h3>
+<table>
+  <tr><th>指令</th><th>功能</th><th>耗时</th></tr>
+  <tr><td><code>1900 ask 你的问题</code></td><td>自由问答</td><td>~30秒</td></tr>
+  <tr><td><code>1900 narrative</code></td><td>立即生成今日世界摘要</td><td>~15秒</td></tr>
+  <tr><td><code>1900 situations</code></td><td>查看追踪事件状态（含待确认）</td><td>即时</td></tr>
+  <tr><td><code>1900 confirm_situation &lt;id&gt;</code></td><td>确认追踪自动检测的新话题</td><td>即时</td></tr>
+  <tr><td><code>1900 dismiss_situation &lt;id&gt;</code></td><td>忽略归档某话题（再次升温会自动恢复）</td><td>即时</td></tr>
+  <tr><td><code>1900 hypothesis 伊朗 L2</code></td><td>假设推演（标准模式）</td><td>5-10分钟</td></tr>
+  <tr><td><code>1900 hypothesis 台海封锁 L3 deep</code></td><td>多步深度推演</td><td>15-20分钟</td></tr>
+  <tr><td><code>1900 both</code></td><td>立即生成中美报告</td><td>5-15分钟</td></tr>
+  <tr><td><code>1900 status</code></td><td>系统运行状态</td><td>即时</td></tr>
+  <tr><td><code>1900 help</code></td><td>完整指令列表</td><td>即时</td></tr>
+</table>
+
+<h3>Web 界面（局域网）</h3>
+<p>浏览器访问 <code>http://192.168.31.108:8899</code>，支持：💬 自由问答 / 🗺 事件追踪 / 📊 系统状态</p>
+
+<!-- ══════════════════════════════════════════════
+     五、系统架构
+══════════════════════════════════════════════ -->
+<h2>五、系统架构</h2>
+
+<div class="arch-diagram">
+  <div class="arch-title">NAS 容器 + 云端服务架构</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+
+    <div class="flow-box accent">
+      <div class="flow-label">🐳 macro-scan 容器</div>
+      <div class="flow-content">主程序，Python 3.11</div>
+      <div class="flow-sub">端口 :8899（Web UI）</div>
+    </div>
+
+    <div class="flow-box">
+      <div class="flow-label">🐳 crucix 容器 :3117</div>
+      <div class="flow-content">多源情报引擎</div>
+      <div class="flow-sub">FIRMS卫星/EIA能源/GDELT/OpenSky</div>
+    </div>
+
+    <div class="flow-box">
+      <div class="flow-label">🐳 rsshub 容器 :12000</div>
+      <div class="flow-content">中文财经 RSS</div>
+      <div class="flow-sub">财新/第一财经/华尔街见闻</div>
+    </div>
+
+    <div class="flow-box">
+      <div class="flow-label">🐳 mihomo 容器 :7890</div>
+      <div class="flow-content">出站代理</div>
+      <div class="flow-sub">FRED走代理；ntfy/akshare直连</div>
+    </div>
+
+    <div class="flow-box yellow">
+      <div class="flow-label">☁ MiniMax-M3</div>
+      <div class="flow-content">主力 LLM（CF-17 切换）</div>
+      <div class="flow-sub">api.minimaxi.com/anthropic</div>
+    </div>
+
+    <div class="flow-box">
+      <div class="flow-label">☁ MiMo API</div>
+      <div class="flow-content">降级1（mimo-v2.5-pro）</div>
+      <div class="flow-sub">token-plan-cn.xiaomimimo.com</div>
+    </div>
+
+    <div class="flow-box yellow">
+      <div class="flow-label">☁ SiliconFlow</div>
+      <div class="flow-content">LLM兜底 + 向量检索</div>
+      <div class="flow-sub">Qwen3.5-27B / bge-m3</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     六、知识库结构
+══════════════════════════════════════════════ -->
+<h2>六、知识库结构</h2>
+
+<table>
+  <tr><th>层级</th><th>内容</th><th>更新方式</th></tr>
+  <tr><td><strong>SKILL 分析框架</strong></td><td>央行决策/板块轮动/大国博弈/LEI 等 11 篇</td><td>人工按需更新</td></tr>
+  <tr><td><strong>领域框架（新）</strong></td><td>气候风险/社会脆弱性/政治周期/文化摩擦/商品地缘/新兴市场等 6 篇</td><td>人工季度更新</td></tr>
+  <tr><td><strong>历史案例库</strong></td><td>41 条（金融/地缘/气候/社会/航道等）含反例</td><td>人工追加</td></tr>
+  <tr><td><strong>传导路径库</strong></td><td>16 条 + 5 条原子路径，含 negative_conditions</td><td>贝叶斯权重更新（--update-weights）</td></tr>
+  <tr><td><strong>专题报告</strong></td><td>地缘事件日志/2026宏观基准情景 等</td><td>人工/AI 事件驱动</td></tr>
+  <tr><td><strong>政治日历</strong></td><td>2026-2027 重要事件节点（FOMC/选举/贸易战等）</td><td>人工更新</td></tr>
+  <tr><td><strong>情境追踪</strong></td><td>6个预设追踪事件 + 自动检测新话题</td><td>每次扫描自动更新</td></tr>
+</table>
+
+<!-- ══════════════════════════════════════════════
+     七、日常维护
+══════════════════════════════════════════════ -->
+<h2>七、日常维护</h2>
+
+<div class="info-box warn">
+  <strong>⛔ 硬规则：</strong> 修改任何文件前，必须先读 <code>TuiYan_CHANGELOG.md</code>。改完后，必须追加 CHANGELOG 条目。
+</div>
+
+<h3>常用命令</h3>
+<table>
+  <tr><th>场景</th><th>命令</th></tr>
+  <tr><td>查容器状态</td><td><code>docker ps</code></td></tr>
+  <tr><td>查 scheduler 日志</td><td><code>docker exec macro-scan-macro-scan-1 tail -20 /var/log/macro-scan/scheduler.log</code></td></tr>
+  <tr><td>查 Web UI 日志</td><td><code>docker exec macro-scan-macro-scan-1 tail -20 /var/log/macro-scan/web.log</code></td></tr>
+  <tr><td>手动触发今日摘要</td><td><code>docker exec macro-scan-macro-scan-1 python3 /app/daily_narrative.py</code></td></tr>
+  <tr><td>查 GRV 当前值</td><td><code>docker exec macro-scan-macro-scan-1 cat /workspace/data/grv_latest.json</code></td></tr>
+  <tr><td>重建 RAG 向量索引</td><td><code>docker exec macro-scan-macro-scan-1 python3 /app/build_rag_index.py</code></td></tr>
+  <tr><td>假设推演校准</td><td><code>docker exec macro-scan-macro-scan-1 python3 /app/verify_hypothesis.py --commit --update-weights</code></td></tr>
+  <tr><td>重建容器（端口/env变更）</td><td><code>cd /vol2/1000/software/macro-scan &amp;&amp; docker compose up -d</code></td></tr>
+</table>
+
+<!-- ══════════════════════════════════════════════
+     八、故障排查
+══════════════════════════════════════════════ -->
+<h2>八、故障排查</h2>
+<table>
+  <tr><th>现象</th><th>处理方法</th></tr>
+  <tr><td>Web UI 打不开 :8899</td><td>确认 <code>docker ps</code> 中有 <code>0.0.0.0:8899->8899/tcp</code></td></tr>
+  <tr><td>报告只有数据没叙事</td><td>查 <code>us_daily.log</code>；检查 MiMo key；确认 <code>USE_EXTERNAL_LLM=1</code></td></tr>
+  <tr><td>定时任务未执行</td><td><code>tail -10 /var/log/macro-scan/scheduler.log</code>；若无新日志则重启容器</td></tr>
+  <tr><td>假设推演置信度🔴</td><td>检查 <code>data/grv_latest.json</code> 是否存在；手动跑 <code>fetch_gpr.py</code></td></tr>
+  <tr><td>ask/narrative 无响应</td><td>查 <code>listener.log</code>；确认 ntfy_listener 进程在运行</td></tr>
+  <tr><td>情景分类错误（走UNKNOWN）</td><td>检查输入关键词是否在 <code>hypothesis_templates.yaml</code> aliases/keywords 中；V3.3 已支持48个别名</td></tr>
+</table>
+
+<!-- ══════════════════════════════════════════════
+     九、当前状态
+══════════════════════════════════════════════ -->
+<h2>九、当前状态（V3.5.26，2026-06-30）</h2>
+<table>
+  <tr><th>#</th><th>内容</th><th>状态</th></tr>
+  <tr><td>所有 Phase 1A~3C</td><td>完善方案全部完成</td><td><span class="tag tag-green">✅</span></td></tr>
+  <tr><td>知识库扩展 P0~P2</td><td>CLIMATE/CULTURAL 域 + 5篇文档 + 情境检测</td><td><span class="tag tag-green">✅ 2026-06-11</span></td></tr>
+  <tr><td>中东/航道/科技/稀土覆盖</td><td>别名48个 / 历史案例32条（含1条反例）</td><td><span class="tag tag-green">✅ 2026-06-12</span></td></tr>
+  <tr><td>GRV接入气候/灾害</td><td>climate_risk + disaster_risk 维度</td><td><span class="tag tag-green">✅ 2026-06-12</span></td></tr>
+  <tr><td>v3.5.6 重构 P1~P4</td><td>MiniMax-M3主力；rag_query统一；配置外置</td><td><span class="tag tag-green">✅ 2026-06-27</span></td></tr>
+  <tr><td>v3.5.9~v3.5.14 知识库整理与修复</td><td>目录重编号；9篇深度文章；旧路径零残留</td><td><span class="tag tag-green">✅ 2026-06-29</span></td></tr>
+  <tr><td>v3.5.15~v3.5.21 文档整理与Bug修复</td><td>文档全面更新；16项代码审查修复</td><td><span class="tag tag-green">✅ 2026-06-29</span></td></tr>
+  <tr><td>v3.5.22~v3.5.24 文档同步保障机制</td><td>pre-commit 联动检查 + watchdog 巡检 + gen_docs</td><td><span class="tag tag-green">✅ 2026-06-29</span></td></tr>
+  <tr><td>v3.5.25 移除 Ollama 依赖</td><td>Embedding 统一走硅基流动 BAAI/bge-m3</td><td><span class="tag tag-green">✅ 2026-06-30</span></td></tr>
+  <tr><td>RAG 索引重建</td><td>4156 块（558 个 .md），覆盖所有新增知识库目录</td><td><span class="tag tag-green">✅ 2026-06-30</span></td></tr>
+  <tr><td>v3.5.26 文档清理</td><td>删除废弃文档；整合知识库扩展方案</td><td><span class="tag tag-green">✅ 2026-06-30</span></td></tr>
+  <tr><td>C线切Live</td><td>STAGING_MODE=False</td><td><span class="tag tag-yellow">⏳ 2026-07-10</span></td></tr>
+  <tr><td>R07/R09/R10/R11/R12</td><td>enabled:true（等数据积累）</td><td><span class="tag tag-yellow">⏳ 约2026-07~08</span></td></tr>
+  <tr><td>geo_risk_vector climate_risk 集成</td><td>grv 7维向量完整集成</td><td><span class="tag tag-yellow">⏳ P3</span></td></tr>
+  <tr><td>N2 / N3</td><td>新闻库二三阶段</td><td><span class="tag tag-yellow">⏳ 2026-11 / 2027-05</span></td></tr>
+</table>
+
+<div style="margin-top:40px;text-align:center;color:var(--text-dim);font-size:12px">
+  世界推演系统 V3.5.26 · 维护路径 S:\macro-scan\ · 2026-06-30
+</div>
+
+</div>
+</body>
+</html>

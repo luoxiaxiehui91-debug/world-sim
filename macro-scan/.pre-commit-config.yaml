@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: require-doc-sync
+        name: 检查联动文档是否已更新
+        entry: python 核心代码/check_doc_sync.py
+        language: python
+        pass_filenames: false
+        always_run: false
+        types: [python]

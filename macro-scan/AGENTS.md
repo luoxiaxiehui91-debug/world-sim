@@ -1,0 +1,359 @@
+# macro-scan — Agent 工作指南
+
+## 项目概览
+
+世界推演系统：全球宏观情报自动采集 + LLM分析推演 + 地缘风险向量引擎，运行在 NAS Docker 容器中。
+
+**当前版本**：见 `VERSION`  
+**运维参考**：`世界推演系统_人类说明文档.md`  
+**变更日志**：`TuiYan_CHANGELOG.md`（改前必读，改后必追加）
+
+**AI 阅读路径（按需读取）：**
+
+| 文件 | 内容 | 何时读 |
+|:-----|:-----|:-------|
+| `TuiYan_CHANGELOG.md` | 所有变更历史 | **每次 session 必读**（了解最新状态）|
+| `INDEX.md` | 运行状态：调度任务/数据管道/LLM链/ntfy指令/路线图 | 需要查运行细节时 |
+| `世界推演系统_人类说明文档.md` | 使用与维护手册 | 需要了解操作流程时 |
+| `docs/知识库扩展方案.md` | 知识库扩展方案（v1+v2合并版，含实施状态）| 涉及知识库改动时 |
+| `docs/社会信号扩展方案.md` | 待实施的信号扩展（R07/R09/R10）| 涉及弱信号/规则改动时 |
+| `docs/假设推演功能设计方案.md` | 假设推演完整设计（H0-H12工作流、置信度公式）| 涉及假设推演改动时 |
+| `docs/地缘推演增强方案.md` | GRV向量格式与地缘推演设计 | 涉及 GRV / geo_risk_vector.py 改动时 |
+
+---
+
+## 目录结构
+
+```
+macro-scan-src/               ← 本地工作目录（git 仓库）
+├── 核心代码/                 ← Python 源码（容器内挂载为 /app）
+├── 知识库/财经知识库/         ← 人工维护的分析框架、历史案例、知识库文档
+├── docs/                     ← 文档（设计方案、操作日志、runbooks；分析报告不在git里）
+├── Dockerfile                ← 改动需重建镜像
+├── entrypoint.sh             ← 改动需重建镜像，必须无 BOM
+├── docker-compose.example.yml ← 模板；docker-compose.yml 在 .gitignore 中
+├── requirements.txt
+├── system_prompt.md          ← LLM 分析框架（热挂载，直接编辑即生效）
+├── crontab                   ← 容器内 cron（备用；主调度用 scheduler.py）
+├── TuiYan_CHANGELOG.md       ← 变更日志
+├── INDEX.md                  ← 系统状态/任务/数据管道索引（只读）
+└── VERSION                   ← 语义化版本号 (MAJOR.MINOR.PATCH)
+```
+
+**不在 git 里的运行时目录**（.gitignore 排除）：
+- `data/` — FRED历史/ChromaDB向量索引/news.db 等运行时数据
+- `logs/` — 各任务日志
+- `docs/分析报告/` — 容器每日自动生成
+- `docs/新闻库/` — 容器每日自动生成
+
+---
+
+## 路径架构（关键约束）
+
+容器内路径通过 `OPENCLAW_WORKSPACE=/workspace` 统一解析：
+
+| 宿主机路径 | 容器内路径 | 说明 |
+|:---|:---|:---|
+| `核心代码/` | `/app` | 源码热挂载，entrypoint.sh cd /app 执行 |
+| `data/` | `/workspace/data` | 运行时数据 |
+| `docs/` | `/workspace/docs` | 报告输出 |
+| `logs/` | `/var/log/macro-scan` | 日志 |
+| `知识库/` | `/workspace/知识库` | 知识库只读 |
+
+**红线**：
+1. `核心代码/` 里的 .py 文件全部同级平铺——不能分子目录，所有 `import` 和 subprocess 调用都依赖同级路径
+2. `核心代码/scorer.py` 的 `CRISIS_CSV` 常量硬编码了 `02_核心变量因果链/历史情景_量化指标.csv`——改该目录名时必须同步修改此常量
+3. docker-compose 的4条 volume 挂载不能少
+4. 配置只从 `optim_config.py` 读取——`KEY_INDICATORS`/路径常量/阈值均在此，不在其他模块重复定义
+5. 弱信号配置只从 `alert_config.py` 读取——`ALERT_KEYWORDS`/`_WATCH_COUNTRIES`/`_ACTOR_*` 在此，不在 `scan_weak_signals.py` 定义
+6. 推演类型映射只从 `hypothesis_config.py` 读取——`DIM_MAP` 在此，不在 `hypothesis_engine.py` 函数内定义
+
+---
+
+## 修改工作流
+
+### 修改源码（核心代码/*.py）
+
+```bash
+# 直接编辑 S:\macro-scan\核心代码\xxx.py（热挂载，容器内即时生效）
+# 改完后追加 CHANGELOG，bump VERSION（PATCH）
+```
+
+### 修改需要重建镜像的文件
+
+只有 `Dockerfile` 和 `entrypoint.sh` 需要重建：
+
+```bash
+ssh TSX@192.168.31.108
+cd /vol2/1000/software/macro-scan
+docker build -t macro-scan:v<新版本> .
+# 更新 docker-compose.yml image 字段
+docker compose up -d
+```
+
+### 修改环境变量
+
+```bash
+# 编辑 /vol2/1000/software/macro-scan/docker-compose.yml（NAS上，不在git里）
+docker compose up -d --force-recreate  # restart 不重新注入 env
+```
+
+### push 到 GitHub
+
+```bash
+# 走 NAS 代理
+git -c http.proxy=http://192.168.31.108:7890 push origin main
+# 或 NAS 上直接 push（token 在 /vol2/1000/software/KEY/github token.txt）
+```
+
+---
+
+## 维护铁律
+
+1. **改前必读** `TuiYan_CHANGELOG.md`（了解最新状态）
+2. **改后必追加** `TuiYan_CHANGELOG.md` → bump `VERSION` → 按联动矩阵更新对应文档 → 版本变更时同步更新 `S:\docs\INDEX.md` 版本状态行
+3. **绝对不要** `git rm`（不加 `--cached`）知识库或 data 下的文件
+4. **绝对不要** 把 `核心代码/` 内的 .py 分子目录
+5. **ntfy 推送强制直连**，不走代理
+6. `entrypoint.sh` 必须无 UTF-8 BOM
+7. **只在源码区改代码**（`S:\macro-scan-src\`），改完验证后再推 NAS 和 GitHub
+
+### 联动矩阵（改了左边 → 必须同时更新右边）
+
+| 改了什么 | 必须同时更新 |
+|:---|:---|
+| 任何 `核心代码/*.py` | `TuiYan_CHANGELOG.md` + `VERSION` |
+| 任何 `核心代码/*.py`（版本号变更时）| + `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
+| `核心代码/scheduler.py` | + `INDEX.md`（运行 `gen_docs.py --target scheduler` 刷新）|
+| `核心代码/hybrid_llm.py` | + `INDEX.md`（LLM调用链表手动更新）|
+| `核心代码/ntfy_listener.py` | + `INDEX.md`（运行 `gen_docs.py --target ntfy` 刷新）|
+| `核心代码/geo_risk_vector.py` | + `docs/地缘推演增强方案.md`（GRV向量格式节）+ `世界推演系统_人类说明文档.md` |
+| `核心代码/regime_detector.py` | + `INDEX.md`（宏观体制判断规则表）|
+| `核心代码/hypothesis_engine.py` 或 `hypothesis_config.py` | + `docs/假设推演功能设计方案.md`（假设推演工作流节）|
+| `核心代码/scorer.py` | + `AGENTS.md`（路径架构节 CRISIS_CSV 常量）|
+| `核心代码/situation_tracker.py` 或 `situation_detector.py` | + `世界推演系统_人类说明文档.md` |
+| 新增或删除 `核心代码/*.py` | + `FILE_MANIFEST.md`（运行 `gen_docs.py --target manifest` 刷新）|
+| `Dockerfile` 或 `entrypoint.sh` | + `INDEX.md`（活跃容器表）|
+
+**pre-commit 会自动拦截**：commit 时如果改了代码但联动文档未 staged，会打印具体提示并阻止提交。
+
+### 首次接手项目
+
+```bash
+pip install pre-commit
+pre-commit install   # 在源码区 S:\macro-scan-src\ 执行一次即可
+```
+
+---
+
+## 版本号规范
+
+`MAJOR.MINOR.PATCH`
+- PATCH：bug fix、配置调整、文档更新
+- MINOR：新增功能模块、新数据源
+- MAJOR：架构重大变更
+
+打 tag：`git tag -a vX.Y.Z -m '说明'` → push `--tags`
+
+---
+
+## 新 session 快速继续
+
+```
+读 AGENTS.md（本文件）→ 读 TuiYan_CHANGELOG.md（最新变更）→ 按需读 INDEX.md（运行状态）
+→ 告知当前版本和最新状态，然后开始工作。
+```
+
+---
+
+## 部署服务（NAS 192.168.31.108）
+
+| 服务 | 地址 | 说明 |
+|:-----|:-----|:-----|
+| macro-scan 主容器 | :8899 (Web UI) | Python 3.11-slim；镜像 macro-scan:v7 |
+| mihomo | :7890/:9090 | 出站代理，**仅 FRED 使用**；ntfy/akshare 强制直连 |
+| crucix | :3117 | 英文地缘新闻+多源情报（FIRMS/EIA/GDELT等30源）|
+| rsshub | :12000 | 中文财经 RSS（财新/第一财经/华尔街见闻/东方财富研报）|
+
+> ⚠️ Ollama（192.168.31.56）已停用。LLM 降级链：MiniMax-M3 → MiMo v2.5 Pro → SiliconFlow Qwen3.5-27B → 纯数据报告
+
+---
+
+## 环境变量（docker-compose.yml，NAS上）
+
+```
+FRED_API_KEY=a3f1dc8fca52b0a45e320ea0383bbac7
+OUTBOUND_PROXY=http://192.168.31.108:7890    # 仅FRED使用
+NTFY_TOPIC=macro-tsx-9005
+NTFY_CMD_TOPIC=macro-tsx-9005-cmd
+NTFY_CMD_SECRET=1900
+RSSHUB_URL=http://192.168.31.108:12000
+OPENCLAW_WORKSPACE=/workspace
+TZ=Asia/Shanghai
+RUN_ON_START=true
+USE_EXTERNAL_LLM=1                            # 0=直接调SiliconFlow
+OPENAI_COMPAT_URL=https://token-plan-cn.xiaomimimo.com/v1  # MiMo端点
+# OPENAI_COMPAT_KEY / OPENAI_COMPAT_MODEL / SILICONFLOW_API_KEY 在 S:\macro-scan\key.txt
+# MINIMAX_API_KEY / MINIMAX_BASE_URL 同上
+CRUCIX_APIKEY=...                             # key.txt
+```
+
+---
+
+## 与 macro-sim 的数据接口契约
+
+macro-scan 是写入方，macro-sim 是只读消费方。容器内挂载路径：`/vol2/1000/software/macro-scan/data` → `/app/macro_data:ro`。
+
+**格式变更规则：任何人改动下列文件的字段或枚举，必须同时更新 macro-scan/AGENTS.md 和 macro-sim/AGENTS.md 的本契约节。**
+
+**接口变更三步走：**
+1. 同时改两个 AGENTS.md 的本节（含版本兼容表）
+2. 两个项目 CHANGELOG 各追加一条（注明接口 schema 版本号变化）
+3. 部署顺序：**先升 macro-scan** → 验证 `data/grv_latest.json` 和 `data/news_export.json` 输出 → **再升 macro-sim**
+
+**版本兼容表：**
+
+| macro-scan | macro-sim | 接口 schema |
+|:-----------|:----------|:------------|
+| v3.5.x+    | v0.4.x+   | grv v1.0 / news v1.0 |
+
+---
+
+### `data/grv_latest.json`
+
+由 `核心代码/geo_risk_vector.py` 每日 06:10 写入（原子写，先写 `.tmp` 再 `os.replace`）。
+
+```json
+{
+  "_schema_version":    "1.0",
+  "taiwan_strait":      50.0,
+  "us_china_strategic": 45.0,
+  "russia_europe":      38.0,
+  "middle_east_energy": 42.0,
+  "global_composite":   55.0,
+  "climate_risk":       30.0,
+  "disaster_risk":      null,
+  "japan_monetary":     62.5,
+  "updated":            "2026-07-08T06:10:00",
+  "gdelt_updated":      "2026-07-08T06:00:00",
+  "gpr_twn_raw":        95.3,
+  "gpr_twn_date":       "2026-06-01",
+  "source_quality":     "gdelt+gpr"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|:-----|:-----|:-----|
+| `_schema_version` | string | 接口版本号，当前 `"1.0"`。macro-sim 启动时校验此字段，不一致则拒绝启动 |
+| `taiwan_strait` / `us_china_strategic` / `russia_europe` / `middle_east_energy` / `global_composite` | float 0–100 | GRV 五维度，必须字段，null 表示数据源暂缺 |
+| `climate_risk` / `disaster_risk` / `japan_monetary` | float 0–100 \| null | 可选，数据源不可用时为 null |
+| `updated` | ISO 8601 字符串 | 本次计算时间戳 |
+| `source_quality` | `"gdelt+gpr"` \| `"gdelt_only"` \| `"gpr_only"` \| `"stub"` | 数据来源质量标记 |
+
+macro-sim 读取字段：`global_composite`（映射为仿真 `grv`）、`middle_east_energy` + `taiwan_strait`（合成 `grv_energy`）、`russia_europe` + `taiwan_strait`（合成 `grv_military`）、`us_china_strategic`（映射为 `grv_trade`）。
+
+---
+
+### `data/grv_history.jsonl`
+
+由 `geo_risk_vector.py` 每日 06:10 追加（日期去重，同天只写一条）。每行格式与 `grv_latest.json` 相同。macro-sim 读取倒数第 30 行用于 baseline 计算。
+
+---
+
+### `data/fred_history/*.csv`
+
+由 `核心代码/fetch_fred_history.py` 每日 05:30 更新。格式：
+
+```
+date,value
+2026-06-01,18.3
+2026-06-02,.
+```
+
+- `value` 字段可为 `.`（FRED 缺失值标记），读取时需跳过
+- macro-sim 读取的系列：`T10Y2Y.csv`、`BAA10Y.csv`、`DFF.csv`
+
+---
+
+### `data/news_export.json`
+
+由 `核心代码/news_exporter.py` 每日 07:05 写入。
+
+```json
+{
+  "_schema_version": "1.0",
+  "exported_at": "2026-07-08T07:05:00",
+  "articles": [
+    {
+      "title":    "Oil prices surge on Strait of Hormuz tensions",
+      "category": "energy",
+      "date":     "2026-07-08"
+    }
+  ]
+}
+```
+
+| 字段 | 类型 | 说明 |
+|:-----|:-----|:-----|
+| `_schema_version` | string | 接口版本号，当前 `"1.0"`。macro-sim 读取时校验此字段 |
+| `exported_at` | ISO 8601 字符串 | 导出时间戳 |
+| `articles[].title` | string | 文章标题 |
+| `articles[].category` | string | 枚举见下表，**不在枚举内的类别不会出现** |
+| `articles[].date` | `YYYY-MM-DD` | 从 `published_at` 规范化，兼容 ISO 和 RFC 格式 |
+
+**category 枚举（来自 `news_exporter.py` CATEGORY_MAP）：**
+
+| 枚举值 | 对应 DB 类别 |
+|:-------|:------------|
+| `geopolitics` | 地缘升级、社会政治危机、宗教族群冲突、文化贸易摩擦 |
+| `energy` | 能源政治 |
+| `trade` | 战略矿产、科技竞争 |
+| `finance` | 信用风险、流动性危机 |
+| `macro` | 衰退信号、通胀失控、自然灾害 |
+| `monetary` | 日元套利 |
+
+**注意**：macro-sim `load_from_macro_scan()` 的 news.db fallback 路径过滤的 category 列表不含 `trade`，直读 DB 时会漏掉战略矿产/科技竞争类新闻。macro-sim v0.3.1 已在 fallback SQL 补充 `trade`，两条路径现在枚举一致。
+
+最多 40 条，7 天窗口，按 `published_at` 倒序。
+
+---
+
+### `data/news.db`（SQLite，macro-sim 直读 fallback）
+
+macro-sim 在 `news_export.json` 不存在时 fallback 直读，查询：
+
+```sql
+SELECT a.title
+FROM articles a
+JOIN article_categories ac ON a.id = ac.article_id
+WHERE a.published_at > datetime('now', '-7 days')
+  AND ac.category IN ('geopolitics','finance','macro','energy','monetary','trade')
+GROUP BY a.id
+ORDER BY a.published_at DESC
+LIMIT 40
+```
+
+category 字段存储英文标签（与 news_export.json 枚举一致）。
+
+---
+
+### `data/sim_trigger.json`（P4-B 计划中，尚未实现）
+
+macro-scan 在 `situation_detector.py` 检测到 L3+ 情境时写入，触发 macro-sim 执行一次仿真。
+
+**预定格式：**
+```json
+{
+  "level":        3,
+  "triggered_at": "2026-07-08T06:30:00",
+  "event":        "台海紧张局势升级：GDELT 军事分值突破阈值68"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|:-----|:-----|:-----|
+| `level` | int 1–4 | 对应 `situation_level`，L3+ 才写入 |
+| `triggered_at` | ISO 8601 字符串 | 检测时间戳 |
+| `event` | string | 触发摘要，≤200字 |
+
+macro-sim 消费后删除或归档此文件（P4-B 设计中确认）。

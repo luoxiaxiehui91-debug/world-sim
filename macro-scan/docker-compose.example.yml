@@ -1,0 +1,44 @@
+# 世界推演系统 — Docker Compose 模板
+# 复制为 docker-compose.yml 后填入实际值，该文件已在 .gitignore 中排除
+
+services:
+  macro-scan:
+    image: macro-scan:v7
+    restart: unless-stopped
+
+    ports:
+      - '8899:8899'
+
+    volumes:
+      - ./核心代码:/app
+      - ./data:/workspace/data
+      - ./docs:/workspace/docs
+      - ./logs:/var/log/macro-scan
+      - ./知识库:/workspace/知识库
+
+    environment:
+      - OPENCLAW_WORKSPACE=/workspace
+      - FRED_API_KEY=你的FRED_API_KEY
+      - TZ=Asia/Shanghai
+      - OUTBOUND_PROXY=http://192.168.31.108:7890
+      - SILICONFLOW_API_KEY=你的SILICONFLOW_API_KEY
+      - SILICONFLOW_MODEL=Qwen/Qwen3.5-27B
+      - OPENAI_COMPAT_URL=https://token-plan-cn.xiaomimimo.com/v1
+      - OPENAI_COMPAT_KEY=你的XIAOMI_API_KEY
+      - OPENAI_COMPAT_MODEL=mimo-v2.5-pro
+      - MINIMAX_API_KEY=你的MINIMAX_API_KEY
+      - MINIMAX_URL=https://api.minimaxi.com/anthropic
+      - MINIMAX_MODEL=MiniMax-M3
+      - USE_EXTERNAL_LLM=1
+      - NTFY_TOPIC=macro-tsx-9005
+      - NTFY_CMD_TOPIC=macro-tsx-9005-cmd
+      - NTFY_CMD_SECRET=你的NTFY_CMD_SECRET
+      - RUN_ON_START=true
+      - RSSHUB_URL=http://192.168.31.108:12000
+      - DASHBOARD_OUTPUT=/workspace/docs/macro_dashboard.html
+
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: 3

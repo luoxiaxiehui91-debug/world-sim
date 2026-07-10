@@ -1,0 +1,3 @@
+openai>=1.0.0
+matplotlib
+pyyaml>=6.0

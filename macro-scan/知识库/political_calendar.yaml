@@ -1,0 +1,117 @@
+# political_calendar.yaml — 全球政治与宏观日历
+# 维护方式：手动编辑本文件（热挂载，立即生效）
+# date 格式：YYYY-MM-DD（确定日期）或 YYYY-MM-xx（月内待确认）
+# importance: HIGH / MEDIUM / LOW
+# category: MACRO / POLITICAL / GEO / TRADE / ENERGY
+
+events:
+  # ── 2026年下半年重要事件 ──────────────────────────────────────────────────
+
+  - date: "2026-07-10"
+    name: "C线信号合成器切换 Live 模式"
+    category: MACRO
+    importance: HIGH
+    notes: "signal_synthesizer.py 第18行 STAGING_MODE=False；数据年龄需>=30天"
+    related_indicators: []
+
+  - date: "2026-07-15"
+    name: "美国 Q2 GDP 初值公布"
+    category: MACRO
+    importance: HIGH
+    notes: "首次确认美国经济是否连续两季度负增长（技术性衰退判定）"
+    related_indicators: ["GDPC1", "UNRATE"]
+
+  - date: "2026-07-29"
+    name: "美联储 FOMC 会议结果"
+    category: MACRO
+    importance: HIGH
+    notes: "关注声明措辞是否暗示降息时间表，当前市场预期维持不变"
+    related_indicators: ["DFF", "T10Y2Y"]
+
+  - date: "2026-08-xx"
+    name: "中美关税战90天暂停到期"
+    category: TRADE
+    importance: HIGH
+    notes: "2026-05 日内瓦峰会协议：90天暂停到期，走向续约/升级/破裂三条路"
+    related_indicators: ["GPRC_CHN", "us_china_strategic"]
+
+  - date: "2026-09-17"
+    name: "美联储 FOMC 会议结果"
+    category: MACRO
+    importance: HIGH
+    notes: "下半年第二次会议，结合Q2 GDP数据，降息概率更新"
+    related_indicators: ["DFF"]
+
+  - date: "2026-09-10"
+    name: "GDELT 宗教/政权维度校准窗口"
+    category: MACRO
+    importance: MEDIUM
+    notes: "3个月数据积累后，可用 gdelt_history.jsonl 校准 religious_conflict/regime_change 参数"
+    related_indicators: []
+
+  - date: "2026-10-xx"
+    name: "美国 Q3 GDP 初值公布"
+    category: MACRO
+    importance: HIGH
+    notes: "进一步确认经济走势，影响美联储年末利率路径"
+    related_indicators: ["GDPC1"]
+
+  - date: "2026-11-04"
+    name: "美联储 FOMC 会议结果"
+    category: MACRO
+    importance: HIGH
+    notes: "距离年末仅剩两次会议，降息路径将基本明朗"
+    related_indicators: ["DFF"]
+
+  - date: "2026-11-xx"
+    name: "美国中期选举（参议院1/3改选）"
+    category: POLITICAL
+    importance: HIGH
+    notes: "影响行政议程推进能力，贸易/财政政策不确定性关键节点"
+    related_indicators: ["GPRC_USA"]
+
+  - date: "2026-12-16"
+    name: "美联储年末 FOMC 会议结果"
+    category: MACRO
+    importance: HIGH
+    notes: "全年最后一次会议，公布点阵图（2027年利率预期）"
+    related_indicators: ["DFF", "GDPC1"]
+
+  # ── 持续监控事件 ────────────────────────────────────────────────────────────
+
+  - date: "2026-xx-xx"
+    name: "中国人大/政协重要会议"
+    category: POLITICAL
+    importance: MEDIUM
+    notes: "关注经济刺激政策表态，尤其房地产和内需方向"
+    related_indicators: ["pmi_mfg", "gdp_growth"]
+
+  - date: "2026-xx-xx"
+    name: "G7 峰会"
+    category: GEO
+    importance: MEDIUM
+    notes: "俄乌制裁协调、AI监管立场、供应链多元化进展"
+    related_indicators: ["GPRC_RUS"]
+
+  - date: "2026-xx-xx"
+    name: "G20 峰会"
+    category: GEO
+    importance: MEDIUM
+    notes: "中美关系边际信号，全球债务可持续性讨论"
+    related_indicators: ["GPRC_CHN"]
+
+  # ── 2027年前瞻 ──────────────────────────────────────────────────────────────
+
+  - date: "2027-01-xx"
+    name: "美国新届国会开幕"
+    category: POLITICAL
+    importance: HIGH
+    notes: "中期选举结果落地，关注关税法案/财政预算优先级"
+    related_indicators: []
+
+  - date: "2027-05-23"
+    name: "N3解锁：calibrate_signals.py 月度校验"
+    category: MACRO
+    importance: MEDIUM
+    notes: "news.db 数据积累满1年，启用月度校验功能"
+    related_indicators: []

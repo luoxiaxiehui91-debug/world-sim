@@ -1,0 +1,450 @@
+"""
+world_state.py — 宏观世界状态 v2
+
+变化：
+- 新增内生变量：retail_panic / china_credit_impulse / us_fiscal_pressure / yen_carry_risk
+- get_agent_context() 输出绝对压力信号（grv_stress/vix_stress/yield_inverted）
+- load_monthly_history()：加载月度历史数据，供校准循环使用
+- load_from_macro_scan()：从当前真实数据加载初始状态（保留）
+"""
+
+from dataclasses import dataclass, field
+from datetime import datetime, date
+import copy
+
+
+@dataclass
+class MacroWorldState:
+    # ── 外生变量（有历史真值，校准时对比）────────────────
+    vix: float
+    vix_baseline: float
+    grv: float
+    grv_baseline: float
+    grv_energy: float
+    grv_energy_baseline: float
+    grv_military: float
+    grv_trade: float
+    us_china_grv: float       # 中美战略维度（A8专用）
+    t10y2y: float             # 收益率曲线斜率 bps
+    credit_spread: float      # 信用利差 bps (BAA-10Y)
+    dff: float                # 联邦基金利率 %
+    situation_level: int
+
+    # ── 内生变量（仿真中演化）────────────────────────────
+    fed_rate_change: float = 0.0
+    bank_credit_tightening: float = 0.0
+    fund_risk_appetite: float = 0.0
+    market_sentiment: float = 0.0
+    energy_supply_risk: float = 0.0
+    liquidity_premium: float = 0.0
+    em_capital_outflow: float = 0.0
+    consecutive_negative_steps: int = 0
+    # v2 新增
+    retail_panic: float = 0.0         # 散户恐慌程度 [0,1]
+    china_credit_impulse: float = 0.0 # 中国信用脉冲 [-1,1]，正=扩张
+    us_fiscal_pressure: float = 0.0   # 美国财政压力 [0,1]
+    yen_carry_risk: float = 0.0       # 日元套息平仓风险 [0,1]
+
+    # ── 仿真元数据 ────────────────────────────────────────
+    cycle: int = 0
+    total_cycles: int = 100
+    step_label: str = ""      # 如 "2024-01"，校准期用于标记月份
+    trigger_event: str = ""
+    recent_news: list = field(default_factory=list)
+    sim_id: str = ""
+    trigger_date: str = ""
+
+    def get_agent_context(self, agent_role: str) -> dict:
+        """
+        包含相对 delta + 绝对压力信号。
+        所有角色都能看到基础字段，角色专属字段另外追加。
+        """
+        vix_shift    = (self.vix - self.vix_baseline) / max(self.vix_baseline, 1)
+        grv_shift    = (self.grv - self.grv_baseline) / 100.0
+        energy_shift = (self.grv_energy - self.grv_energy_baseline) / 100.0
+
+        # 绝对压力信号
+        grv_stress  = round(max(0.0, (self.grv - 50.0) / 50.0), 3)
+        vix_stress  = round(max(0.0, (self.vix - 18.0) / 30.0), 3)
+        yield_inv   = 1 if self.t10y2y < -20 else 0
+
+        ctx = {
+            "external_pressure_shift": round((vix_shift + grv_shift) / 2, 3),
+            "internal_stress": round(
+                self.market_sentiment * -0.5 + self.bank_credit_tightening * 0.5, 3
+            ),
+            "liquidity_tension": round(self.liquidity_premium, 3),
+            "grv_stress":    grv_stress,
+            "vix_stress":    vix_stress,
+            "yield_inverted": yield_inv,
+            "market_sentiment": round(self.market_sentiment, 3),
+            "cycle": self.cycle,
+        }
+
+        if agent_role in ("hedge_fund", "institution"):
+            ctx["vix_shift"]         = round(vix_shift, 3)
+            ctx["t10y2y"]            = self.t10y2y
+            ctx["fund_risk_appetite"] = round(self.fund_risk_appetite, 3)
+            ctx["credit_tightening"] = round(self.bank_credit_tightening, 3)
+
+        if agent_role == "fed":
+            ctx["fed_rate_change"] = self.fed_rate_change
+            ctx["credit_spread"]   = self.credit_spread
+            ctx["dff"]             = self.dff
+
+        if agent_role == "commercial_bank":
+            ctx["credit_spread"]        = self.credit_spread
+            ctx["bank_credit_tightening"] = round(self.bank_credit_tightening, 3)
+            ctx["liquidity_premium"]    = round(self.liquidity_premium, 3)
+
+        if agent_role == "energy_gov":
+            ctx["energy_tension"] = round(
+                energy_shift + self.energy_supply_risk + self.grv_energy / 100.0, 3
+            )
+
+        if agent_role == "media":
+            ctx["recent_news"] = self.recent_news[:3]
+
+        if agent_role == "em_central_bank":
+            ctx["em_capital_outflow"] = round(self.em_capital_outflow, 3)
+            ctx["dff_shift"]          = round(self.fed_rate_change / 100.0, 3)
+
+        if agent_role == "china_pboc":
+            ctx["china_credit_impulse"] = round(self.china_credit_impulse, 3)
+            ctx["us_china_grv"]         = round(self.us_china_grv, 3)
+
+        if agent_role == "us_treasury":
+            ctx["us_fiscal_pressure"] = round(self.us_fiscal_pressure, 3)
+
+        if agent_role == "boj":
+            ctx["yen_carry_risk"] = round(self.yen_carry_risk, 3)
+
+        if agent_role == "retail":
+            ctx["retail_panic"] = round(self.retail_panic, 3)
+
+        return ctx
+
+    def to_dict(self) -> dict:
+        return {
+            "cycle":         self.cycle,
+            "step_label":    self.step_label,
+            "vix":           round(self.vix, 2),
+            "grv":           round(self.grv, 2),
+            "grv_energy":    round(self.grv_energy, 2),
+            "us_china_grv":  round(self.us_china_grv, 2),
+            "t10y2y":        round(self.t10y2y, 1),
+            "credit_spread": round(self.credit_spread, 1),
+            "dff":           round(self.dff, 2),
+            "market_sentiment":       round(self.market_sentiment, 3),
+            "bank_credit_tightening": round(self.bank_credit_tightening, 3),
+            "liquidity_premium":      round(self.liquidity_premium, 3),
+            "energy_supply_risk":     round(self.energy_supply_risk, 3),
+            "em_capital_outflow":     round(self.em_capital_outflow, 3),
+            "retail_panic":           round(self.retail_panic, 3),
+            "china_credit_impulse":   round(self.china_credit_impulse, 3),
+            "us_fiscal_pressure":     round(self.us_fiscal_pressure, 3),
+            "yen_carry_risk":         round(self.yen_carry_risk, 3),
+            "consecutive_negative_steps": self.consecutive_negative_steps,
+        }
+
+    def get_observable_values(self) -> dict:
+        """校准循环用：返回有历史真值的外生变量，用于计算误差"""
+        return {
+            "grv":           self.grv,
+            "credit_spread": self.credit_spread,
+            "t10y2y":        self.t10y2y,
+            "dff":           self.dff,
+        }
+
+
+# ── 出血规则参数 ──────────────────────────────────────────
+BLEED_PARAMS = {
+    "vix_bleed_threshold":       -0.5,
+    "vix_bleed_steps":            3,
+    "vix_bleed_rate":             2.0,
+    "vix_bleed_max":             20.0,
+    "grv_bleed_threshold":        0.6,
+    "grv_bleed_rate":             0.5,   # 降速：原3.0太猛，50步内推到上限导致路径无差异
+    "credit_spread_bleed_rate":   8.0,
+    # v2 新增
+    "yen_carry_bleed_threshold":  0.7,   # 套息平仓触发流动性危机
+    "yen_carry_vix_impact":       5.0,   # 套息平仓每步 VIX 上升幅度
+    "retail_panic_sentiment":    -0.15,  # 散户恐慌每步对情绪的拖累
+}
+
+
+def apply_bleed_rules(world: MacroWorldState, params: dict = None):
+    if params is None:
+        params = BLEED_PARAMS
+
+    vix_delta_total = world.vix - world.vix_baseline
+
+    # 出血1：情绪崩溃 → VIX 上升
+    if (world.market_sentiment < params["vix_bleed_threshold"]
+            and world.consecutive_negative_steps >= params["vix_bleed_steps"]
+            and vix_delta_total < params["vix_bleed_max"]):
+        world.vix += params["vix_bleed_rate"]
+
+    # 出血2：能源供给风险 → GRV 能源维度上升
+    if world.energy_supply_risk > params["grv_bleed_threshold"]:
+        world.grv_energy += params["grv_bleed_rate"]          # 无上限截断
+        world.grv += params["grv_bleed_rate"] * 0.3
+
+    # 出血3：信贷收紧 → 信用利差扩大
+    if world.bank_credit_tightening > 0.5:
+        world.credit_spread += params["credit_spread_bleed_rate"]
+
+    # 出血4：资本外流 → 收益率曲线进一步倒挂
+    if world.em_capital_outflow > 0.4:
+        world.t10y2y -= 5.0
+
+    # 出血5（v2）：日元套息平仓 → VIX 跳升（非线性）
+    if world.yen_carry_risk > params["yen_carry_bleed_threshold"]:
+        world.vix += params["yen_carry_vix_impact"]
+        world.liquidity_premium = min(1.0, world.liquidity_premium + 0.2)
+
+    # 出血6（v2）：散户恐慌 → 情绪持续下拉
+    if world.retail_panic > 0.5:
+        apply_sentiment_delta(world, params["retail_panic_sentiment"])
+
+
+def apply_sentiment_delta(world: MacroWorldState, raw_delta: float):
+    s = world.market_sentiment
+    damping = 1.0 / (1.0 + 3.0 * abs(s))
+    world.market_sentiment = max(-1.0, min(1.0, s + raw_delta * damping))
+
+
+def apply_natural_decay(world: MacroWorldState):
+    # 月度时间步长：衰减速率大幅放慢（原0.97是日度感觉，月度改为0.995）
+    world.market_sentiment       *= 0.995
+    world.bank_credit_tightening *= 0.97
+    world.liquidity_premium      *= 0.93
+    world.energy_supply_risk     *= 0.98
+    world.retail_panic           *= 0.80   # 散户情绪消退快
+    world.yen_carry_risk         *= 0.92
+
+    # GRV 均值回归
+    world.grv = world.grv * 0.97 + world.grv_baseline * 0.03
+    world.grv_energy = world.grv_energy * 0.97 + world.grv_energy_baseline * 0.03
+
+
+# ── 月度历史数据加载（校准循环用）────────────────────────
+
+def load_monthly_history(
+    grv_path:  str = "/app/macro_data/grv_history.jsonl",
+    fred_path: str = "/app/macro_data/fred_history",
+    months:    int = 50,
+) -> list[dict]:
+    """
+    加载最近 N 个月的历史数据，每条对应一个月。
+    返回列表，每条：{"date": "2024-01", "grv": ..., "t10y2y": ..., "credit_spread": ..., "dff": ...}
+    供校准循环逐步读取真实值。
+    """
+    import json, csv, os
+    from collections import defaultdict
+
+    # ── 读 GRV 月度数据 ───────────────────────────────────
+    grv_monthly = {}
+    try:
+        with open(grv_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                d = json.loads(line)
+                ts = d.get("updated", "")[:7]  # "YYYY-MM"
+                if ts and ts not in grv_monthly:
+                    grv_monthly[ts] = {
+                        "grv":          d.get("global_composite", 50.0),
+                        "grv_energy":   d.get("middle_east_energy", 0.0),
+                        "grv_military": (d.get("russia_europe", 0) + d.get("taiwan_strait", 0)) / 200,
+                        "grv_trade":    d.get("us_china_strategic", 0) / 100,
+                        "us_china_grv": d.get("us_china_strategic", 50.0),
+                    }
+    except Exception as e:
+        print(f"[world_state] GRV 历史读取失败：{e}")
+
+    # ── 读 FRED 月度数据（日度降采样取月末值）───────────────
+    fred_monthly = defaultdict(dict)
+
+    def read_fred_csv(filename: str, key: str):
+        path = os.path.join(fred_path, filename)
+        try:
+            with open(path) as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    dt = row.get("date", "")[:7]
+                    val = row.get("value", "")
+                    if dt and val and val != ".":
+                        fred_monthly[dt][key] = float(val)  # 同月后面的覆盖前面，取月末
+        except Exception as e:
+            print(f"[world_state] FRED {filename} 读取失败：{e}")
+
+    read_fred_csv("T10Y2Y.csv", "t10y2y")
+    read_fred_csv("BAA10Y.csv", "credit_spread")
+    read_fred_csv("DFF.csv",    "dff")
+
+    # T10Y2Y 和 BAA10Y 单位是 %，转换成 bps（×100）
+    for dt in fred_monthly:
+        if "t10y2y" in fred_monthly[dt]:
+            fred_monthly[dt]["t10y2y"] *= 100
+        if "credit_spread" in fred_monthly[dt]:
+            fred_monthly[dt]["credit_spread"] *= 100
+
+    # ── 合并，取最近 months 个月 ─────────────────────────
+    all_dates = sorted(set(list(grv_monthly.keys()) + list(fred_monthly.keys())))
+    # 只取有 GRV 数据的月份
+    valid_dates = [d for d in all_dates if d in grv_monthly][-months:]
+
+    result = []
+    for dt in valid_dates:
+        grv_d  = grv_monthly.get(dt, {})
+        fred_d = fred_monthly.get(dt, {})
+        result.append({
+            "date":          dt,
+            "grv":           grv_d.get("grv", 50.0),
+            "grv_energy":    grv_d.get("grv_energy", 0.0),
+            "grv_military":  grv_d.get("grv_military", 0.0),
+            "grv_trade":     grv_d.get("grv_trade", 0.0),
+            "us_china_grv":  grv_d.get("us_china_grv", 50.0),
+            "t10y2y":        fred_d.get("t10y2y", -10.0),
+            "credit_spread": fred_d.get("credit_spread", 250.0),
+            "dff":           fred_d.get("dff", 5.0),
+        })
+
+    return result
+
+
+def make_world_from_history_row(row: dict, prev_row: dict = None, label: str = "") -> "MacroWorldState":
+    """
+    从历史数据一行构建 MacroWorldState。
+    prev_row 用于计算 baseline（30天前的值）。
+    """
+    baseline = prev_row if prev_row else row
+    vix = 15.0 + row["grv"] * 0.15
+
+    def _f(val, default=0.0):
+        return float(val) if val is not None else default
+
+    return MacroWorldState(
+        vix=float(vix),
+        vix_baseline=float(15.0 + _f(baseline["grv"], 50) * 0.15),
+        grv=_f(row["grv"], 50.0),
+        grv_baseline=_f(baseline["grv"], 50.0),
+        grv_energy=_f(row["grv_energy"]),
+        grv_energy_baseline=_f(baseline["grv_energy"]),
+        grv_military=_f(row["grv_military"]),
+        grv_trade=_f(row["grv_trade"]),
+        us_china_grv=_f(row["us_china_grv"], 50.0),
+        t10y2y=_f(row["t10y2y"], -10.0),
+        credit_spread=_f(row["credit_spread"], 250.0),
+        dff=_f(row["dff"], 5.0),
+        situation_level=2,
+        step_label=label or row.get("date", ""),
+        total_cycles=100,
+        sim_id=f"hist_{label}",
+    )
+
+
+def load_from_macro_scan(
+    grv_path:  str = "/app/macro_data/grv_latest.json",
+    fred_path: str = "/app/macro_data/fred_history",
+    news_export_path: str = "/app/macro_data/news_export.json",
+    situation_level: int = 1,
+    label: str = "live",
+) -> "MacroWorldState":
+    """从当前真实数据加载初始状态（预测循环起点用）"""
+    import json, csv, os
+
+    _GRV_SCHEMA  = "1.0"
+    _NEWS_SCHEMA = "1.0"
+
+    with open(grv_path) as f:
+        grv = json.load(f)
+    grv_ver = grv.get("_schema_version")
+    if grv_ver != _GRV_SCHEMA:
+        raise RuntimeError(f"grv schema 不兼容：期望{_GRV_SCHEMA}，实际{grv_ver!r}")
+
+    grv_composite = grv.get("global_composite", 50.0)
+    grv_energy    = grv.get("middle_east_energy", 0.0)
+    grv_military  = (grv.get("russia_europe", 0) + grv.get("taiwan_strait", 0)) / 200
+    grv_trade     = grv.get("us_china_strategic", 0) / 100
+    us_china_grv  = grv.get("us_china_strategic", 50.0)
+
+    def read_latest(filename):
+        path = os.path.join(fred_path, filename)
+        try:
+            with open(path) as f:
+                rows = [r for r in csv.DictReader(f) if r["value"] and r["value"] != "."]
+            return float(rows[-1]["value"]) if rows else None
+        except Exception:
+            return None
+
+    def read_baseline(filename, lookback=6):
+        path = os.path.join(fred_path, filename)
+        try:
+            with open(path) as f:
+                rows = [r for r in csv.DictReader(f) if r["value"] and r["value"] != "."]
+            return float(rows[max(0, len(rows) - lookback * 22)]["value"]) if rows else None
+        except Exception:
+            return None
+
+    t10y2y_raw    = read_latest("T10Y2Y.csv")
+    credit_raw    = read_latest("BAA10Y.csv")
+    dff_raw       = read_latest("DFF.csv")
+
+    # FRED 存储单位是 %，t10y2y 和 credit_spread 换算成 bps（×100）
+    t10y2y        = (t10y2y_raw * 100) if t10y2y_raw is not None else -10.0
+    credit_spread = (credit_raw * 100) if credit_raw is not None else 250.0
+    dff           = dff_raw if dff_raw is not None else 5.0
+
+    grv_hist_path = os.path.join(os.path.dirname(grv_path), "grv_history.jsonl")
+    grv_baseline_val = grv_composite
+    grv_energy_baseline_val = grv_energy
+    try:
+        with open(grv_hist_path) as f:
+            lines = f.readlines()
+        if len(lines) >= 6:
+            old = json.loads(lines[-6])
+            grv_baseline_val = old.get("global_composite") or grv_composite
+            me = old.get("middle_east_energy")
+            grv_energy_baseline_val = me if me is not None else grv_energy
+    except Exception:
+        pass
+
+    vix = 15.0 + grv_composite * 0.15
+    vix_baseline = 15.0 + grv_baseline_val * 0.15
+
+    recent_news = []
+    trigger_event = ""
+    try:
+        with open(news_export_path) as f:
+            export = json.load(f)
+        if export.get("_schema_version") != _NEWS_SCHEMA:
+            raise RuntimeError("news schema 不兼容")
+        articles = export.get("articles", [])
+        recent_news = [a["title"] for a in articles[:5]]
+        trigger_event = articles[0]["title"] if articles else ""
+    except RuntimeError:
+        raise
+    except Exception:
+        pass
+
+    return MacroWorldState(
+        vix=float(vix), vix_baseline=float(vix_baseline),
+        grv=float(grv_composite), grv_baseline=float(grv_baseline_val),
+        grv_energy=float(grv_energy), grv_energy_baseline=float(grv_energy_baseline_val),
+        grv_military=float(grv_military),
+        grv_trade=float(grv_trade),
+        us_china_grv=float(us_china_grv),
+        t10y2y=float(t10y2y),
+        credit_spread=float(credit_spread),
+        dff=float(dff),
+        situation_level=situation_level,
+        trigger_event=trigger_event,
+        recent_news=recent_news,
+        total_cycles=100,
+        sim_id=label,
+        trigger_date=datetime.now().strftime("%Y-%m-%d"),
+        step_label=datetime.now().strftime("%Y-%m"),
+    )
