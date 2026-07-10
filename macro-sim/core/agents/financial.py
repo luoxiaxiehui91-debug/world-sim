@@ -87,22 +87,26 @@ class HedgeFundAgent(MacroAgent):
 
     def _decide_rules(self, ctx: dict) -> str:
         p = self.params
-        grv_stress = ctx.get("grv_stress", 0) * p.sensitivity
-        vix_stress = ctx.get("vix_stress", 0) * p.sensitivity
-        ext_shift  = ctx.get("external_pressure_shift", 0) * p.sensitivity
-        sentiment  = ctx.get("market_sentiment", 0)
-        yield_inv  = ctx.get("yield_inverted", 0)
-        visible    = ctx.get("visible_actions", {})
-        media_fear = visible.get("media") == "AMPLIFY_FEAR"
+        grv_stress   = ctx.get("grv_stress", 0) * p.sensitivity
+        vix_stress   = ctx.get("vix_stress", 0) * p.sensitivity
+        ext_shift    = ctx.get("external_pressure_shift", 0) * p.sensitivity
+        sentiment    = ctx.get("market_sentiment", 0)
+        yield_inv    = ctx.get("yield_inverted", 0)
+        sp500_change = ctx.get("sp500_change", 0.0)
+        visible      = ctx.get("visible_actions", {})
+        media_fear   = visible.get("media") == "AMPLIFY_FEAR"
 
         # 已充分定价（情绪低于-0.4）→ 止盈观望，不追空
         if sentiment < -0.4:
             return "HOLD"
+        # 标普6个月跌幅超10% → 趋势性做空
+        if sp500_change < -0.10:
+            return "SHORT_MARKET"
         # 高压信号 → 做空
         if grv_stress > p.threshold * 0.8 or vix_stress > p.threshold * 0.6 or media_fear:
             return "SHORT_MARKET"
         # 中等压力 → 降险
-        if ext_shift > p.threshold * 0.5 or yield_inv:
+        if ext_shift > p.threshold * 0.5 or yield_inv or sp500_change < -0.05:
             return "DECREASE_RISK"
         # 环境改善 → 加仓
         if grv_stress < p.threshold * 0.2 and vix_stress < p.threshold * 0.2 and sentiment > 0.1:
@@ -117,13 +121,17 @@ class InstitutionAgent(MacroAgent):
 
     def _decide_rules(self, ctx: dict) -> str:
         p = self.params
-        grv_stress = ctx.get("grv_stress", 0) * p.sensitivity
-        vix_stress = ctx.get("vix_stress", 0) * p.sensitivity
-        yield_inv  = ctx.get("yield_inverted", 0)
-        visible    = ctx.get("visible_actions", {})
+        grv_stress   = ctx.get("grv_stress", 0) * p.sensitivity
+        vix_stress   = ctx.get("vix_stress", 0) * p.sensitivity
+        yield_inv    = ctx.get("yield_inverted", 0)
+        sp500_change = ctx.get("sp500_change", 0.0)
+        visible      = ctx.get("visible_actions", {})
         # 看到对冲基金已做空2步 → 跟进降险
         hf_shorted = visible.get("hedge_fund") == "SHORT_MARKET"
 
+        # 标普6个月跌幅超10% → 强制降险（机构保本属性）
+        if sp500_change < -0.10:
+            return "DECREASE_RISK"
         if grv_stress > p.threshold * 0.9 or vix_stress > p.threshold * 0.8 or yield_inv:
             return "DECREASE_RISK"
         if hf_shorted and grv_stress > p.threshold * 0.5:
@@ -172,12 +180,16 @@ class ECBAgent(MacroAgent):
         sentiment  = ctx.get("market_sentiment", 0)
         grv_stress = ctx.get("grv_stress", 0) * p.sensitivity
         vix_stress = ctx.get("vix_stress", 0) * p.sensitivity
+        ecb_rate   = ctx.get("ecb_rate", 3.0)
         visible    = ctx.get("visible_actions", {})
         # 欧央行通常滞后美联储1-2步
         fed_cut  = visible.get("fed") in ("CUT_25BP", "CUT_50BP")
         fed_hike = visible.get("fed") == "HIKE_25BP"
 
         if sentiment < -(p.threshold * 0.6) or (fed_cut and grv_stress > p.threshold * 0.4):
+            return "CUT_25BP"
+        # 实际利率偏高（>3.5%）且经济压力上升 → 倾向降息
+        if ecb_rate > 3.5 and grv_stress > p.threshold * 0.3 and sentiment < 0:
             return "CUT_25BP"
         if grv_stress > p.threshold * 1.0:
             return "QE_EXPAND"

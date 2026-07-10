@@ -70,6 +70,7 @@ class ChinaPBOCAgent(MacroAgent):
         china_credit = ctx.get("china_credit_impulse", 0) * p.sensitivity
         grv_stress   = ctx.get("grv_stress", 0) * p.sensitivity
         sentiment    = ctx.get("market_sentiment", 0)
+        usd_cny      = ctx.get("usd_cny", 7.1)
         visible      = ctx.get("visible_actions", {})
         # 中美战略维度上升 → 汇率干预
         us_china_grv = ctx.get("us_china_grv", 0) * p.sensitivity
@@ -80,6 +81,9 @@ class ChinaPBOCAgent(MacroAgent):
             return "CUT_RRR"
         if china_credit < -(p.threshold * 0.4) and sentiment < -0.2:
             return "FISCAL_STIMULUS_CN"
+        # 人民币贬值压力大（>7.3）→ 汇率干预
+        if usd_cny > 7.3:
+            return "CNY_INTERVENTION"
         # 中美紧张 + 美联储加息 → 汇率干预
         if us_china_grv > p.threshold * 0.8 and fed_hike:
             return "CNY_INTERVENTION"
