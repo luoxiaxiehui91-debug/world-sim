@@ -215,13 +215,15 @@ macro-scan 是写入方，macro-sim 是只读消费方。容器内挂载路径�
 
 | macro-scan | macro-sim | 接口 schema |
 |:-----------|:----------|:------------|
-| v3.5.x+    | v0.4.x+   | grv v1.0 / news v1.0 |
+| v3.5.41+   | v2.0.2+   | grv v1.0 / news v1.0 |
 
 ---
 
 ### `data/grv_latest.json`
 
 由 `核心代码/geo_risk_vector.py` 每日 06:10 写入（原子写，先写 `.tmp` 再 `os.replace`）。
+
+⚠️ **v3.5.39 起新增 `japan_monetary` 字段**（v3.5.41 修复 NameError，该字段现稳定写出）。
 
 ```json
 {
@@ -233,9 +235,9 @@ macro-scan 是写入方，macro-sim 是只读消费方。容器内挂载路径�
   "global_composite":   55.0,
   "climate_risk":       30.0,
   "disaster_risk":      null,
-  "japan_monetary":     62.5,
-  "updated":            "2026-07-08T06:10:00",
-  "gdelt_updated":      "2026-07-08T06:00:00",
+  "japan_monetary":     45.5,
+  "updated":            "2026-07-10T22:36:01",
+  "gdelt_updated":      "2026-07-10T10:06:06",
   "gpr_twn_raw":        95.3,
   "gpr_twn_date":       "2026-06-01",
   "source_quality":     "gdelt+gpr"
@@ -246,7 +248,7 @@ macro-scan 是写入方，macro-sim 是只读消费方。容器内挂载路径�
 |:-----|:-----|:-----|
 | `_schema_version` | string | 接口版本号，当前 `"1.0"`。macro-sim 启动时校验此字段，不一致则拒绝启动 |
 | `taiwan_strait` / `us_china_strategic` / `russia_europe` / `middle_east_energy` / `global_composite` | float 0–100 | GRV 五维度，必须字段，null 表示数据源暂缺 |
-| `climate_risk` / `disaster_risk` / `japan_monetary` | float 0–100 \| null | 可选，数据源不可用时为 null |
+| `climate_risk` / `disaster_risk` / `japan_monetary` | float 0–100 \| null | 可选，数据源不可用时为 null。`japan_monetary` = USD/JPY水位×0.5 + JGB 3M收益率变速×0.5 |
 | `updated` | ISO 8601 字符串 | 本次计算时间戳 |
 | `source_quality` | `"gdelt+gpr"` \| `"gdelt_only"` \| `"gpr_only"` \| `"stub"` | 数据来源质量标记 |
 
@@ -256,7 +258,7 @@ macro-sim 读取字段：`global_composite`（映射为仿真 `grv`）、`middle
 
 ### `data/grv_history.jsonl`
 
-由 `geo_risk_vector.py` 每日 06:10 追加（日期去重，同天只写一条）。每行格式与 `grv_latest.json` 相同。macro-sim 读取倒数第 30 行用于 baseline 计算。
+由 `geo_risk_vector.py` 每日 06:10 追加（日期去重，同天只写一条）。每行格式与 `grv_latest.json` 相同（含 `japan_monetary`）。macro-sim 读取时按时间戳回溯 6 个月作为 baseline（注意：2026-07 前为月频，2026-07 起为日频，应用日期范围而非行偏移查找基线）。
 
 ---
 
