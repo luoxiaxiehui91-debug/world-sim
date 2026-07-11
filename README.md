@@ -2,6 +2,9 @@
 
 本仓库整合了两个宏观分析系统，统一管理源码与部署。
 
+> **AI 工作入口**：见 [`AGENTS.md`](AGENTS.md)（系统定位、阅读路径、操作约束）。  
+> **GitHub**：[luoxiaxiehui91-debug/world-sim](https://github.com/luoxiaxiehui91-debug/world-sim)（private）
+
 ## 目录结构
 
 ```
