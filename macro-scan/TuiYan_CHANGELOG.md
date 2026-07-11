@@ -4,7 +4,7 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
 
-## 2026-07-09 [3.5.40] P1+P2 bug 修复：backfill 日期对齐 + GRV 冷却乐观锁（by Claude）
+## v3.5.40 — 2026-07-09 (by Claude) P1+P2 bug 修复：backfill 日期对齐 + GRV 冷却乐观锁
 
 **修改者**：Claude Code  
 **修改理由**：两个已定位的生产 bug，backfill_grv_history.py 位置索引对齐导致各国 GPR 系列系统性日期错位（P1）；grv_threshold.py 冷却日志在 _worker() 完成后约80秒才写，两个并发 GRV 进程可同日双触发推演（P2）。
@@ -32,7 +32,7 @@
 
 ---
 
-## 2026-07-10 [3.5.39] 日元货币压力维度 japan_monetary（by Claude）
+## v3.5.39 — 2026-07-09 (by Claude) 日元货币压力维度 japan_monetary
 
 **修改者**：Claude Code  
 **修改理由**：日元汇率和 BOJ 政策是系统性套利平仓风险来源，但原 GRV 向量没有专属维度，日元套利推演只能借用 global_composite，信号感知能力弱。
@@ -3733,6 +3733,17 @@ conn.close()
 body 首行固定：⚠️ 低置信度推演 · 社会类上限🟡，仅供参考
 
 --- 
+
+---
+
+## v3.5.46 — 2026-07-11 (by Claude)
+
+### 文档（P2/P3 细节收尾）
+
+- **`macro-scan/AGENTS.md`**：修改工作流 push 命令补 `-C /s/world-sim`（原缺失，直接跑会因当前目录不在 git 仓库根而失败）
+- **`TuiYan_CHANGELOG.md`**：
+  - `v3.5.39`：日期从 2026-07-10 更正为 2026-07-09（写入时笔误，3.5.39 比 3.5.40 早提交）
+  - `v3.5.39` / `v3.5.40`：标题格式从 `## YYYY-MM-DD [x.y.z] 标题` 统一为 `## vX.Y.Z — YYYY-MM-DD (by Claude) 标题`（与后续版本格式一致）
 
 ---
 
