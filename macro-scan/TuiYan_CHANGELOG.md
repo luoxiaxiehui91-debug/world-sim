@@ -3736,6 +3736,15 @@ body 首行固定：⚠️ 低置信度推演 · 社会类上限🟡，仅供参
 
 ---
 
+## v3.5.47 — 2026-07-11 (by Claude)
+
+### 文档（审计尾项清零）
+
+- **`macro-scan/INDEX.md`**：`news_prune` 定时任务命令字段补全（内联 `python -c "import news_db; news_db.prune_old_articles(..., 90)"`，无独立脚本）
+- **`macro-sim/AGENTS.md`**：阅读路径表补 `docs/PROGRESS.md`（文件存在但原表未列出，开发进度文档）
+
+---
+
 ## v3.5.46 — 2026-07-11 (by Claude)
 
 ### 文档（P2/P3 细节收尾）

@@ -50,6 +50,7 @@ macro-sim/                ← 本地工作目录（S:\world-sim\macro-sim\，git
 |---|---|
 | `AGENTS.md`（本文件）| **每次 session 必读** |
 | `docs/design_v2.md` | 涉及架构设计决策时 |
+| `docs/PROGRESS.md` | 了解当前开发进度和各模块完成状态时 |
 | `core/world_state.py` | 涉及状态变量或数据加载时 |
 | `core/simulation.py` | 涉及 Agent 行为或 GM 规则时 |
 | `core/calibrator.py` | 涉及校准逻辑时 |

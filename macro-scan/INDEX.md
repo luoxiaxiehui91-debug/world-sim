@@ -39,7 +39,7 @@
 | weekly_synthesis | 20:00 | 周五 | `weekly_synthesis.py` | ✅ |
 | dashboard | 20:30 | 工作日 | `dashboard.py` | ✅ |
 | verify_auto | 09:15 | 每月1日 | `verify_hypothesis.py` | ✅ |
-| news_prune | 09:20 | 每月1日 | `` | ✅ |
+| news_prune | 09:20 | 每月1日 | `python -c "import news_db; news_db.prune_old_articles(..., 90)"` | ✅ |
 
 ---
 
