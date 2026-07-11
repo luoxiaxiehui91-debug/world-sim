@@ -6,7 +6,7 @@
 
 **定位**：macro-scan 发现信号 → macro-sim 演化未来（不是推理，是演化）
 
-**当前版本**：见 `VERSION`（当前 v2.0.2）
+**当前版本**：见 `VERSION`（当前 v2.0.3）
 
 ---
 
@@ -49,6 +49,7 @@ macro-sim/                ← 本地工作目录（S:\world-sim\macro-sim\，git
 | 文件 | 何时读 |
 |---|---|
 | `AGENTS.md`（本文件）| **每次 session 必读** |
+| `CHANGELOG.md` 最后20行 | **每次 session 必读**（了解最新改动，维护铁律要求）|
 | `docs/design_v2.md` | 涉及架构设计决策时 |
 | `docs/PROGRESS.md` | 了解当前开发进度和各模块完成状态时 |
 | `core/world_state.py` | 涉及状态变量或数据加载时 |

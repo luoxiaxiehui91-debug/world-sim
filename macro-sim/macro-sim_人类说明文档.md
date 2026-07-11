@@ -49,7 +49,7 @@ macro-sim 从以下路径读取数据（容器内挂载为 `/app/data/`，对应
 YYYY-MM-DD_仿真_校准{score}.md
 ```
 
-NAS 上对应路径为 `/vol2/1000/software/macro-sim/reports/`，也可通过本机路径 `S:\world-sim\macro-sim\reports\` 访问（NAS 挂载）。
+NAS 上对应路径为 `/vol2/1000/software/macro-scan/docs/仿真报告/`，本机路径 `S:\world-sim\macro-scan\docs\仿真报告\`（报告写入 macro-scan 侧，非 macro-sim 侧）。
 
 同时通过 ntfy 推送摘要到手机（`https://ntfy.sh/***REMOVED***`）。
 
@@ -92,8 +92,8 @@ level 取值含义：1=低风险 / 2=中等 / 3=高风险告警。
 
 | 访问方式 | 路径 |
 |---|---|
-| NAS 直接访问 | `/vol2/1000/software/macro-sim/reports/` |
-| 本机挂载路径 | `S:\world-sim\macro-sim\reports\` |
+| NAS 直接访问 | `/vol2/1000/software/macro-scan/docs/仿真报告/` |
+| 本机挂载路径 | `S:\world-sim\macro-scan\docs\仿真报告\` |
 
 ### ntfy 推送内容
 
@@ -210,9 +210,13 @@ python run.py --predict-only --level 2 --event "快速测试"
 
 ## 七、配置说明
 
-### agents.yaml 热更新
+### agents.yaml 修改说明
 
-`config/agents.yaml` 通过 Docker volume 挂载，修改后**无需重建镜像**，下次触发仿真时自动生效。
+`config/agents.yaml` 通过 Dockerfile 的 `COPY config/ ./config/` 打包进镜像，**修改参数后必须重建镜像**：
+
+```bash
+bash /s/world-sim/deploy.sh macro-sim
+```
 
 可修改的内容：
 - 各 Agent 的 `sensitivity` / `threshold` / `magnitude` 默认参数
@@ -236,7 +240,8 @@ python run.py --predict-only --level 2 --event "快速测试"
 | 变量名 | 说明 | 示例值 |
 |---|---|---|
 | `REPORT_DIR` | 报告输出目录（容器内路径） | `/app/reports` |
-| GLM API Key 相关 | LLM 调用凭证 | 见 docker-compose.yml |
+| `SILICONFLOW_API_KEY` | 硅基流动 API 凭证（LLM 降级链）| 见 docker-compose.yml |
+| `MINIMAX_API_KEY` | MiniMax API 凭证（LLM 调用）| 见 docker-compose.yml |
 
 其他环境变量待补充（需查阅 docker-compose.yml 完整内容）。
 

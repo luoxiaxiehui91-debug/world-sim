@@ -3736,6 +3736,38 @@ body 首行固定：⚠️ 低置信度推演 · 社会类上限🟡，仅供参
 
 ---
 
+## v3.5.50 — 2026-07-11 (by Claude)
+
+### 文档（第二轮入口流程验证修复 — P0/P1/P2 全清）
+
+**P0：直接导致误操作的错误（4处）**
+
+- **`macro-sim/macro-sim_人类说明文档.md`**：
+  - 报告路径三处错误（第二节/第四节/第四节表格）全改为正确路径：NAS `/vol2/1000/software/macro-scan/docs/仿真报告/`，本机 `S:\world-sim\macro-scan\docs\仿真报告\`
+  - "agents.yaml 热更新"节改为"agents.yaml 修改说明"，明确说明通过 `Dockerfile COPY` 打包进镜像，修改后必须 `deploy.sh macro-sim` 重建
+- **`macro-scan/AGENTS.md`** 第78行：修改工作流路径 `S:\macro-scan\核心代码\` → `S:\world-sim\macro-scan\核心代码\`
+- **`macro-scan/世界推演系统_人类说明文档.md`** 第六章：三处旧路径补全 world-sim 层（知识库/data/仿真报告）
+
+**P1：重要信息错误（5处）**
+
+- **`macro-sim/VERSION`**：v2.0.2 → v2.0.3（CHANGELOG 最新条目 v2.0.3 已存在，VERSION 未同步）
+- **`macro-sim/AGENTS.md`** 第9行：`当前 v2.0.2` → `当前 v2.0.3`
+- **`macro-sim/docs/PROGRESS.md`**：版本号/日期/版本历史表均更新至 v2.0.3
+- **`macro-sim/macro-sim_人类说明文档.md`** 环境变量表：`GLM API Key` → `SILICONFLOW_API_KEY` + `MINIMAX_API_KEY`
+- **`macro-scan/世界推演系统_人类说明文档.md`** 版本号：三处 V3.5.42/V3.5.48 统一为 V3.5.49
+- **`macro-sim/AGENTS.md`** 阅读路径表：补 `CHANGELOG.md 最后20行 — 每次 session 必读`
+- **`macro-scan/INDEX.md`**：news_prune 命令补全实际路径参数；文件头版本号 v3.5.41 → v3.5.49
+
+**P2：冗余/过时（5处）**
+
+- **根 `README.md`** 目录树：补 `AGENTS.md` 和 `世界推演系统_总览.md` 两项
+- **`世界推演系统_总览.md`** 版本行：`v3.5.47/v2.0.2` → `v3.5.49/v2.0.3`
+- **`docs/待办事项.md`**：删除底部残留的 v3.5.31/v3.5.32 已完成条目（已在 CHANGELOG 中存档）
+- **`macro-scan/世界推演系统_人类说明文档.md`** GRV流程图：7维 → 8维，补 `japan_monetary`
+- **`macro-scan/世界推演系统_人类说明文档.md`** IMPROVEMENT_PLAN.md 引用：更正为已归档路径 `docs/archive/IMPROVEMENT_PLAN.md`
+
+---
+
 ## v3.5.49 — 2026-07-11 (by Claude)
 
 ### 文档（补齐新文档的关联链接）

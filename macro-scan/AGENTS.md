@@ -75,7 +75,7 @@ macro-scan/               ← 本地工作目录（S:\world-sim\macro-scan\，gi
 ### 修改源码（核心代码/*.py）
 
 ```bash
-# 直接编辑 S:\macro-scan\核心代码\xxx.py（热挂载，容器内即时生效）
+# 直接编辑 S:\world-sim\macro-scan\核心代码\xxx.py（热挂载，容器内即时生效）
 # 改完后追加 CHANGELOG，bump VERSION（PATCH）
 ```
 
