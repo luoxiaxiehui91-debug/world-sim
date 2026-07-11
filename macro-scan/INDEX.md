@@ -150,7 +150,7 @@ curl -s http://192.168.31.108:8899/api/data | python3 -m json.tool | head -30
 
 | 解锁时间 | 任务 |
 |:---------|:-----|
-| **2026-07-10**（C线上线30天后）| C线切Live：`signal_synthesizer.py` `STAGING_MODE=False`；R07开启 |
+| **2026-07-10**（C线上线30天后）⚠️ **已到期，待确认是否已执行**| C线切Live：`signal_synthesizer.py` `STAGING_MODE=False`；R07开启 |
 | 2026-09-10（GDELT运行3个月）| 校准 religious_conflict/regime_change 的 scale 参数 |
 | 2026-11-19（N1上线180天）| N2 反向查询（宏观快照→历史新闻分布） |
 | 2027-05-23（N1上线1年）| N3 信号月度校验 |
