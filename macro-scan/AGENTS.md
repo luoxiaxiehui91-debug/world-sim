@@ -124,6 +124,7 @@ git -c http.proxy=http://192.168.31.108:7890 push origin main
 |:---|:---|
 | 任何 `核心代码/*.py` | `TuiYan_CHANGELOG.md` + `VERSION` |
 | 任何 `核心代码/*.py`（版本号变更时）| + `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
+| 任何 `核心代码/*.py`（版本号变更时）| + `世界推演系统_人类说明文档.md`（文件头版本号 + 第一节"当前能力"节 + 九、当前状态表）|
 | `核心代码/scheduler.py` | + `INDEX.md`（运行 `gen_docs.py --target scheduler` 刷新）|
 | `核心代码/hybrid_llm.py` | + `INDEX.md`（LLM调用链表手动更新）|
 | `核心代码/ntfy_listener.py` | + `INDEX.md`（运行 `gen_docs.py --target ntfy` 刷新）|
@@ -134,6 +135,8 @@ git -c http.proxy=http://192.168.31.108:7890 push origin main
 | `核心代码/situation_tracker.py` 或 `situation_detector.py` | + `世界推演系统_人类说明文档.md` |
 | 新增或删除 `核心代码/*.py` | + `FILE_MANIFEST.md`（运行 `gen_docs.py --target manifest` 刷新）|
 | `Dockerfile` 或 `entrypoint.sh` | + `INDEX.md`（活跃容器表）|
+| `README.md`（路径/版本/结构变更）| + `世界推演系统_人类说明文档.md`（五、文件位置表）|
+| `docs/待办事项.md`（时间门控任务触发/完成）| + `TuiYan_CHANGELOG.md` + `INDEX.md`（路线图节）|
 
 **pre-commit 会自动拦截**：commit 时如果改了代码但联动文档未 staged，会打印具体提示并阻止提交。
 

@@ -3736,6 +3736,37 @@ body 首行固定：⚠️ 低置信度推演 · 社会类上限🟡，仅供参
 
 ---
 
+## v3.5.43 — 2026-07-11 (by Claude)
+
+### 文档修复（文档审计 P0/P1/P2 问题批量修复）
+
+**P0：修复两处严重过时文档**
+
+- **`macro-scan/README.md`**：
+  - 路径全部从 `S:\macro-scan\` 更新为 `S:\world-sim\macro-scan\`（monorepo 合并后未同步）
+  - 顶部新增 AI 工作入口指向 `AGENTS.md`、monorepo 说明
+
+- **`世界推演系统_人类说明文档.md`**：
+  - 文件头版本号 V3.5.40 → V3.5.42，日期 2026-07-09 → 2026-07-11
+  - "当前能力"节从 V3.5.26 同步到 V3.5.42，补充 GRV 8维/japan_monetary/macro-sim 联动能力
+  - 维护路径 `S:\macro-scan\` → `S:\world-sim\macro-scan\`（5处）
+  - 当前状态表新增 v3.5.42 文档补全条目
+
+**P1：补全联动矩阵三大缺口（`macro-scan/AGENTS.md`）**
+
+  - 新增：任何 `.py` 版本号变更时 → 必须同步更新 `世界推演系统_人类说明文档.md`
+  - 新增：`README.md` 路径/版本/结构变更 → 必须同步更新 `世界推演系统_人类说明文档.md`
+  - 新增：`docs/待办事项.md` 时间门控触发/完成 → 必须同步更新 `TuiYan_CHANGELOG.md` + `INDEX.md`
+
+**P2：根 README.md 补链接；归档三个过时文件**
+
+  - `world-sim/README.md`：顶部新增 AI 工作入口指向 `AGENTS.md`，补 GitHub 仓库地址
+  - 归档 `macro-scan/docs/目录结构引用关系_2026-06-23.md` → `docs/archive/`（被 FILE_MANIFEST.md 取代）
+  - 归档 `macro-scan/docs/IMPROVEMENT_PLAN.md` → `docs/archive/`（Phase 1-3 全部完成）
+  - 归档 `macro-sim/docs/design.md` → `docs/archive/`（v0.3 草案已被 design_v2.md 取代）
+
+---
+
 ## v3.5.42 — 2026-07-10 (by Claude)
 
 ### 文档
