@@ -134,9 +134,9 @@ docker compose up -d
 
 | 文件 | 用途 |
 |---|---|
+| `macro-sim_人类说明文档.md` | **人类使用手册**：原理/触发/报告/运维/已知问题 |
 | `AGENTS.md` | AI session 入口：目录结构、约束、工作流 |
 | `CHANGELOG.md` | 版本变更记录 |
 | `docs/design_v2.md` | v2 架构设计（已确认） |
-| `docs/design.md` | v1 设计草案（历史参考） |
 | `docs/PROGRESS.md` | 开发进度 |
 | `config/agents.yaml` | 12个 Agent 配置（热更新，新增角色只加配置）|
