@@ -3736,6 +3736,20 @@ body 首行固定：⚠️ 低置信度推演 · 社会类上限🟡，仅供参
 
 ---
 
+## v3.5.45 — 2026-07-11 (by Claude)
+
+### 文档（核实时间门控执行状态）
+
+通过 `docker exec env | grep STAGING` + `synthesis_rules.yaml` 代码核实：
+
+- **C线切Live**：已执行（2026-07-10）。`docker-compose.yml` 环境变量 `STAGING_MODE=0`，容器内 Live 模式已激活。代码内默认常量仍为 `True`，但被环境变量覆盖。
+- **R07开启**：已执行（2026-07-10）。`synthesis_rules.yaml` R07_religious_energy `enabled: true`，注释注明 religious_conflict 近14天 58/63条有效。
+- **R09/R10**：仍为 `enabled: false`，social_stress/cultural_friction 维度数据积累不足，尚未到触发条件。
+
+更新 `INDEX.md` 路线图和 `docs/待办事项.md` 中对应条目状态。
+
+---
+
 ## v3.5.44 — 2026-07-11 (by Claude)
 
 ### 文档（文档审计 P2/P3 收尾）
