@@ -1,6 +1,6 @@
 # 世界推演系统 INDEX
 
-> 生成时间：2026-07-10 | 版本：v3.5.41 | **只读索引，修改请更新 CHANGELOG**
+> 生成时间：2026-07-11 | 版本：v3.5.49 | **只读索引，修改请更新 CHANGELOG**
 
 ---
 
@@ -39,7 +39,7 @@
 | weekly_synthesis | 20:00 | 周五 | `weekly_synthesis.py` | ✅ |
 | dashboard | 20:30 | 工作日 | `dashboard.py` | ✅ |
 | verify_auto | 09:15 | 每月1日 | `verify_hypothesis.py` | ✅ |
-| news_prune | 09:20 | 每月1日 | `python -c "import news_db; news_db.prune_old_articles(..., 90)"` | ✅ |
+| news_prune | 09:20 | 每月1日 | `python -c "import news_db; news_db.prune_old_articles('/workspace/data/news.db', 90)"` | ✅ |
 
 ---
 

@@ -10,10 +10,12 @@
 
 ```
 world-sim/
-├── macro-scan/     宏观信号观测系统（原 macro-scan 独立仓库）
-├── macro-sim/      宏观演化仿真系统（原 macro-sim 独立仓库）
-├── deploy.sh       统一部署脚本
-└── README.md       本文件
+├── macro-scan/              宏观信号观测系统
+├── macro-sim/               宏观演化仿真系统
+├── deploy.sh                统一部署脚本
+├── AGENTS.md                AI 工作入口
+├── 世界推演系统_总览.md      人类阅读总览
+└── README.md                本文件
 ```
 
 ## 子系统说明
