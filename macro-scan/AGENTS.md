@@ -101,8 +101,8 @@ docker compose up -d --force-recreate  # restart 不重新注入 env
 ### push 到 GitHub
 
 ```bash
-# 走 NAS 代理
-git -c http.proxy=http://192.168.31.108:7890 push origin main
+# 走 NAS 代理（在源码区 S:\world-sim\macro-scan\ 执行）
+git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 # 或 NAS 上直接 push（token 在 /vol2/1000/software/KEY/github token.txt）
 ```
 
