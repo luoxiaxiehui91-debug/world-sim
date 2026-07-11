@@ -21,6 +21,8 @@
 
 
 
+## 2026-07-09 [2.0.2] 报告格式完整重写（by Claude）
+
 **修改者**：Claude Code  
 **修改理由**：报告结论埋在最后，数字无参照，路径间无对比，传导链因果不清楚。
 
@@ -36,7 +38,7 @@
 
 ---
 
- 单位换算修复 + 路径分叉调参（by Claude）
+## 2026-07-09 [2.0.1] 单位换算修复 + 路径分叉调参（by Claude）
 
 **修改者**：Claude Code  
 **修改理由**：FRED T10Y2Y/BAA10Y 数据单位是 %，代码直接当 bp 用，导致报告显示 t10y2y=0.3bp/credit_spread=2bp；同时 Agent 规则参数按日度设计在月度时间步长下过强，情绪6步触底，路径无差异。
@@ -133,7 +135,7 @@
 
 ---
 
- 报告生成 + daemon 守护模式 + P4-B 自动触发（by Claude）
+## 2026-07-09 [0.5.0] 报告生成 + daemon 守护模式 + P4-B 自动触发（by Claude）
 
 **修改者**：Claude Code  
 **修改理由**：仿真结果不可读，容器跑完即退出导致无限重启；补全 P4-B 自动触发。
@@ -180,7 +182,7 @@ macro-scan 检测 GRV 告警 / 信号共振
 
 ---
 
- 接口版本校验 + make_test_world() 修复（by Claude）
+## 2026-07-09 [0.4.2] 接口版本校验 + make_test_world() 修复（by Claude）
 
 **修改者**：Claude Code  
 **修改理由**：与 macro-scan 建立双向接口版本保护机制；修复 world_state.py 中悬空代码 bug。
@@ -201,7 +203,7 @@ macro-scan 检测 GRV 告警 / 信号共振
 
 | macro-scan | macro-sim | 接口 schema |
 |:-----------|:----------|:------------|
-| v3.5.33+   | v0.4.1+   | grv v1.0 / news v1.0 |
+| v3.5.41+   | v0.4.2+   | grv v1.0 / news v1.0（含 japan_monetary 字段）|
 
 ### 部署注意
 - 升级顺序：先 macro-scan（输出带版本字段）→ 再 macro-sim（启用校验）
