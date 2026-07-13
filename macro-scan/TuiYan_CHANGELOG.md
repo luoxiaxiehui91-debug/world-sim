@@ -39,6 +39,8 @@
 
 ## v3.5.55 — 2026-07-11 (by Claude)
 
+**修改理由**：健康检查发现 macro-scan/AGENTS.md 联动矩阵遗漏两处触发条件（纯文档改动未覆盖 + 缺少 INDEX.md 条目），触发本次联动矩阵4处修复。
+
 ### 文档（联动矩阵4处修复）
 
 - **`macro-scan/AGENTS.md` 联动矩阵**：
@@ -51,6 +53,8 @@
 
 ## v3.5.54 — 2026-07-11 (by Claude)
 
+**修改理由**：cn_lpr 列名变更与 World Bank SSL EOF 导致数据拉取每日报错，属线上 bug 修复（见 `S:\docs\questions\world-deduction\archived\20260704-world-deduction-china-data-sources.md`）。
+
 ### 修复（fetch_china_data.py — China 数据源两故障）
 
 **cn_lpr 列名变更修复**（P2，见 `S:\docs\questions\world-deduction\20260704-world-deduction-china-data-sources.md`）
@@ -62,6 +66,8 @@
 ---
 
 ## v3.5.53 — 2026-07-11 (by Claude)
+
+**修改理由**：健康检查走查阅读路径时，发现根 AGENTS.md 阅读路径要求读80行但 CHANGELOG 实际配置仅50行，存在截断风险，触发行数修正。
 
 ### 文档（入口阅读路径修复）
 

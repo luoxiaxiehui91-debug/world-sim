@@ -30,7 +30,6 @@ macro-sim/                ← 本地工作目录（S:\world-sim\macro-sim\，git
 │   └── agents.yaml         # 12个 Agent 配置（热更新）
 ├── docs/
 │   ├── design_v2.md        # v2 架构设计（已确认）
-│   ├── design.md           # v1 设计草案（历史参考）
 │   └── PROGRESS.md         # 开发进度
 ├── output/                 # 仿真输出（不在 git 里）
 ├── run.py                  # 入口（--daemon / --run / --predict-only）
