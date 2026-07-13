@@ -236,7 +236,7 @@ def fetch_china_indicator_value(query_text: str) -> tuple[float | None, str | No
         import re
         
         neodata_host = os.environ.get("NEODATA_HOST", "localhost")
-        port = os.environ.get("AUTH_GATEWAY_PORT", "19000")
+        port = AUTH_GATEWAY_PORT
         url = f"http://{neodata_host}:{port}/proxy/api"
         headers = {
             "Content-Type": "application/json",

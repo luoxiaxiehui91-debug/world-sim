@@ -4,6 +4,29 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
 
+## 2026-07-13 [2.0.4] 文档修正：新 session 阅读路径统一（by Claude）
+
+**修改者**：Claude Code  
+**修改理由**：健康检查发现 AGENTS.md 第167行"新 session 快速继续"节写"看 CHANGELOG.md 最新条目"，与第52行阅读路径表格"前 50 行"描述不一致，存在歧义。
+
+### 修改
+
+- **`AGENTS.md` 第167行**：将"新 session 快速继续"节代码块改为 `读 CHANGELOG.md 前 50 行`（与阅读路径表格保持一致），同时调整步骤顺序为先读 CHANGELOG 再按需读 design_v2.md
+
+---
+
+## 2026-07-11 [2.0.3] 联动矩阵缺口修复（by Claude）
+
+**修改者**：Claude Code  
+**修改理由**：入口文档走查发现 macro-sim 联动矩阵缺少两条规则，导致版本变更时 `macro-sim_人类说明文档.md` 和 `世界推演系统_总览.md` 无强制更新链。
+
+### 修改
+
+- **`macro-sim_人类说明文档.md`**：头部版本号 `v2.0.2` → `v2.0.3`（漏更新修正）
+- **`AGENTS.md` 联动矩阵**：新增两条——版本变更时 → `macro-sim_人类说明文档.md` 文件头版本号；版本变更时 → `S:\world-sim\世界推演系统_总览.md` 头部版本行 + 架构图版本号
+
+---
+
 ## 2026-07-09 [2.0.3] 叙事格式改进（by Claude）
 
 **修改者**：Claude Code  

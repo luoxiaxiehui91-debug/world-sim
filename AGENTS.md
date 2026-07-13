@@ -20,9 +20,10 @@
 按顺序读取，每步均需完整阅读：
 
 1. **本文件**（根 `AGENTS.md`）— 了解系统全貌和操作约束
-2. **`macro-scan/TuiYan_CHANGELOG.md` 最后 20 行** — 了解 macro-scan 最新变更状态
-3. **`macro-sim/CHANGELOG.md` 最后 20 行** — 了解 macro-sim 最新变更状态
-4. 按任务分支：
+2. **`S:\docs\INDEX.md` "活跃问题"节**（从"## 活跃问题"到"## Backlogs"之间，约30行）— 扫描当前所有 P1/P2 活跃问题并登记，然后继续
+3. **`macro-scan/TuiYan_CHANGELOG.md` 前 80 行** — 了解 macro-scan 最新变更状态（新版在前，读头部，80行确保覆盖最新3个完整版本条目）
+4. **`macro-sim/CHANGELOG.md` 前 80 行** — 了解 macro-sim 最新变更状态（新版在前，读头部，80行确保覆盖最新3个完整版本条目）
+5. 按任务分支：
    - 处理 macro-scan 任务 → 读 `macro-scan/AGENTS.md`（完整工作指南）
    - 处理 macro-sim 任务 → 读 `macro-sim/AGENTS.md`（完整工作指南）
 
@@ -53,9 +54,9 @@ macro-scan 每日按时写入，macro-sim 只读消费：
 | `data/grv_latest.json` | 06:10 | GRV 地缘风险向量（8维，含 `japan_monetary`），schema v1.0 |
 | `data/fred_history/*.csv` | 05:30 | FRED 宏观指标（T10Y2Y / BAA10Y / DFF），值单位 `%`，读取后需 ×100 转 bp |
 | `data/news_export.json` | 07:05 | 近7天新闻摘要（40条，6类），schema v1.0 |
-| `data/sim_trigger.json` | 触发时 | L3+ 情境检测后写入，触发 macro-sim 仿真（**P4-B 计划中，尚未实现**） |
+| `data/sim_trigger.json` | 触发时 | L3+ GRV 告警后写入，触发 macro-sim 仿真（v3.5.34 已实现） |
 
-**当前接口兼容版本**：macro-scan v3.5.41+ ↔ macro-sim v2.0.2+（grv v1.0 / news v1.0）
+**当前接口兼容版本**：macro-scan v3.5.41+ ↔ macro-sim v2.0.4+（grv v1.0 / news v1.0）
 
 接口 schema 变更规则：同时改两边 AGENTS.md 的接口契约节 → 两边 CHANGELOG 各追加 → 先升 macro-scan 验证输出 → 再升 macro-sim。
 

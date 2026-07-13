@@ -6,7 +6,7 @@
 
 **定位**：macro-scan 发现信号 → macro-sim 演化未来（不是推理，是演化）
 
-**当前版本**：见 `VERSION`（当前 v2.0.3）
+**当前版本**：见 `VERSION`（当前 v2.0.4）
 
 ---
 
@@ -49,7 +49,7 @@ macro-sim/                ← 本地工作目录（S:\world-sim\macro-sim\，git
 | 文件 | 何时读 |
 |---|---|
 | `AGENTS.md`（本文件）| **每次 session 必读** |
-| `CHANGELOG.md` 最后20行 | **每次 session 必读**（了解最新改动，维护铁律要求）|
+| `CHANGELOG.md` 前 50 行 | **每次 session 必读**（了解最新改动，新版在前，读头部）|
 | `docs/design_v2.md` | 涉及架构设计决策时 |
 | `docs/PROGRESS.md` | 了解当前开发进度和各模块完成状态时 |
 | `core/world_state.py` | 涉及状态变量或数据加载时 |
@@ -113,6 +113,10 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 | 改了什么 | 必须同时更新 |
 |---|---|
 | 任何 `core/*.py` | `VERSION`（PATCH）+ `CHANGELOG.md` |
+| 任何 `core/*.py`（版本号变更时）| + `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
+| 任何 `core/*.py`（版本号变更时）| + `macro-sim_人类说明文档.md` 文件头版本号 |
+| 任何 `core/*.py`（版本号变更时）| + `S:\world-sim\世界推演系统_总览.md` 头部版本行（`macro-sim vX.Y.Z`）+ 架构图版本号 |
+| 任何 `core/*.py`（版本号变更时）| + `docs/PROGRESS.md`（版本号 + 版本历史表）|
 | `core/world_state.py`（新增字段） | `docs/design_v2.md` |
 | `config/agents.yaml`（新增 Agent）| `core/agents/` 对应子类 + README |
 | 接口契约变更 | 两边 AGENTS.md 的接口契约节 + 两边 CHANGELOG |
@@ -138,7 +142,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 
 | macro-scan | macro-sim | 接口 schema |
 |---|---|---|
-| v3.5.41+   | v2.0.2+   | grv v1.0 / news v1.0 |
+| v3.5.41+   | v2.0.3+   | grv v1.0 / news v1.0 |
 
 **接口变更三步走：**
 1. 同时更新两边 AGENTS.md 的本节
@@ -160,6 +164,6 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 > 如在 monorepo 中工作，先读根目录 `../AGENTS.md`（系统全貌 + 阅读路径入口）。
 
 ```
-读 AGENTS.md → 读 docs/design_v2.md → 看 CHANGELOG.md 最新条目
+读 AGENTS.md → 读 CHANGELOG.md 前 50 行 → 按需读 docs/design_v2.md
 → 确认当前版本和状态，然后开始工作
 ```

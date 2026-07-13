@@ -123,8 +123,10 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 | 改了什么 | 必须同时更新 |
 |:---|:---|
 | 任何 `核心代码/*.py` | `TuiYan_CHANGELOG.md` + `VERSION` |
-| 任何 `核心代码/*.py`（版本号变更时）| + `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
-| 任何 `核心代码/*.py`（版本号变更时）| + `世界推演系统_人类说明文档.md`（文件头版本号 + 第一节"当前能力"节 + 九、当前状态表）|
+| `VERSION` 变更时（无论何种改动触发）| `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
+| `VERSION` 变更时（无论何种改动触发）| `世界推演系统_人类说明文档.md`（文件头版本号 + 第一节"当前能力"节 + 九、当前状态表）|
+| `VERSION` 变更时（无论何种改动触发）| `S:\world-sim\世界推演系统_总览.md` 头部版本行（`macro-scan vX.Y.Z`）+ 架构图版本号 |
+| `VERSION` 变更时（无论何种改动触发）| `macro-scan/INDEX.md` 头部版本号 |
 | `核心代码/scheduler.py` | + `INDEX.md`（运行 `gen_docs.py --target scheduler` 刷新）|
 | `核心代码/hybrid_llm.py` | + `INDEX.md`（LLM调用链表手动更新）|
 | `核心代码/ntfy_listener.py` | + `INDEX.md`（运行 `gen_docs.py --target ntfy` 刷新）|
@@ -220,7 +222,7 @@ macro-scan 是写入方，macro-sim 是只读消费方。容器内挂载路径�
 
 | macro-scan | macro-sim | 接口 schema |
 |:-----------|:----------|:------------|
-| v3.5.41+   | v2.0.2+   | grv v1.0 / news v1.0 |
+| v3.5.41+   | v2.0.3+   | grv v1.0 / news v1.0 |
 
 ---
 
@@ -344,23 +346,23 @@ category 字段存储英文标签（与 news_export.json 枚举一致）。
 
 ---
 
-### `data/sim_trigger.json`（P4-B 计划中，尚未实现）
+### `data/sim_trigger.json`（v3.5.34 已实现）
 
-macro-scan 在 `situation_detector.py` 检测到 L3+ 情境时写入，触发 macro-sim 执行一次仿真。
+macro-scan 在 `grv_threshold.py` 检测到 GRV 告警时（台海 ≥68 或单日涨幅 ≥6）写入，触发 macro-sim daemon 执行一次仿真（`_write_sim_trigger()` 原子写入）。
 
-**预定格式：**
+**格式：**
 ```json
 {
-  "level":        3,
-  "triggered_at": "2026-07-08T06:30:00",
-  "event":        "台海紧张局势升级：GDELT 军事分值突破阈值68"
+  "level": 3,
+  "event": "GRV告警",
+  "triggered_at": "2026-07-13T08:00:00+00:00"
 }
 ```
 
 | 字段 | 类型 | 说明 |
 |:-----|:-----|:-----|
-| `level` | int 1–4 | 对应 `situation_level`，L3+ 才写入 |
-| `triggered_at` | ISO 8601 字符串 | 检测时间戳 |
-| `event` | string | 触发摘要，≤200字 |
+| `level` | int 1–3 | 风险等级：1=低/2=中/3=高 |
+| `event` | string | 触发摘要（最多200字符） |
+| `triggered_at` | string | ISO 8601 UTC 时间戳，写入时刻（`datetime.now(timezone.utc).isoformat()`） |
 
-macro-sim 消费后删除或归档此文件（P4-B 设计中确认）。
+macro-sim daemon 每分钟轮询此文件，检测到后立即启动仿真，完成后删除该文件。
