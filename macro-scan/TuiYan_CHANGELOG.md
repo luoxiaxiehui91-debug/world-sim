@@ -3,6 +3,277 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.5.57 — 2026-07-13 (by Claude)
+
+### 修复（周检新发现 #2/#3：NeoData 端口硬编码 + SNGISAUS 死引用）
+
+**修改理由**：Hermes 周检（2026-07-13）发现两个长期存在的 bug，经源码核实属实。
+
+**新2：`scan_weak_signals.py` NeoData 端口硬编码修复**
+- 第239行：`os.environ.get("AUTH_GATEWAY_PORT", "19000")` → `AUTH_GATEWAY_PORT`（使用已从 `optim_config` import 的常量，默认值 28789 而非 19000）
+- 根因：该函数重复读了一遍环境变量且硬编码了旧端口默认值，与 `optim_config.AUTH_GATEWAY_PORT` 脱节
+- 影响：消除每日 8+ 次 `localhost:19000 Connection refused` 日志噪音
+
+**新3：`fetch_fred_history.py` SNGISAUS 死引用删除**
+- 从 `FRED_SERIES` 列表删除 `("SNGISAUS", "美国青年失业率(15-24岁,%)", "1948", "monthly")` 一行
+- 根因：FRED 已废弃该 series，每次拉取均报 `Bad Request: series does not exist`
+- 影响：消除每日 46 次 FRED API 错误
+
+---
+
+## v3.5.56 — 2026-07-13 (by Claude)
+
+### 文档（接口文档补全 + 历史条目补正）
+
+**接口补全（F1 修复）**：
+- **`macro-scan/AGENTS.md` sim_trigger.json 节**：格式块补入 `triggered_at` 字段（ISO 8601 UTC 时间戳），字段表追加对应说明行，与 `grv_threshold.py:238` 实际写入行为对齐。此前文档漏掉该字段，macro-sim/AGENTS.md 描述反而是正确的，本次仅补全写入方文档。
+- **修改理由**：健康检查 + 多 agent 论证（怀疑者/提案者/SRE 三角辩论）发现 macro-scan/AGENTS.md 接口格式表与源码不一致（`grv_threshold.py:238` 实际写三字段，文档只写两字段）。
+
+**历史条目补正（F5 修复）**：
+
+[补正 v3.5.55] 修改理由：健康检查发现 macro-scan/AGENTS.md 联动矩阵遗漏两处触发条件（纯文档改动未覆盖 + 缺少 INDEX.md 条目），触发本次联动矩阵4处修复。
+
+[补正 v3.5.53] 修改理由：健康检查走查阅读路径时，发现根 AGENTS.md 阅读路径要求读80行但 CHANGELOG 实际配置仅50行，存在截断风险，触发行数修正。
+
+---
+
+## v3.5.55 — 2026-07-11 (by Claude)
+
+### 文档（联动矩阵4处修复）
+
+- **`macro-scan/AGENTS.md` 联动矩阵**：
+  - 触发条件从"任何 `核心代码/*.py`（版本号变更时）"改为"**VERSION 变更时（无论何种改动触发）**"，覆盖文档类 bump
+  - 新增一条：VERSION 变更时 → `macro-scan/INDEX.md` 头部版本号
+- **`macro-sim/AGENTS.md` 联动矩阵**：新增一条：版本号变更时 → `docs/PROGRESS.md`（版本号 + 版本历史表）
+- **`macro-sim/AGENTS.md` AI 阅读路径**：`CHANGELOG.md` 读取方向修正，"最后20行"改为"前50行"（新版在前，读头部）
+
+---
+
+## v3.5.54 — 2026-07-11 (by Claude)
+
+### 修复（fetch_china_data.py — China 数据源两故障）
+
+**cn_lpr 列名变更修复**（P2，见 `S:\docs\questions\world-deduction\20260704-world-deduction-china-data-sources.md`）
+- `fetch_akshare_yearly()` 第一个 try 块增加 cn_lpr 分支：检测到 `TRADE_DATE`/`LPR1Y` 列时先做列重命名（`TRADE_DATE→日期`，`LPR1Y→今值`），再走通用逻辑。不动通用函数签名，不影响其他序列（PMI/PPI/工业增加值均无此分支）。
+
+**World Bank SSL EOF 重试降级**（P2，同上问题文档）
+- `fetch_wb_indicator()` 改为指数退避重试（最多3次，间隔 2s→4s）；3次全败且本地已有 CSV 时降级静默（打印提示，不计入 ERROR 序列），无本地文件时才返回 ERROR。
+
+---
+
+## v3.5.53 — 2026-07-11 (by Claude)
+
+### 文档（入口阅读路径修复）
+
+- **`S:\world-sim\AGENTS.md`** 新 session 阅读路径第3/4步：CHANGELOG 阅读行数 50 → 80，避免最新版本条目被截断
+
+---
+
+## v3.5.52 — 2026-07-11 (by Claude)
+
+### 文档（联动矩阵缺口修复 + 版本号修正）
+
+- **`macro-sim/macro-sim_人类说明文档.md`** 头部版本号 `v2.0.2` → `v2.0.3`（漏更新，CHANGELOG/VERSION 均已是 v2.0.3）
+- **`macro-scan/AGENTS.md` 联动矩阵** 新增一条：任何核心代码版本变更时 → 同步更新 `S:\world-sim\世界推演系统_总览.md` 头部版本行 + 架构图版本号
+- **`macro-sim/AGENTS.md` 联动矩阵** 新增两条：版本变更时 → `macro-sim_人类说明文档.md` 文件头版本号；版本变更时 → `世界推演系统_总览.md` 头部版本行 + 架构图版本号
+- **`S:\docs\INDEX.md`** 世界推演版本状态行：`v3.5.50` → `v3.5.52`；摘要更新为"联动矩阵缺口修复：补总览文档更新规则 + macro-sim 人类手册版本号修正"
+
+---
+
+## v3.5.51 — 2026-07-11 (by Claude)
+
+### 文档（入口流程走查修复 — 4处）
+
+- **`macro-scan/AGENTS.md`** `data/sim_trigger.json` 节：标题从"P4-B 计划中，尚未实现"改为"v3.5.34 已实现"；触发来源从 `situation_detector.py` 改为 `grv_threshold.py`；格式从"预定格式"改为已实现格式（移除 `triggered_at` 字段，改为实际写入的 `level`+`event`）；结尾从"P4-B 设计中确认"改为 daemon 实际行为描述
+- **`macro-scan/AGENTS.md`** 接口兼容表：`v2.0.2+` → `v2.0.3+`
+- **`macro-sim/AGENTS.md`** 接口兼容表：`v2.0.2+` → `v2.0.3+`
+- **`世界推演系统_总览.md`** 头部版本行：`v3.5.49` → `v3.5.51`
+- **`macro-scan/世界推演系统_人类说明文档.md`** 头部版本行：`V3.5.49` → `V3.5.51`；"当前能力"节标题：`V3.5.49` → `V3.5.51`；"九、当前状态"节标题：`V3.5.49` → `V3.5.51`
+- **`macro-scan/INDEX.md`** 头部版本号：`v3.5.49` → `v3.5.51`
+
+---
+
+
+
+## v3.5.50 — 2026-07-11 (by Claude)
+
+### 文档（第二轮入口流程验证修复 — P0/P1/P2 全清）
+
+**P0：直接导致误操作的错误（4处）**
+
+- **`macro-sim/macro-sim_人类说明文档.md`**：
+  - 报告路径三处错误（第二节/第四节/第四节表格）全改为正确路径：NAS `/vol2/1000/software/macro-scan/docs/仿真报告/`，本机 `S:\world-sim\macro-scan\docs\仿真报告\`
+  - "agents.yaml 热更新"节改为"agents.yaml 修改说明"，明确说明通过 `Dockerfile COPY` 打包进镜像，修改后必须 `deploy.sh macro-sim` 重建
+- **`macro-scan/AGENTS.md`** 第78行：修改工作流路径 `S:\macro-scan\核心代码\` → `S:\world-sim\macro-scan\核心代码\`
+- **`macro-scan/世界推演系统_人类说明文档.md`** 第六章：三处旧路径补全 world-sim 层（知识库/data/仿真报告）
+
+**P1：重要信息错误（5处）**
+
+- **`macro-sim/VERSION`**：v2.0.2 → v2.0.3（CHANGELOG 最新条目 v2.0.3 已存在，VERSION 未同步）
+- **`macro-sim/AGENTS.md`** 第9行：`当前 v2.0.2` → `当前 v2.0.3`
+- **`macro-sim/docs/PROGRESS.md`**：版本号/日期/版本历史表均更新至 v2.0.3
+- **`macro-sim/macro-sim_人类说明文档.md`** 环境变量表：`GLM API Key` → `SILICONFLOW_API_KEY` + `MINIMAX_API_KEY`
+- **`macro-scan/世界推演系统_人类说明文档.md`** 版本号：三处 V3.5.42/V3.5.48 统一为 V3.5.49
+- **`macro-sim/AGENTS.md`** 阅读路径表：补 `CHANGELOG.md 最后20行 — 每次 session 必读`
+- **`macro-scan/INDEX.md`**：news_prune 命令补全实际路径参数；文件头版本号 v3.5.41 → v3.5.49
+
+**P2：冗余/过时（5处）**
+
+- **根 `README.md`** 目录树：补 `AGENTS.md` 和 `世界推演系统_总览.md` 两项
+- **`世界推演系统_总览.md`** 版本行：`v3.5.47/v2.0.2` → `v3.5.49/v2.0.3`
+- **`docs/待办事项.md`**：删除底部残留的 v3.5.31/v3.5.32 已完成条目（已在 CHANGELOG 中存档）
+- **`macro-scan/世界推演系统_人类说明文档.md`** GRV流程图：7维 → 8维，补 `japan_monetary`
+- **`macro-scan/世界推演系统_人类说明文档.md`** IMPROVEMENT_PLAN.md 引用：更正为已归档路径 `docs/archive/IMPROVEMENT_PLAN.md`
+
+**文档走查遗留修复（by Claude，同日追加）**
+
+- **`世界推演系统_总览.md`** 架构图：图内版本号 `v3.5.47/v2.0.2` → `v3.5.50/v2.0.3`（头部版本行已修复，图内遗漏）
+- **`macro-sim/macro-sim_人类说明文档.md`** 第五节：注释从"volume 挂载，无需重建"改为"Dockerfile COPY，需要重建"（与第七节及实际 Dockerfile 一致）
+- **根 `AGENTS.md`**：`sim_trigger.json` 描述从"P4-B 尚未实现"改为"v3.5.34 已实现"；接口兼容版本 `v2.0.2+` → `v2.0.3+`
+- **`macro-sim/AGENTS.md`** 联动矩阵：补"版本号变更时 → `S:\docs\INDEX.md`"条目（与 macro-scan/AGENTS.md 对齐）
+- **`TuiYan_CHANGELOG.md`** 行序：v3.5.41~v3.5.50 原 append 到末尾，恢复全文降序
+
+---
+
+## v3.5.49 — 2026-07-11 (by Claude)
+
+### 文档（补齐新文档的关联链接）
+
+新建的两份文档没有被已有文档引用，本次补全四处关联：
+
+- **根 `README.md`**：顶部加"系统总览"链接指向 `世界推演系统_总览.md`
+- **`macro-sim/README.md`**：文档表首行加 `macro-sim_人类说明文档.md`（**人类使用手册**），同时删除已归档的 `docs/design.md` 条目
+- **`macro-scan/世界推演系统_人类说明文档.md`**：文件头补两行链接，指向根级总览和 macro-sim 使用手册；版本号更新至 V3.5.48
+- **`S:\docs\INDEX.md`**：Backlog 表世界推演权威来源路径从 `S:\macro-scan\` 更正为 `S:\world-sim\macro-scan\`
+
+---
+
+## v3.5.48 — 2026-07-11 (by Claude)
+
+### 文档（新增两份人类文档）
+
+- **新建 `世界推演系统_总览.md`**（根目录）：整个项目的门面文档，108行。覆盖系统定位/架构数据流图/子系统对比表/常用手机指令/当前状态/文档导航/快速运维六节。解决了"打开项目不知道这是什么"的问题。
+
+- **新建 `macro-sim/macro-sim_人类说明文档.md`**：275行。覆盖仿真原理（校准循环/预测循环）/触发方式/报告结构/运维操作/模块完成状态/已知问题（校准质量偏低/路径多样性/参数分离）/配置说明/下一步计划八节。
+
+- **`AGENTS.md`（根目录）**：末尾补"人类文档导航"节，指向两份新文档及已有的人类说明文档。
+
+---
+
+## v3.5.47 — 2026-07-11 (by Claude)
+
+### 文档（审计尾项清零）
+
+- **`macro-scan/INDEX.md`**：`news_prune` 定时任务命令字段补全（内联 `python -c "import news_db; news_db.prune_old_articles(..., 90)"`，无独立脚本）
+- **`macro-sim/AGENTS.md`**：阅读路径表补 `docs/PROGRESS.md`（文件存在但原表未列出，开发进度文档）
+
+---
+
+## v3.5.46 — 2026-07-11 (by Claude)
+
+### 文档（P2/P3 细节收尾）
+
+- **`macro-scan/AGENTS.md`**：修改工作流 push 命令补 `-C /s/world-sim`（原缺失，直接跑会因当前目录不在 git 仓库根而失败）
+- **`TuiYan_CHANGELOG.md`**：
+  - `v3.5.39`：日期从 2026-07-10 更正为 2026-07-09（写入时笔误，3.5.39 比 3.5.40 早提交）
+  - `v3.5.39` / `v3.5.40`：标题格式从 `## YYYY-MM-DD [x.y.z] 标题` 统一为 `## vX.Y.Z — YYYY-MM-DD (by Claude) 标题`（与后续版本格式一致）
+
+---
+
+## v3.5.45 — 2026-07-11 (by Claude)
+
+### 文档（核实时间门控执行状态）
+
+通过 `docker exec env | grep STAGING` + `synthesis_rules.yaml` 代码核实：
+
+- **C线切Live**：已执行（2026-07-10）。`docker-compose.yml` 环境变量 `STAGING_MODE=0`，容器内 Live 模式已激活。代码内默认常量仍为 `True`，但被环境变量覆盖。
+- **R07开启**：已执行（2026-07-10）。`synthesis_rules.yaml` R07_religious_energy `enabled: true`，注释注明 religious_conflict 近14天 58/63条有效。
+- **R09/R10**：仍为 `enabled: false`，social_stress/cultural_friction 维度数据积累不足，尚未到触发条件。
+
+更新 `INDEX.md` 路线图和 `docs/待办事项.md` 中对应条目状态。
+
+---
+
+## v3.5.44 — 2026-07-11 (by Claude)
+
+### 文档（文档审计 P2/P3 收尾）
+
+**`docs/待办事项.md` 重构**
+- 文件头版本更新至 v3.5.44（原停在 v3.5.31-v3.5.32）
+- 3 个重复的"⏳ 待触发（时间门控）"表格合并为 1 个统一汇总表，消除维护混乱
+- 增加"状态"列，标记 2026-07-10 已到期任务为"⚠️ 待确认是否已执行"
+- 删除文件中所有"✅ 本次已完成"历史节（共 500+ 行），这些内容已完整保存于 TuiYan_CHANGELOG.md，不需要在待办事项里重复维护
+
+**`macro-sim/CHANGELOG.md` 格式修复**
+- 4 个条目补全缺失的 `## [版本号] 标题` 行：[2.0.2]报告格式重写 / [2.0.1]单位换算修复 / [0.5.0]daemon模式 / [0.4.2]接口版本校验
+- 版本兼容表 `macro-scan v3.5.33+` → `v3.5.41+`（含 japan_monetary 字段），`macro-sim v0.4.1+` → `v0.4.2+`
+
+**`macro-scan/INDEX.md` 路线图节更新**
+- 2026-07-10 C线切Live 条目标记为"⚠️ 已到期，待确认是否已执行"
+
+---
+
+## v3.5.43 — 2026-07-11 (by Claude)
+
+### 文档修复（文档审计 P0/P1/P2 问题批量修复）
+
+**P0：修复两处严重过时文档**
+
+- **`macro-scan/README.md`**：
+  - 路径全部从 `S:\macro-scan\` 更新为 `S:\world-sim\macro-scan\`（monorepo 合并后未同步）
+  - 顶部新增 AI 工作入口指向 `AGENTS.md`、monorepo 说明
+
+- **`世界推演系统_人类说明文档.md`**：
+  - 文件头版本号 V3.5.40 → V3.5.42，日期 2026-07-09 → 2026-07-11
+  - "当前能力"节从 V3.5.26 同步到 V3.5.42，补充 GRV 8维/japan_monetary/macro-sim 联动能力
+  - 维护路径 `S:\macro-scan\` → `S:\world-sim\macro-scan\`（5处）
+  - 当前状态表新增 v3.5.42 文档补全条目
+
+**P1：补全联动矩阵三大缺口（`macro-scan/AGENTS.md`）**
+
+  - 新增：任何 `.py` 版本号变更时 → 必须同步更新 `世界推演系统_人类说明文档.md`
+  - 新增：`README.md` 路径/版本/结构变更 → 必须同步更新 `世界推演系统_人类说明文档.md`
+  - 新增：`docs/待办事项.md` 时间门控触发/完成 → 必须同步更新 `TuiYan_CHANGELOG.md` + `INDEX.md`
+
+**P2：根 README.md 补链接；归档三个过时文件**
+
+  - `world-sim/README.md`：顶部新增 AI 工作入口指向 `AGENTS.md`，补 GitHub 仓库地址
+  - 归档 `macro-scan/docs/目录结构引用关系_2026-06-23.md` → `docs/archive/`（被 FILE_MANIFEST.md 取代）
+  - 归档 `macro-scan/docs/IMPROVEMENT_PLAN.md` → `docs/archive/`（Phase 1-3 全部完成）
+  - 归档 `macro-sim/docs/design.md` → `docs/archive/`（v0.3 草案已被 design_v2.md 取代）
+
+---
+
+## v3.5.42 — 2026-07-10 (by Claude)
+
+### 文档
+
+**新建根级 `AGENTS.md`：monorepo 统一入口文档**
+
+- **根因**：`S:\world-sim\` 根目录仅有 README.md（部署说明），新 session 打开 monorepo 时无法定位阅读路径，入口混乱
+- **修改**：
+  - 新建 `S:\world-sim\AGENTS.md`：一句话系统定位、两个子系统对比表、新 session 阅读路径（4步）、关键操作约束（git/deploy/热挂载/COPY模式）、数据接口契约摘要、子系统 AGENTS.md 链接
+  - `macro-scan/AGENTS.md`："新 session 快速继续"节开头加一行 monorepo 入口提示（`../AGENTS.md`）
+  - `macro-sim/AGENTS.md`：同上
+- **验证**：按新 AGENTS.md 指定的阅读路径走通，所有文件路径可找到，内容无矛盾
+
+---
+
+## v3.5.41 — 2026-07-10 (by Claude)
+
+### Bug 修复
+
+**[P0] geo_risk_vector.py：修复 `compute_grv` NameError 导致 GRV 每日停止更新**
+
+- **根因**：`_compute_japan_monetary()` 函数末尾 `return` 语句之后跟了一段三引号字符串字面量，其后的 `compute_grv()` 函数体成为不可达死代码，导致 `compute_grv` 从未被定义为独立函数
+- **症状**：2026-07-10 06:10 scheduler 触发后抛 `NameError: name 'compute_grv' is not defined`，`grv_latest.json` 卡在 07-09，`japan_monetary` 字段永远缺失
+- **修复**：在第 243 行（`_compute_japan_monetary` 的最后一个 `return` 之后）将误嵌的函数体提取为独立的顶层函数，加入 `def compute_grv() -> dict:` 声明
+- **验证**：
+  - python ast.parse 语法检查通过，`compute_grv` 出现在函数列表 ✅
+  - 容器内手动触发3次，均退出码0 ✅
+  - `grv_latest.json` 写入 `japan_monetary: 45.5` ✅
+  - `grv_history.jsonl` 追加新记录（507条），同日去重机制正常（不重复追加）✅
+  - 3次运行输出完全一致（幂等）✅
 
 ## v3.5.40 — 2026-07-09 (by Claude) P1+P2 bug 修复：backfill 日期对齐 + GRV 冷却乐观锁
 
@@ -3736,174 +4007,3 @@ body 首行固定：⚠️ 低置信度推演 · 社会类上限🟡，仅供参
 
 ---
 
-## v3.5.50 — 2026-07-11 (by Claude)
-
-### 文档（第二轮入口流程验证修复 — P0/P1/P2 全清）
-
-**P0：直接导致误操作的错误（4处）**
-
-- **`macro-sim/macro-sim_人类说明文档.md`**：
-  - 报告路径三处错误（第二节/第四节/第四节表格）全改为正确路径：NAS `/vol2/1000/software/macro-scan/docs/仿真报告/`，本机 `S:\world-sim\macro-scan\docs\仿真报告\`
-  - "agents.yaml 热更新"节改为"agents.yaml 修改说明"，明确说明通过 `Dockerfile COPY` 打包进镜像，修改后必须 `deploy.sh macro-sim` 重建
-- **`macro-scan/AGENTS.md`** 第78行：修改工作流路径 `S:\macro-scan\核心代码\` → `S:\world-sim\macro-scan\核心代码\`
-- **`macro-scan/世界推演系统_人类说明文档.md`** 第六章：三处旧路径补全 world-sim 层（知识库/data/仿真报告）
-
-**P1：重要信息错误（5处）**
-
-- **`macro-sim/VERSION`**：v2.0.2 → v2.0.3（CHANGELOG 最新条目 v2.0.3 已存在，VERSION 未同步）
-- **`macro-sim/AGENTS.md`** 第9行：`当前 v2.0.2` → `当前 v2.0.3`
-- **`macro-sim/docs/PROGRESS.md`**：版本号/日期/版本历史表均更新至 v2.0.3
-- **`macro-sim/macro-sim_人类说明文档.md`** 环境变量表：`GLM API Key` → `SILICONFLOW_API_KEY` + `MINIMAX_API_KEY`
-- **`macro-scan/世界推演系统_人类说明文档.md`** 版本号：三处 V3.5.42/V3.5.48 统一为 V3.5.49
-- **`macro-sim/AGENTS.md`** 阅读路径表：补 `CHANGELOG.md 最后20行 — 每次 session 必读`
-- **`macro-scan/INDEX.md`**：news_prune 命令补全实际路径参数；文件头版本号 v3.5.41 → v3.5.49
-
-**P2：冗余/过时（5处）**
-
-- **根 `README.md`** 目录树：补 `AGENTS.md` 和 `世界推演系统_总览.md` 两项
-- **`世界推演系统_总览.md`** 版本行：`v3.5.47/v2.0.2` → `v3.5.49/v2.0.3`
-- **`docs/待办事项.md`**：删除底部残留的 v3.5.31/v3.5.32 已完成条目（已在 CHANGELOG 中存档）
-- **`macro-scan/世界推演系统_人类说明文档.md`** GRV流程图：7维 → 8维，补 `japan_monetary`
-- **`macro-scan/世界推演系统_人类说明文档.md`** IMPROVEMENT_PLAN.md 引用：更正为已归档路径 `docs/archive/IMPROVEMENT_PLAN.md`
-
----
-
-## v3.5.49 — 2026-07-11 (by Claude)
-
-### 文档（补齐新文档的关联链接）
-
-新建的两份文档没有被已有文档引用，本次补全四处关联：
-
-- **根 `README.md`**：顶部加"系统总览"链接指向 `世界推演系统_总览.md`
-- **`macro-sim/README.md`**：文档表首行加 `macro-sim_人类说明文档.md`（**人类使用手册**），同时删除已归档的 `docs/design.md` 条目
-- **`macro-scan/世界推演系统_人类说明文档.md`**：文件头补两行链接，指向根级总览和 macro-sim 使用手册；版本号更新至 V3.5.48
-- **`S:\docs\INDEX.md`**：Backlog 表世界推演权威来源路径从 `S:\macro-scan\` 更正为 `S:\world-sim\macro-scan\`
-
----
-
-## v3.5.48 — 2026-07-11 (by Claude)
-
-### 文档（新增两份人类文档）
-
-- **新建 `世界推演系统_总览.md`**（根目录）：整个项目的门面文档，108行。覆盖系统定位/架构数据流图/子系统对比表/常用手机指令/当前状态/文档导航/快速运维六节。解决了"打开项目不知道这是什么"的问题。
-
-- **新建 `macro-sim/macro-sim_人类说明文档.md`**：275行。覆盖仿真原理（校准循环/预测循环）/触发方式/报告结构/运维操作/模块完成状态/已知问题（校准质量偏低/路径多样性/参数分离）/配置说明/下一步计划八节。
-
-- **`AGENTS.md`（根目录）**：末尾补"人类文档导航"节，指向两份新文档及已有的人类说明文档。
-
----
-
-## v3.5.47 — 2026-07-11 (by Claude)
-
-### 文档（审计尾项清零）
-
-- **`macro-scan/INDEX.md`**：`news_prune` 定时任务命令字段补全（内联 `python -c "import news_db; news_db.prune_old_articles(..., 90)"`，无独立脚本）
-- **`macro-sim/AGENTS.md`**：阅读路径表补 `docs/PROGRESS.md`（文件存在但原表未列出，开发进度文档）
-
----
-
-## v3.5.46 — 2026-07-11 (by Claude)
-
-### 文档（P2/P3 细节收尾）
-
-- **`macro-scan/AGENTS.md`**：修改工作流 push 命令补 `-C /s/world-sim`（原缺失，直接跑会因当前目录不在 git 仓库根而失败）
-- **`TuiYan_CHANGELOG.md`**：
-  - `v3.5.39`：日期从 2026-07-10 更正为 2026-07-09（写入时笔误，3.5.39 比 3.5.40 早提交）
-  - `v3.5.39` / `v3.5.40`：标题格式从 `## YYYY-MM-DD [x.y.z] 标题` 统一为 `## vX.Y.Z — YYYY-MM-DD (by Claude) 标题`（与后续版本格式一致）
-
----
-
-## v3.5.45 — 2026-07-11 (by Claude)
-
-### 文档（核实时间门控执行状态）
-
-通过 `docker exec env | grep STAGING` + `synthesis_rules.yaml` 代码核实：
-
-- **C线切Live**：已执行（2026-07-10）。`docker-compose.yml` 环境变量 `STAGING_MODE=0`，容器内 Live 模式已激活。代码内默认常量仍为 `True`，但被环境变量覆盖。
-- **R07开启**：已执行（2026-07-10）。`synthesis_rules.yaml` R07_religious_energy `enabled: true`，注释注明 religious_conflict 近14天 58/63条有效。
-- **R09/R10**：仍为 `enabled: false`，social_stress/cultural_friction 维度数据积累不足，尚未到触发条件。
-
-更新 `INDEX.md` 路线图和 `docs/待办事项.md` 中对应条目状态。
-
----
-
-## v3.5.44 — 2026-07-11 (by Claude)
-
-### 文档（文档审计 P2/P3 收尾）
-
-**`docs/待办事项.md` 重构**
-- 文件头版本更新至 v3.5.44（原停在 v3.5.31-v3.5.32）
-- 3 个重复的"⏳ 待触发（时间门控）"表格合并为 1 个统一汇总表，消除维护混乱
-- 增加"状态"列，标记 2026-07-10 已到期任务为"⚠️ 待确认是否已执行"
-- 删除文件中所有"✅ 本次已完成"历史节（共 500+ 行），这些内容已完整保存于 TuiYan_CHANGELOG.md，不需要在待办事项里重复维护
-
-**`macro-sim/CHANGELOG.md` 格式修复**
-- 4 个条目补全缺失的 `## [版本号] 标题` 行：[2.0.2]报告格式重写 / [2.0.1]单位换算修复 / [0.5.0]daemon模式 / [0.4.2]接口版本校验
-- 版本兼容表 `macro-scan v3.5.33+` → `v3.5.41+`（含 japan_monetary 字段），`macro-sim v0.4.1+` → `v0.4.2+`
-
-**`macro-scan/INDEX.md` 路线图节更新**
-- 2026-07-10 C线切Live 条目标记为"⚠️ 已到期，待确认是否已执行"
-
----
-
-## v3.5.43 — 2026-07-11 (by Claude)
-
-### 文档修复（文档审计 P0/P1/P2 问题批量修复）
-
-**P0：修复两处严重过时文档**
-
-- **`macro-scan/README.md`**：
-  - 路径全部从 `S:\macro-scan\` 更新为 `S:\world-sim\macro-scan\`（monorepo 合并后未同步）
-  - 顶部新增 AI 工作入口指向 `AGENTS.md`、monorepo 说明
-
-- **`世界推演系统_人类说明文档.md`**：
-  - 文件头版本号 V3.5.40 → V3.5.42，日期 2026-07-09 → 2026-07-11
-  - "当前能力"节从 V3.5.26 同步到 V3.5.42，补充 GRV 8维/japan_monetary/macro-sim 联动能力
-  - 维护路径 `S:\macro-scan\` → `S:\world-sim\macro-scan\`（5处）
-  - 当前状态表新增 v3.5.42 文档补全条目
-
-**P1：补全联动矩阵三大缺口（`macro-scan/AGENTS.md`）**
-
-  - 新增：任何 `.py` 版本号变更时 → 必须同步更新 `世界推演系统_人类说明文档.md`
-  - 新增：`README.md` 路径/版本/结构变更 → 必须同步更新 `世界推演系统_人类说明文档.md`
-  - 新增：`docs/待办事项.md` 时间门控触发/完成 → 必须同步更新 `TuiYan_CHANGELOG.md` + `INDEX.md`
-
-**P2：根 README.md 补链接；归档三个过时文件**
-
-  - `world-sim/README.md`：顶部新增 AI 工作入口指向 `AGENTS.md`，补 GitHub 仓库地址
-  - 归档 `macro-scan/docs/目录结构引用关系_2026-06-23.md` → `docs/archive/`（被 FILE_MANIFEST.md 取代）
-  - 归档 `macro-scan/docs/IMPROVEMENT_PLAN.md` → `docs/archive/`（Phase 1-3 全部完成）
-  - 归档 `macro-sim/docs/design.md` → `docs/archive/`（v0.3 草案已被 design_v2.md 取代）
-
----
-
-## v3.5.42 — 2026-07-10 (by Claude)
-
-### 文档
-
-**新建根级 `AGENTS.md`：monorepo 统一入口文档**
-
-- **根因**：`S:\world-sim\` 根目录仅有 README.md（部署说明），新 session 打开 monorepo 时无法定位阅读路径，入口混乱
-- **修改**：
-  - 新建 `S:\world-sim\AGENTS.md`：一句话系统定位、两个子系统对比表、新 session 阅读路径（4步）、关键操作约束（git/deploy/热挂载/COPY模式）、数据接口契约摘要、子系统 AGENTS.md 链接
-  - `macro-scan/AGENTS.md`："新 session 快速继续"节开头加一行 monorepo 入口提示（`../AGENTS.md`）
-  - `macro-sim/AGENTS.md`：同上
-- **验证**：按新 AGENTS.md 指定的阅读路径走通，所有文件路径可找到，内容无矛盾
-
----
-
-## v3.5.41 — 2026-07-10 (by Claude)
-
-### Bug 修复
-
-**[P0] geo_risk_vector.py：修复 `compute_grv` NameError 导致 GRV 每日停止更新**
-
-- **根因**：`_compute_japan_monetary()` 函数末尾 `return` 语句之后跟了一段三引号字符串字面量，其后的 `compute_grv()` 函数体成为不可达死代码，导致 `compute_grv` 从未被定义为独立函数
-- **症状**：2026-07-10 06:10 scheduler 触发后抛 `NameError: name 'compute_grv' is not defined`，`grv_latest.json` 卡在 07-09，`japan_monetary` 字段永远缺失
-- **修复**：在第 243 行（`_compute_japan_monetary` 的最后一个 `return` 之后）将误嵌的函数体提取为独立的顶层函数，加入 `def compute_grv() -> dict:` 声明
-- **验证**：
-  - python ast.parse 语法检查通过，`compute_grv` 出现在函数列表 ✅
-  - 容器内手动触发3次，均退出码0 ✅
-  - `grv_latest.json` 写入 `japan_monetary: 45.5` ✅
-  - `grv_history.jsonl` 追加新记录（507条），同日去重机制正常（不重复追加）✅
-  - 3次运行输出完全一致（幂等）✅

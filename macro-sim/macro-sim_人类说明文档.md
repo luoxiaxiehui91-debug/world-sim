@@ -1,6 +1,6 @@
 # 宏观演化仿真系统（macro-sim）· 使用与维护手册
 
-> 版本：v2.0.2 | 更新日期：2026-07-11
+> 版本：v2.0.4 | 更新日期：2026-07-13
 
 ---
 
@@ -152,7 +152,7 @@ bash /s/world-sim/deploy.sh macro-sim
 
 该脚本会完成：构建新镜像 → 停止旧容器 → 启动新容器。
 
-注意：`config/agents.yaml` 通过 volume 挂载，修改后无需重建镜像（见第七节）。
+注意：`config/agents.yaml` 通过 Dockerfile `COPY config/` 打包进镜像，修改参数后同样需要重建镜像（见第七节）。
 
 ### 容器内手动跑一次仿真
 

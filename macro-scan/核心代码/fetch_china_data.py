@@ -244,49 +244,59 @@ def fetch_wb_indicator(wb_code: str, indicator_id: str, name: str,
         f"https://api.worldbank.org/v2/country/CN/indicator/{wb_code}"
         f"?format=json&per_page=100&mrv=100"
     )
-    try:
-        resp = requests.get(url, proxies=_PROXIES, timeout=30)
-        if resp.status_code != 200:
-            return {"id": indicator_id, "name": name,
-                    "status": f"HTTP {resp.status_code}", "rows": 0}
+    last_exc = None
+    for attempt in range(3):
+        try:
+            resp = requests.get(url, proxies=_PROXIES, timeout=30)
+            if resp.status_code != 200:
+                return {"id": indicator_id, "name": name,
+                        "status": f"HTTP {resp.status_code}", "rows": 0}
 
-        payload = resp.json()
-        if not isinstance(payload, list) or len(payload) < 2:
-            return {"id": indicator_id, "name": name, "status": "响应格式异常", "rows": 0}
+            payload = resp.json()
+            if not isinstance(payload, list) or len(payload) < 2:
+                return {"id": indicator_id, "name": name, "status": "响应格式异常", "rows": 0}
 
-        records = payload[1]
-        rows_data = []
-        for rec in records:
-            if rec.get("value") is None:
-                continue
-            year_str = rec.get("date", "")
-            if not year_str.isdigit():
-                continue
-            year = int(year_str)
-            if last_year and year <= last_year:
-                continue
-            rows_data.append({
-                "date":  f"{year}-12-31",
-                "value": round(float(rec["value"]), 3),
-            })
+            records = payload[1]
+            rows_data = []
+            for rec in records:
+                if rec.get("value") is None:
+                    continue
+                year_str = rec.get("date", "")
+                if not year_str.isdigit():
+                    continue
+                year = int(year_str)
+                if last_year and year <= last_year:
+                    continue
+                rows_data.append({
+                    "date":  f"{year}-12-31",
+                    "value": round(float(rec["value"]), 3),
+                })
 
-        if not rows_data:
-            return {"id": indicator_id, "name": name, "status": "无新数据", "rows": 0}
+            if not rows_data:
+                return {"id": indicator_id, "name": name, "status": "无新数据", "rows": 0}
 
-        df = pd.DataFrame(rows_data).sort_values("date").reset_index(drop=True)
-        mode = "a" if (last_year and not force) else "w"
-        rows = save_df(indicator_id, df, mode=mode)
-        fetch_desc = f"增量 since {last_year+1}" if (last_year and not force) else "全量"
-        return {
-            "id":    indicator_id,
-            "name":  name,
-            "status": "OK",
-            "rows":  rows,
-            "fetch": fetch_desc,
-            "date_range": f"{df['date'].min()} ~ {df['date'].max()}",
-        }
-    except Exception as e:
-        return {"id": indicator_id, "name": name, "status": f"ERROR: {e}", "rows": 0}
+            df = pd.DataFrame(rows_data).sort_values("date").reset_index(drop=True)
+            mode = "a" if (last_year and not force) else "w"
+            rows = save_df(indicator_id, df, mode=mode)
+            fetch_desc = f"增量 since {last_year+1}" if (last_year and not force) else "全量"
+            return {
+                "id":    indicator_id,
+                "name":  name,
+                "status": "OK",
+                "rows":  rows,
+                "fetch": fetch_desc,
+                "date_range": f"{df['date'].min()} ~ {df['date'].max()}",
+            }
+        except Exception as e:
+            last_exc = e
+            if attempt < 2:
+                time.sleep(2 ** (attempt + 1))  # 2s → 4s
+
+    # 3次重试全部失败：降级读本地已有CSV，只记录日志
+    if os.path.exists(csv_path(indicator_id)):
+        print(f"\n    [降级] {indicator_id} 远端拉取失败，保留本地已有数据")
+        return {"id": indicator_id, "name": name, "status": "降级(本地已有)", "rows": 0}
+    return {"id": indicator_id, "name": name, "status": f"ERROR: {last_exc}", "rows": 0}
 
 
 # ── AkShare 月频序列定义 ──────────────────────────────────────────────────────
@@ -321,6 +331,11 @@ def fetch_akshare_yearly(indicator_id: str, ak_func_name: str, name: str,
         return {"id": indicator_id, "name": name, "status": f"ERROR(fetch):{e}", "rows": 0}
 
     try:
+        # cn_lpr 上游列名已变更为 TRADE_DATE / LPR1Y / LPR5Y / RATE_1 / RATE_2
+        if indicator_id == "cn_lpr" and "TRADE_DATE" in raw.columns and "LPR1Y" in raw.columns:
+            raw = raw[["TRADE_DATE", "LPR1Y"]].copy()
+            raw.columns = ["日期", "今值"]
+
         if "日期" not in raw.columns or "今值" not in raw.columns:
             return {"id": indicator_id, "name": name,
                     "status": f"ERROR(列名变更):实际列={list(raw.columns)}", "rows": 0}
