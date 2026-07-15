@@ -27,8 +27,8 @@ from core.agents.base import MacroAgent, AgentParams
 
 # ── Agent 工厂：从 agents.yaml 加载 ──────────────────────
 
-def load_agents(config_path: str = "/app/config/agents.yaml") -> dict[str, MacroAgent]:
-    """从 agents.yaml 构建 Agent 字典，key = agent_id"""
+def load_agents(config_path: str = "/app/config/agents.yaml") -> tuple[dict[str, MacroAgent], dict]:
+    """从 agents.yaml 构建 Agent 字典，返回 (agents, global_cfg)"""
     try:
         with open(config_path) as f:
             cfg = yaml.safe_load(f)
@@ -39,6 +39,7 @@ def load_agents(config_path: str = "/app/config/agents.yaml") -> dict[str, Macro
         with open(alt) as f:
             cfg = yaml.safe_load(f)
 
+    global_cfg = cfg.get("global", {})
     agents = {}
     for entry in cfg.get("agents", []):
         agent_id = entry["id"]
@@ -54,9 +55,10 @@ def load_agents(config_path: str = "/app/config/agents.yaml") -> dict[str, Macro
             info_delay=entry["info_delay"],
             activation_prob=entry["activation_prob"],
             params=params,
+            transmission_coefficients=entry.get("transmission_coefficients", {}),
         )
         agents[agent_id] = agent
-    return agents
+    return agents, global_cfg
 
 
 # ── GM 规则层 ─────────────────────────────────────────────
@@ -65,6 +67,7 @@ def gm_resolve_rules(
     actions: dict,
     world: MacroWorldState,
     agents: dict,
+    global_cfg: dict = None,
 ) -> dict:
     """
     将 12 个 Agent 的行动转换为内生变量 delta。
@@ -237,6 +240,31 @@ def gm_resolve_rules(
     elif a12 == "EASE_YCC":
         delta["yen_carry_risk"]    = delta.get("yen_carry_risk", 0)    + 0.15 * mag("A12")
 
+    # ── 传导矩阵（第二轮）────────────────────────────────────
+    # 把主动 Agent 的 delta 按 transmission_coefficients × attenuation 传给下游
+    # attenuation 从 agents.yaml global 段读取，默认 0.5
+    attenuation = (global_cfg or {}).get("transmission_attenuation", 0.5)
+
+    active_count = sum(1 for a in actions.values() if a not in ("HOLD", "NO_ACTION"))
+    if active_count > 0:
+        for src_id, action in actions.items():
+            if action in ("HOLD", "NO_ACTION") or src_id not in agents:
+                continue
+            coefficients = agents[src_id].transmission_coefficients
+            if not coefficients:
+                continue
+            for tgt_key, coeff in coefficients.items():
+                if coeff <= 0:
+                    continue
+                tgt_id = tgt_key[3:] if tgt_key.startswith("to_") else tgt_key
+                if tgt_id not in agents:
+                    continue
+                tgt_mag = agents[tgt_id].params.magnitude
+                # 把当前 delta 中所有 float 字段按比例传导给下游
+                for key, val in list(delta.items()):
+                    if isinstance(val, float):
+                        delta[key] = delta.get(key, 0.0) + val * coeff * attenuation * tgt_mag / active_count
+
     # ── 正反馈环 ──────────────────────────────────────────
     # 情绪持续崩溃 → 媒体激活概率上升
     if world.market_sentiment < -0.5:
@@ -276,10 +304,16 @@ class MacroSimModel:
         agents: dict[str, MacroAgent] = None,
         use_llm: bool = False,
         config_path: str = "/app/config/agents.yaml",
+        bleed_params_override: dict = None,
     ):
         self.world   = world
         self.use_llm = use_llm
-        self.agents  = agents or load_agents(config_path)
+        self.bleed_params_override = bleed_params_override
+        if agents is not None:
+            self.agents = agents
+            self.global_cfg = {}
+        else:
+            self.agents, self.global_cfg = load_agents(config_path)
         self.history: list[dict] = []
 
         # action_history：用双端队列保存最近 max_delay 步的行动记录
@@ -333,12 +367,13 @@ class MacroSimModel:
                 step_actions[agent_id] = "NO_ACTION"
 
         # Phase 2: GM 规则 → delta → apply
-        delta = gm_resolve_rules(step_actions, self.world, self.agents)
+        delta = gm_resolve_rules(step_actions, self.world, self.agents,
+                                 self.global_cfg)
         self._apply_delta(delta)
         apply_natural_decay(self.world)
 
         # Phase 3: 出血规则
-        apply_bleed_rules(self.world)
+        apply_bleed_rules(self.world, self.bleed_params_override)
 
         # Phase 4: 校准注入（覆盖外生变量为真实值）
         if inject_world:
@@ -358,7 +393,8 @@ class MacroSimModel:
         return snapshot
 
     def _apply_delta(self, delta: dict):
-        # 月度时间步长折减：GM规则按日度感觉设计，月度缩小到1/4
+        # 月度步长衰减因子；设计值 0.25（=1/4，GM规则按日度感觉设计），
+        # 实测 0.25 导致路径振荡，经验调至 0.12（见 CHANGELOG v2.0.1）
         MONTHLY_SCALE = 0.12
         for key, val in delta.items():
             if key == "market_sentiment":

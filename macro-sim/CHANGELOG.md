@@ -4,7 +4,119 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
 
-## 2026-07-13 [2.0.4] 文档修正：新 session 阅读路径统一（by Claude）
+## 2026-07-15 [2.0.9] Q6：路径树节点归因标注（by Claude）
+
+**修改者**：Claude Code  
+**修改理由**：路径树关键事件只有事件名和频率，看不出是哪个 Agent 驱动的，调试和向决策者解释时无从下手。
+
+### 修改
+
+- **`core/bifurcation.py:_extract_key_events()`**：
+  - 函数内新增 `AGENT_NAMES` 字典（12 个 Agent ID → 简短中文角色名）
+  - 每条 `key_events` 记录新增三个字段：`agent_id`（如 `"A3"`）、`agent_name`（如 `"对冲基金"`）、`action`（原始 action 字符串）
+  - 向后兼容：原有 `event` 字段不变，旧代码读取不受影响
+- **`run.py:_write_report()`**：
+  - 对比表"主要驱动"行：从 `事件名` 改为 `Agent名·简短动词`（如 `对冲基金·大规模做空`）
+  - 传导链代码块：每行在事件名前加 `[Agent名]` 标注（如 `[对冲基金] 大规模做空（85%）`）
+  - 月度演化进度条：同步加 `[Agent名]` 标注
+
+### 关联 question 文档
+
+- Q6: `docs/questions/world-deduction/20260714-world-deduction-path-tree-no-drivers.md`
+
+---
+
+## 2026-07-14 [2.0.8] Q3：跨 Agent 一致性校验（by Claude）
+
+**修改者**：Claude Code  
+**修改理由**：12 个 Agent 并行输出后直接进路径树，形式逻辑矛盾和经济学机制矛盾不被任何环节拦截，路径节点置信度失去意义。基于 IS-LM / Taylor Rule / Mundell-Fleming 三元悖论研究结论，建立两层校验机制。
+
+### 修改
+
+- **`core/consistency_validator.py`**（新建）：
+  - Layer 1 规则表（10 条）：同一 Agent 工具方向相反（单工具单调性）+ 同一美国金融体系内部机制矛盾（Fed加息+银行放贷 / 散户情绪与媒体情绪对立）
+  - Layer 2 LLM 校验（默认关闭）：Layer 1 命中且 `use_llm=True` 时调用，区分真矛盾与跨经济体合理分歧
+  - 跨经济体政策分歧（Fed vs PBOC/ECB/BOJ）白名单化，永远不触发
+- **`core/bifurcation.py`**：
+  - `PathResult` 新增 `consistency_warning: str` 字段
+  - `run_prediction()` 每个 run 结束后调用 `validate_run_actions(history)`，矛盾标注到 history 末尾
+  - 路径构造时汇总：>30% 的 run 有矛盾则在 `path.consistency_warning` 写入统计
+
+### 设计约束
+
+- MC 阶段 `use_llm=False`（默认），Layer 2 不触发，零额外 API 成本
+- 不丢弃任何 run，路径树概率数字不变，只加透明度标注
+- 规则表保守：宁可漏报，不误报
+
+### 关联 question 文档
+
+- Q3: `docs/questions/world-deduction/20260714-world-deduction-no-cross-agent-validator.md`
+
+---
+
+## 2026-07-14 [2.0.7] Q9/Q10 修复：bleed 敏感性接口 + LLM 叙事打通（by Claude）
+
+**修改者**：Claude Code  
+**修改理由**：Q9 需要 bleed_params_override 接口才能做参数 sweep；Q10 将 daily_narrative 叙事接入 Agent 文本输入，打通之前独立的两条管道。
+
+### 修改
+
+- **`core/simulation.py`**：
+  - `MacroSimModel.__init__()` 新增 `bleed_params_override: dict = None` 参数
+  - `step()` 将 `bleed_params_override` 透传给 `apply_bleed_rules()`
+  - `_apply_delta()` 注释修正（MONTHLY_SCALE 0.12 设计值 vs 实测值说明，即 Q8）
+- **`core/bifurcation.py`**：`run_prediction()` 新增 `bleed_params_override` 参数并透传给 `MacroSimModel`
+- **`core/world_state.py`**：`load_from_macro_scan()` 读取 `news_export.json` 后追加读 `daily_digest.json`（当日叙事 bullets 注入 `recent_news`，非阻断）
+- **`scripts/bleed_sensitivity.py`**（新建）：3^4=81 组参数 × 100 次 MC sweep，输出主效应分析报告
+
+### 关联 question 文档
+
+- Q8: `docs/questions/world-deduction/20260714-world-deduction-monthly-scale-magic-number.md`
+- Q9: `docs/questions/world-deduction/20260714-world-deduction-bleed-rules-no-sensitivity.md`
+- Q10: `docs/questions/world-deduction/20260714-world-deduction-llm-narrative-not-in-sim.md`
+
+---
+
+：transmission_coefficients 接线 + 校准器滑动窗口 + japan_monetary 合成（by Claude）
+
+**修改者**：Claude Code  
+**修改理由**：WorkBuddy 审计（Q1/Q2/Q5）发现三个结构性缺陷：传导矩阵定义了但代码从未消费；校准器无跨步上下文导致 LLM 调参反复横跳；japan_monetary 维度采集了但未进入 global_composite 合成。
+
+### 修改
+
+- **`core/agents/base.py`**：`MacroAgent` 新增 `transmission_coefficients: dict` 字段，`load_agents()` 加载时从 yaml 读取，不再静默丢弃
+- **`core/simulation.py`**：
+  - `load_agents()` 返回签名改为 `tuple[dict, dict]`（agents, global_cfg），透传 yaml global 段
+  - `gm_resolve_rules()` 增加第二轮传导循环：主 Agent 触发 delta 后按 `transmission_coefficients × transmission_attenuation × tgt_magnitude` 扩散给下游 Agent
+  - `MacroSimModel.__init__()` 适配新签名，将 `global_cfg` 存为实例属性传给 GM 规则层
+- **`config/agents.yaml`**：顶部新增 `global.transmission_attenuation: 0.5`（传导衰减系数，可配置）
+- **`core/calibrator.py`**：
+  - import 补 `from collections import deque`
+  - `_call_llm_for_adjustment()` 新增 `error_history` 参数（最近5步误差序列），prompt 中加入方向信息和 overshoot 识别规则
+  - 主循环新增 `error_history: deque(maxlen=5)`，每步记录 `{step, error, grv_delta, credit_delta}` 并传入 LLM
+  - `load_agents()` 调用处适配新返回签名（解包两值）
+- **`core/bifurcation.py`**：`load_agents()` 调用处适配新返回签名
+
+### 关联 question 文档
+
+- Q1: `docs/questions/world-deduction/20260714-world-deduction-calibrator-stepwise-llm-bias.md`
+- Q2: `docs/questions/world-deduction/20260714-world-deduction-transmission-coefficients-unused.md`
+
+---
+
+
+
+**修改者**：Claude Code  
+**修改理由**：报告路径详情只有聚合终态和离散事件列表，读者看不出"第几个月发生了什么、为什么发生"，缺乏时间感和因果感。
+
+### 修改
+
+- **`core/bifurcation.py`**：`PathResult` 新增 `monthly_grv` 和 `monthly_sentiment` 两个字段（`list[float]`）；`run_prediction()` 中已计算的 `grv_vals_path` 和新计算的 `sent_vals_path` 存入 PathResult
+- **`run.py`**：`_write_report()` 新增"三、月度演化进度条"节，每步显示 GRV 变化方向箭头 + 情绪值 + 当月关键事件 + 触发原因；自动计算分叉点并标注；原"三、校准说明"顺移为"四"
+
+---
+
+
 
 **修改者**：Claude Code  
 **修改理由**：健康检查发现 AGENTS.md 第167行"新 session 快速继续"节写"看 CHANGELOG.md 最新条目"，与第52行阅读路径表格"前 50 行"描述不一致，存在歧义。

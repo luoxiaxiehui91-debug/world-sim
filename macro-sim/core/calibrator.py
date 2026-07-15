@@ -14,6 +14,7 @@ import json
 import os
 import re
 import statistics
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -71,10 +72,12 @@ def _call_llm_for_adjustment(
     simulated: dict,
     actual: dict,
     error: float,
+    error_history: list[dict] | None = None,
 ) -> list[dict]:
     """
     调用 GLM-Z1-9B 分析误差，返回参数调整指令列表。
     每条指令：{"agent": "A2", "param": "threshold", "old": 0.5, "new": 0.35, "reason": "..."}
+    error_history: 最近 N 步的误差序列（含方向信息），用于识别 overshoot/undershoot 模式。
     """
     try:
         from core.llm_client import call_llm
@@ -89,12 +92,31 @@ def _call_llm_for_adjustment(
 
         params_str = json.dumps(agent_params_summary, ensure_ascii=False, indent=2)
 
+        # 构建误差历史描述
+        history_str = ""
+        if error_history and len(error_history) > 1:
+            history_lines = []
+            for h in error_history:
+                history_lines.append(
+                    f"  步{h['step']}: 误差={h['error']:.3f}"
+                    f" GRV偏差={h['grv_delta']:+.1f}"
+                    f" credit偏差={h['credit_delta']:+.1f}"
+                )
+            history_str = (
+                f"\n过去{len(error_history)}步误差序列（识别趋势用）：\n"
+                + "\n".join(history_lines)
+                + "\n注意：若某变量连续3步以上同向偏差，说明对应Agent参数存在系统性偏置。\n"
+            )
+
         prompt = (
             f"你是宏观仿真系统的校准专家。当前月份：{step_label}\n\n"
             f"仿真结果 vs 实际数据：\n{dev_str}\n\n"
-            f"综合误差：{error:.3f}（>0.15触发调整）\n\n"
+            f"综合误差：{error:.3f}（>0.15触发调整）\n"
+            f"{history_str}\n"
             f"当前Agent参数（sensitivity/threshold/magnitude各1.0为基准）：\n{params_str}\n\n"
             f"请分析：哪些Agent的哪个参数导致了偏差？给出1-3条具体调整指令。\n"
+            f"规则：若误差序列显示某参数连续3步 overshoot（仿真持续>实际），"
+            f"减小对应 magnitude，不要反向调整；undershoot 则增大。\n"
             f"每条指令格式（严格JSON数组）：\n"
             f'[{{"agent":"A2","param":"threshold","new":0.35,"reason":"商业银行触发信贷收紧太迟"}}]\n'
             f"只输出JSON数组，不要其他文字。param只能是sensitivity/threshold/magnitude之一。"
@@ -157,7 +179,7 @@ def run_calibration(
     baseline_row     = history[-(calib_steps + 1)] if len(history) > calib_steps else history[0]
 
     # 初始化 Agent 和世界状态
-    agents = load_agents(config_path)
+    agents, _global_cfg = load_agents(config_path)
     initial_world = make_world_from_history_row(
         calibration_data[0], baseline_row, label=calibration_data[0]["date"]
     )
@@ -167,6 +189,7 @@ def run_calibration(
 
     error_series  = []
     param_changes = []
+    error_history: deque = deque(maxlen=5)   # 滑动窗口：最近5步误差+方向
     CALIB_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"[calibrator] 开始校准，{calib_steps} 步...")
@@ -182,15 +205,21 @@ def run_calibration(
         snapshot = model.step(inject_world=None)
         simulated_values = {k: snapshot.get(k, 0) for k in ERROR_WEIGHTS}
 
-        # 计算误差
+        # 计算误差，记录方向信息
         error = compute_error(simulated_values, actual_values, history_range)
         error_series.append(error)
+        error_history.append({
+            "step":         i + 1,
+            "error":        error,
+            "grv_delta":    simulated_values["grv"] - actual_values["grv"],
+            "credit_delta": simulated_values["credit_spread"] - actual_values["credit_spread"],
+        })
 
         step_label = row["date"]
         print(f"  步 {i+1:02d}/{calib_steps} [{step_label}] 误差={error:.3f}"
               f"  sim_GRV={simulated_values['grv']:.1f} real={actual_values['grv']:.1f}", end="")
 
-        # 误差超阈值 → LLM 调参
+        # 误差超阈值 → LLM 调参（传入滑动窗口）
         if error > error_threshold:
             print(f" ← 超阈值({error_threshold})，调参中...", end="")
             params_summary = {
@@ -198,7 +227,8 @@ def run_calibration(
                 for aid, agent in agents.items()
             }
             instructions = _call_llm_for_adjustment(
-                params_summary, step_label, simulated_values, actual_values, error
+                params_summary, step_label, simulated_values, actual_values, error,
+                error_history=list(error_history),
             )
             for inst in instructions:
                 agent_id = inst["agent"]

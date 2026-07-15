@@ -213,14 +213,38 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
             row += f" {p.grv_trend} |"
         lines.append(row)
 
-        # 关键驱动行（去重，取前两个不同事件）
+        # 关键驱动行（去重，取前两个不同 Agent 驱动）
         row = "| 主要驱动 |"
         for p in paths:
+            # 简化事件名：去掉 Agent 名前缀（action_labels 里已含 Agent 语义，用 agent_name 替代）
+            _ACTION_VERB = {
+                "A1:CUT_50BP": "紧急降息50bp",  "A1:CUT_25BP": "降息25bp",
+                "A1:HIKE_25BP": "加息25bp",     "A1:VERBAL_INTERVENTION": "口头干预",
+                "A2:TIGHTEN_CREDIT": "收紧信贷", "A2:EASE_CREDIT": "放松信贷",
+                "A3:SHORT_MARKET": "大规模做空", "A3:DECREASE_RISK": "降险",
+                "A3:INCREASE_RISK": "加仓做多",  "A4:CUT_SUPPLY": "减产",
+                "A4:INCREASE_SUPPLY": "增产",    "A5:DECREASE_RISK": "降险",
+                "A5:INCREASE_RISK": "加仓",      "A6:AMPLIFY_FEAR": "放大恐慌",
+                "A6:AMPLIFY_OPTIMISM": "放大乐观","A7:CAPITAL_CONTROLS": "资本管制",
+                "A7:RAISE_RATES": "加息",        "A7:CUT_25BP": "降息",
+                "A8:CUT_RRR": "降准",            "A8:CUT_LPR": "降LPR",
+                "A8:FISCAL_STIMULUS_CN": "财政刺激","A8:CNY_INTERVENTION": "汇率干预",
+                "A8:TIGHTEN_CN": "货币收紧",     "A9:FISCAL_STIMULUS": "财政刺激",
+                "A9:DEBT_CEILING_RISK": "债务上限危机","A9:FISCAL_TIGHTEN": "财政收紧",
+                "A10:PANIC_SELL": "恐慌性抛售",  "A10:FOMO_BUY": "追涨买入",
+                "A11:CUT_25BP": "降息25bp",      "A11:HIKE_25BP": "加息25bp",
+                "A11:QE_EXPAND": "扩大QE",       "A12:ABANDON_YCC": "放弃YCC",
+                "A12:EASE_YCC": "放松YCC",       "A12:EMERGENCY_EASE": "紧急宽松",
+            }
             seen, top = set(), []
             for ev in p.key_events:
-                if ev["event"] not in seen:
-                    seen.add(ev["event"])
-                    top.append(ev["event"])
+                aid = ev.get("agent_id", "")
+                aname = ev.get("agent_name", "")
+                verb = _ACTION_VERB.get(f"{aid}:{ev.get('action', '')}", ev["event"])
+                label = f"{aname}·{verb}" if aname else ev["event"]
+                if label not in seen:
+                    seen.add(label)
+                    top.append(label)
                 if len(top) == 2:
                     break
             row += f" {'、'.join(top) if top else '—'} |"
@@ -261,15 +285,17 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
                 for ev in step_evs:
                     name = ev["event"]
                     freq = ev["frequency"]
+                    agent_name = ev.get("agent_name", "")
+                    agent_tag = f"[{agent_name}] " if agent_name else ""
                     triggered_by = next(
                         (p for p in prev_events if name in TRIGGER_MAP.get(p, [])),
                         None
                     )
                     if triggered_by:
                         short = triggered_by[:12] + ".." if len(triggered_by) > 14 else triggered_by
-                        lines.append(f"  {ev['month']:5s}  ↳ {name}（{freq:.0%}）← {short}")
+                        lines.append(f"  {ev['month']:5s}  ↳ {agent_tag}{name}（{freq:.0%}）← {short}")
                     else:
-                        lines.append(f"  {ev['month']:5s}    {name}（{freq:.0%}）")
+                        lines.append(f"  {ev['month']:5s}    {agent_tag}{name}（{freq:.0%}）")
                 prev_events = {ev["event"] for ev in step_evs}
 
             lines.append("```")
@@ -294,9 +320,122 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
         lines.append("---")
         lines.append("")
 
+    # ── 月度演化进度条 ────────────────────────────────────
+    if paths and any(p.monthly_grv for p in paths):
+        lines += [
+            f"## 三、月度演化进度条",
+            f"",
+            f"> 每行 = 1个月。GRV 值为该路径 Monte Carlo 样本均值。触发原因来自静态传导知识库。",
+            f"",
+        ]
+
+        # 推算预测起始月（YYYY-MM）
+        from datetime import timedelta
+        start_dt = datetime.now().replace(day=1)
+        # 起始月标签列表：月 +1 → 月 +N
+        def month_label(offset: int) -> str:
+            y = start_dt.year + (start_dt.month - 1 + offset) // 12
+            m = (start_dt.month - 1 + offset) % 12 + 1
+            return f"{y}-{m:02d}"
+
+        # 把 key_events 按 step 建索引（每条路径独立）
+        def events_index(path):
+            idx = {}
+            for ev in path.key_events:
+                idx.setdefault(ev["step"], []).append(ev)
+            return idx
+
+        # 触发原因：静态表 + 动态补充
+        TRIGGER_REASONS_STATIC = {
+            "对冲基金大规模做空":         f"GRV突破高压阈值，机构做空信号触发",
+            "对冲基金降险":               "市场情绪恶化，主动降低风险敞口",
+            "商业银行收紧信贷":           "做空/恐慌引发流动性担忧",
+            "散户恐慌性抛售":             "媒体恐慌放大 / 做空信号外溢",
+            "媒体放大恐慌情绪":           "GRV高位 + 情绪下行，负面报道增加",
+            "媒体保持中性报道":           "GRV未突破极端阈值，情绪相对平稳",
+            "美联储降息25bp":             "情绪恶化 + 利差扩大，触发政策响应",
+            "美联储紧急降息50bp":         "市场深度压力，触发紧急宽松",
+            "美联储加息25bp":             "通胀压力持续，收紧货币",
+            "美联储口头干预":             "GRV高位但情绪尚可，言语安抚",
+            "新兴市场实施资本管制":       "美元利率压力 + 信贷收紧引发资本外流",
+            "新兴市场央行加息":           "资本外流压力 + 汇率贬值风险",
+            "日本央行放弃YCC（套息危机）": "美联储加息积压，套息交易强制平仓",
+            "日本央行放松YCC上限":        "国债收益率压力上升，被动调整",
+            "日本央行紧急宽松":           "套息平仓冲击流动性，紧急响应",
+            "中国财政大规模刺激":         "国内信用收缩，逆周期财政托底",
+            "中国央行降准":              "信用脉冲收缩，降准释放流动性",
+            "中国央行降LPR":             "实体融资成本高企，引导利率下行",
+            "中国央行汇率干预":           "资本外流 + 人民币贬值压力",
+            "欧央行降息25bp":             "跟随美联储宽松周期",
+            "欧央行扩大QE":              "欧元区经济下行压力加大",
+            "OPEC+减产":                 "全球需求预期下降，能源国保价减产",
+            "OPEC+增产":                 "地缘缓和 + 市场份额竞争",
+            "机构投资者降险":             "波动性上升，组合对冲压力",
+            "机构投资者加仓":             "估值回落，风险溢价修复",
+            "美国财政刺激":               "经济下行压力 + 政治周期",
+            "美国债务上限危机信号":        "财政谈判僵局，违约风险上升",
+            "美国财政收紧":               "通胀压力 + 债务可持续性考量",
+            "散户追涨买入":               "市场回暖，FOMO情绪触发",
+        }
+
+        # 计算分叉点：找第一个路径间 GRV 差距 > 5 的步骤
+        fork_step = None
+        if len(paths) > 1:
+            max_steps = min(len(p.monthly_grv) for p in paths)
+            for s in range(max_steps):
+                grvs = [p.monthly_grv[s] for p in paths]
+                if max(grvs) - min(grvs) > 5.0:
+                    fork_step = s
+                    break
+
+        if fork_step is not None:
+            lines += [
+                f"**分叉点**：月 +{fork_step+1}（{month_label(fork_step)}）之前各路径走势基本一致，"
+                f"之后开始分化。",
+                f"",
+            ]
+
+        for path in paths:
+            if not path.monthly_grv:
+                continue
+            ev_idx = events_index(path)
+            n_steps = len(path.monthly_grv)
+
+            lines += [
+                f"### {path.label}（{path.probability:.0%}）— {path.grv_trend}",
+                f"",
+                f"```",
+            ]
+
+            prev_grv = world.grv   # 用全局起点作第 0 步前值
+            for step in range(n_steps):
+                grv_now = path.monthly_grv[step]
+                diff = grv_now - prev_grv
+                a = "↑" if diff > 2 else ("↓" if diff < -2 else "→")
+                label = month_label(step)
+                sentiment_now = path.monthly_sentiment[step] if path.monthly_sentiment else None
+                sent_str = f"  情绪{sentiment_now:+.2f}" if sentiment_now is not None else ""
+
+                header = f"月 +{step+1:2d}（{label}）： GRV {prev_grv:.1f} → {grv_now:.1f} {a}{sent_str}"
+                lines.append(header)
+
+                step_events = ev_idx.get(step, [])
+                for ev in step_events:
+                    reason = TRIGGER_REASONS_STATIC.get(ev["event"], "")
+                    reason_str = f"  [因：{reason}]" if reason else ""
+                    freq_str = f"  （{ev['frequency']:.0%}路径）"
+                    agent_name = ev.get("agent_name", "")
+                    agent_tag = f"[{agent_name}] " if agent_name else ""
+                    lines.append(f"  · {agent_tag}{ev['event']}{freq_str}{reason_str}")
+
+                prev_grv = grv_now
+
+            lines.append("```")
+            lines.append("")
+
     # ── 校准说明（放最后）────────────────────────────────
     lines += [
-        f"## 三、校准说明",
+        f"## 四、校准说明",
         f"",
         f"评分 {score}/100，平均误差 {calib_result.get('avg_error', 0):.4f}，"
         f"参数调整 {len(calib_result.get('param_changes', []))} 次。",

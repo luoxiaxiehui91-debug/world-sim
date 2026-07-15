@@ -39,6 +39,10 @@ class PathResult:
     final_credit_spread_mean: float = 0.0
     grv_trend: str = ""        # "持续上升" / "先升后降" / "回落" / "横盘"
     narrative: str = ""        # LLM 生成
+    consistency_warning: str = ""  # 非空时表示该路径有较多 run 检测到行动矛盾
+    # 逐月演化数据（step 0 = 第1个月）
+    monthly_grv: list[float] = field(default_factory=list)           # 每步路径均值 GRV
+    monthly_sentiment: list[float] = field(default_factory=list)     # 每步路径均值 sentiment
 
 
 MIN_PATH_PROBABILITY = 0.05   # 低于此概率的路径不展开（设计文档确认10%，实测降至5%）
@@ -159,8 +163,16 @@ def _cluster_runs(final_grv_values: list[float], n_clusters: int = 2) -> list[li
 def _extract_key_events(history_list: list[list[dict]], run_indices: list[int]) -> list[dict]:
     """
     从该路径的所有 run 里提取出现频率最高的关键行动（出现 > 40% 的 run 才算）。
-    返回按步数排序的关键节点列表。
+    返回按步数排序的关键节点列表，每条记录含 agent_id 字段，供报告做归因展示。
     """
+    # Agent ID → 简短角色名（供报告展示用）
+    AGENT_NAMES = {
+        "A1": "Fed",       "A2": "商业银行",     "A3": "对冲基金",
+        "A4": "能源国",    "A5": "机构",          "A6": "媒体",
+        "A7": "新兴市场央行", "A8": "PBOC",       "A9": "美财政",
+        "A10": "散户",     "A11": "ECB",          "A12": "BOJ",
+    }
+
     n_runs   = len(run_indices)
     # action_counts[step][agent_role:action] = 出现次数
     from collections import Counter
@@ -226,10 +238,13 @@ def _extract_key_events(history_list: list[list[dict]], run_indices: list[int]) 
                 agent_id, action = key.split(":", 1)
                 label = action_labels.get(key, f"{agent_id}:{action}")
                 key_events.append({
-                    "step":     step,
-                    "month":    f"第{step+1}个月",
-                    "event":    label,
-                    "frequency": round(count / n_runs, 2),
+                    "step":       step,
+                    "month":      f"第{step+1}个月",
+                    "agent_id":   agent_id,
+                    "agent_name": AGENT_NAMES.get(agent_id, agent_id),
+                    "action":     action,
+                    "event":      label,
+                    "frequency":  round(count / n_runs, 2),
                 })
 
     return key_events[:8]   # 最多8个关键节点
@@ -303,6 +318,7 @@ def run_prediction(
     n_runs: int = 100,
     predict_steps: int = 24,
     config_path: str = "/app/config/agents.yaml",
+    bleed_params_override: dict = None,
 ) -> list[PathResult]:
     """
     预测循环主函数。
@@ -311,7 +327,7 @@ def run_prediction(
     print(f"\n[bifurcation] 预测循环：{n_runs}次 × {predict_steps}步")
 
     # 加载 Agent 并应用校准后的参数
-    agents_template = load_agents(config_path)
+    agents_template, _global_cfg = load_agents(config_path)
     for agent_id, params_dict in calibrated_agent_params.items():
         if agent_id in agents_template:
             agents_template[agent_id].params = AgentParams.from_dict(params_dict)
@@ -324,8 +340,17 @@ def run_prediction(
         world = _add_initial_noise(initial_world, seed=run_i)
         world.total_cycles = predict_steps
         agents = copy.deepcopy(agents_template)
-        model  = MacroSimModel(world, agents=agents, use_llm=False)
+        model  = MacroSimModel(world, agents=agents, use_llm=False,
+                               bleed_params_override=bleed_params_override)
         history = model.run()
+
+        # 一致性校验：检查该 run 是否存在跨 Agent 行动矛盾
+        from core.consistency_validator import validate_run_actions
+        run_issues = validate_run_actions(history, use_llm=False)
+        if run_issues:
+            if history:
+                history[-1]["_consistency_issues"] = run_issues
+
         all_histories.append(history)
 
         for step_i, snap in enumerate(history):
@@ -381,6 +406,10 @@ def run_prediction(
             statistics.mean([all_histories[i][step]["grv"] for i in cluster])
             for step in range(predict_steps)
         ]
+        sent_vals_path = [
+            statistics.mean([all_histories[i][step]["market_sentiment"] for i in cluster])
+            for step in range(predict_steps)
+        ]
         grv_start = grv_vals_path[0]
         grv_mid   = grv_vals_path[predict_steps // 2]
         grv_end   = grv_vals_path[-1]
@@ -403,9 +432,24 @@ def run_prediction(
             final_sentiment_mean=round(statistics.mean(final_sent_vals), 3),
             final_credit_spread_mean=round(statistics.mean(final_spread_vals), 1),
             grv_trend=trend,
+            monthly_grv=[round(v, 1) for v in grv_vals_path],
+            monthly_sentiment=[round(v, 3) for v in sent_vals_path],
         )
 
         path.key_events = _extract_key_events(all_histories, cluster)
+
+        # 汇总该路径内有矛盾的 run 比例
+        issue_run_count = sum(
+            1 for i in cluster
+            if (i < len(all_histories)
+                and all_histories[i]
+                and all_histories[i][-1].get("_consistency_issues"))
+        )
+        if issue_run_count > len(cluster) * 0.3:
+            path.consistency_warning = (
+                f"{issue_run_count}/{len(cluster)} runs 检测到 Agent 行动逻辑矛盾"
+            )
+
         path.narrative  = _generate_narrative(path, initial_world)
         paths.append(path)
         print(f"  {label}（{prob:.0%}）：GRV {grv_start:.1f}→{grv_end:.1f}，{trend}")
