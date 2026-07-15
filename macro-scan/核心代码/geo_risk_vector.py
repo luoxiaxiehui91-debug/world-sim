@@ -339,13 +339,20 @@ def compute_grv() -> dict:
     # ── 日元货币压力（japan_monetary）─────────────────────────
     japan_monetary = _compute_japan_monetary()
 
+    # global_composite：GPR 全球指数 85% + japan_monetary 15%
+    # japan_monetary 后期新增维度，反映日元套息平仓风险对全球流动性的影响
+    if gpr_global is not None and japan_monetary is not None:
+        global_composite = round(gpr_global * 0.85 + japan_monetary * 0.15, 1)
+    else:
+        global_composite = gpr_global  # 任一缺失时退回纯 GPR
+
     grv = {
         "_schema_version":    "1.0",
         "taiwan_strait":      taiwan_strait,
         "us_china_strategic": us_china_strategic,
         "russia_europe":      russia_europe,
         "middle_east_energy": middle_east_energy,
-        "global_composite":   gpr_global,
+        "global_composite":   global_composite,
         "climate_risk":       climate_risk,
         "disaster_risk":      disaster_risk,
         "japan_monetary":     japan_monetary,   # 新增：日元货币压力（USD/JPY水位 + JGB收益率变速）

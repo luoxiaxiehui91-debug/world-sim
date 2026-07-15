@@ -464,6 +464,17 @@ def load_from_macro_scan(
     except Exception:
         pass
 
+    # 读取 daily_digest.json（macro-scan daily_narrative 写出，仅用当日数据）
+    daily_digest_path = os.path.join(os.path.dirname(fred_path), "daily_digest.json")
+    try:
+        if os.path.exists(daily_digest_path):
+            with open(daily_digest_path, encoding="utf-8") as f:
+                digest = json.load(f)
+            if digest.get("date") == datetime.now().strftime("%Y-%m-%d"):
+                recent_news.extend(digest.get("bullets", []))
+    except Exception as e:
+        print(f"[world_state] daily_digest.json 读取失败（非阻断）: {e}")
+
     # 从 situations.yaml 读取 escalating 事件，补充 trigger_event 和 recent_news
     situations_path = os.path.join(os.path.dirname(fred_path), "situations.yaml")
     try:

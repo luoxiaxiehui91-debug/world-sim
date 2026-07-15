@@ -26,7 +26,8 @@ NEWS_DB_PATH     = os.path.join(DATA_DIR, "news.db")
 NARRATIVE_CACHE  = os.path.join(DATA_DIR, "daily_narrative_cache.json")
 POLITICAL_CAL    = os.path.join(WORKSPACE, "知识库", "political_calendar.yaml")
 
-NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "")
+NTFY_TOPIC       = os.environ.get("NTFY_TOPIC", "")
+DAILY_DIGEST_PATH = os.path.join(DATA_DIR, "daily_digest.json")
 
 
 # ── 数据读取 ──────────────────────────────────────────────────────────────────
@@ -369,8 +370,26 @@ def generate() -> str:
         narrative = "\n".join(lines)
 
     _save_narrative(narrative)
+    _save_digest(narrative)
     print("[daily_narrative] 生成完成。")
     return narrative
+
+
+def _save_digest(narrative: str):
+    """将今日摘要写入 daily_digest.json，供 macro-sim Agent 消费。"""
+    bullets = [line.strip() for line in narrative.split("\n") if line.strip()]
+    payload = {
+        "date":    datetime.now().strftime("%Y-%m-%d"),
+        "bullets": bullets,
+    }
+    tmp = DAILY_DIGEST_PATH + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, DAILY_DIGEST_PATH)
+        print("[daily_narrative] digest 已写入 daily_digest.json")
+    except Exception as e:
+        print(f"[daily_narrative] digest 写入失败（非阻断）: {e}")
 
 
 def push(narrative: str):

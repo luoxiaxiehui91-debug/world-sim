@@ -53,11 +53,12 @@ class MacroAgent:
       info_delay = 4  → 4个月延迟（美联储、财政部、欧央行、日央行）
       info_delay = 5  → 5个月延迟（能源国）
     """
-    agent_id:        str
-    role:            str
-    info_delay:      int    # 看到其他 Agent 行动的延迟（步数）
-    activation_prob: float  # 每步被调度到的概率
-    params:          AgentParams = field(default_factory=AgentParams)
+    agent_id:                  str
+    role:                      str
+    info_delay:                int    # 看到其他 Agent 行动的延迟（步数）
+    activation_prob:           float  # 每步被调度到的概率
+    params:                    AgentParams = field(default_factory=AgentParams)
+    transmission_coefficients: dict = field(default_factory=dict)  # {to_AX: float}
 
     # 运行时状态（不参与构造）
     activation_countdown: int = field(init=False, default=0)

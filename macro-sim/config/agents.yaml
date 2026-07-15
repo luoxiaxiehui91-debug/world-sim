@@ -2,6 +2,10 @@
 # 修改此文件不需要重建镜像（热挂载）
 # 新增角色只需添加一条，代码无需改动（预留接口）
 
+global:
+  transmission_attenuation: 0.5   # 传导矩阵衰减系数：主delta × coeff × attenuation 传给下游
+                                   # 0.5 = 传导强度减半，防止级联放大；调小→传导更弱，调大→联动更强
+
 agents:
   - id: A1
     name: 美联储

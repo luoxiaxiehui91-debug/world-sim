@@ -3,103 +3,29 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## v3.5.57 — 2026-07-13 (by Claude)
+## v3.5.59 — 2026-07-14 (by Claude)
 
-### 修复（周检新发现 #2/#3：NeoData 端口硬编码 + SNGISAUS 死引用）
+### 功能
 
-**修改理由**：Hermes 周检（2026-07-13）发现两个长期存在的 bug，经源码核实属实。
+**Q10：daily_narrative 写出 daily_digest.json，供 macro-sim Agent 消费（by Claude）**
 
-**新2：`scan_weak_signals.py` NeoData 端口硬编码修复**
-- 第239行：`os.environ.get("AUTH_GATEWAY_PORT", "19000")` → `AUTH_GATEWAY_PORT`（使用已从 `optim_config` import 的常量，默认值 28789 而非 19000）
-- 根因：该函数重复读了一遍环境变量且硬编码了旧端口默认值，与 `optim_config.AUTH_GATEWAY_PORT` 脱节
-- 影响：消除每日 8+ 次 `localhost:19000 Connection refused` 日志噪音
-
-**新3：`fetch_fred_history.py` SNGISAUS 死引用删除**
-- 从 `FRED_SERIES` 列表删除 `("SNGISAUS", "美国青年失业率(15-24岁,%)", "1948", "monthly")` 一行
-- 根因：FRED 已废弃该 series，每次拉取均报 `Bad Request: series does not exist`
-- 影响：消除每日 46 次 FRED API 错误
+- **修改理由**：daily_narrative.py 生成的每日叙事只推 ntfy，macro-sim Agent 看不到；A6/A10 规则已有 MEDIA_FEAR_KEYWORDS 文本消费逻辑，管道未打通。
+- **`核心代码/daily_narrative.py`**：新增 `DAILY_DIGEST_PATH` 常量和 `_save_digest()` 函数（原子写），在 `generate()` 末尾调用，将叙事 bullets + 日期写入 `data/daily_digest.json`
+- **关联**：`S:\docs\questions\world-deduction\20260714-world-deduction-llm-narrative-not-in-sim.md`
 
 ---
 
-## v3.5.56 — 2026-07-13 (by Claude)
+## v3.5.58 — 2026-07-14 (by Claude)
 
-### 文档（接口文档补全 + 历史条目补正）
+### Bug 修复
 
-**接口补全（F1 修复）**：
-- **`macro-scan/AGENTS.md` sim_trigger.json 节**：格式块补入 `triggered_at` 字段（ISO 8601 UTC 时间戳），字段表追加对应说明行，与 `grv_threshold.py:238` 实际写入行为对齐。此前文档漏掉该字段，macro-sim/AGENTS.md 描述反而是正确的，本次仅补全写入方文档。
-- **修改理由**：健康检查 + 多 agent 论证（怀疑者/提案者/SRE 三角辩论）发现 macro-scan/AGENTS.md 接口格式表与源码不一致（`grv_threshold.py:238` 实际写三字段，文档只写两字段）。
+**Q5：japan_monetary 接入 global_composite（by Claude）**
 
-**历史条目补正（F5 修复）**：
-
-[补正 v3.5.55] 修改理由：健康检查发现 macro-scan/AGENTS.md 联动矩阵遗漏两处触发条件（纯文档改动未覆盖 + 缺少 INDEX.md 条目），触发本次联动矩阵4处修复。
-
-[补正 v3.5.53] 修改理由：健康检查走查阅读路径时，发现根 AGENTS.md 阅读路径要求读80行但 CHANGELOG 实际配置仅50行，存在截断风险，触发行数修正。
+- **修改理由**：japan_monetary 维度完整采集并写入 `grv_latest.json`，但 `geo_risk_vector.py` 的 `global_composite` 直接取纯 GPR 指数，japan_monetary 从未进入合成公式，采集等于白做。
+- **`核心代码/geo_risk_vector.py`**：`compute_grv()` 中 `global_composite` 改为 `GPR × 0.85 + japan_monetary × 0.15`；任一数据缺失时退回纯 GPR，不影响原有行为。
+- **关联**：`S:\docs\questions\world-deduction\20260714-world-deduction-japan-monetary-not-in-composite.md`
 
 ---
-
-## v3.5.55 — 2026-07-11 (by Claude)
-
-**修改理由**：健康检查发现 macro-scan/AGENTS.md 联动矩阵遗漏两处触发条件（纯文档改动未覆盖 + 缺少 INDEX.md 条目），触发本次联动矩阵4处修复。
-
-### 文档（联动矩阵4处修复）
-
-- **`macro-scan/AGENTS.md` 联动矩阵**：
-  - 触发条件从"任何 `核心代码/*.py`（版本号变更时）"改为"**VERSION 变更时（无论何种改动触发）**"，覆盖文档类 bump
-  - 新增一条：VERSION 变更时 → `macro-scan/INDEX.md` 头部版本号
-- **`macro-sim/AGENTS.md` 联动矩阵**：新增一条：版本号变更时 → `docs/PROGRESS.md`（版本号 + 版本历史表）
-- **`macro-sim/AGENTS.md` AI 阅读路径**：`CHANGELOG.md` 读取方向修正，"最后20行"改为"前50行"（新版在前，读头部）
-
----
-
-## v3.5.54 — 2026-07-11 (by Claude)
-
-**修改理由**：cn_lpr 列名变更与 World Bank SSL EOF 导致数据拉取每日报错，属线上 bug 修复（见 `S:\docs\questions\world-deduction\archived\20260704-world-deduction-china-data-sources.md`）。
-
-### 修复（fetch_china_data.py — China 数据源两故障）
-
-**cn_lpr 列名变更修复**（P2，见 `S:\docs\questions\world-deduction\20260704-world-deduction-china-data-sources.md`）
-- `fetch_akshare_yearly()` 第一个 try 块增加 cn_lpr 分支：检测到 `TRADE_DATE`/`LPR1Y` 列时先做列重命名（`TRADE_DATE→日期`，`LPR1Y→今值`），再走通用逻辑。不动通用函数签名，不影响其他序列（PMI/PPI/工业增加值均无此分支）。
-
-**World Bank SSL EOF 重试降级**（P2，同上问题文档）
-- `fetch_wb_indicator()` 改为指数退避重试（最多3次，间隔 2s→4s）；3次全败且本地已有 CSV 时降级静默（打印提示，不计入 ERROR 序列），无本地文件时才返回 ERROR。
-
----
-
-## v3.5.53 — 2026-07-11 (by Claude)
-
-**修改理由**：健康检查走查阅读路径时，发现根 AGENTS.md 阅读路径要求读80行但 CHANGELOG 实际配置仅50行，存在截断风险，触发行数修正。
-
-### 文档（入口阅读路径修复）
-
-- **`S:\world-sim\AGENTS.md`** 新 session 阅读路径第3/4步：CHANGELOG 阅读行数 50 → 80，避免最新版本条目被截断
-
----
-
-## v3.5.52 — 2026-07-11 (by Claude)
-
-### 文档（联动矩阵缺口修复 + 版本号修正）
-
-- **`macro-sim/macro-sim_人类说明文档.md`** 头部版本号 `v2.0.2` → `v2.0.3`（漏更新，CHANGELOG/VERSION 均已是 v2.0.3）
-- **`macro-scan/AGENTS.md` 联动矩阵** 新增一条：任何核心代码版本变更时 → 同步更新 `S:\world-sim\世界推演系统_总览.md` 头部版本行 + 架构图版本号
-- **`macro-sim/AGENTS.md` 联动矩阵** 新增两条：版本变更时 → `macro-sim_人类说明文档.md` 文件头版本号；版本变更时 → `世界推演系统_总览.md` 头部版本行 + 架构图版本号
-- **`S:\docs\INDEX.md`** 世界推演版本状态行：`v3.5.50` → `v3.5.52`；摘要更新为"联动矩阵缺口修复：补总览文档更新规则 + macro-sim 人类手册版本号修正"
-
----
-
-## v3.5.51 — 2026-07-11 (by Claude)
-
-### 文档（入口流程走查修复 — 4处）
-
-- **`macro-scan/AGENTS.md`** `data/sim_trigger.json` 节：标题从"P4-B 计划中，尚未实现"改为"v3.5.34 已实现"；触发来源从 `situation_detector.py` 改为 `grv_threshold.py`；格式从"预定格式"改为已实现格式（移除 `triggered_at` 字段，改为实际写入的 `level`+`event`）；结尾从"P4-B 设计中确认"改为 daemon 实际行为描述
-- **`macro-scan/AGENTS.md`** 接口兼容表：`v2.0.2+` → `v2.0.3+`
-- **`macro-sim/AGENTS.md`** 接口兼容表：`v2.0.2+` → `v2.0.3+`
-- **`世界推演系统_总览.md`** 头部版本行：`v3.5.49` → `v3.5.51`
-- **`macro-scan/世界推演系统_人类说明文档.md`** 头部版本行：`V3.5.49` → `V3.5.51`；"当前能力"节标题：`V3.5.49` → `V3.5.51`；"九、当前状态"节标题：`V3.5.49` → `V3.5.51`
-- **`macro-scan/INDEX.md`** 头部版本号：`v3.5.49` → `v3.5.51`
-
----
-
-
 
 ## v3.5.50 — 2026-07-11 (by Claude)
 
@@ -4012,4 +3938,105 @@ body 首行固定：⚠️ 低置信度推演 · 社会类上限🟡，仅供参
 --- 
 
 ---
+
+
+## v3.5.57 — 2026-07-13 (by Claude)
+
+### 修复（周检新发现 #2/#3：NeoData 端口硬编码 + SNGISAUS 死引用）
+
+**修改理由**：Hermes 周检（2026-07-13）发现两个长期存在的 bug，经源码核实属实。
+
+**新2：`scan_weak_signals.py` NeoData 端口硬编码修复**
+- 第239行：`os.environ.get("AUTH_GATEWAY_PORT", "19000")` → `AUTH_GATEWAY_PORT`（使用已从 `optim_config` import 的常量，默认值 28789 而非 19000）
+- 根因：该函数重复读了一遍环境变量且硬编码了旧端口默认值，与 `optim_config.AUTH_GATEWAY_PORT` 脱节
+- 影响：消除每日 8+ 次 `localhost:19000 Connection refused` 日志噪音
+
+**新3：`fetch_fred_history.py` SNGISAUS 死引用删除**
+- 从 `FRED_SERIES` 列表删除 `("SNGISAUS", "美国青年失业率(15-24岁,%)", "1948", "monthly")` 一行
+- 根因：FRED 已废弃该 series，每次拉取均报 `Bad Request: series does not exist`
+- 影响：消除每日 46 次 FRED API 错误
+
+---
+
+## v3.5.56 — 2026-07-13 (by Claude)
+
+**修改理由**：健康检查（2026-07-13）发现接口文档与源码不一致（sim_trigger.json 缺 triggered_at 字段）并补正历史条目格式缺口。
+
+### 文档（接口文档补全 + 历史条目补正）
+
+**接口补全（F1 修复）**：
+- **`macro-scan/AGENTS.md` sim_trigger.json 节**：格式块补入 `triggered_at` 字段（ISO 8601 UTC 时间戳），字段表追加对应说明行，与 `grv_threshold.py:238` 实际写入行为对齐。此前文档漏掉该字段，macro-sim/AGENTS.md 描述反而是正确的，本次仅补全写入方文档。
+- **修改理由**：健康检查 + 多 agent 论证（怀疑者/提案者/SRE 三角辩论）发现 macro-scan/AGENTS.md 接口格式表与源码不一致（`grv_threshold.py:238` 实际写三字段，文档只写两字段）。
+
+**历史条目补正（F5 修复）**：
+
+[补正 v3.5.55] 修改理由：健康检查发现 macro-scan/AGENTS.md 联动矩阵遗漏两处触发条件（纯文档改动未覆盖 + 缺少 INDEX.md 条目），触发本次联动矩阵4处修复。
+
+[补正 v3.5.53] 修改理由：健康检查走查阅读路径时，发现根 AGENTS.md 阅读路径要求读80行但 CHANGELOG 实际配置仅50行，存在截断风险，触发行数修正。
+
+---
+
+## v3.5.55 — 2026-07-11 (by Claude)
+
+**修改理由**：健康检查发现 macro-scan/AGENTS.md 联动矩阵遗漏两处触发条件（纯文档改动未覆盖 + 缺少 INDEX.md 条目），触发本次联动矩阵4处修复。
+
+### 文档（联动矩阵4处修复）
+
+- **`macro-scan/AGENTS.md` 联动矩阵**：
+  - 触发条件从"任何 `核心代码/*.py`（版本号变更时）"改为"**VERSION 变更时（无论何种改动触发）**"，覆盖文档类 bump
+  - 新增一条：VERSION 变更时 → `macro-scan/INDEX.md` 头部版本号
+- **`macro-sim/AGENTS.md` 联动矩阵**：新增一条：版本号变更时 → `docs/PROGRESS.md`（版本号 + 版本历史表）
+- **`macro-sim/AGENTS.md` AI 阅读路径**：`CHANGELOG.md` 读取方向修正，"最后20行"改为"前50行"（新版在前，读头部）
+
+---
+
+## v3.5.54 — 2026-07-11 (by Claude)
+
+**修改理由**：cn_lpr 列名变更与 World Bank SSL EOF 导致数据拉取每日报错，属线上 bug 修复（见 `S:\docs\questions\world-deduction\archived\20260704-world-deduction-china-data-sources.md`）。
+
+### 修复（fetch_china_data.py — China 数据源两故障）
+
+**cn_lpr 列名变更修复**（P2，见 `S:\docs\questions\world-deduction\20260704-world-deduction-china-data-sources.md`）
+- `fetch_akshare_yearly()` 第一个 try 块增加 cn_lpr 分支：检测到 `TRADE_DATE`/`LPR1Y` 列时先做列重命名（`TRADE_DATE→日期`，`LPR1Y→今值`），再走通用逻辑。不动通用函数签名，不影响其他序列（PMI/PPI/工业增加值均无此分支）。
+
+**World Bank SSL EOF 重试降级**（P2，同上问题文档）
+- `fetch_wb_indicator()` 改为指数退避重试（最多3次，间隔 2s→4s）；3次全败且本地已有 CSV 时降级静默（打印提示，不计入 ERROR 序列），无本地文件时才返回 ERROR。
+
+---
+
+## v3.5.53 — 2026-07-11 (by Claude)
+
+**修改理由**：健康检查走查阅读路径时，发现根 AGENTS.md 阅读路径要求读80行但 CHANGELOG 实际配置仅50行，存在截断风险，触发行数修正。
+
+### 文档（入口阅读路径修复）
+
+- **`S:\world-sim\AGENTS.md`** 新 session 阅读路径第3/4步：CHANGELOG 阅读行数 50 → 80，避免最新版本条目被截断
+
+---
+
+## v3.5.52 — 2026-07-11 (by Claude)
+
+### 文档（联动矩阵缺口修复 + 版本号修正）
+
+- **`macro-sim/macro-sim_人类说明文档.md`** 头部版本号 `v2.0.2` → `v2.0.3`（漏更新，CHANGELOG/VERSION 均已是 v2.0.3）
+- **`macro-scan/AGENTS.md` 联动矩阵** 新增一条：任何核心代码版本变更时 → 同步更新 `S:\world-sim\世界推演系统_总览.md` 头部版本行 + 架构图版本号
+- **`macro-sim/AGENTS.md` 联动矩阵** 新增两条：版本变更时 → `macro-sim_人类说明文档.md` 文件头版本号；版本变更时 → `世界推演系统_总览.md` 头部版本行 + 架构图版本号
+- **`S:\docs\INDEX.md`** 世界推演版本状态行：`v3.5.50` → `v3.5.52`；摘要更新为"联动矩阵缺口修复：补总览文档更新规则 + macro-sim 人类手册版本号修正"
+
+---
+
+## v3.5.51 — 2026-07-11 (by Claude)
+
+### 文档（入口流程走查修复 — 4处）
+
+- **`macro-scan/AGENTS.md`** `data/sim_trigger.json` 节：标题从"P4-B 计划中，尚未实现"改为"v3.5.34 已实现"；触发来源从 `situation_detector.py` 改为 `grv_threshold.py`；格式从"预定格式"改为已实现格式（移除 `triggered_at` 字段，改为实际写入的 `level`+`event`）；结尾从"P4-B 设计中确认"改为 daemon 实际行为描述
+- **`macro-scan/AGENTS.md`** 接口兼容表：`v2.0.2+` → `v2.0.3+`
+- **`macro-sim/AGENTS.md`** 接口兼容表：`v2.0.2+` → `v2.0.3+`
+- **`世界推演系统_总览.md`** 头部版本行：`v3.5.49` → `v3.5.51`
+- **`macro-scan/世界推演系统_人类说明文档.md`** 头部版本行：`V3.5.49` → `V3.5.51`；"当前能力"节标题：`V3.5.49` → `V3.5.51`；"九、当前状态"节标题：`V3.5.49` → `V3.5.51`
+- **`macro-scan/INDEX.md`** 头部版本号：`v3.5.49` → `v3.5.51`
+
+---
+
+
 
