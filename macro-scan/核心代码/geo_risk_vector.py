@@ -126,12 +126,18 @@ def _normalize_gpr(raw: float | None, series_id: str) -> float | None:
 
 def _gdelt_country_score(scores: dict, countries: list[str]) -> float | None:
     """取多个国家的 GDELT 军事/制裁分数均值，作为该热点的 GDELT 信号。"""
+    logger = _get_logger()
     vals = []
     for c in countries:
         mil = scores.get("military", {}).get(c, 0) or 0
         sanc = scores.get("sanction", {}).get(c, 0) or 0
         vals.append((mil + sanc) / 2)
-    return round(sum(vals) / len(vals), 1) if vals else None
+    if not vals:
+        return None
+    result = round(sum(vals) / len(vals), 1)
+    if result == 0.0:
+        logger.warning("[GRV] GDELT 全0信号 countries=%s — 视为无信号（可能是API采集失败或无事件）", countries)
+    return result
 
 
 def _normalize_gdelt_score(raw: float | None, hotspot_key: str) -> float | None:

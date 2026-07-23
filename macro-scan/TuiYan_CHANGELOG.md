@@ -3,6 +3,17 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.5.60 — 2026-07-24 (by Claude)
+
+### Bug 修复
+
+**GDELT 全0信号防御日志（by Claude）**
+
+- **修改理由**：`_gdelt_country_score()` 返回 0.0 时无日志输出，无法区分"真实无事件"与"API采集失败/数据缺失"，排障困难（见 backlog P4）。
+- **`核心代码/geo_risk_vector.py`**：`_gdelt_country_score()` 在返回值为 0.0 时追加 `logger.warning`，记录国家列表，提示可能是采集失败。热挂载立即生效。
+
+---
+
 ## v3.5.59 — 2026-07-14 (by Claude)
 
 ### 功能
