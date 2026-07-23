@@ -4,6 +4,23 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
 
+## 2026-07-24 [2.0.10] 校准质量改进：GRV平滑 + LLM误差趋势摘要（by Claude）
+
+**修改者**：Claude Code  
+**修改理由**：校准评分约70/100，根因是GRV历史2022-2026月度±30剧烈波动，仿真难以追随；同时LLM调参时无全局视角，参数反复横跳（见 macro-sim PROGRESS.md）。
+
+### 修改
+
+- **`core/world_state.py:load_monthly_history()`**：
+  - 在合并结果之前，对所有GRV维度字段（grv/grv_energy/grv_military/grv_trade/us_china_grv）做3个月滑动窗口平均
+  - 第1个月取自身，第2个月取前1+当月均值，第3个月起取前2+当月均值
+  - 向后兼容：仅影响历史加载数据，不改接口签名
+- **`core/calibrator.py:llm_suggest_adjustments()`**：
+  - `error_history` 描述末尾新增趋势摘要行：前半段均值 vs 近半段均值，自动判断⬆上升/⬇下降/➡震荡并附说明
+  - 帮助LLM识别"调参效果持续变差"vs"有效收敛"vs"参数反复横跳"三种模式
+
+---
+
 ## 2026-07-15 [2.0.9] Q6：路径树节点归因标注（by Claude）
 
 **修改者**：Claude Code  
