@@ -309,9 +309,21 @@ def load_monthly_history(
     # 只取有 GRV 数据的月份
     valid_dates = [d for d in all_dates if d in grv_monthly][-months:]
 
+    # GRV 3个月移动平均平滑（降低月度±30剧烈波动对校准的冲击）
+    _grv_keys = ("grv", "grv_energy", "grv_military", "grv_trade", "us_china_grv")
+    _raw_grv_seq = [grv_monthly[d] for d in valid_dates]
+    _smoothed_grv = []
+    for i, dt in enumerate(valid_dates):
+        window = _raw_grv_seq[max(0, i - 2): i + 1]  # 最多取前2个月+当月=3个月
+        smoothed = {}
+        for k in _grv_keys:
+            vals = [w[k] for w in window if k in w]
+            smoothed[k] = sum(vals) / len(vals) if vals else grv_monthly[dt].get(k, 50.0)
+        _smoothed_grv.append(smoothed)
+
     result = []
-    for dt in valid_dates:
-        grv_d  = grv_monthly.get(dt, {})
+    for i, dt in enumerate(valid_dates):
+        grv_d  = _smoothed_grv[i]
         fred_d = fred_monthly.get(dt, {})
         result.append({
             "date":          dt,

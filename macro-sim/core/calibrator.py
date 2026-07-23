@@ -102,9 +102,21 @@ def _call_llm_for_adjustment(
                     f" GRV偏差={h['grv_delta']:+.1f}"
                     f" credit偏差={h['credit_delta']:+.1f}"
                 )
+            # 趋势摘要：最近5步误差均值 vs 前半段均值，判断整体趋势
+            errors = [h["error"] for h in error_history]
+            mid = max(1, len(errors) // 2)
+            trend_early = sum(errors[:mid]) / mid
+            trend_late  = sum(errors[mid:]) / max(1, len(errors) - mid)
+            if trend_late > trend_early + 0.03:
+                trend_label = "⬆ 误差上升趋势（调参效果变差）"
+            elif trend_late < trend_early - 0.03:
+                trend_label = "⬇ 误差下降趋势（调参有效）"
+            else:
+                trend_label = "➡ 误差震荡/持平（可能参数反复横跳）"
             history_str = (
                 f"\n过去{len(error_history)}步误差序列（识别趋势用）：\n"
                 + "\n".join(history_lines)
+                + f"\n趋势摘要：{trend_label}（前半均值={trend_early:.3f}，近半均值={trend_late:.3f}）\n"
                 + "\n注意：若某变量连续3步以上同向偏差，说明对应Agent参数存在系统性偏置。\n"
             )
 
