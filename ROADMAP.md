@@ -26,7 +26,7 @@
 ## 天玑（macro-ji）实施路线图
 
 > 天玑 = 验证层，在天枢（macro-scan）+ 天璇（macro-sim）之上，对推演结果做事后验证和校准闭环。  
-> 详细设计见：`S:\world-sim\天玑_设计文档_v0.1.md`
+> 详细设计见：`S:\world-sim\docs\tianji-design.md`
 
 ```
 天枢（macro-scan）── 每日观测 ──> 天璇（macro-sim）── 推演路径 ──> 天玑（macro-ji）

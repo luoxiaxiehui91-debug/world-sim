@@ -118,7 +118,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 | 任何 `core/*.py` | `VERSION`（PATCH）+ `CHANGELOG.md` |
 | 任何 `core/*.py`（版本号变更时）| + `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
 | 任何 `core/*.py`（版本号变更时）| + `macro-sim_人类说明文档.md` 文件头版本号 |
-| 任何 `core/*.py`（版本号变更时）| + `S:\world-sim\世界推演系统_总览.md` 头部版本行（`macro-sim vX.Y.Z`）+ 架构图版本号 |
+| 任何 `core/*.py`（版本号变更时）| + `S:\world-sim\docs\overview.md` 头部版本行（`macro-sim vX.Y.Z`）+ 架构图版本号 |
 | 任何 `core/*.py`（版本号变更时）| + `docs/PROGRESS.md`（版本号 + 版本历史表）|
 | `core/world_state.py`（新增字段） | `docs/design_v2.md` |
 | `config/agents.yaml`（新增 Agent）| `core/agents/` 对应子类 + README |
