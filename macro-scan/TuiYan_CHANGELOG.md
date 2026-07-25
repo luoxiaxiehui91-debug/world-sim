@@ -3,6 +3,40 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.5.62 — 2026-07-25 (by Hermes)
+
+### Bug 修复
+
+**Q1：social_stress / cultural_friction 计算 Bug：R09/R10 永不触发（by Hermes）**
+
+- **修改理由**：两条独立 bug 共同导致 GDELT 维度 R09/R10 长期不可达：
+  1. `_compute_gdelt_scores()` 第 820-823 行 `tone_sum / tone_cnt` 在 `for c in countries:` 循环里无条件累加所有 GDELT 事件（含合作/外交类），合作事件占多数把 GoldsteinScale 均值持续拉向正值，触发条件 `mean_tone >= 0 → 返回 0.0` 永远成立，`social_stress` 字段始终输出 `{}`。
+  2. 第 861 行 `_norm(cultural, 3000)` 归一化 `scale=3000` 严重高估（等价需要 93750 mentions 才满分），实测 USA 当前最高仅 3.2 分，R10 阈值 20 永远不可达。
+- **`核心代码/scan_weak_signals.py`**：
+  - 第 822-823 行 tone 累加加 `if root in (_CAMEO_MILITARY | _CAMEO_TENSION | _CAMEO_PROTEST):` 过滤条件，只统计冲突类事件的 Goldstein 均值。
+  - 第 861 行 `_norm(cultural, 200)` —— scale 从 3000 改为 200（实测校准，EDU/MED/NGO 参与摩擦事件峰值约 150-300 mentions）。
+- **联动**：两路径 `world-sim/macro-scan/核心代码/` 与 `macro-scan/核心代码/` 已同步（容器 mount 仍指向老路径，待 docker-compose.yml 迁移）。
+- **smoke test 验证**（容器内 `python3 /tmp/sws_smoke.py`）：
+  - T1 social_stress: 30 合作 + 15 军事 + 5 抗议 → USA=76.2（修复前为 `{}`）
+  - T2 cultural_friction: 50 EDU/NGO 紧张（150 mentions）→ USA=75.0（旧 scale=3000 → 5.0，远低于 R10=20）
+  - T3 regression: 50 合作 + 50 军事 → USA=100.0（合作事件正确不污染 mean_tone）
+- **关联**：`S:\docs\questions\world-deduction\20260725-world-deduction-gdelt-dimensions-r09-r10-never-fire.md`
+- **后续观察**：按 `docs/Phase2B2D修复方案.md` §五，下周观察 `gdelt_scores.json` 中 cultural_friction 各国峰值确认 scale=200 合理性；3-5 天后再决定是否启用 R09/R10 规则（`synthesis_rules.yaml` `enabled: true`）。
+
+
+## v3.5.61 — 2026-07-25 (by Claude)
+
+### 调参
+
+**situation_detector 话题检测阈值 2.0 → 1.5（by Claude）**
+
+- **修改理由**：`_FREQ_RATIO_THRESHOLD=2.0` 导致连续12天`无新话题候选`（2026-07-14~07-25）；
+  当前新闻话题虽持续存在（中东/日元/FOMC等），但词频倍增不足2倍，阈值偏严。
+  1.5 仍高于随机波动区间（实测基线标准差约 ±0.3倍），保持"宁漏不滥"同时提高敏感度。
+- **`核心代码/situation_detector.py`**：`_FREQ_RATIO_THRESHOLD` 2.0 → 1.5，注释同步更新。热挂载立即生效。
+
+---
+
 ## v3.5.60 — 2026-07-24 (by Claude)
 
 ### Bug 修复

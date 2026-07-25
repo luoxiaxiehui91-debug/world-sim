@@ -118,7 +118,11 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 6. `entrypoint.sh` 必须无 UTF-8 BOM
 7. **只在源码区改代码**（`S:\world-sim\macro-scan\`），改完验证后再推 NAS 和 GitHub
 
-### 联动矩阵（改了左边 → 必须同时更新右边）
+### 改代码后必须同步的文档
+
+> **任务开始时**：用 TodoWrite 逐项列出本次涉及的每个文档更新目标（每个文件一条），不在收尾时回想。
+
+**（改了左边 → 必须同时更新右边）**
 
 | 改了什么 | 必须同时更新 |
 |:---|:---|
