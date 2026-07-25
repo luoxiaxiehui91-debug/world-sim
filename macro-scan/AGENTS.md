@@ -129,7 +129,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 | 任何 `核心代码/*.py` | `TuiYan_CHANGELOG.md` + `VERSION` |
 | `VERSION` 变更时（无论何种改动触发）| `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
 | `VERSION` 变更时（无论何种改动触发）| `世界推演系统_人类说明文档.md`（文件头版本号 + 第一节"当前能力"节 + 九、当前状态表）|
-| `VERSION` 变更时（无论何种改动触发）| `S:\world-sim\世界推演系统_总览.md` 头部版本行（`macro-scan vX.Y.Z`）+ 架构图版本号 |
+| `VERSION` 变更时（无论何种改动触发）| `S:\world-sim\docs\overview.md` 头部版本行（`macro-scan vX.Y.Z`）+ 架构图版本号 |
 | `VERSION` 变更时（无论何种改动触发）| `macro-scan/INDEX.md` 头部版本号 |
 | `核心代码/scheduler.py` | + `INDEX.md`（运行 `gen_docs.py --target scheduler` 刷新）|
 | `核心代码/hybrid_llm.py` | + `INDEX.md`（LLM调用链表手动更新）|

@@ -2,7 +2,7 @@
 
 本仓库整合了两个宏观分析系统，统一管理源码与部署。
 
-> **系统总览**：见 [`世界推演系统_总览.md`](世界推演系统_总览.md)（功能/使用/运维一页通）。  
+> **系统总览**：见 [`docs/overview.md`](docs/overview.md)（功能/使用/运维一页通）。  
 > **AI 工作入口**：见 [`AGENTS.md`](AGENTS.md)（系统定位、阅读路径、操作约束）。  
 > **GitHub**：[luoxiaxiehui91-debug/world-sim](https://github.com/luoxiaxiehui91-debug/world-sim)（private）
 
@@ -14,7 +14,7 @@ world-sim/
 ├── macro-sim/               宏观演化仿真系统
 ├── deploy.sh                统一部署脚本
 ├── AGENTS.md                AI 工作入口
-├── 世界推演系统_总览.md      人类阅读总览
+├── docs/                    系统设计文档（总览、天玑设计等）
 └── README.md                本文件
 ```
 

@@ -71,6 +71,6 @@ macro-scan 每日按时写入，macro-sim 只读消费：
 
 ## 人类文档导航（非 AI 用）
 
-- **系统总览**（推荐入口）→ [`世界推演系统_总览.md`](世界推演系统_总览.md)
+- **系统总览**（推荐入口）→ [`docs/overview.md`](docs/overview.md)
 - **macro-scan 使用手册** → [`macro-scan/世界推演系统_人类说明文档.md`](macro-scan/世界推演系统_人类说明文档.md)
 - **macro-sim 使用手册** → [`macro-sim/macro-sim_人类说明文档.md`](macro-sim/macro-sim_人类说明文档.md)
