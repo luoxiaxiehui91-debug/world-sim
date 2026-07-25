@@ -200,12 +200,12 @@ rules:
     report_prefix: "[社会推演🟡]"
 
   # ─────────────────────────────────────────────────────────────────────────
-  # R09：社会压力持续 — 多国同步悲观情绪积累（Phase 2B，初期关闭）
-  # ⚠️ enabled: false — 等 social_stress 维度积累 3 周数据后手动开启
+  # R09：社会压力持续 — 多国同步悲观情绪积累（Phase 2B）
+  # ✅ enabled: true — 2026-07-25 启用，Bug 1 修复后 social_stress 可正常输出
   # ─────────────────────────────────────────────────────────────────────────
   - rule_id: R09_social_pressure_buildup
     name: "社会压力持续（多国情绪同步悲观）"
-    enabled: false
+    enabled: true
     cooldown_days: 14
     priority: 2
     trigger:
@@ -227,12 +227,12 @@ rules:
     report_prefix: "[社会推演🟡]"
 
   # ─────────────────────────────────────────────────────────────────────────
-  # R10：文化贸易摩擦×地缘升级 — 消费品/科技跨国企业风险（Phase 2D，初期关闭）
-  # ⚠️ enabled: false — 等 cultural_friction 维度积累 3 周数据后手动开启
+  # R10：文化贸易摩擦×地缘升级 — 消费品/科技跨国企业风险（Phase 2D）
+  # ✅ enabled: true — 2026-07-25 启用，Bug 2 修复后 cultural_friction scale 已校准
   # ─────────────────────────────────────────────────────────────────────────
   - rule_id: R10_cultural_trade_friction
     name: "文化摩擦×地缘升级（消费品/科技企业风险）"
-    enabled: false
+    enabled: true
     cooldown_days: 21
     priority: 2
     trigger:

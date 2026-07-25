@@ -817,10 +817,11 @@ def _compute_gdelt_scores(rows: list) -> dict:
             if actor_types & _ACTOR_REGIME and root in (_CAMEO_MILITARY | _CAMEO_TENSION):
                 regime_ch[c] += mentions
 
-            # Phase 2B：社会情绪 — 用 GoldsteinScale 作 Tone 代理（负值=冲突）
+            # Phase 2B：社会情绪 — 只对冲突类事件计算 Goldstein 均值（排除合作事件干扰）
             # GoldsteinScale: -10(冲突) ~ +10(合作)，负值越大说明该国事件越冲突
-            tone_sum[c] += goldstein * mentions
-            tone_cnt[c] += mentions
+            if root in (_CAMEO_MILITARY | _CAMEO_TENSION | _CAMEO_PROTEST):
+                tone_sum[c] += goldstein * mentions
+                tone_cnt[c] += mentions
 
             # Phase 2D：文化摩擦 — EDU/MED/IGO/NGO 参与的制裁/紧张/抗议事件
             if actor_types & _ACTOR_CULTURE and root in (_CAMEO_SANCTION | _CAMEO_TENSION | _CAMEO_PROTEST):
@@ -858,7 +859,7 @@ def _compute_gdelt_scores(rows: list) -> dict:
         "religious_conflict": _norm(rel_eth,    8000),   # 新增，估算基准
         "regime_change":      _norm(regime_ch,  5000),   # 新增，估算基准
         "social_stress":      social_stress,             # Phase 2B：社会情绪压力
-        "cultural_friction":  _norm(cultural,   3000),  # Phase 2D：文化摩擦
+        "cultural_friction":  _norm(cultural,    200),  # Phase 2D：文化摩擦（实测校准，原 3000 严重高估）
     }
 
 

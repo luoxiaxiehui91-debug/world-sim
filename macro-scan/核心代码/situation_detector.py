@@ -46,8 +46,8 @@ assert len(_EXISTING_KWS) > 0, "ALERT_KEYWORDS 为空，alert_config 加载失�
 
 # 每次最多传给 LLM 的候选话题数
 _MAX_CANDIDATES = 10
-# TF-IDF 触发阈值（补丁2：频率比≥2.0 + 持续≥3天）
-_FREQ_RATIO_THRESHOLD = 2.0
+# TF-IDF 触发阈值（补丁2：频率比≥1.5 + 持续≥3天）
+_FREQ_RATIO_THRESHOLD = 1.5
 _MIN_DAYS_ACTIVE = 3
 
 
