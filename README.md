@@ -10,11 +10,14 @@
 
 ```
 world-sim/
-├── macro-scan/              宏观信号观测系统
-├── macro-sim/               宏观演化仿真系统
+├── macro-scan/              宏观信号观测系统（天枢）
+├── macro-sim/               宏观演化仿真系统（天璇）
+├── docs/
+│   ├── overview.md          系统总览（功能/架构/运维一页通）
+│   └── tianji-design.md     天玑（验证层）设计文档 v0.1
 ├── deploy.sh                统一部署脚本
+├── ROADMAP.md               项目内权威 todo（时间门控任务 + 天玑路线图）
 ├── AGENTS.md                AI 工作入口
-├── docs/                    系统设计文档（总览、天玑设计等）
 └── README.md                本文件
 ```
 
