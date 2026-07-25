@@ -32,7 +32,7 @@ FRED / GPR / GDELT / 新闻（RSSHub + Crucix）
 |--------|------|------|----------|---------|---------|
 | macro-scan | 天枢 | 观测层 | 热挂载（改代码即生效） | `/vol2/1000/software/macro-scan` | `macro-scan/世界推演系统_人类说明文档.md` |
 | macro-sim | 天璇 | 仿真层 | COPY模式（改代码需重建镜像） | `/vol2/1000/software/macro-sim` | `macro-sim/macro-sim_人类说明文档.md` |
-| macro-ji（规划中） | **天玑** | 验证层（DRAFT v0.1） | 热挂载（macro-scan扩展模块） | 待建 | `天玑_设计文档_v0.1.md` |
+| macro-ji（规划中） | **天玑** | 验证层（DRAFT v0.1） | 热挂载（macro-scan扩展模块） | 待建 | `docs/tianji-design.md` |
 
 ---
 
@@ -69,7 +69,7 @@ FRED / GPR / GDELT / 新闻（RSSHub + Crucix）
 
 | 文档 | 路径 | 适合谁读 |
 |------|------|---------|
-| **本文件** | `世界推演系统_总览.md` | 任何人，快速了解全局 |
+| **本文件** | `docs/overview.md` | 任何人，快速了解全局 |
 | macro-scan 使用手册 | `macro-scan/世界推演系统_人类说明文档.md` | 你（功能/操作/维护/故障排查）|
 | macro-sim 使用手册 | `macro-sim/macro-sim_人类说明文档.md` | 你（仿真原理/触发/报告/已知问题）|
 | macro-scan 运行状态 | `macro-scan/INDEX.md` | 运维视角，查调度/数据管道/LLM链 |
