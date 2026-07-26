@@ -268,11 +268,11 @@ def load_monthly_history(
                 ts = d.get("updated", "")[:7]  # "YYYY-MM"
                 if ts and ts not in grv_monthly:
                     grv_monthly[ts] = {
-                        "grv":          d.get("global_composite", 50.0),
-                        "grv_energy":   d.get("middle_east_energy", 0.0),
-                        "grv_military": (d.get("russia_europe", 0) + d.get("taiwan_strait", 0)) / 200,
-                        "grv_trade":    d.get("us_china_strategic", 0) / 100,
-                        "us_china_grv": d.get("us_china_strategic", 50.0),
+                        "grv":          d.get("global_composite") or 50.0,
+                        "grv_energy":   d.get("middle_east_energy") or 0.0,
+                        "grv_military": ((d.get("russia_europe") or 0) + (d.get("taiwan_strait") or 0)) / 200,
+                        "grv_trade":    (d.get("us_china_strategic") or 0) / 100,
+                        "us_china_grv": d.get("us_china_strategic") or 50.0,
                     }
     except Exception as e:
         print(f"[world_state] GRV 历史读取失败：{e}")
@@ -317,7 +317,7 @@ def load_monthly_history(
         window = _raw_grv_seq[max(0, i - 2): i + 1]  # 最多取前2个月+当月=3个月
         smoothed = {}
         for k in _grv_keys:
-            vals = [w[k] for w in window if k in w]
+            vals = [w[k] for w in window if k in w and w[k] is not None]
             smoothed[k] = sum(vals) / len(vals) if vals else grv_monthly[dt].get(k, 50.0)
         _smoothed_grv.append(smoothed)
 

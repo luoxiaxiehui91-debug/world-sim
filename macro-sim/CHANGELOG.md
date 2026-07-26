@@ -4,6 +4,35 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
 
+## 2026-07-25 [2.0.11] P0：GRV 历史 None 值防御（by Hermes）
+
+**修改者**：Hermes
+**修改理由**：v2.0.10 引入的 GRV 3 个月移动平均平滑代码对 JSON null 缺防御，`grv_history.jsonl` 中 `middle_east_energy` 维度大量历史 null（522 条中 498 条；2022-06 至今 73 个月中 49 条 null）触发 `TypeError: unsupported operand type(s) for +: int and NoneType`，整个仿真流水线立即崩溃，校准循环无法启动（详见 P0 question 20260725）。
+
+### 修改
+
+- **`core/world_state.py:271-275`**：将 `d.get(k, default)` 统一改为 `d.get(k) or default`：
+  - 271: `grv` (`global_composite`) default 50.0
+  - 272: `grv_energy` (`middle_east_energy`) default 0.0
+  - 273: `grv_military` (`russia_europe` + `taiwan_strait`) 两路都加 `or 0` 兜底再除 200
+  - 274: `grv_trade` (`us_china_strategic`) default 0
+  - 275: `us_china_grv` (`us_china_strategic`) default 50.0
+  - 防御模式：`dict.get(k, default)` 仅在 key 缺失时返回 default，对 value=None 不生效；改用 `... or default` 同时兜底两种情形
+- **`core/world_state.py:320` 平滑列表推导**：增加 `w[k] is not None` 过滤
+  - 原：`vals = [w[k] for w in window if k in w]`
+  - 新：`vals = [w[k] for w in window if k in w and w[k] is not None]`
+
+### 不动
+
+- `data/grv_history.jsonl` 的 498 条历史 null **不回填 0**，由代码层防御吸收（保留原始数据、改动最小）
+- 章节顺序/接口签名/下游数据流未变，向后兼容
+
+### 关联 question 文档
+
+- P0: `docs/questions/world-deduction/20260725-world-deduction-sim-2.0.10-grv-null-crash.md`
+
+---
+
 ## 2026-07-24 [2.0.10] 校准质量改进：GRV平滑 + LLM误差趋势摘要（by Claude）
 
 **修改者**：Claude Code  
