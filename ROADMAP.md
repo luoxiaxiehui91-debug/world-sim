@@ -14,7 +14,8 @@
 | ✅ | 2026-07-25（v3.5.61） | **situation_detector 阈值 2.0→1.5** | 降低告警触发门槛，改善中度地缘压力下的信号灵敏度 |
 | ✅ | 2026-07-25（v3.5.62） | **R09/R10 启用** | social_stress / cultural_friction 积累基线后正式 `enabled: true`；v3.5.62 修复相关 bug 后完成 |
 | ⏳ | 约 2026-08-01 | **R11/R12 开启** | 气候/多域信号积累基线后启用；前置条件：climate_risk 和跨域维度各积累 ≥3 周有效数据 |
-| ⏳ | 2026-09-10 | **GDELT scale 校准** | 校准 `religious_conflict` / `regime_change` 的 scale 参数；GDELT 信号量级与 GRV 其他维度对齐 |
+| ⏳ | 约 2026-08-10 | **signal_synthesizer Staging→Live 切换** | `docker-compose.yml` 加 `STAGING_MODE=0` + `force-recreate`；切后 R09/R10 真正调 LLM + 推 ntfy；前置：signal_synthesizer 上线满 30 天（2026-07-10 起算）|
+| ⏳ | 2026-09-10 | **GDELT scale 校准** | 校准 `religious_conflict` / `regime_change` / `social_stress` / `cultural_friction` 的 scale 参数（含 2026-07-25 v3.5.62 新增两个维度，scale=200 为估算值需实测验证）；GDELT 信号量级与 GRV 其他维度对齐 |
 | ⏳ | 建议 2026-09-30 | **天玑 V1 启动** | 第一批 macro-sim 预测到期后，手动建 `prediction_ledger.db`，录入已有预测并完成首次评分 |
 | ⏳ | 2026-11-19 | **N2 新闻库第二阶段** | news.db 架构第二阶段；扩展信号采集覆盖范围，配套 synthesis_log 验证 |
 | ⏳ | 2027-05-23 | **N3 信号月度校验** | 月度信号校验闭环全面激活；解锁天玑 V4 校准闭环 |
@@ -84,10 +85,3 @@
 |------|---------|------|
 | **ACLED 武装冲突数据接入** | 申请 `acleddata.com` API key | ACLED 提供高质量武装冲突事件数据集；接入后可大幅提升 `armed_conflict` / `regime_change` 维度信号质量 |
 
----
-
-## 已知持续关注
-
-| 问题 | 状态 | 说明 |
-|------|------|------|
-| `climate_risk` 维度始终为 0.0 | 🔍 待调查根因 | 所有采集周期中该维度输出恒为零；疑似数据管道断路或权重归零；需定位具体失效点 |
