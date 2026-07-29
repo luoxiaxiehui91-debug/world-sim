@@ -75,6 +75,7 @@ JOBS = [
     ("daily_narrative", "0700", "1-7", None, [PYTHON, "daily_narrative.py"]),
     ("news_export",  "0705", "1-7", None, [PYTHON, "news_exporter.py"]),         # macro-sim JSON 导出
     ("narrative_proc","0710", "1-7", None, [PYTHON, "narrative_processor.py"]),  # 天玑 叙事预处理（叙事块写入+密度监测）
+    ("defense_rss",   "0712", "1-7", None, [PYTHON, "fetch_defense_rss.py"]),     # T1-3 防务RSS（Al Jazeera/Defense One/WotR）
     ("situation_detect", "0630", "1-7", None, [PYTHON, "situation_detector.py"]),
     ("weekly_synthesis", "2000", "5",  None, [PYTHON, "weekly_synthesis.py"]),       # 周五20:00
     ("dashboard",    "2030", "1-5", None, [PYTHON, "dashboard.py"]),                  # us_daily+china_daily 结束后刷新
@@ -126,6 +127,7 @@ LOG_FILES = {
     "news_prune":  f"{LOG_DIR}/news_prune.log",
     "news_export": f"{LOG_DIR}/news_export.log",
     "narrative_proc":  f"{LOG_DIR}/narrative_proc.log",
+    "defense_rss":     f"{LOG_DIR}/defense_rss.log",
     "slow_vars":       f"{LOG_DIR}/slow_vars.log",
     "tianji_verify":   f"{LOG_DIR}/tianji_verify.log",
     "weight_health":   f"{LOG_DIR}/weight_health.log",

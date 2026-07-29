@@ -55,6 +55,7 @@ SERIES = [
     ("INDPRO",       "工业产出指数",          "1919",   "monthly"),
     # 资产 & 商品
     ("SP500",        "标普500",              "1927",   "daily"),
+    ("VIXCLS",       "VIX恐慌指数",          "1990",   "daily"),   # R08 相关性突变监测用
     ("DCOILWTICO",   "WTI原油",              "1986",   "daily"),
     ("DTWEXBGS",     "贸易加权美元指数",      "2006",   "daily"),
     # 信用 & 金融压力

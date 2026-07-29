@@ -1,6 +1,6 @@
 # 世界推演系统 INDEX
 
-> 生成时间：2026-07-25 | 版本：v3.5.62 | **只读索引，修改请更新 CHANGELOG**
+> 生成时间：2026-07-30 | 版本：v3.7.0 | **只读索引，修改请更新 CHANGELOG**
 
 ---
 
@@ -27,12 +27,27 @@
 | weak_signal | 12:00 | 每日 | `scan_weak_signals.py` | ✅ |
 | weak_signal | 18:00 | 每日 | `scan_weak_signals.py` | ✅ |
 | grv_update | 06:10 | 每日 | `geo_risk_vector.py` | ✅ |
+| earthquake | 06:06 | 每日(06:06/12:06/18:06/00:06) | `fetch_earthquake.py` | ✅ |
+| energy | 06:08 | 每日 | `fetch_energy.py` | ✅ |
+| crypto_extra | 06:12 | 每日 | `fetch_crypto_extra.py` | ✅ |
+| news | 06:16 | 每日 | `fetch_news.py` | ✅ |
+| hdx | 06:20 | 每日 | `fetch_hdx.py` | ✅ |
 | morning | 07:30 | 工作日 | `run_macro_analysis.py` | ✅ |
 | us_daily | 20:00 | 工作日 | `run_macro_analysis.py` | ✅ |
 | china_daily | 20:15 | 工作日 | `run_macro_analysis.py` | ✅ |
 | verify | 09:00 | 每月1日 | `verify_predictions.py` | ✅ |
 | kb_update | 09:05 | 每月1日 | `update_kb_numbers.py` | ✅ |
 | climate | 09:10 | 每月1日 | `fetch_climate_signals.py` | ✅ |
+| world_macro | 05:50 | 每日 | `fetch_world_macro.py` | ✅ |
+| fx_fetch | 05:55 | 每日 | `fetch_fx.py` | ✅ |
+| crypto | 06:00 | 每日 | `fetch_crypto.py` | ✅ |
+| sanctions | 06:05 | 每日 | `fetch_sanctions.py` | ✅ |
+| bdi | 06:25 | 每日 | `fetch_bdi.py` | ✅ |
+| fao | 09:25 | 每月1日 | `fetch_fao.py` | ✅ |
+| commodity_yahoo | 06:26 | 每日 | `fetch_commodity_yahoo.py` | ✅ |
+| airtraffic_opensky | 06:28 | 每日 | `fetch_airtraffic_opensky.py` | ✅ |
+| energy_eia | 06:30 | 每日 | `fetch_energy_eia.py` | ✅ |
+| china_meso | 09:30 | 每月1日 | `fetch_china_meso.py` | ✅ |
 | daily_narrative | 07:00 | 每日 | `daily_narrative.py` | ✅ |
 | news_export | 07:05 | 每日 | `news_exporter.py` | ✅ |
 | situation_detect | 06:30 | 每日 | `situation_detector.py` | ✅ |
@@ -51,7 +66,12 @@
 | GPR | matteoiacoviello.com (7系列) | `data/fred_history/gpr_*.csv` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/fred_history/ \| grep gpr \| wc -l` | timeout=300s |
 | AkShare（中国） | akshare API | `data/china_history.jsonl` | `docker exec macro-scan-macro-scan-1 wc -l /workspace/data/china_history.jsonl` | 8 指标（含 LPR） |
 | GDELT 弱信号 | api.gdeltproject.org | `data/gdelt_scores.json` + `weak_signal_log.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/gdelt_scores.json')); print(list(d.keys()))"` | 每 6h 更新 |
-| GRV 地缘向量 | GDELT + GPR 聚合 + japan_monetary | `data/grv_latest.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/grv_latest.json')); print({k:round(v,1) for k,v in d.items() if isinstance(v,(int,float))})"` | 8维向量（含 japan_monetary），每日 06:10 原子写入 |
+| GRV 地缘向量 | GDELT + GPR 聚合 + japan_monetary + sanctions_risk + seismic_risk + energy_grid_risk | `data/grv_latest.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/grv_latest.json')); print({k:round(v,1) for k,v in d.items() if isinstance(v,(int,float))})"` | 11维向量（含 japan_monetary + sanctions_risk + seismic_risk + energy_grid_risk），每日 06:10 原子写入 |
+| 地震风险 | USGS Earthquake API（直连免key） | `data/earthquake_risk.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/earthquake_risk.json')); print(d)"` | seismic_risk → GRV 非阻断读取 |
+| 能源风险 | UK Carbon Intensity API（直连免key） | `data/energy_risk.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/energy_risk.json')); print(d)"` | grid_carbon_risk → GRV 非阻断读取 |
+| 加密交叉验证 | Binance / Kraken API（直连免key） | `data/crypto_extra_*.json` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/ \| grep crypto_extra` | 波动率交叉验证，落盘 |
+| 新闻情绪 | MarketAux / Currents / Sugra（需key降级） | `data/news_*.json` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/ \| grep news_` | 市场情绪，落盘 |
+| 人道风险 | HDX CKAN API（直连限流） | `data/hdx_*.json` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/ \| grep hdx` | humanitarian_risk，落盘 |
 | ChromaDB 向量库 | `知识库/` (558 .md) | `data/chroma_db/` (4156块) | `docker exec macro-scan-macro-scan-1 python3 -c "import chromadb; c=chromadb.PersistentClient(path='/workspace/data/chroma_db'); print(c.list_collections())"` | BAAI/bge-m3 嵌入 |
 | 新闻库 | RSSHub + Crucix | `data/news.db` + `latest_news.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import sqlite3; c=sqlite3.connect('/workspace/data/news.db'); print(c.execute('SELECT COUNT(*) FROM articles').fetchone()[0])"` | 双源 |
 | ntfy 推送 | `run_macro_analysis.py` | ntfy.sh/***REMOVED*** | `curl -s ntfy.sh/***REMOVED***/json?poll=1` | 强制直连 |
@@ -85,6 +105,14 @@
 | 假设引擎 | `核心代码/hypothesis_engine.py` | 假设推演（H0-H12，详见 `docs/假设推演功能设计方案.md`） |
 | docker-compose | `docker-compose.yml` | 容器编排 |
 | entrypoint | `entrypoint.sh` | 容器启动脚本（改后需重建镜像） |
+| observability | `核心代码/observability.py` | 可观测性模块：心跳 + 任务计数（T1-2，v3.6.5） |
+| **tianji_db** | `核心代码/tianji_db.py` | **天玑**数据库schema+CRUD（predictions/reasoning_trace/narrative_chunks/weight_update_log）(v3.7.0) |
+| **narrative_processor** | `核心代码/narrative_processor.py` | **叙事预处理**：11维叙事桶、staleness衰减、路径B密度监测 (v3.7.0) |
+| **slow_variables** | `核心代码/slow_variables.py` | **慢变量**计算：IRP/UCRI/GCI三个慢变量（月频）(v3.7.0) |
+| **tianji_verifier** | `核心代码/tianji_verifier.py` | **天玑月度验证**：Brier/BSS/锐度评分+反哺降权建议 (v3.7.0) |
+| **weight_matrix** | `核心代码/weight_matrix.py` | **玉衡权重矩阵**：读写+审批+双层clip约束+月度健康检查 (v3.7.0) |
+| **fetch_defense_rss** | `核心代码/fetch_defense_rss.py` | **防务RSS**：Al Jazeera/Defense One/War on the Rocks (v3.7.0) |
+| **fetch_sipri_backdrop** | `核心代码/fetch_sipri_backdrop.py` | **SIPRI军事背景卡片**：年度静态数据，天璇推演时注入 (v3.7.0) |
 
 ---
 
@@ -109,6 +137,12 @@ docker ps --filter name=macro-scan
 
 # scheduler 最新日志
 docker exec macro-scan-macro-scan-1 tail -20 /var/log/macro-scan/scheduler.log
+
+# 心跳存活检查（v3.6.5）
+docker exec macro-scan-macro-scan-1 cat /workspace/data/.scheduler_heartbeat
+
+# 可观测性统计（v3.6.5）
+docker exec macro-scan-macro-scan-1 cat /workspace/data/observability_$(date +%Y-%m-%d).json
 
 # 最新 GRV
 docker exec macro-scan-macro-scan-1 cat /workspace/data/grv_latest.json

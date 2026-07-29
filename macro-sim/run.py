@@ -42,6 +42,21 @@ def run_full_simulation(
     print(f"触发：{event}（L{level}）")
     print(f"{'='*60}")
 
+    # ── 0. 加载军事背景卡片（SIPRI静态，注入推演context）────────
+    military_backdrop = ""
+    try:
+        import sys as _sys, os as _os
+        _backdrop_path = _os.path.join(
+            _os.environ.get("OPENCLAW_WORKSPACE", "/workspace"),
+            "data", "static", "military_backdrop.md"
+        )
+        if _os.path.exists(_backdrop_path):
+            with open(_backdrop_path, encoding="utf-8") as _f:
+                military_backdrop = _f.read()
+            print(f"  [SIPRI] 军事背景卡片加载（{len(military_backdrop)}字符）")
+    except Exception as _e:
+        print(f"  [SIPRI] 背景卡片加载跳过：{_e}")
+
     # ── 1. 校准循环（前50个月历史）────────────────────────
     print("\n[1/3] 校准循环（前50个月历史数据拟合）...")
     calib_result = run_calibration(config_path=config_path)

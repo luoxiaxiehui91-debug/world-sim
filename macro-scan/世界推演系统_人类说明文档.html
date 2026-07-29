@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>世界推演系统 · 使用与维护手册 V3.5.26</title>
+<title>世界推演系统 · 使用与维护手册 V3.7.0</title>
 <style>
   :root {
     --bg: #0f1117; --bg2: #161b22; --bg3: #1c2333;
@@ -22,6 +22,7 @@
   h3 { font-size: 15px; font-weight: 600; color: var(--accent2); margin: 24px 0 12px; }
   p { color: var(--text); margin-bottom: 12px; }
   code { background: var(--bg3); color: var(--orange); padding: 2px 6px; border-radius: 4px; font-size: 13px; font-family: "SF Mono", Consolas, monospace; }
+  .code-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; font-family: "SF Mono", Consolas, monospace; font-size: 12.5px; color: var(--text); overflow-x: auto; line-height: 1.55; margin: 12px 0; }
   .tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin: 2px; }
   .tag-green { background: #1f3d2d; color: var(--green); }
   .tag-blue { background: #1f2d3d; color: var(--accent); }
@@ -44,6 +45,13 @@
   .flow-label { font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
   .flow-content { font-size: 13px; color: var(--text); }
   .flow-sub { font-size: 11px; color: var(--text-dim); }
+
+  /* ── 能力卡片 ── */
+  .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin: 16px 0; }
+  .cap-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: flex; gap: 10px; align-items: flex-start; }
+  .cap-card .cap-ico { font-size: 20px; flex-shrink: 0; }
+  .cap-card .cap-txt { font-size: 13px; color: var(--text); }
+  .cap-card .cap-txt b { color: var(--accent2); }
 
   /* ── 完整流程图 ── */
   .pipeline { display: flex; flex-direction: column; gap: 0; margin: 20px 0; }
@@ -74,12 +82,11 @@
   /* ── 时间线 ── */
   .timeline { display: flex; gap: 0; align-items: flex-start; overflow-x: auto; padding: 16px 0; }
   .tl-item { display: flex; flex-direction: column; align-items: center; min-width: 90px; flex: 1; }
-  .tl-time { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+  .tl-time { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 6px; text-align: center; }
   .tl-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
   .tl-line { flex: 1; height: 2px; background: var(--border); margin: 0 2px; align-self: center; width: 100%; }
   .tl-label { font-size: 11px; color: var(--text-dim); text-align: center; margin-top: 6px; line-height: 1.4; }
   .tl-icon { font-size: 18px; margin-bottom: 4px; }
-  .tl-connector { display: flex; align-items: center; width: 100%; }
 
   /* 提示框 */
   .info-box { background: var(--bg3); border: 1px solid var(--accent); border-radius: 8px; padding: 14px 16px; margin: 16px 0; font-size: 13px; }
@@ -92,8 +99,8 @@
 <header>
   <span style="font-size:24px">🌐</span>
   <h1>世界推演系统 · 使用与维护手册</h1>
-  <span class="ver">V3.5.26</span>
-  <span style="font-size:12px;color:var(--text-dim);margin-left:8px">2026-06-30 更新 · V3.5.26</span>
+  <span class="ver">V3.7.0</span>
+  <span style="font-size:12px;color:var(--text-dim);margin-left:8px">2026-07-30 更新 · V3.7.0</span>
 </header>
 
 <div class="container">
@@ -102,448 +109,306 @@
      一、系统定位
 ══════════════════════════════════════════════ -->
 <h2>一、这是什么</h2>
-<p>跑在家里 NAS 上的 <strong>世界理解引擎</strong>——持续监测全球多维度信号，自动推演可能发生的事，主动提醒你需要关注的变化，也能回答你对世界的任何问题。</p>
+<p><strong>世界推演系统</strong>是一个跑在家里 NAS 上的世界理解引擎——持续监测全球宏观、地缘、社会、气候等多维度状态，并对任意假设情景进行传导路径推演。每天定时从 FRED、akshare、GPR 地缘风险指数、GDELT 等渠道拉取数据，结合知识库让 AI 写出当日世界形势报告，通过 ntfy 推送到手机。支持随时输入任意情景触发假设推演，并给出有历史依据的推演报告。</p>
 
-<div class="arch-diagram">
-  <div class="arch-title">系统三大能力</div>
-  <div class="flow-row" style="gap:24px">
-    <div class="flow-box accent" style="flex:1;min-width:200px">
-      <div class="flow-label">📡 自动监测 + 主动提醒</div>
-      <div class="flow-content">每天自动拉取50+指标，扫描全球新闻，识别异常信号，07:00 主动推送今日摘要</div>
-    </div>
-    <div class="flow-box green" style="flex:1;min-width:200px">
-      <div class="flow-label">🧠 假设推演</div>
-      <div class="flow-content">你描述任意情景（"台海冲突""伊朗封锁霍尔木兹"），系统给出历史类比 + 传导路径 + 置信度推演</div>
-    </div>
-    <div class="flow-box yellow" style="flex:1;min-width:200px">
-      <div class="flow-label">💬 自由问答</div>
-      <div class="flow-content">随时发问（ntfy 或浏览器），系统基于实时数据快照 + 知识库回答，区分事实与推断</div>
-    </div>
-  </div>
+<div class="cap-grid">
+  <div class="cap-card"><span class="cap-ico">🌍</span><span class="cap-txt"><b>5 域推演</b>：经济金融 / 地缘政治 / 社会政治 / 气候自然灾害 / 文化摩擦，48 个快捷别名</span></div>
+  <div class="cap-card"><span class="cap-ico">📚</span><span class="cap-txt"><b>知识库</b>：558 个 .md 文件，4156 个 RAG 向量块（BAAI/bge-m3），传导路径 20 条（含 2 条跨域复合路径）</span></div>
+  <div class="cap-card"><span class="cap-ico">🔍</span><span class="cap-txt"><b>情境自动涌现</b>：每日 06:30 自动从 news.db 发现新话题，推送待确认（阈值 1.5x，v3.5.61）</span></div>
+  <div class="cap-card"><span class="cap-ico">📊</span><span class="cap-txt"><b>历史案例库</b>：32 条（含 1 条反例），覆盖气候 / 社会 / 政治 / 文化 / 地缘域</span></div>
+  <div class="cap-card"><span class="cap-ico">🔗</span><span class="cap-txt"><b>文档同步保障</b>：pre-commit 联动检查 + 每日 watchdog 巡检，防止代码和文档漂移</span></div>
+  <div class="cap-card"><span class="cap-ico">🌏</span><span class="cap-txt"><b>GRV 11 维向量</b>：台海 / 中美 / 俄欧 / 中东能源 / 全球合成 + 气候 / 灾害 / 制裁 / 地震 / 能源电网 / 日元货币，每日 06:10 稳定写出</span></div>
+  <div class="cap-card"><span class="cap-ico">🤖</span><span class="cap-txt"><b>macro-sim 联动</b>：GRV 告警时自动触发 12-Agent Monte Carlo 仿真（v3.5.34+）</span></div>
+  <div class="cap-card"><span class="cap-ico">📡</span><span class="cap-txt"><b>弱信号共振（R01~R10）</b>：10 条规则，R09/R10（社会压力 / 文化摩擦）v3.5.62 修复启用，Staging 模式运行中</span></div>
+  <div class="cap-card"><span class="cap-ico">🧪</span><span class="cap-txt"><b>天玑校验闭环</b>（v3.7.0）：预测自动存档 → 月度 Brier/BSS 评分 → 玉衡权重矩阵反哺</span></div>
+  <div class="cap-card"><span class="cap-ico">📰</span><span class="cap-txt"><b>叙事预处理</b>（v3.7.0）：11维叙事桶，staleness衰减，防务RSS（Al Jazeera/Defense One），注入天璇推演</span></div>
+  <div class="cap-card"><span class="cap-ico">📐</span><span class="cap-txt"><b>慢变量</b>（v3.7.0）：IRP通胀体制概率 / UCRI中美博弈强度 / GCI地缘格局指数，月频更新</span></div>
 </div>
 
 <!-- ══════════════════════════════════════════════
-     二、完整工作原理图
+     二、完整工作流程
 ══════════════════════════════════════════════ -->
-<h2>二、完整工作原理</h2>
+<h2>二、完整工作流程</h2>
 
-<h3>2.1 每日自动运行流程（时间线）</h3>
-
+<h3>2.1 每日自动运行时间线</h3>
 <div class="arch-diagram">
   <div style="display:flex;align-items:flex-start;gap:0;overflow-x:auto;padding:8px 0">
-
-    <!-- 05:25 -->
-    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
-      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">05:25 🆕</div>
-      <div style="font-size:20px;margin-bottom:4px">🌋</div>
-      <div style="font-size:11px;color:var(--text-dim);text-align:center">USGS地震监控<br/>M≥2.5/24h<br/>关键节点区位评分</div>
-    </div>
-    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
-
-    <!-- 05:30 -->
-    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
-      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">05:30</div>
-      <div style="font-size:20px;margin-bottom:4px">📊</div>
-      <div style="font-size:11px;color:var(--text-dim);text-align:center">FRED 数据拉取<br/>36个序列<br/>（小麦/玉米/失业率等）</div>
-    </div>
-    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
-
-    <!-- 05:40-05:45 -->
-    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
-      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">05:40~45</div>
-      <div style="font-size:20px;margin-bottom:4px">🌍</div>
-      <div style="font-size:11px;color:var(--text-dim);text-align:center">GPR 地缘风险指数<br/>+ 中国宏观数据<br/>（akshare）</div>
-    </div>
-    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
-
-    <!-- 06:00 -->
     <div style="display:flex;flex-direction:column;align-items:center;min-width:110px;flex:1">
-      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">06:00 ×4/天</div>
-      <div style="font-size:20px;margin-bottom:4px">🔍</div>
-      <div style="font-size:11px;color:var(--text-dim);text-align:center">弱信号扫描<br/>双源新闻入库<br/>GDELT地缘分析</div>
+      <div class="tl-time">05:25</div>
+      <div style="font-size:20px;margin-bottom:4px">🌋</div>
+      <div class="tl-label">USGS 地震监控<br/>M≥2.5 / 关键节点区位评分</div>
     </div>
     <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
-
-    <!-- 06:10 -->
-    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
-      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">06:10</div>
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:110px;flex:1">
+      <div class="tl-time">05:30</div>
+      <div style="font-size:20px;margin-bottom:4px">📊</div>
+      <div class="tl-label">FRED 数据拉取（经代理）<br/>VIX / 利率曲线 / 信用利差<br/>CPI / 失业率 + 离岸人民币 / 铜价 / TGA</div>
+    </div>
+    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:110px;flex:1">
+      <div class="tl-time">05:40~45</div>
+      <div style="font-size:20px;margin-bottom:4px">🌍</div>
+      <div class="tl-label">GPR 地缘风险指数<br/>+ 中国宏观数据（akshare）</div>
+    </div>
+    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:110px;flex:1">
+      <div class="tl-time">06:10</div>
       <div style="font-size:20px;margin-bottom:4px">⚡</div>
-      <div style="font-size:11px;color:var(--text-dim);text-align:center">GRV 地缘向量聚合<br/>（台海/中美/俄欧/<br/>中东/全球）</div>
+      <div class="tl-label">GRV 地缘向量聚合<br/>8 维（台海/中美/俄欧/中东能源/<br/>全球/气候/灾害/日本货币）</div>
     </div>
     <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
-
-    <!-- 06:30 -->
-    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
-      <div style="font-size:12px;font-weight:700;color:var(--yellow);margin-bottom:8px">06:30 🆕</div>
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:110px;flex:1">
+      <div class="tl-time" style="color:var(--yellow)">06:30</div>
       <div style="font-size:20px;margin-bottom:4px">🗺</div>
-      <div style="font-size:11px;color:var(--text-dim);text-align:center">情境话题检测<br/>自动发现新兴话题<br/>推送确认请求</div>
+      <div class="tl-label">情境话题检测<br/>自动发现新兴话题<br/>推送确认请求</div>
     </div>
     <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
-
-    <!-- 07:00 -->
-    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
-      <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px">07:00</div>
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:110px;flex:1">
+      <div class="tl-time" style="color:var(--green)">07:00</div>
       <div style="font-size:20px;margin-bottom:4px">📱</div>
-      <div style="font-size:11px;color:var(--text-dim);text-align:center"><strong style="color:var(--green)">今日世界摘要</strong><br/>3件最值得关注<br/>含气候信号</div>
+      <div class="tl-label"><strong style="color:var(--green)">今日世界摘要</strong><br/>3 件最值得关注</div>
     </div>
-    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
-
-    <!-- 07:30 -->
-    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
-      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">07:30</div>
-      <div style="font-size:20px;margin-bottom:4px">📋</div>
-      <div style="font-size:11px;color:var(--text-dim);text-align:center">中美晨报<br/>（快速模式）</div>
-    </div>
-    <div style="height:2px;background:var(--border);flex:0.3;margin-top:28px"></div>
-
-    <!-- 20:00 -->
-    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px;flex:1">
-      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">20:00/20:15</div>
-      <div style="font-size:20px;margin-bottom:4px">📰</div>
-      <div style="font-size:11px;color:var(--text-dim);text-align:center">美国/中国<br/>深度分析报告<br/>（工作日）</div>
-    </div>
-
   </div>
 </div>
 
-<h3>2.2 八步分析流水线（每次生成报告）</h3>
-
+<h3>2.2 六步分析流水线（每次生成报告）</h3>
 <div class="pipeline">
-
   <div class="pipe-step">
-    <div class="pipe-num">
-      <div class="pipe-circle" style="background:#1f2d3d;color:var(--accent)">1</div>
-      <div class="pipe-line"></div>
-    </div>
+    <div class="pipe-num"><div class="pipe-circle" style="background:#1f2d3d;color:var(--accent)">1</div><div class="pipe-line"></div></div>
     <div class="pipe-body">
-      <h4>数据拉取 · 多源实时快照</h4>
-      <p>从 FRED（美国 36 条经济指标）、akshare（中国7个宏观指标）、crucix（英文地缘新闻 + GDELT）、RSSHub（中文财经新闻）、GPR（地缘风险指数）同步拉取数据。</p>
-      <div class="detail">关键指标：VIX / T10Y2Y（收益率曲线）/ BAA10Y（信用利差）/ DFF（联邦基金利率）/ CPIAUCSL（CPI）/ UNRATE（失业率）/ 台湾GPR指数 / Crucix GSCPI（供应链压力）</div>
+      <h4>数据拉取（每日 05:30 起，并行）</h4>
+      <p>美国数据（FRED，经代理）：VIX / 利率曲线 / 信用利差 / CPI / 失业率 + 离岸人民币 / 铜价 / TGA 账户余额</p>
+      <div class="detail">GPR 地缘政治风险指数（台湾 / 中国 / 俄罗斯 / 美国 / 全球）；中国数据（akshare，8 指标）：PMI / CPI / PPI / GDP / 工业增加值 / M2 / LPR；自然灾害（USGS M≥2.5）；气候（NOAA ONI + FIRMS 火点）；双源新闻（crucix 英文 + RSSHub 中文）→ news.db；行业 ETF 动量（yfinance）</div>
     </div>
   </div>
-
   <div class="pipe-step">
-    <div class="pipe-num">
-      <div class="pipe-circle" style="background:#1f3d2d;color:var(--green)">2</div>
-      <div class="pipe-line"></div>
-    </div>
+    <div class="pipe-num"><div class="pipe-circle" style="background:#1f3d2d;color:var(--green)">2</div><div class="pipe-line"></div></div>
     <div class="pipe-body">
-      <h4>风险评分 · LEI 框架打分</h4>
-      <p>用6个维度（利率曲线倒挂25分 + 信用利差20分 + 萨姆规则20分 + 初请失业金15分 + 周工时/建筑许可10分 + GDP/消费信心10分）计算衰退风险分（0-100）和通胀风险分。</p>
+      <h4>GRV 地缘风险向量聚合（每日 06:10）</h4>
+      <p>GDELT 信号 + GPR 指数 + 日元数据 → 8 维向量：台海 / 中美战略 / 俄欧 / 中东能源（纯 GDELT）/ 全球综合 / 气候风险 / 灾害风险 / 日本货币压力（japan_monetary）</p>
     </div>
   </div>
-
   <div class="pipe-step">
-    <div class="pipe-num">
-      <div class="pipe-circle" style="background:#2d1f3d;color:var(--purple)">3</div>
-      <div class="pipe-line"></div>
-    </div>
+    <div class="pipe-num"><div class="pipe-circle" style="background:#2d1f3d;color:var(--purple)">3</div><div class="pipe-line"></div></div>
     <div class="pipe-body">
-      <h4>历史情景匹配 · 41 条历史案例</h4>
-      <p>用欧几里得距离在历史案例库（41条，覆盖金融危机/地缘冲突/气候冲击/社会动荡/文化摩擦/航道封锁等）中找到最相似的 2-3 个案例，给出量化参考区间（SPX回撤 P10/P50/P90）。</p>
-      <div class="detail">V3.3 新增案例：印度洋海啸（2004）/ 日本地震+核（2011）/ 巴基斯坦政治+洪灾（2022）/ 土耳其大地震（2023）/ EU AI法案（2024，渐进式无短期冲击反例）+ V3.2新增：沙特阿布盖格/胡塞红海/苏伊士搁浅</div>
+      <h4>弱信号共振检测（扫描结束自动）</h4>
+      <p>signal_synthesizer.py：10 条规则（R01~R10），Staging 模式（只记录，不推演）</p>
     </div>
   </div>
-
   <div class="pipe-step">
-    <div class="pipe-num">
-      <div class="pipe-circle" style="background:#1f3020;color:var(--green)">4</div>
-      <div class="pipe-line"></div>
-    </div>
+    <div class="pipe-num"><div class="pipe-circle" style="background:#1f3020;color:var(--green)">4</div><div class="pipe-line"></div></div>
     <div class="pipe-body">
-      <h4>知识库检索 · RAG 4156 块</h4>
-      <p>用 SiliconFlow BAAI/bge-m3 向量模型在 4156 块知识库文档中检索相关背景知识（558 个 .md 文件），包括分析框架、传导路径库（20条含2条跨域复合路径）、历史案例（32条）、专题报告等。</p>
+      <h4>情境记忆更新（扫描结束自动）</h4>
+      <p>situation_tracker.py：自动更新 6 个正在演化事件的最新信号</p>
     </div>
   </div>
-
   <div class="pipe-step">
-    <div class="pipe-num">
-      <div class="pipe-circle" style="background:#1f2d3d;color:var(--accent)">5</div>
-      <div class="pipe-line"></div>
-    </div>
+    <div class="pipe-num"><div class="pipe-circle" style="background:#1f2d3d;color:var(--accent)">5</div><div class="pipe-line"></div></div>
     <div class="pipe-body">
-      <h4>体制检测 + 蒙特卡洛模拟</h4>
-      <p>判断当前宏观体制（normal/stress/crisis），然后用 GARCH+跳跃扩散模型运行 5000 条路径 × 12 个月的蒙特卡洛模拟，输出 GDP/失业率/通胀的概率分布。</p>
-      <div class="detail">体制切换时传导系数差异：危机态 vs 常态，FFR→失业率系数 ×2.5，信用利差→GDP 系数 ×2.4</div>
+      <h4>情景判断 → 知识库检索 → AI 生成报告</h4>
+      <p>两层知识库检索 + LLM 生成：MiniMax-M3（主力）→ MiMo v2.5 Pro（降级 1）→ SiliconFlow Qwen3.5-27B（兜底）</p>
     </div>
   </div>
-
   <div class="pipe-step">
-    <div class="pipe-num">
-      <div class="pipe-circle" style="background:#3d2e1f;color:var(--yellow)">6</div>
-      <div class="pipe-line"></div>
-    </div>
+    <div class="pipe-num"><div class="pipe-circle" style="background:#1f3d2d;color:var(--green)">6</div><div style="width:2px;background:transparent;flex:1"></div></div>
     <div class="pipe-body">
-      <h4>构建 LLM 提示词 · 数据注入</h4>
-      <p>把步骤1-5的所有结构化数据注入 LLM 提示词：实时数据快照 + 风险评分 + 历史类比 + 知识库片段 + GRV 地缘向量 + 最新新闻标题 + Crucix 实时地缘信号。</p>
-    </div>
-  </div>
-
-  <div class="pipe-step">
-    <div class="pipe-num">
-      <div class="pipe-circle" style="background:#2d1f3d;color:var(--purple)">7</div>
-      <div class="pipe-line"></div>
-    </div>
-    <div class="pipe-body">
-      <h4>LLM 推理 · 降级链</h4>
-      <p>主力：<strong>MiniMax-M3</strong>（Anthropic 兼容接口） → 失败降级 → <strong>MiMo v2.5 Pro</strong>（OpenAI 兼容接口）→ 失败降级 → SiliconFlow Qwen3.5-27B → 纯数据报告（最终兜底）</p>
-    </div>
-  </div>
-
-  <div class="pipe-step">
-    <div class="pipe-num">
-      <div class="pipe-circle" style="background:#1f3d2d;color:var(--green)">8</div>
-      <div style="width:2px;background:transparent;flex:1"></div>
-    </div>
-    <div class="pipe-body">
-      <h4>保存 + 推送</h4>
-      <p>报告保存为 .md 文件（docs/ 目录幂等命名），通过 ntfy 以文件附件形式推送到手机；同时预测入库用于月度准确率校验。</p>
-    </div>
-  </div>
-
-</div>
-
-<h3>2.3 假设推演分支（按需触发）</h3>
-
-<div class="arch-diagram">
-  <div style="display:flex;gap:12px;align-items:stretch;flex-wrap:wrap">
-
-    <div class="flow-box accent" style="flex:1;min-width:160px">
-      <div class="flow-label">① 情景解析</div>
-      <div class="flow-content">别名识别（48个）或关键词分类 → 确定域/子类/烈度<br/><span class="flow-sub">7个域：GEO/FIN/ENERGY/TRADE/MACRO/CLIMATE/CULTURAL/...</span></div>
-    </div>
-    <div class="flow-arrow">→</div>
-
-    <div class="flow-box" style="flex:1;min-width:160px">
-      <div class="flow-label">② 历史类比</div>
-      <div class="flow-content">在41条案例中按 crisis_category + 关键词匹配，返回最相似2-3个案例及量化区间</div>
-    </div>
-    <div class="flow-arrow">→</div>
-
-    <div class="flow-box" style="flex:1;min-width:160px">
-      <div class="flow-label">③ 传导路径</div>
-      <div class="flow-content">从16条路径库中匹配，注入 [PATHS] 节；复合情景支持跨域路径匹配</div>
-    </div>
-    <div class="flow-arrow">→</div>
-
-    <div class="flow-box" style="flex:1;min-width:160px">
-      <div class="flow-label">④ 置信度计算</div>
-      <div class="flow-content">4维调和平均：历史锚定×40%+路径完整性×25%+信号时效×20%+一致性×15%<br/><span class="flow-sub">🟢≥0.65 / 🟡0.45-0.65 / 🔴&lt;0.45</span></div>
-    </div>
-    <div class="flow-arrow">→</div>
-
-    <div class="flow-box green" style="flex:1;min-width:160px">
-      <div class="flow-label">⑤ LLM 推演</div>
-      <div class="flow-content">标准模式：单次推演<br/>深度模式（deep）：三轮链式——不确定因素→概率估计→综合推演+情景树</div>
-    </div>
-
-  </div>
-</div>
-
-<h3>2.4 弱信号 → 自动告警链</h3>
-
-<div class="arch-diagram">
-  <div style="font-size:13px;color:var(--text-dim);line-height:2">
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-      <span class="tag tag-blue">每6h扫描</span>
-      <span>→</span>
-      <span>Z-score 异常检测 + 新闻频率比（7d vs 90d）</span>
-      <span>→</span>
-      <span class="tag tag-yellow">signal_episodes 写入</span>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-      <span class="tag tag-blue">共振检测（R01-R12）</span>
-      <span>→</span>
-      <span>多类别信号在时间窗口内共振 AND GDELT 二次验证</span>
-      <span>→</span>
-      <span class="tag tag-green">触发假设推演（Live模式）</span>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-      <span class="tag tag-purple">R08 always-on</span>
-      <span>跨资产相关性突变（4对指标，Δcorr≥0.4）→ 推送告警</span>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <span class="tag tag-red">B线</span>
-      <span>GRV台海≥68 OR 单日涨幅≥6 → 自动触发台海推演</span>
+      <h4>推送到手机 + Web UI 可查</h4>
+      <p>ntfy 推送摘要；Web UI（:8899）可查历史报告与系统状态</p>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════
-     三、推演域覆盖范围
-══════════════════════════════════════════════ -->
-<h2>三、推演域覆盖（V3.3）</h2>
-<p>输入任意别名或自然语言，系统会自动分类到对应域并调用对应的历史案例 + 传导路径。</p>
-
-<div class="domain-grid">
-  <div class="domain-card full">
-    <div class="domain-name" style="color:var(--green)">🌍 地缘政治 GEO ✅</div>
-    <div class="domain-aliases">台海 / 朝鲜 / 俄乌 / 伊朗 / 中东 / 以色列 / 沙特 / 印度 / 霍尔木兹 / 马六甲 / 苏伊士</div>
-  </div>
-  <div class="domain-card full">
-    <div class="domain-name" style="color:var(--green)">💰 金融 FIN ✅</div>
-    <div class="domain-aliases">日元 / 银行 / 美联储</div>
-  </div>
-  <div class="domain-card full">
-    <div class="domain-name" style="color:var(--green)">⛽ 能源 ENERGY ✅</div>
-    <div class="domain-aliases">油价 / 沙特 / 霍尔木兹</div>
-  </div>
-  <div class="domain-card full">
-    <div class="domain-name" style="color:var(--green)">📦 贸易 TRADE ✅</div>
-    <div class="domain-aliases">芯片 / 关税 / 马六甲 / 苏伊士 / 稀土 / 锂矿</div>
-  </div>
-  <div class="domain-card full">
-    <div class="domain-name" style="color:var(--green)">📉 宏观 MACRO ✅</div>
-    <div class="domain-aliases">美债 / <strong>美国</strong> / <strong>中国</strong></div>
-  </div>
-  <div class="domain-card full">
-    <div class="domain-name" style="color:var(--green)">🌡 气候 CLIMATE ✅</div>
-    <div class="domain-aliases">厄尔尼诺 / 拉尼娜 / 粮食危机 / 旱灾 / 洪灾</div>
-  </div>
-  <div class="domain-card full">
-    <div class="domain-name" style="color:var(--green)">✊ 社会 SOCIAL ✅</div>
-    <div class="domain-aliases">社会动荡</div>
-  </div>
-  <div class="domain-card full">
-    <div class="domain-name" style="color:var(--green)">🗳 政治 POLITICAL ✅</div>
-    <div class="domain-aliases">政变 / 政治危机</div>
-  </div>
-  <div class="domain-card full">
-    <div class="domain-name" style="color:var(--green)">🎭 文化 CULTURAL ✅</div>
-    <div class="domain-aliases">文化抵制</div>
-  </div>
-  <div class="domain-card full">
-    <div class="domain-name" style="color:var(--green)">🌋 自然灾害 CRISIS ✅</div>
-    <div class="domain-aliases">地震 / 海啸 / 火山（V3.3+USGS实时监控V3.4）</div>
-  </div>
-  <div class="domain-card full">
-    <div class="domain-name" style="color:var(--green)">🤖 科技竞争 CRISIS ✅</div>
-    <div class="domain-aliases">AI监管 / 量子 / 太空（V3.3新增）</div>
-  </div>
-  <div class="domain-card full">
-    <div class="domain-name" style="color:var(--green)">🌋 自然灾害 CRISIS ✅</div>
-    <div class="domain-aliases">地震 / 海啸 / 火山（V3.3新增）</div>
-  </div>
-  <div class="domain-card full">
-    <div class="domain-name" style="color:var(--green)">🪨 战略矿产 TRADE ✅</div>
-    <div class="domain-aliases">稀土 / 锂矿（V3.3新增）</div>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     四、手机操作指南
-══════════════════════════════════════════════ -->
-<h2>四、手机操作指南</h2>
-<p>手机安装 ntfy，订阅 <code>***REMOVED***</code> 接收报告；向 <code>***REMOVED***</code> 发指令，格式：<code>1900 &lt;指令&gt;</code></p>
-
-<h3>常用指令速查</h3>
+<h3>2.3 假设推演（按需触发）</h3>
 <table>
-  <tr><th>指令</th><th>功能</th><th>耗时</th></tr>
-  <tr><td><code>1900 ask 你的问题</code></td><td>自由问答</td><td>~30秒</td></tr>
-  <tr><td><code>1900 narrative</code></td><td>立即生成今日世界摘要</td><td>~15秒</td></tr>
-  <tr><td><code>1900 situations</code></td><td>查看追踪事件状态（含待确认）</td><td>即时</td></tr>
-  <tr><td><code>1900 confirm_situation &lt;id&gt;</code></td><td>确认追踪自动检测的新话题</td><td>即时</td></tr>
-  <tr><td><code>1900 dismiss_situation &lt;id&gt;</code></td><td>忽略归档某话题（再次升温会自动恢复）</td><td>即时</td></tr>
-  <tr><td><code>1900 hypothesis 伊朗 L2</code></td><td>假设推演（标准模式）</td><td>5-10分钟</td></tr>
-  <tr><td><code>1900 hypothesis 台海封锁 L3 deep</code></td><td>多步深度推演</td><td>15-20分钟</td></tr>
-  <tr><td><code>1900 both</code></td><td>立即生成中美报告</td><td>5-15分钟</td></tr>
-  <tr><td><code>1900 status</code></td><td>系统运行状态</td><td>即时</td></tr>
-  <tr><td><code>1900 help</code></td><td>完整指令列表</td><td>即时</td></tr>
+  <tr><th>方式</th><th>命令</th></tr>
+  <tr><td>手机 ntfy</td><td><code>1900 hypothesis 台海 L2</code></td></tr>
+  <tr><td>手机 ntfy（多步推理）</td><td><code>1900 hypothesis 台海封锁 L3 deep</code></td></tr>
+  <tr><td>SSH 终端</td><td><code>~/hyp 台海冲突升级</code></td></tr>
+  <tr><td>CLI</td><td><code>python run_macro_analysis.py --hypothesis "台海冲突" --hypothesis-severity L2</code></td></tr>
+</table>
+<p><strong>depth=deep（多步推理链）：</strong>三轮推理——①识别 3 个关键不确定因素 ②每个因素的悲观/基准/乐观概率 ③综合推演 + 情景树。耗时约 15-20 分钟。</p>
+<p><strong>烈度：</strong>L1=外交摩擦/紧张 / L2=局部冲突/震荡（默认）/ L3=全面危机/断裂</p>
+
+<h3>2.4 支持的快速别名（V3.3，48 个）</h3>
+<div class="domain-grid">
+  <div class="domain-card full"><div class="domain-name" style="color:var(--green)">🌍 地缘 GEO</div><div class="domain-aliases">台海 / 朝鲜 / 俄乌 / 伊朗 / 中东 / 以色列 / 沙特 / <b>印度</b> / 霍尔木兹 / 马六甲 / 苏伊士 / <b>巴基斯坦</b> / <b>土耳其</b> / <b>尼日利亚</b> / <b>埃及</b></div></div>
+  <div class="domain-card full"><div class="domain-name" style="color:var(--green)">💰 金融 FIN</div><div class="domain-aliases">日元 / 银行 / 美联储 / <b>美国</b> / <b>中国</b></div></div>
+  <div class="domain-card full"><div class="domain-name" style="color:var(--green)">⛽ 能源 ENERGY</div><div class="domain-aliases">油价 / 沙特 / 霍尔木兹</div></div>
+  <div class="domain-card full"><div class="domain-name" style="color:var(--green)">📦 贸易 TRADE</div><div class="domain-aliases">芯片 / 关税 / <b>稀土</b> / <b>锂矿</b></div></div>
+  <div class="domain-card full"><div class="domain-name" style="color:var(--green)">📉 宏观 MACRO</div><div class="domain-aliases">美债 / <b>美国</b> / <b>中国</b></div></div>
+  <div class="domain-card full"><div class="domain-name" style="color:var(--green)">🌡 气候 CLIMATE</div><div class="domain-aliases">厄尔尼诺 / 拉尼娜 / 粮食危机 / 旱灾 / 洪灾</div></div>
+  <div class="domain-card full"><div class="domain-name" style="color:var(--green)">✊ 社会 SOCIAL</div><div class="domain-aliases">社会动荡</div></div>
+  <div class="domain-card full"><div class="domain-name" style="color:var(--green)">🗳 政治 POLITICAL</div><div class="domain-aliases">政变 / 政治危机</div></div>
+  <div class="domain-card full"><div class="domain-name" style="color:var(--green)">🎭 文化 CULTURAL</div><div class="domain-aliases">文化抵制</div></div>
+  <div class="domain-card full"><div class="domain-name" style="color:var(--green)">🌋 灾害 / 科技</div><div class="domain-aliases"><b>AI监管</b> / <b>量子</b> / <b>太空</b> / 地震 / 海啸 / 火山</div></div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     三、手机操作指南
+══════════════════════════════════════════════ -->
+<h2>三、手机操作指南</h2>
+<p>手机安装 ntfy 客户端，订阅 <code>***REMOVED***</code> 接收报告。</p>
+
+<h3>3.1 报告自动推送时间</h3>
+<table>
+  <tr><th>时间</th><th>内容</th></tr>
+  <tr><td><strong>每日 07:00</strong></td><td><strong>📡 今日世界摘要（3 件最值得关注的事）</strong></td></tr>
+  <tr><td>工作日 07:30</td><td>中美全球快速报告</td></tr>
+  <tr><td>工作日 20:00</td><td>美国深度分析报告</td></tr>
+  <tr><td>工作日 20:15</td><td>中国深度分析报告</td></tr>
+  <tr><td>每月 1 日 09:00</td><td>月度预测准确率校验结果</td></tr>
+  <tr><td>每月 1 日 09:05</td><td>知识库数值字段自动更新通知</td></tr>
+  <tr><td>每月 1 日 09:10</td><td>气候信号更新（ONI + 火点汇总）</td></tr>
+</table>
+<p style="font-size:12px;color:var(--text-dim)">后台静默任务：每日 05:30 FRED 数据、05:40 GPR、05:45 中国数据、每 6h 弱信号扫描、每日 06:10 GRV 聚合、06:05 制裁聚合（v3.5.63 新增）。</p>
+
+<h3>3.2 手动发送指令（手机 → 系统）</h3>
+<p>向 <code>***REMOVED***</code> 发消息，格式 <code>1900 &lt;指令&gt;</code>：</p>
+<table>
+  <tr><th>指令</th><th>效果</th></tr>
+  <tr><td><code>1900 ask 你的问题</code></td><td><strong>自由问答</strong>，约 30 秒返回</td></tr>
+  <tr><td><code>1900 narrative</code></td><td>立即生成今日世界摘要</td></tr>
+  <tr><td><code>1900 situations</code></td><td>查看追踪事件状态（含待确认）</td></tr>
+  <tr><td><code>1900 confirm_situation &lt;id&gt;</code></td><td><strong>确认追踪</strong>自动检测的新话题</td></tr>
+  <tr><td><code>1900 dismiss_situation &lt;id&gt;</code></td><td><strong>忽略归档</strong>某话题，再次升温会自动恢复</td></tr>
+  <tr><td><code>1900 both</code></td><td>立即生成中美全球报告</td></tr>
+  <tr><td><code>1900 both quick</code></td><td>快速报告（约 1 分钟）</td></tr>
+  <tr><td><code>1900 us</code> / <code>1900 china</code></td><td>对应报告</td></tr>
+  <tr><td><code>1900 hypothesis 台海 L2</code></td><td>假设推演</td></tr>
+  <tr><td><code>1900 hypothesis 厄尔尼诺 L2</code></td><td>气候域推演（自 2026-06-11 支持）</td></tr>
+  <tr><td><code>1900 hypothesis 台海封锁 L3 deep</code></td><td>多步深度推演（三轮链式）</td></tr>
+  <tr><td><code>1900 status</code></td><td>系统运行状态</td></tr>
+  <tr><td><code>1900 last</code> / <code>1900 last us</code></td><td>重推最近报告</td></tr>
+  <tr><td><code>1900 news</code></td><td>触发弱信号扫描</td></tr>
+  <tr><td><code>1900 verify</code></td><td>月度预测校验</td></tr>
+  <tr><td><code>1900 synthesize R01</code></td><td>手动触发共振规则</td></tr>
+  <tr><td><code>1900 silence R06 7d</code></td><td>静默某规则 N 天</td></tr>
+  <tr><td><code>1900 help</code></td><td>完整指令列表</td></tr>
 </table>
 
-<h3>Web 界面（局域网）</h3>
-<p>浏览器访问 <code>http://192.168.31.108:8899</code>，支持：💬 自由问答 / 🗺 事件追踪 / 📊 系统状态</p>
+<!-- ══════════════════════════════════════════════
+     四、Web 界面
+══════════════════════════════════════════════ -->
+<h2>四、Web 界面</h2>
+<p>浏览器访问 <code>http://192.168.31.108:8899</code>（局域网内）：</p>
+<table>
+  <tr><th>面板</th><th>功能</th></tr>
+  <tr><td>💬 问答</td><td>自由提问，5 个快捷按钮，约 15-30 秒返回</td></tr>
+  <tr><td>🗺 事件追踪</td><td>6 个持续演化事件的状态（🔴升级中 / 🔵观察中 / 🟡缓和中）</td></tr>
+  <tr><td>📊 系统状态</td><td>GRV 向量 + 最近报告 + 新闻库文章数 + 气候风险</td></tr>
+</table>
 
 <!-- ══════════════════════════════════════════════
      五、系统架构
 ══════════════════════════════════════════════ -->
 <h2>五、系统架构</h2>
-
+<h3>5.1 硬件与服务</h3>
 <div class="arch-diagram">
   <div class="arch-title">NAS 容器 + 云端服务架构</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
-
     <div class="flow-box accent">
       <div class="flow-label">🐳 macro-scan 容器</div>
       <div class="flow-content">主程序，Python 3.11</div>
       <div class="flow-sub">端口 :8899（Web UI）</div>
     </div>
-
     <div class="flow-box">
-      <div class="flow-label">🐳 crucix 容器 :3117</div>
-      <div class="flow-content">多源情报引擎</div>
-      <div class="flow-sub">FIRMS卫星/EIA能源/GDELT/OpenSky</div>
+      <div class="flow-label">🐳 macro-sim 容器</div>
+      <div class="flow-content">宏观演化仿真</div>
+      <div class="flow-sub">daemon 模式常驻</div>
     </div>
-
-    <div class="flow-box">
-      <div class="flow-label">🐳 rsshub 容器 :12000</div>
-      <div class="flow-content">中文财经 RSS</div>
-      <div class="flow-sub">财新/第一财经/华尔街见闻</div>
-    </div>
-
     <div class="flow-box">
       <div class="flow-label">🐳 mihomo 容器 :7890</div>
       <div class="flow-content">出站代理</div>
-      <div class="flow-sub">FRED走代理；ntfy/akshare直连</div>
+      <div class="flow-sub">FRED / CoinGecko / Frankfurter 走代理</div>
     </div>
-
+    <div class="flow-box">
+      <div class="flow-label">🐳 crucix 容器 :3117</div>
+      <div class="flow-content">多源情报引擎</div>
+      <div class="flow-sub">FIRMS / EIA / GDELT / OpenSky</div>
+    </div>
+    <div class="flow-box">
+      <div class="flow-label">🐳 rsshub 容器 :12000</div>
+      <div class="flow-content">中文财经 RSS</div>
+      <div class="flow-sub">财新 / 第一财经 / 华尔街见闻</div>
+    </div>
     <div class="flow-box yellow">
       <div class="flow-label">☁ MiniMax-M3</div>
       <div class="flow-content">主力 LLM（CF-17 切换）</div>
       <div class="flow-sub">api.minimaxi.com/anthropic</div>
     </div>
-
     <div class="flow-box">
       <div class="flow-label">☁ MiMo API</div>
-      <div class="flow-content">降级1（mimo-v2.5-pro）</div>
+      <div class="flow-content">降级 1（mimo-v2.5-pro）</div>
       <div class="flow-sub">token-plan-cn.xiaomimimo.com</div>
     </div>
-
     <div class="flow-box yellow">
       <div class="flow-label">☁ SiliconFlow</div>
-      <div class="flow-content">LLM兜底 + 向量检索</div>
-      <div class="flow-sub">Qwen3.5-27B / bge-m3</div>
+      <div class="flow-content">LLM 兜底 + 向量检索</div>
+      <div class="flow-sub">Qwen3.5-27B / BAAI/bge-m3</div>
     </div>
-
+    <div class="flow-box">
+      <div class="flow-label">☁ NOAA / GPR / WB</div>
+      <div class="flow-content">气候 / 地缘 / 宏观数据源</div>
+      <div class="flow-sub">World Bank 直连（v3.5.63）</div>
+    </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════
-     六、知识库结构
-══════════════════════════════════════════════ -->
-<h2>六、知识库结构</h2>
-
+<h3>5.2 文件位置</h3>
 <table>
-  <tr><th>层级</th><th>内容</th><th>更新方式</th></tr>
-  <tr><td><strong>SKILL 分析框架</strong></td><td>央行决策/板块轮动/大国博弈/LEI 等 11 篇</td><td>人工按需更新</td></tr>
-  <tr><td><strong>领域框架（新）</strong></td><td>气候风险/社会脆弱性/政治周期/文化摩擦/商品地缘/新兴市场等 6 篇</td><td>人工季度更新</td></tr>
-  <tr><td><strong>历史案例库</strong></td><td>41 条（金融/地缘/气候/社会/航道等）含反例</td><td>人工追加</td></tr>
-  <tr><td><strong>传导路径库</strong></td><td>16 条 + 5 条原子路径，含 negative_conditions</td><td>贝叶斯权重更新（--update-weights）</td></tr>
-  <tr><td><strong>专题报告</strong></td><td>地缘事件日志/2026宏观基准情景 等</td><td>人工/AI 事件驱动</td></tr>
-  <tr><td><strong>政治日历</strong></td><td>2026-2027 重要事件节点（FOMC/选举/贸易战等）</td><td>人工更新</td></tr>
-  <tr><td><strong>情境追踪</strong></td><td>6个预设追踪事件 + 自动检测新话题</td><td>每次扫描自动更新</td></tr>
+  <tr><th>路径</th><th>内容</th></tr>
+  <tr><td><code>S:\world-sim\macro-scan\核心代码\</code></td><td>Python 代码（容器 <code>/app/</code>，热挂载）</td></tr>
+  <tr><td><code>S:\world-sim\macro-scan\知识库\</code></td><td>分析框架 + 财经专题 + 传导路径库 + <strong>政治日历</strong></td></tr>
+  <tr><td><code>S:\world-sim\macro-scan\docs\</code></td><td>生成的报告（<code>[假设]_</code> 前缀为推演报告）</td></tr>
+  <tr><td><code>S:\world-sim\macro-scan\data\</code></td><td>运行数据（grv / gdelt / news.db / situations.yaml / climate / chroma_db / fred_history / sanctions_risk.json）</td></tr>
+  <tr><td><code>S:\world-sim\macro-scan\docs\archive\IMPROVEMENT_PLAN.md</code></td><td>系统完善方案（Phase 1~3 全部完成，已归档）</td></tr>
 </table>
+
+<!-- ══════════════════════════════════════════════
+     六、知识库维护
+══════════════════════════════════════════════ -->
+<h2>六、知识库维护</h2>
+
+<h3>6.1 政治日历</h3>
+<p><code>S:\world-sim\macro-scan\知识库\political_calendar.yaml</code>——直接编辑，热挂载，下次 daily_narrative 自动读取。格式：</p>
+<pre class="code-block">- date: "2026-07-29"
+  name: "美联储 FOMC 会议"
+  category: MACRO
+  importance: HIGH
+  notes: "..."</pre>
+
+<h3>6.2 情境事件</h3>
+<p><code>S:\world-sim\macro-scan\data\situations.yaml</code>——追踪正在演化的事件。直接编辑，下次扫描自动更新状态。</p>
+
+<h3>6.3 传导路径校准（有真实事件时）</h3>
+<p>在 <code>data/scenario_wiki.md</code> 找到对应推演条目，填入实际结果后运行：</p>
+<pre class="code-block">docker exec macro-scan-macro-scan-1 python3 /app/verify_hypothesis.py --commit --update-weights</pre>
+<p><code>--update-weights</code> 会自动更新传导路径的置信度（命中 → 上升，未命中 → 下降）。</p>
+
+<h3>6.4 RAG 向量索引重建</h3>
+<pre class="code-block">docker exec macro-scan-macro-scan-1 python3 /app/build_rag_index.py</pre>
 
 <!-- ══════════════════════════════════════════════
      七、日常维护
 ══════════════════════════════════════════════ -->
 <h2>七、日常维护</h2>
-
 <div class="info-box warn">
   <strong>⛔ 硬规则：</strong> 修改任何文件前，必须先读 <code>TuiYan_CHANGELOG.md</code>。改完后，必须追加 CHANGELOG 条目。
 </div>
-
 <h3>常用命令</h3>
 <table>
   <tr><th>场景</th><th>命令</th></tr>
+  <tr><td>SSH 连接</td><td><code>ssh TSX@192.168.31.108</code></td></tr>
   <tr><td>查容器状态</td><td><code>docker ps</code></td></tr>
   <tr><td>查 scheduler 日志</td><td><code>docker exec macro-scan-macro-scan-1 tail -20 /var/log/macro-scan/scheduler.log</code></td></tr>
   <tr><td>查 Web UI 日志</td><td><code>docker exec macro-scan-macro-scan-1 tail -20 /var/log/macro-scan/web.log</code></td></tr>
   <tr><td>手动触发今日摘要</td><td><code>docker exec macro-scan-macro-scan-1 python3 /app/daily_narrative.py</code></td></tr>
+  <tr><td>手动更新情境事件</td><td><code>docker exec macro-scan-macro-scan-1 python3 /app/situation_tracker.py</code></td></tr>
   <tr><td>查 GRV 当前值</td><td><code>docker exec macro-scan-macro-scan-1 cat /workspace/data/grv_latest.json</code></td></tr>
+  <tr><td>查制裁聚合结果（v3.5.63）</td><td><code>docker exec macro-scan-macro-scan-1 cat /workspace/data/sanctions_risk.json</code></td></tr>
   <tr><td>重建 RAG 向量索引</td><td><code>docker exec macro-scan-macro-scan-1 python3 /app/build_rag_index.py</code></td></tr>
   <tr><td>假设推演校准</td><td><code>docker exec macro-scan-macro-scan-1 python3 /app/verify_hypothesis.py --commit --update-weights</code></td></tr>
-  <tr><td>重建容器（端口/env变更）</td><td><code>cd /vol2/1000/software/macro-scan &amp;&amp; docker compose up -d</code></td></tr>
+  <tr><td>重启容器（scheduler / entrypoint 改动后）</td><td><code>cd /vol2/1000/software/macro-scan &amp;&amp; docker compose up -d</code></td></tr>
 </table>
 
 <!-- ══════════════════════════════════════════════
@@ -551,40 +416,79 @@
 ══════════════════════════════════════════════ -->
 <h2>八、故障排查</h2>
 <table>
-  <tr><th>现象</th><th>处理方法</th></tr>
-  <tr><td>Web UI 打不开 :8899</td><td>确认 <code>docker ps</code> 中有 <code>0.0.0.0:8899->8899/tcp</code></td></tr>
-  <tr><td>报告只有数据没叙事</td><td>查 <code>us_daily.log</code>；检查 MiMo key；确认 <code>USE_EXTERNAL_LLM=1</code></td></tr>
-  <tr><td>定时任务未执行</td><td><code>tail -10 /var/log/macro-scan/scheduler.log</code>；若无新日志则重启容器</td></tr>
-  <tr><td>假设推演置信度🔴</td><td>检查 <code>data/grv_latest.json</code> 是否存在；手动跑 <code>fetch_gpr.py</code></td></tr>
-  <tr><td>ask/narrative 无响应</td><td>查 <code>listener.log</code>；确认 ntfy_listener 进程在运行</td></tr>
-  <tr><td>情景分类错误（走UNKNOWN）</td><td>检查输入关键词是否在 <code>hypothesis_templates.yaml</code> aliases/keywords 中；V3.3 已支持48个别名</td></tr>
+  <tr><th>现象</th><th>可能原因</th><th>处理方法</th></tr>
+  <tr><td>Web UI 打不开</td><td>容器未暴露端口 / 未安装 fastapi</td><td>确认 <code>docker ps</code> 中 <code>0.0.0.0:8899-&gt;8899/tcp</code>；<code>pip install fastapi uvicorn</code></td></tr>
+  <tr><td>手机收不到报告</td><td>容器异常 / ntfy 网络</td><td><code>docker ps</code>；<code>docker logs macro-scan-macro-scan-1</code></td></tr>
+  <tr><td>报告只有数据没叙事</td><td>MiniMax-M3 / MiMo / SiliconFlow 故障</td><td>查 <code>us_daily.log</code>；检查 key；确认 <code>USE_EXTERNAL_LLM=1</code></td></tr>
+  <tr><td>ask / narrative 无响应</td><td>ntfy_listener 异常</td><td>查 <code>listener.log</code></td></tr>
+  <tr><td>定时任务未执行</td><td>scheduler 进程异常</td><td><code>tail -10 /var/log/macro-scan/scheduler.log</code>；重启容器</td></tr>
+  <tr><td>假设推演置信度低</td><td>GRV / GPR 数据未入库</td><td>检查 <code>data/grv_latest.json</code>；手动跑 <code>fetch_gpr.py</code></td></tr>
+  <tr><td>制裁聚合缺失 / sanctions_risk 空</td><td>OpenSanctions 下载失败（v3.5.63）</td><td>查 <code>sanctions.log</code>；<code>data/sanctions_risk.json</code> 为 unavailable 时 GRV 自动跳过该维度</td></tr>
+  <tr><td>知识库检索结果空</td><td>向量索引不存在</td><td><code>build_rag_index.py</code> 重建</td></tr>
 </table>
 
 <!-- ══════════════════════════════════════════════
      九、当前状态
 ══════════════════════════════════════════════ -->
-<h2>九、当前状态（V3.5.26，2026-06-30）</h2>
+<h2>九、当前状态（V3.5.64，2026-07-28）</h2>
 <table>
   <tr><th>#</th><th>内容</th><th>状态</th></tr>
-  <tr><td>所有 Phase 1A~3C</td><td>完善方案全部完成</td><td><span class="tag tag-green">✅</span></td></tr>
-  <tr><td>知识库扩展 P0~P2</td><td>CLIMATE/CULTURAL 域 + 5篇文档 + 情境检测</td><td><span class="tag tag-green">✅ 2026-06-11</span></td></tr>
-  <tr><td>中东/航道/科技/稀土覆盖</td><td>别名48个 / 历史案例32条（含1条反例）</td><td><span class="tag tag-green">✅ 2026-06-12</span></td></tr>
-  <tr><td>GRV接入气候/灾害</td><td>climate_risk + disaster_risk 维度</td><td><span class="tag tag-green">✅ 2026-06-12</span></td></tr>
-  <tr><td>v3.5.6 重构 P1~P4</td><td>MiniMax-M3主力；rag_query统一；配置外置</td><td><span class="tag tag-green">✅ 2026-06-27</span></td></tr>
-  <tr><td>v3.5.9~v3.5.14 知识库整理与修复</td><td>目录重编号；9篇深度文章；旧路径零残留</td><td><span class="tag tag-green">✅ 2026-06-29</span></td></tr>
-  <tr><td>v3.5.15~v3.5.21 文档整理与Bug修复</td><td>文档全面更新；16项代码审查修复</td><td><span class="tag tag-green">✅ 2026-06-29</span></td></tr>
+  <tr><td>Phase 1A~3C</td><td>所有 Phase 全部完成</td><td><span class="tag tag-green">✅</span></td></tr>
+  <tr><td>知识库扩展 P0~P2</td><td>CLIMATE / CULTURAL 域 + 5 篇文档 + 情境检测</td><td><span class="tag tag-green">✅ 2026-06-11</span></td></tr>
+  <tr><td>中东 / 航道 / 科技 / 稀土地缘覆盖</td><td>别名 48 个 / 历史案例 32 条（含 1 条反例）</td><td><span class="tag tag-green">✅ 2026-06-12</span></td></tr>
+  <tr><td>自然灾害完整链路</td><td>USGS + 传导路径 + 框架文档</td><td><span class="tag tag-green">✅ 2026-06-12</span></td></tr>
+  <tr><td>GRV 接入气候 / 灾害</td><td>grv_latest.json 新增 climate_risk + disaster_risk</td><td><span class="tag tag-green">✅ 2026-06-12</span></td></tr>
+  <tr><td>周度合成报告</td><td>weekly_synthesis.py；每周五 20:00 推送</td><td><span class="tag tag-green">✅ 2026-06-12</span></td></tr>
+  <tr><td>v3.5.6 重构 P1~P4</td><td>MiniMax-M3 主力；rag_query 统一入口；配置外置</td><td><span class="tag tag-green">✅ 2026-06-27</span></td></tr>
+  <tr><td>v3.5.9~v3.5.14 知识库整理与修复</td><td>目录重编号；9 篇深度文章；旧路径零残留</td><td><span class="tag tag-green">✅ 2026-06-29</span></td></tr>
+  <tr><td>v3.5.15~v3.5.21 文档整理与 Bug 修复</td><td>文档全面更新；16 项代码审查修复</td><td><span class="tag tag-green">✅ 2026-06-29</span></td></tr>
   <tr><td>v3.5.22~v3.5.24 文档同步保障机制</td><td>pre-commit 联动检查 + watchdog 巡检 + gen_docs</td><td><span class="tag tag-green">✅ 2026-06-29</span></td></tr>
   <tr><td>v3.5.25 移除 Ollama 依赖</td><td>Embedding 统一走硅基流动 BAAI/bge-m3</td><td><span class="tag tag-green">✅ 2026-06-30</span></td></tr>
   <tr><td>RAG 索引重建</td><td>4156 块（558 个 .md），覆盖所有新增知识库目录</td><td><span class="tag tag-green">✅ 2026-06-30</span></td></tr>
-  <tr><td>v3.5.26 文档清理</td><td>删除废弃文档；整合知识库扩展方案</td><td><span class="tag tag-green">✅ 2026-06-30</span></td></tr>
-  <tr><td>C线切Live</td><td>STAGING_MODE=False</td><td><span class="tag tag-yellow">⏳ 2026-07-10</span></td></tr>
-  <tr><td>R07/R09/R10/R11/R12</td><td>enabled:true（等数据积累）</td><td><span class="tag tag-yellow">⏳ 约2026-07~08</span></td></tr>
-  <tr><td>geo_risk_vector climate_risk 集成</td><td>grv 7维向量完整集成</td><td><span class="tag tag-yellow">⏳ P3</span></td></tr>
-  <tr><td>N2 / N3</td><td>新闻库二三阶段</td><td><span class="tag tag-yellow">⏳ 2026-11 / 2027-05</span></td></tr>
+  <tr><td>v3.5.26 文档清理</td><td>删除废弃文档；整合知识库扩展方案（v1+v2→合并版）</td><td><span class="tag tag-green">✅ 2026-06-30</span></td></tr>
+  <tr><td>v3.5.31 代码质量修复</td><td>situation_detector / news_exporter / hypothesis_engine / geo_risk_vector 多项 bug 修复</td><td><span class="tag tag-green">✅ 2026-07-08</span></td></tr>
+  <tr><td>v3.5.32 假设推演 Live 模式 P1 修复</td><td>run_hypothesis_simple() 子进程入口；Live 模式推演真正执行</td><td><span class="tag tag-green">✅ 2026-07-08</span></td></tr>
+  <tr><td>v3.5.34 GRV 告警触发 macro-sim 仿真</td><td>sim_trigger.json 写入，macro-sim 闭环</td><td><span class="tag tag-green">✅ 2026-07-08</span></td></tr>
+  <tr><td>v3.5.35~v3.5.39 GRV 修复 + 信号扩展</td><td>GDELT 归一化 / delta bug / R07 启用 / japan_monetary 维度</td><td><span class="tag tag-green">✅ 2026-07-10</span></td></tr>
+  <tr><td><b>v3.5.41 P0 bug 修复</b></td><td>compute_grv NameError：函数体误嵌死代码导致每日 GRV 停止更新，japan_monetary 永远缺失；提取为顶层函数后恢复正常</td><td><span class="tag tag-green">✅ 2026-07-10</span></td></tr>
+  <tr><td><b>v3.5.42 文档补全</b></td><td>新建 monorepo 根级 AGENTS.md；修复 README / 人类说明文档 / AGENTS.md 路径过时问题；补联动矩阵缺口</td><td><span class="tag tag-green">✅ 2026-07-11</span></td></tr>
+  <tr><td><b>macro-sim v2.0 正式部署</b></td><td>12 Agent 演化仿真，校准 + 预测双循环，路径树报告</td><td><span class="tag tag-green">✅ 2026-07-09</span></td></tr>
+  <tr><td><b>v3.5.61 situation_detector 阈值</b></td><td>_FREQ_RATIO_THRESHOLD 2.0→1.5，提升新话题检测灵敏度</td><td><span class="tag tag-green">✅ 2026-07-25</span></td></tr>
+  <tr><td><b>v3.5.62 R09/R10 bug 修复 + 启用</b></td><td>social_stress tone 过滤修复 + cultural_friction scale 3000→200；R09/R10 enabled:true，Staging 模式运行</td><td><span class="tag tag-green">✅ 2026-07-25</span></td></tr>
+  <tr><td><b>v3.5.64 P0+P1 数据源接入</b></td><td>fetcher_base 适配层（令牌桶 + 重试退避 + 代理 + 原子写 + as-of 时间戳）；USGS 地震 → seismic_risk、UK 碳强度 → grid_carbon_risk 接 GRV（首跑 seismic_risk=100.0 / grid_carbon_risk=6.2）；Binance + Kraken 加密交叉验证、MarketAux + Currents + Sugra 新闻情绪、HDX 人道风险落盘（需 key 源优雅降级）</td><td><span class="tag tag-green">✅ 2026-07-28</span></td></tr>
+  <tr><td><b>v3.5.63 制裁信号源 bulk data 集成</b></td><td>OpenSanctions bulk data 轻量国别聚合替代 yente 容器；sanctions_risk 持久基线接真数据（首跑 global=82.7，RUS 22141/98.8）</td><td><span class="tag tag-green">✅ 2026-07-28</span></td></tr>
+  <tr><td>R11 / R12 开启</td><td>气候 / 多域信号积累基线后启用</td><td><span class="tag tag-yellow">⏳ 约 2026-08-01</span></td></tr>
+  <tr><td>Staging→Live 切换</td><td>STAGING_MODE=0，R09/R10 真正调 LLM + 推 ntfy</td><td><span class="tag tag-yellow">⏳ 约 2026-08-10</span></td></tr>
+  <tr><td>GDELT scale 校准</td><td>social_stress / cultural_friction / religious_conflict / regime_change scale 实测校准</td><td><span class="tag tag-yellow">⏳ 2026-09-10</span></td></tr>
+  <tr><td>N2 / N3</td><td>新闻库二三阶段</td><td><span class="tag tag-yellow">⏳ 2026-11-19 / 2027-05-23</span></td></tr>
 </table>
 
+<h3>9.1 macro-sim 联动（GRV 告警时自动触发）</h3>
+<p>GRV 单日涨幅 ≥6 或台海 ≥68 时，macro-scan 在推演结束后自动写 <code>sim_trigger.json</code>，macro-sim daemon 检测到后：</p>
+<ol style="margin:0 0 12px 20px;color:var(--text-dim);font-size:13px">
+  <li>读取当前 GRV / FRED / 新闻数据</li>
+  <li>前 50 个月历史校准（LLM 自动调参）</li>
+  <li>Monte Carlo × 100，预测未来 24 个月演化路径</li>
+  <li>生成 Markdown 报告写入 <code>docs/仿真报告/</code></li>
+  <li>ntfy 推送摘要（含路径概率 + 传导链 + 情景定性）</li>
+</ol>
+<p><strong>报告位置：</strong><code>S:\world-sim\macro-scan\docs\仿真报告\YYYY-MM-DD_HH-MM_演化_L{级别}_校准{分数}.md</code></p>
+<p><strong>手动触发</strong>（SSH 进 NAS 后）：</p>
+<pre class="code-block">echo '{"level":3,"event":"手动测试"}' &gt; \
+  /vol2/1000/software/macro-scan/data/sim_trigger.json</pre>
+
+<!-- ══════════════════════════════════════════════
+     十、备份记录
+══════════════════════════════════════════════ -->
+<h2>十、备份记录</h2>
+<pre class="code-block">S:\world-sim\macro-scan\备份\世界推演系统_V&lt;版本&gt;_&lt;日期&gt;.zip</pre>
+<p>V1.0（2026-05-23）/ V1.2（2026-05-24）/ V1.3（2026-05-25）</p>
+<blockquote style="border-left:3px solid var(--border);padding-left:12px;color:var(--text-dim);font-size:13px;margin:12px 0">
+  建议：知识库重编号完成后（v3.5.13）打一个 V3.5.14 备份。
+</blockquote>
+
 <div style="margin-top:40px;text-align:center;color:var(--text-dim);font-size:12px">
-  世界推演系统 V3.5.26 · 维护路径 S:\macro-scan\ · 2026-06-30
+  世界推演系统 V3.5.64 · 维护路径 S:\world-sim\macro-scan\ · 2026-07-28
 </div>
 
 </div>
