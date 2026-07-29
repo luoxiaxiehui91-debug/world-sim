@@ -611,6 +611,7 @@ def generate_report(
     intl_context: str = "",
     spillover_text: str = "",
     crucix_context: str = "",
+    narrative_context: str = "",
 ) -> str:
     """构建LLM提示词并调用LLM生成分析报告。
 
@@ -775,6 +776,7 @@ def generate_report(
 ## 最新地缘政治事件
 {geo_events}
 {crucix_context}
+{narrative_context}
 ## 分析要求：
 {analysis_req}
 
@@ -2680,6 +2682,33 @@ def run_macro_analysis(
         if crucix_context:
             print(f"  [Crucix] 注入 {len(_cx_lines)} 条实时信号到 prompt")
 
+        # 叙事上下文注入（天玑 narrative_processor）
+        narrative_context = ""
+        try:
+            from narrative_processor import get_narrative_context_for_trigger
+            from geo_risk_vector import compute_grv
+            import json as _json, os as _os
+            _grv_path = _os.path.join(_os.environ.get("OPENCLAW_WORKSPACE", "/workspace"), "data", "grv_latest.json")
+            _grv = {}
+            if _os.path.exists(_grv_path):
+                with open(_grv_path, encoding="utf-8") as _f:
+                    _grv = _json.load(_f)
+            # 取偏离度最高的维度作为触发维度
+            _grv_dims = ["taiwan_strait", "us_china_strategic", "russia_europe",
+                         "middle_east_energy", "sanctions_risk", "energy_grid_risk"]
+            _triggered = [d for d in _grv_dims if float(_grv.get(d, 0)) > 60]
+            if not _triggered:
+                _triggered = ["global_composite"]
+            _nar_chunks = get_narrative_context_for_trigger(_triggered, total_token_budget=6000)
+            if _nar_chunks:
+                _nar_lines = []
+                for dim, text in _nar_chunks.items():
+                    _nar_lines.append(f"\n### 叙事信号 — {dim}\n{text[:1500]}")
+                narrative_context = "\n## 叙事上下文（天玑预处理）\n" + "\n".join(_nar_lines)
+                print(f"  [叙事] 注入 {len(_nar_chunks)} 个维度叙事上下文")
+        except Exception as _ne:
+            print(f"  [叙事] 叙事上下文加载跳过：{_ne}")
+
         # 美国蒙特卡洛
         if country in ("us", "both"):
             from monte_carlo_v2 import run_monte_carlo_compat
@@ -2738,6 +2767,7 @@ def run_macro_analysis(
             intl_context=intl_context,
             spillover_text=spillover_text,
             crucix_context=crucix_context,
+            narrative_context=narrative_context,
         )
         us_report = call_ollama(us_prompt, mode=reasoning)
         if not us_report or not us_report.strip():
@@ -2765,6 +2795,7 @@ def run_macro_analysis(
             intl_context=intl_context,
             spillover_text=spillover_text,
             crucix_context=crucix_context,
+            narrative_context=narrative_context,
         )
         china_report = call_ollama(china_prompt, mode=reasoning)
         if not china_report or not china_report.strip():
@@ -2794,6 +2825,7 @@ def run_macro_analysis(
             regime=regime,
             intl_context=intl_context,
             crucix_context=crucix_context,
+            narrative_context=narrative_context,
         )
         report = call_ollama(prompt, mode=reasoning)
 

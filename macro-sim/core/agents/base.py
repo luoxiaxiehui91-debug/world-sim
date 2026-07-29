@@ -6,10 +6,15 @@ base.py — MacroAgent 基类 + AgentParams
 - 参数由校准循环自动调整，变更记录到 calibration_log.jsonl
 - Agent 决策时可见上一步其他 Agent 的行动（按信息延迟档）
 - 预留接口：from_yaml() 支持从 agents.yaml 加载
+
+v3 新增：
+- decide_with_trace() 返回结构化输出（含因果链、expected_state_changes）
+- AgentOutput dataclass 统一输出格式
+- 供天玑推理溯源存档使用
 """
 
 from dataclasses import dataclass, field
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, List, Dict, Any
 
 
 @dataclass
@@ -87,6 +92,23 @@ class MacroAgent:
             action = "HOLD"
         return action
 
+    def decide_with_trace(self, ctx: dict, round_num: int = 0, use_llm: bool = False) -> "AgentOutput":
+        """
+        v3 新增：返回结构化 AgentOutput，包含因果链和预期状态变化。
+        子类可覆盖 _build_output() 提供详细因果链。
+        默认实现：调用 decide() 并构建最简 AgentOutput。
+        """
+        action = self.decide(ctx, use_llm=use_llm)
+        output = AgentOutput(
+            agent_id=self.agent_id,
+            round=round_num,
+            action=action,
+        )
+        # 子类可覆盖此方法填充因果链
+        if hasattr(self, "_build_output"):
+            output = self._build_output(ctx, action, round_num)
+        return output
+
     def _decide_rules(self, ctx: dict) -> str:
         """子类覆盖。基类默认 HOLD。"""
         return "HOLD"
@@ -113,3 +135,75 @@ class MacroAgent:
     def from_yaml(cls, cfg: dict) -> "MacroAgent":
         """预留接口：从 agents.yaml 的一条配置构建 Agent。子类覆盖以注入正确类型。"""
         raise NotImplementedError
+
+
+# ── 结构化输出（v3 新增）────────────────────────────────────────────────────
+
+@dataclass
+class CausalChain:
+    """一条因果链（用于天玑推理溯源）。"""
+    chain_id:   str
+    nodes:      List[str]          # ["台海紧张↑", "能源价格↑", "通胀压力↑"]
+    confidence: float = 0.5
+    source:     str = "rules"      # "rules" / "historical_match" / "llm_reasoning"
+
+    def to_dict(self) -> dict:
+        return {
+            "chain_id":   self.chain_id,
+            "nodes":      self.nodes,
+            "confidence": round(self.confidence, 3),
+            "source":     self.source,
+        }
+
+
+@dataclass
+class StateChangePrediction:
+    """Agent 预期会引发的世界状态变化。"""
+    variable:  str    # e.g. "us_10y_yield", "usd_cny", "oil_price"
+    direction: str    # "up" / "down" / "stable"
+    magnitude: str    # e.g. "10-20bp", "0.5-1%", "small"
+    horizon:   str    # e.g. "1w", "1m", "3m"
+
+    def to_dict(self) -> dict:
+        return {
+            "variable":  self.variable,
+            "direction": self.direction,
+            "magnitude": self.magnitude,
+            "horizon":   self.horizon,
+        }
+
+
+@dataclass
+class AgentOutput:
+    """
+    Agent 一轮决策的完整结构化输出。
+    用于：天玑推理溯源存档 + 价格更新机制输入 + 叙事生成。
+    """
+    agent_id:               str
+    round:                  int
+    action:                 str
+    causal_chains:          List[CausalChain] = field(default_factory=list)
+    expected_state_changes: List[StateChangePrediction] = field(default_factory=list)
+    responding_to:          List[Dict[str, Any]] = field(default_factory=list)
+    constraints:            List[str] = field(default_factory=list)
+    key_uncertainties:      List[str] = field(default_factory=list)
+    confidence:             float = 0.5
+    time_horizon:           str = "1m"
+    # 类型专属字段（各子类填充）
+    type_specific:          Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "agent_id":               self.agent_id,
+            "round":                  self.round,
+            "action":                 self.action,
+            "causal_chains":          [c.to_dict() for c in self.causal_chains],
+            "expected_state_changes": [s.to_dict() for s in self.expected_state_changes],
+            "responding_to":          self.responding_to,
+            "constraints":            self.constraints,
+            "key_uncertainties":      self.key_uncertainties,
+            "confidence":             round(self.confidence, 3),
+            "time_horizon":           self.time_horizon,
+            "type_specific":          self.type_specific,
+        }
+

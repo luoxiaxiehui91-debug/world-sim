@@ -19,6 +19,12 @@ Run as: python3 /app/scheduler.py >> /var/log/macro-scan/scheduler.log 2>&1
 """
 import subprocess, time, sys, os, datetime
 
+# T1-2 可观测性：心跳+任务计数（零风险，纯写日志，出错不阻断调度器）
+try:
+    from observability import observe
+except Exception:
+    observe = None
+
 WORKDIR = "/app"
 PYTHON  = "/usr/local/bin/python3"
 LOG_DIR = "/var/log/macro-scan"
@@ -29,10 +35,36 @@ JOBS = [
     ("fred_fetch",  "0530", "1-7", None, [PYTHON, "fetch_fred_history.py"]),
     ("gpr_fetch",   "0540", "1-7", None, [PYTHON, "fetch_gpr.py"]),
     ("china_fetch", "0545", "1-7", None, [PYTHON, "fetch_china_data.py"]),
+    ("world_macro", "0550", "1-7", None, [PYTHON, "fetch_world_macro.py"]),
+    ("fx_fetch",    "0555", "1-7", None, [PYTHON, "fetch_fx.py"]),
+    ("crypto",      "0600", "1-7", None, [PYTHON, "fetch_crypto.py"]),
     ("weak_signal", "0000", "1-7", None, [PYTHON, "scan_weak_signals.py"]),
     ("weak_signal", "0600", "1-7", None, [PYTHON, "scan_weak_signals.py"]),
     ("weak_signal", "1200", "1-7", None, [PYTHON, "scan_weak_signals.py"]),
     ("weak_signal", "1800", "1-7", None, [PYTHON, "scan_weak_signals.py"]),
+    ("sanctions",   "0605", "1-7", None, [PYTHON, "fetch_sanctions.py"]),
+    # ── 新接入 P0+P1 源（fetcher_base 适配层；常驻进程、独立时间槽、互不阻塞）──
+    # 喂 GRV 的源（earthquake / energy）排在大盘 grv_update 06:10 之前，保证当天先落盘
+    ("earthquake",  "0606", "1-7", None, [PYTHON, "fetch_earthquake.py"]),   # P0 USGS 地震（喂 seismic_risk）
+    ("energy",      "0608", "1-7", None, [PYTHON, "fetch_energy.py"]),       # P1 电网/能源（喂 energy_grid_risk）
+    # 以下不喂 GRV，仅落盘交叉验证/事件源，错峰在 grv_update 之后
+    ("crypto_extra","0612", "1-7", None, [PYTHON, "fetch_crypto_extra.py"]), # P1 Binance/Kraken 冗余行情
+    ("news",        "0616", "1-7", None, [PYTHON, "fetch_news.py"]),         # P1 MarketAux/Currents/Sugra
+    ("hdx",         "0620", "1-7", None, [PYTHON, "fetch_hdx.py"]),          # P1 人道/危机冲击
+    # 新增 BDI / FAO（T01/T02：fetcher_base 适配层；仅落盘，不喂 GRV）
+    # BDI 实时拉取本环境不可行（Stooq OpenResty 验 TLS 指纹 + Chromium 下载不可达，详见 CHANGELOG v3.6.0），
+    # 改为读取本地预置历史 CSV：data/bdi_history.csv（运维从 Windows 浏览器导出 Stooq bmd.csv 后放入）。
+    ("bdi",         "0625", "1-7", None, [PYTHON, "fetch_bdi.py"]),           # P0 波罗的海干散货指数（本地 CSV，日频）
+    ("fao",         "0925", "1-7", 1,    [PYTHON, "fetch_fao.py"]),           # P0 FAO 粮食价格指数（每月1日 dom=1）
+    # 新增 商品/航空/中观（T1/T2/T3：fetcher_base 适配层；仅落盘，不喂 GRV，错峰）
+    ("commodity_yahoo",    "0626", "1-7", None, [PYTHON, "fetch_commodity_yahoo.py"]),   # P0 Yahoo 商品（日频，错峰 bdi 0625）
+    ("airtraffic_opensky", "0628", "1-7", None, [PYTHON, "fetch_airtraffic_opensky.py"]), # P0 OpenSky 航空（日频）
+    ("energy_eia",         "0630", "1-7", None, [PYTHON, "fetch_energy_eia.py"]),          # P0 EIA 能源（日频，错峰 commodity_yahoo 0626）
+    ("china_meso",         "0930", "1-7", 1,    [PYTHON, "fetch_china_meso.py"]),          # P0 AkShare 中观（每月1日，错峰 fao 0925）
+    # 地震为实时外生冲击，日内再刷 3 次（错峰，不与白天任务冲突）
+    ("earthquake",  "1206", "1-7", None, [PYTHON, "fetch_earthquake.py"]),
+    ("earthquake",  "1806", "1-7", None, [PYTHON, "fetch_earthquake.py"]),
+    ("earthquake",  "0006", "1-7", None, [PYTHON, "fetch_earthquake.py"]),
     ("grv_update",  "0610", "1-7", None, [PYTHON, "geo_risk_vector.py"]),
     ("morning",     "0730", "1-5", None, [PYTHON, "run_macro_analysis.py", "--country", "both", "--depth", "quick"]),
     ("us_daily",    "2000", "1-5", None, [PYTHON, "run_macro_analysis.py", "--country", "us", "--depth", "standard"]),
@@ -42,10 +74,14 @@ JOBS = [
     ("climate",     "0910", "1-7", 1,    [PYTHON, "fetch_climate_signals.py"]),
     ("daily_narrative", "0700", "1-7", None, [PYTHON, "daily_narrative.py"]),
     ("news_export",  "0705", "1-7", None, [PYTHON, "news_exporter.py"]),         # macro-sim JSON 导出
+    ("narrative_proc","0710", "1-7", None, [PYTHON, "narrative_processor.py"]),  # 天玑 叙事预处理（叙事块写入+密度监测）
     ("situation_detect", "0630", "1-7", None, [PYTHON, "situation_detector.py"]),
     ("weekly_synthesis", "2000", "5",  None, [PYTHON, "weekly_synthesis.py"]),       # 周五20:00
     ("dashboard",    "2030", "1-5", None, [PYTHON, "dashboard.py"]),                  # us_daily+china_daily 结束后刷新
     ("verify_auto", "0915", "1-7", 1,   [PYTHON, "verify_hypothesis.py", "--commit", "--update-weights"]),  # 每月1日
+    ("slow_vars",   "0935", "1-7", 1,   [PYTHON, "slow_variables.py"]),              # 天玑 慢变量更新（每月1日）
+    ("tianji_verify","0940", "1-7", 1,   [PYTHON, "tianji_verifier.py"]),             # 天玑 月度验证+反哺检查（每月1日）
+    ("weight_health","0945", "1-7", 1,   [PYTHON, "weight_matrix.py", "--health"]),  # 玉衡 权重矩阵健康检查（每月1日）
     ("news_prune",  "0920", "1-7", 1,   [PYTHON, "-c",
         "import sys; sys.path.insert(0,'.'); import news_db; "
         "from optim_config import DATA_DIR; import os; "
@@ -69,11 +105,30 @@ LOG_FILES = {
     "climate":     f"{LOG_DIR}/climate.log",
     "situation_detect": f"{LOG_DIR}/situation_detect.log",
     "disaster":    f"{LOG_DIR}/disaster.log",
+    "world_macro": f"{LOG_DIR}/world_macro.log",
+    "fx_fetch":    f"{LOG_DIR}/fx.log",
+    "crypto":      f"{LOG_DIR}/crypto.log",
+    "sanctions":   f"{LOG_DIR}/sanctions.log",
+    "earthquake":  f"{LOG_DIR}/earthquake.log",
+    "energy":      f"{LOG_DIR}/energy.log",
+    "crypto_extra":f"{LOG_DIR}/crypto_extra.log",
+    "news":        f"{LOG_DIR}/news.log",
+    "hdx":         f"{LOG_DIR}/hdx.log",
+    "bdi":         f"{LOG_DIR}/bdi.log",
+    "fao":         f"{LOG_DIR}/fao.log",
+    "commodity_yahoo":   f"{LOG_DIR}/commodity_yahoo.log",
+    "airtraffic_opensky":f"{LOG_DIR}/airtraffic_opensky.log",
+    "energy_eia":        f"{LOG_DIR}/energy_eia.log",
+    "china_meso":        f"{LOG_DIR}/china_meso.log",
     "weekly_synthesis": f"{LOG_DIR}/weekly_synthesis.log",
     "dashboard":    f"{LOG_DIR}/dashboard.log",
     "verify_auto": f"{LOG_DIR}/verify_auto.log",
     "news_prune":  f"{LOG_DIR}/news_prune.log",
     "news_export": f"{LOG_DIR}/news_export.log",
+    "narrative_proc":  f"{LOG_DIR}/narrative_proc.log",
+    "slow_vars":       f"{LOG_DIR}/slow_vars.log",
+    "tianji_verify":   f"{LOG_DIR}/tianji_verify.log",
+    "weight_health":   f"{LOG_DIR}/weight_health.log",
 }
 
 def log(msg):
@@ -122,6 +177,13 @@ def main():
     log("Python scheduler started (seccomp-free)")
     
     while True:
+        # T1-2: 心跳（每轮循环打一次，30s 间隔）
+        if observe:
+            try:
+                observe.heartbeat()
+            except Exception:
+                pass
+
         for job_name, sched_hhmm, sched_wd, sched_dom, cmd in JOBS:
             key = (job_name, sched_hhmm)
             now_ts = datetime.datetime.now().timestamp()
@@ -150,6 +212,12 @@ def main():
                     )
                     log(f"Job spawned PID={proc.pid}: {job_name}")
                     job_log(job_name, f"Job PID={proc.pid}")
+                    # T1-2: 任务触发计数
+                    if observe:
+                        try:
+                            observe.job_fired(job_name)
+                        except Exception:
+                            pass
             except Exception as e:
                 log(f"Job spawn failed: {job_name} {e}")
                 job_log(job_name, f"Job spawn ERROR: {e}")

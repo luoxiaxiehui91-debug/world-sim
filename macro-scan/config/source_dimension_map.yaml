@@ -1,0 +1,111 @@
+# source_dimension_map.yaml
+# 数据源 → GRV 维度映射
+# primary: 主维度（与 GRV 11维一一对应）
+# tau: staleness 半衰期（小时），普通新闻72，结构性事件240
+# type: 信源类型
+
+sources:
+  marketaux:
+    primary: global_composite
+    tau: 72
+    type: financial_news
+  currents:
+    primary: global_composite
+    tau: 72
+    type: news
+  rsshub_caixin:
+    primary: us_china_strategic
+    tau: 72
+    type: chinese_media
+  rsshub_yicai:
+    primary: us_china_strategic
+    tau: 72
+    type: chinese_media
+  rsshub_wsj:
+    primary: global_composite
+    tau: 72
+    type: financial_news
+  rsshub_bbc:
+    primary: global_composite
+    tau: 72
+    type: news
+  rsshub_reuters:
+    primary: global_composite
+    tau: 72
+    type: financial_news
+  rsshub_nikkei:
+    primary: japan_monetary
+    tau: 72
+    type: financial_news
+  rsshub_eastmoney:
+    primary: us_china_strategic
+    tau: 72
+    type: chinese_media
+  rsshub_ft:
+    primary: global_composite
+    tau: 72
+    type: financial_news
+  aljazeera:
+    primary: middle_east_energy
+    tau: 72
+    type: news
+  defense_one:
+    primary: taiwan_strait
+    tau: 120
+    type: defense_media
+  war_on_rocks:
+    primary: russia_europe
+    tau: 120
+    type: defense_media
+  opensanctions:
+    primary: sanctions_risk
+    tau: 240
+    type: official_statement
+  energy_eia:
+    primary: energy_grid_risk
+    tau: 168
+    type: official_data
+  gdacs:
+    primary: disaster_risk
+    tau: 48
+    type: humanitarian
+  hdx:
+    primary: disaster_risk
+    tau: 240
+    type: humanitarian
+  climate_signals:
+    primary: climate_risk
+    tau: 240
+    type: official_data
+  crucix_gscpi:
+    primary: global_composite
+    tau: 48
+    type: osint
+  crucix_nuke:
+    primary: taiwan_strait
+    tau: 24
+    type: osint
+  crucix_air:
+    primary: taiwan_strait
+    tau: 24
+    type: osint
+  crucix_sdr:
+    primary: sanctions_risk
+    tau: 24
+    type: osint
+  akshare_china:
+    primary: us_china_strategic
+    tau: 240
+    type: official_data
+  akshare_world:
+    primary: global_composite
+    tau: 240
+    type: official_data
+  usgs:
+    primary: seismic_risk
+    tau: 24
+    type: official_data
+  unknown:
+    primary: global_composite
+    tau: 72
+    type: news

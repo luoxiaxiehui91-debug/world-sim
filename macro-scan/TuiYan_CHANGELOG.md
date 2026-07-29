@@ -3,6 +3,253 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.7.0 — 2026-07-30 (by Claude)
+
+### 新架构核心模块接入（天玑/玉衡/叙事层）
+
+**修改理由**：实现 S:\20260729\16_世界推演系统_架构总文档_v1.0.md 定义的新架构，
+建立完整的预测存档→月度验证→权重反哺闭环。
+
+#### 新增文件（核心代码/）
+- `tianji_db.py` — 天玑数据库 schema + CRUD（predictions/reasoning_trace/narrative_chunks/weight_update_log 四张表）
+- `narrative_processor.py` — 叙事预处理：11维叙事桶，staleness衰减，路径B密度监测，天璇取用接口
+- `slow_variables.py` — 三个慢变量（IRP逻辑回归/UCRI五分量/GCI三分量），含手工评估节点
+- `tianji_verifier.py` — 月度验证运行器：Brier/BSS/锐度三指标，自动验量化预测，ntfy请求人工确认地缘预测，触发反哺降权建议
+- `weight_matrix.py` — 权重矩阵读写，玉衡审批执行，双层clip约束（±25%速率+[0.05,5.0]范围），月度健康检查
+
+#### 新增文件（config/）
+- `prior.yaml` — 权重矩阵初始值（Claude填写待用户审核）
+- `source_dimension_map.yaml` — 数据源→GRV维度映射（替代 narrative_processor.py 里的硬编码 fallback）
+
+#### 改动文件
+- `run_macro_analysis.py` — 注入叙事上下文（narrative_context），调用 narrative_processor 按触发维度取叙事块传给LLM
+- `scheduler.py` — 新增四个调度任务：narrative_proc(07:10日频) / slow_vars(月1日09:35) / tianji_verify(月1日09:40) / weight_health(月1日09:45)
+
+#### 基础设施
+- `docker-compose.yml` — 新增 config 目录挂载（`/vol2/.../macro-scan/config:/workspace/config`）
+
+
+
+### T1-2 可观测性计数器
+- 新增 `核心代码/observability.py`（零风险纯读模块，所有操作 try/except 包裹）
+  - 心跳：每 30s 写入 `data/.scheduler_heartbeat`（外部脚本可据此判断调度器存活）
+  - 任务计数：按 job 名累计当日触发次数，写 `data/observability_YYYY-MM-DD.json`
+  - 合成器统计读取：`read_synthesizer_stats()` 从 news.db 读 LLM/ntfy/抑制统计
+  - 心跳状态检测：`check_heartbeat()` 读心跳文件返回 alive/age 判定
+- `scheduler.py`：三处接入——心跳（主循环每轮）、任务计数（每次 spawn 后）、优雅降级（import 失败不断线）
+- 容器需 `docker compose restart` 生效（scheduler.py 改动）
+
+### 部署流程修正
+- `deploy.sh`：NAS_SRC 从不存在 `/vol2/1000/software/macro-scan-src` 改为 Git repo `/vol2/1000/software/world-sim/macro-scan`；新增 `__pycache__`/`*.pyc` exclude
+- SMB 挂载读/写均不可靠的运维发现已写入长期记忆
+
+### geo_risk_vector.py 同步（v3.6.4 代码未部署的遗留问题）
+- 容器此前运行旧版 geo_risk_vector.py（缺 seismic_risk/energy_grid_risk）
+- scp 对齐后 11 维 GRV 全量产出
+
+### GDELT social_stress 归一化修复（P4 质量项）
+
+**问题根因**：`_tone_to_score()` 用绝对 Goldstein 值归一化（`abs(mean_tone)/10*100`），
+但 GDELT 冲突类事件（CAMEO 14-20）天然就分布在 -7\~-10 区间（实测均值 -7.97，中位数 -9.2），
+导致所有国家的 social_stress 分值全部压在 75-90，区分度不足 15 分，完全失去预警意义。
+
+**修复**：改为相对于基准线的偏差归一化。
+- 基准线 `BASE = -7.0`（低张力时期典型冲突均值，实测校准）
+- `mean_tone = -7.0` → 0 分（无异常压力）
+- `mean_tone = -10.0` → 100 分（极端冲突）
+- 低于基准线（正常或合作类事件占主导）→ 0 分
+
+**改动**：`scan_weak_signals.py` `_tone_to_score()` 函数（约第836行）。
+代码逻辑中的 `if mean_tone >= 0` 条件改为 `if mean_tone >= _TONE_BASE`，
+并将归一化公式替换为 `(mean_tone - BASE) / (-10.0 - BASE) * 100`。
+
+**验收结果（实测）**：
+| 国家 | 改前 | 改后 | 变化 |
+|---|---|---|---|
+| DEU | 90.0 | 66.1 | -24 |
+| UKR | 92.1 | 65.5 | -27 |
+| USA | 85.7 | 51.9 | -34 |
+| JPN | 60.5 | 0 | 正确清零 |
+| TWN | 64.7 | 0 | 正确清零 |
+
+区分度从 <15 分扩大到 30+ 分，低风险国家正确归零。R09 门槛 35 分现在有实际意义。
+
+- `Phase2B2D修复方案.md` 状态：待实施 → **已完成**
+- 治理：VERSION 3.6.3→3.6.4。
+
+---
+
+## v3.6.3 — 2026-07-29 (by Claude)
+
+### 新增数据源：EIA 能源数据（美国能源信息署 API v2）
+
+**fetch_energy_eia.py（已真实验收）**
+- 来源：EIA Open Data API v2（需注册免费 key；限速 ~9000次/小时，本模块每日 6 次，远低于上限）
+- 数据：6 个系列，全部实测 HTTP 200：
+  - `wti_spot_price`：WTI 原油现货价（日频，$/BBL）→ 84.38
+  - `crude_inventory_mbbl`：美国商业原油库存（週频，千桶）→ 723,122
+  - `refinery_utilization`：美国炼厂开工率（週频，MBBL/D）→ 402
+  - `natgas_storage_bcf`：美国天然气总库存 L48（週频，BCF）→ 3,056
+  - `gasoline_retail_price`：美国汽油零售价（週频，$/GAL）→ 4.228
+  - `us_net_generation_gwh`：美国净发电量（月频，千兆瓦时）→ 354,690
+- 契约：`data/energy_eia.json`，`series{各系列 name/value/unit/period/status}`；各系列独立 status；全失败 → None 保留良值；key 未配 → 直接返回 None 不崩。
+- 调度：每日 **06:30**（错峰 commodity_yahoo 06:26 / OpenSky 06:28）。feeds_grv=False。
+- 真实验收：status=ok，6/6 全绿，JSON 落盘 `_schema_version=1.0`。
+- 踩坑：NAS `fetcher_base.py` 与 S 盘不同步（旧版无 `Status` 类）→ 补 scp `fetcher_base.py` 解决；发电量端点字段名为 `generation`（非 `value`），已在代码中兼容处理。
+
+**配置变更**
+- `optim_config.py`：新增 `EIA_API_KEY = os.environ.get("EIA_API_KEY", "")`
+- `docker-compose.yml`：新增 `EIA_API_KEY=0moTFC6n6AsvySNc5Z1UQ5soeoyCxUAceX5KtuPW` 环境变量（需 `docker compose up -d` 重建生效）
+- `scheduler.py`：新增调度行 `energy_eia 0630` + LOG_FILES 对应键
+
+- 治理：VERSION 3.6.2→3.6.3。
+
+---
+
+## v3.6.2 — 2026-07-29 (by Claude)
+
+### 新增数据源三源上线：Yahoo 商品价格 / OpenSky 全球航班 / AkShare 中国中观指标
+
+**fetch_commodity_yahoo.py（已真实验收）**
+- 来源：Yahoo Finance 非官方 chart API（keyless、日频限频合理使用）。
+- 数据：WTI 原油（CL=F, USD/bbl）、Brent 原油（BZ=F, USD/bbl）、铜（HG=F, USD/lb）。
+- 契约：`data/commodity_yahoo.json`，顶层 `status/as_of/commodities{wti,brent,copper}/unavailable_symbols`；单 symbol 404 → partial 不阻断；全失败 → None 保留良值。
+- 调度：每日 **06:26**（错峰）。feeds_grv=False。
+- 真实验收：WTI=78.32, Brent=83.44, Copper=6.365，status=ok。
+
+**fetch_airtraffic_opensky.py（已真实验收）**
+- 来源：OpenSky Network 公开 API（keyless；匿名 400次/10min，日频 1 次远低于限额）。
+- 数据：全球在飞航班数、均高、均速、起飞国 Top5，`scope="global"`。
+- 契约：`data/airtraffic_opensky.json`，顶层 `status/as_of/flights_in_air/avg_altitude_m/avg_velocity_ms/top_origin_countries/total_states/sample_limited`。
+- 调度：每日 **06:28**。feeds_grv=False。
+- 真实验收：flights_in_air=11900，top_origin=US(54.25%), UK(4.44%), CA(3.45%)，status=ok。
+
+**fetch_china_meso.py（T4 补全，已真实验收）**
+- 来源：AkShare（系统已安装，keyless）。
+- 数据：二手住宅价格指数同比/环比（`macro_china_new_house_price`）、制造业PMI（`macro_china_pmi_yearly`，列`今值`，过滤`商品==中国官方制造业PMI`）、企业景气指数（`macro_china_enterprise_boom_index`，列`企业景气指数-指数`，iloc[0]最新）。
+- 契约：`data/china_meso.json`，`indicators{second_hand_hpi_yoy, second_hand_hpi_mom, pmi_manufacturing, enterprise_boom}`；各指标独立 status，整体 ok/partial/unavailable。
+- 调度：每月 1 日 **09:30**（错峰 fao 09:25）。feeds_grv=False。
+- 真实验收：HPI同比=94.5(2026-06), HPI环比=100.1(2026-06), PMI=49.4(2025-08), 企业景气=109.3(2026Q1)，status=ok。
+- 踩坑记录：PMI 函数实际列名为 `['商品','日期','今值',...]`（非 `制造业-指数`）；企业景气函数数据倒序（最新在 iloc[0]，非 iloc[-1]）；列名由容器内 `ak.xxx()` 实测确认，非推断。
+
+**QA 验收**
+- `test_fetch_commodity_yahoo.py`：4 个测试全绿（正常路径/铝404隔离/全失败降级/main降级写unavailable），exit 0。
+- `test_fetch_airtraffic_opensky.py`：测试全绿，exit 0。
+- 三源 JSON 落盘（`/workspace/data/`）已验证：结构完整，`_schema_version=1.0`，`status` 字段正确。
+
+- 治理：VERSION 3.6.1→3.6.2。scheduler.py 三条调度（0626/0628/0930 dom=1）在 v3.6.1→3.6.2 期间追加，本次 restart 生效。
+
+---
+
+## v3.6.1 — 2026-07-28 (by Qi)
+
+### BDI 源策略 pivot：实时拉取 → 本地预置 CSV（fetch_bdi.py 改造）
+
+- **背景**：v3.6.0 确认 Stooq 实时拉取在本 NAS 环境不可行（OpenResty 验 TLS 指纹 + Chromium 下载不可达），用户决策采用方案①（丢本地历史 CSV 进 data/）。
+- **`核心代码/fetch_bdi.py` 重写**：`collect()` 不再触网，改为读取 `data/bdi_history.csv`（UTF-8 BOM 兼容、表头列名自动识别 date/value，兼容 Stooq `Date,Open,High,Low,Close` 取 Close；无表头兜底首列日期/末列数值），输出全量 `series`（按日期升序）+ `bdi_index`（末值）+ `source="local_csv"`，契约 schema 1.0 不变。
+- **调度恢复**：`scheduler.py` 取消 BDI 条目注释（`0625` 日频）；缺失 CSV 时 `collect` 返回 None → 保留上次良值（首跑写 unavailable），不阻断调度。
+- **运维动作（待用户执行）**：Windows 本机浏览器打开 `https://stooq.com/q/d/l/?s=bmd&i=d`（自动过 PoW）→ 下载 `bmd.csv` → 重命名 `bdi_history.csv` → 放入 `S:\world-sim\macro-scan\data\` → `docker restart macro-scan-macro-scan-1`（scheduler.py 改动需重启；fetch_bdi.py 改动热挂载即生效）。
+- **验收状态**：代码就位、py_compile 通过；端到端待 CSV 就位 + 容器重启后确认 `data/bdi.json` 生成。
+- 治理：VERSION 3.6.0→3.6.1。不联动 AGENTS.md 矩阵（无新外部契约）。
+
+---
+
+## v3.6.0 — 2026-07-28 (by Qi)
+
+### 新增数据源：FAO 粮食价格指数（已真实验收）；BDI 波罗的海干散货指数（代码就位，实时拉取本环境不可行，详见下文）
+
+**FAO 粮食价格指数（fetch_fao.py，已真实验收通过）**
+- 来源：FAO 开放 CSV（`food_price_indices_data.csv`，带滚动 `?sfvrsn=<token>`，keyless、无挑战）。
+- 实现：`FaoFetcher(FetcherBase)`，复用 `request/save_json/load_previous_good/load_config_with_fallback`；`_resolve_csv_url()` 先抓 HTML 提取当前 `sfvrsn` token 再下版本化 CSV（失败回退持久化 `.fao_sfvrsn`）。
+- 落盘 `data/fao_food_price.json`：`fao_food_price_index` + `sub_indices{meat,dairy,cereals,vegetable_oils,sugar}`（**实测 5 项，无 fish**）+ `status=ok` + `_schema_version`。
+- 调度：每月 1 日 **09:25**（错峰既有 0900–0920 月任务）。
+- 真实验收（容器内）：ffpi=**130.3**，5 子指数齐全，出网/解析正确。
+- `feeds_grv=False`（geo_risk_vector 不读该属性，仅硬编码 loader；进 GRV 需单独 PRD）。
+
+**BDI 波罗的海干散货指数（fetch_bdi.py 代码就位，**实时拉取本环境不可行**）**
+- 代码：`BdiFetcher(FetcherBase)`，含 Stooq SHA-256 PoW 求解器（`_extract_challenge`/`_solve_stooq_challenge`）、CSV 解析、`load_previous_good` 降级；离线验收 16 断言全 PASS。
+- **实时拉取被环境阻断（两路独立死证）**：
+  1. **Stooq OpenResty Bot Management**：PoW 解出、auth cookie 也拿到，但重 GET CSV 仍一律 `Access denied`。穷举 `requests`(HTTP/1.1) / `curl_cffi`(`impersonate=chrome`, HTTP/2) / 各种 `Origin`/`Referer`/`Sec-Fetch-*` 头组合全失败——服务端验整套 TLS/HTTP2 客户端指纹，纯 Python 客户端过不了。
+  2. **Playwright Chromium 下载不可达**：容器内 `playwright install chromium` 经 NAS 代理（7890）TLS 握手被 RST（`ECONNRESET`）；**直连** CDN HEAD 可达（200/185MB）但大文件 GET **冻结**（首 1MB 后停滞），无法落地浏览器引擎。
+- **结论**：BDI 实时拉取在本 NAS 环境不可行（非代码 bug，是反爬 + 出网限制）。已据架构 §1.2 预留方案，**暂禁用调度**（`scheduler.py` BDI 条目注释掉），`fetch_bdi.py` 保留为「预置 `data/bdi_history.csv` 回退」实现，待就位后启用。
+- **待用户决策**：①丢一份 BDI 历史 CSV 进 `data/`，我把 fetcher 改为读本地 CSV（稳健、零反爬，适合研究系统）；②调研其他轻量 BDI 源；③暂弃 BDI，FAO 单独收口。
+
+**验收（离线，主理人 + QA 独立双重）**
+- `tests/test_fetch_fao.py` 14 断言 PASS；`tests/test_fetch_bdi.py` 16 断言 PASS（含 PoW 挑战分支真实 sha256 求解）。QA 路由 NoOne（无源码/测试 bug）。
+- 真实验收：FAO 容器内跑通；BDI 容器内实测确认上述环境阻断。
+
+**治理**：VERSION 3.5.65→3.6.0。FAO 为真实新增数据源；BDI 代码随附但标注 blocked。不联动 AGENTS.md 矩阵（无外部契约变更）。
+
+---
+
+## v3.5.65 — 2026-07-28 (by Qi)
+
+### 变更（内部重构，无契约变更，不联动 AGENTS.md 矩阵）
+
+**fetcher_base 适配层收口基线（NOW 阶段，by Qi 直接实现，验收主理人亲自）**
+
+- **修改理由**：fetcher_base 经多轮数据源接入（v3.5.63 sanctions / v3.5.64 P0+P1）已膨胀，样板与"保留良值"语义散落各 fetcher；本阶段收口为统一基线，消除重复、明确契约，杜绝后续接源时静默改行为。
+- **`核心代码/fetcher_base.py`**：
+  - 新增 `class Status` 枚举（OK / PARTIAL / UNAVAILABLE / STALE / RETRY_LIMIT / SKIPPED / KEY_MISSING）。
+  - 新增类属性 `_SCHEMA_VERSION = "1.0"`；`save_json` 自动注入 `_schema_version`（缺则补），并对缺 `status` 的输出补 `UNAVAILABLE` + warning（兜底，防下游读到无状态文件）。
+  - 新增类属性 `feeds_grv`(默认 False) / `schedule`(默认 None) / `output_file`(默认 None)，把"源元信息"从分散注释/调度表收口进 fetcher 自身。
+  - 新增 `@staticmethod load_config_with_fallback(primary, fallbacks)`：优先 `import optim_config` 全量取；`ImportError` 则回退 `fallbacks`（支持 `(默认值, env_var)` 元组），取代各 fetcher 重复的 try/except。
+  - 新增 `_is_good(self, data)` 默认谓词 `data.get("status") == Status.OK`；`load_previous_good(self)` 读 `self.output_file` 经 `_is_good` 判定保留良值。
+  - `request()` docstring 修正：原称"令牌桶"实为**固定间隔限速**（当前固定 sleep，非真·令牌桶），避免误导后续实现。
+- **9 个 fetcher 全部收口**：
+  - ImportError 块 → 统一改调 `FetcherBase.load_config_with_fallback`。
+  - 删除各 fetcher 内 `_load_previous_good`，改调基类 `load_previous_good`。
+  - 子类补 `output_file` / `feeds_grv` / `schedule` 类属性。
+  - `energy` / `news` 覆写 `_is_good`（ok **或** partial，且 energy 要求 `grid_carbon_risk is not None`）；`earthquake` / `crypto_extra` / `hdx` / `sanctions` 保持 **ok-only**（以源码真实语义为准，非架构评估附录 D 的错表）。
+  - `crypto` / `fx` / `world_macro` 旧版失败即跳过不写，本次补 `output_file` 类属性 + `collect` 返回补 `"status": "ok"`，使其纳入统一落盘与良值保留（默认 ok-only 语义合理）。
+- **`_is_good` 权威契约（以源码为准，纠正架构评估附录 D 错表）**：
+  - ok-only：`crypto_extra` / `earthquake` / `hdx` / `sanctions`
+  - ok/partial：`energy`（且 `grid_carbon_risk is not None`）/ `news`
+  - `feeds_grv=True` 仅 `earthquake` / `energy` / `sanctions`（依据 `geo_risk_vector.py` 实际读取 JSON 文件者）。
+- **验收（主理人亲自，`_now_smoke.py` 伪造 `requests` 不触网）**：`py_compile` 10 文件全过 + 24 项断言全 PASS（N2 save_json 注入/兜底、N1 各 fetcher `_is_good`/`load_previous_good` 真实语义、N3 `feeds_grv`/`schedule`/`output_file`、N4 配置回退取值）。
+
+---
+
+## v3.5.64 — 2026-07-28 (by Qi)
+
+### 新增
+
+**P0+P1 高价值数据源接入（by Qi，工程师 寇豆码 实现）**
+
+- **修改理由**：阶段0 已接 WB/SotW/Frankfurter/CoinGecko/OpenSanctions bulk data 五源；用户拍板"继续接数据"按 public-apis 报告 P0+P1 高价值范围推进，复用 fetcher_base 适配层（令牌桶+重试+代理+原子写+降级）。
+- **新增 fetcher（均继承 fetcher_base，三级回退：直连→PROXY_URL→unavailable，绝不崩 scheduler）**：
+  - `fetch_earthquake.py`（P0 USGS 地震，真免key、带 time 戳）→ 输出 `seismic_risk` 接 GRV energy/grid 维度。**首跑真数据 status=ok，seismic_risk=100.0，events_24h=54**（全球地震活跃日触顶）。
+  - `fetch_energy.py`（P1 归并：UK Carbon Intensity 免key 主信号 + National Grid ESO BMRS / NREL PVWatts / AEMet 需 key 降级）→ 输出 `grid_carbon_risk` 接 GRV `energy_grid_risk`。**首跑真数据 status=ok，grid_carbon_risk=6.2**（干净电网）。
+  - `fetch_crypto_extra.py`（P1 Binance/Kraken 公共行情，直连免key，落盘交叉验证 CoinGecko）。
+  - `fetch_news.py`（P1 MarketAux / Currents / Sugra 聚合，需 key 降级，落盘）。
+  - `fetch_hdx.py`（P1 人道/危机冲击 HDX CKAN，直连免key 限流，落盘）。
+- **`geo_risk_vector.py`**：新增 `seismic_risk` + `energy_grid_risk` 两 GRV 维度（非阻断读取，status!=ok 留空不崩）；已验证 `grv_latest.json` 含 seismic_risk=100.0 / energy_grid_risk=6.2 / sanctions_risk=82.7。
+- **`optim_config.py`**：新增 P0+P1 全部 URL/key（USGS_EARTHQUAKE_URL / UK_CARBON_INTENSITY_BASE / NATIONAL_GRID_ESO_BMRS_KEY / NREL_* / AEMET_* / BINANCE_* / KRAKEN_* / MARKETAUX_* / CURRENTS_* / SUGRA_* / HDX_*），env 可覆盖，保留 PROXY_URL。
+- **`scheduler.py`**：新增 8 个独立时间槽（earthquake 06:06 + 日内 12:06/18:06/00:06、energy 06:08、crypto_extra 06:12、news 06:16、hdx 06:20），LOG_FILES 补全；喂 GRV 源排在 grv_update 06:10 前。
+- **待接 GRV 字段（已落盘，后续接）**：crypto_extra（加密波动率维度）、news（市场情绪维度）、hdx（humanitarian_risk 维度）。
+- **部署**：SMB 挂载实时同步 + docker restart，真数据验证 earthquake/energy status=ok，GRV 三维入 grv_latest.json；落盘源由 scheduler 自动按槽位跑。
+- **验收（主理人亲自，QA 子智能体本环境框架缺陷不可靠）**：py_compile 全过 + 类级 monkeypatch 跑真实 fetcher 逻辑（不触网）30 项断言全 PASS；零 yente 残留。
+
+---
+
+## v3.5.63 — 2026-07-28 (by Qi)
+
+### 新增
+
+**制裁信号源：OpenSanctions bulk data 轻量国别聚合（by Qi）**
+
+- **修改理由**：原 `sanctions_risk` 计划用 OpenSanctions 自托管 yente 搜索容器（localhost:8000）提供数据，需 8GB RAM+60GB 盘，而其价值在模糊人名筛查/别名归并——本系统只做国别暴露聚合，用不上。用户拍板方案 B：保留 OpenSanctions bulk data 轻量聚合，彻底划掉 yente 容器。
+- **`核心代码/fetch_sanctions.py`**：全量重写为 bulk data 版。URL `https://data.opensanctions.org/datasets/latest/sanctions/targets.simple.csv`（官方 `latest` 重定向，免解析 run 时间戳）；继承 fetcher_base（直连失败→走 `PROXY_URL`→仍失败降级 `unavailable`，绝不崩 scheduler）；读 CSV `countries` 列(;分隔 ISO-2)，对 20 个跟踪国(ISO3)计数；缓存落 `data/sanctions_cache/`，>7 天陈旧才重下；输出 `data/sanctions_risk.json`（`global_sanctions_risk` + `by_country`）。
+- **公式**：`country_risk = 100*ln(n+1)/ln(25001)`（`SATURATION_COUNT=25000` 饱和）；`global = 0.4*mean + 0.6*max`（0.6 权重给最坏热点 RUS，持久托高基线，不随每日头条衰减）。
+- **`核心代码/geo_risk_vector.py`**：`sanctions_risk` 真正接线，读 `global_sanctions_risk` 填 `grv_latest.json`（字段名向后兼容）。
+- **`核心代码/optim_config.py`**：删 `YENTE_BASE_URL`；加 `OPEN_SANCTIONS_DATA_URL`（默认+env 可覆盖）；保留 `PROXY_URL`。
+- **`核心代码/fetcher_base.py`**：清理一处 "yente" docstring 字样。
+- **`核心代码/tests/test_sanctions_bulk.py`**：新增回归测试（方案 B 聚合逻辑 + geo 接线 + 配置/调度复核），去除 yente 字样。
+- **首跑真数据**（2026-07-28，容器内手动跑）：`status=ok`，`global=82.7`，`total_sanctioned=72464`；TOP by count：RUS 22141(98.8) / USA 4163(82.3) / CHN 3258(79.9) / IRN 2810(78.4) / TUR 1718(73.6) / MEX 1255(70.5)。`SATURATION_COUNT=25000` 经实测留有余量（RUS 未触顶）。
+- **维护铁律合规**：scheduler 06:05 任务本就调用 `fetch_sanctions.py`（热挂载即时生效，无需重建镜像）；远端容器 `/app` 下经 docker exec 复验 `yente/YENTE_BASE_URL/localhost:8000` 残留 = 0。
+
+---
+
 ## v3.5.62 — 2026-07-25 (by Hermes)
 
 ### Bug 修复
