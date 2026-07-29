@@ -68,6 +68,9 @@ def run_full_simulation(
     # ── 生成报告 ──────────────────────────────────────────
     report_path = _write_report(world, calib_result, paths, level, event)
 
+    # ── 天玑存档钩子 ──────────────────────────────────────
+    _archive_to_tianji(world, paths, calib_result, event, level, report_path)
+
     # ── ntfy 推送 ─────────────────────────────────────────
     _send_ntfy(world, calib_result, paths, report_path)
 
@@ -302,20 +305,8 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
             lines.append("")
 
         if path.narrative:
-            import re as _re
-            # 清理 LLM 可能输出的数字前缀（"1. " "2.\n" 等）
-            narrative = _re.sub(r'\n\d+\.\s*\n?', '\n', path.narrative).strip()
-            parts  = _re.split(r'【[^】]+】', narrative)
-            labels = _re.findall(r'【([^】]+)】', narrative)
-            if len(labels) >= 2 and len(parts) >= 2:
-                lines.append("")
-                for label, content in zip(labels, parts[1:]):
-                    content = content.strip().lstrip('：:').strip()
-                    if content:
-                        lines.append(f"**{label}**：{content}")
-                lines.append("")
-            else:
-                lines += ["", narrative, ""]
+            from core.narrative_format import format_narrative
+            lines += format_narrative(path.narrative)
 
         lines.append("---")
         lines.append("")
@@ -466,6 +457,121 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
     except Exception as e:
         print(f"[警告] 报告写入失败：{e}")
         return None
+
+
+# ── 天玑存档钩子 ─────────────────────────────────────────
+
+def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level: int, report_path):
+    """
+    推演完成后把可验证预测存入天玑数据库。
+    失败时静默降级（不阻断主流程）。
+    """
+    try:
+        import sys, os
+        # 天玑 DB 在 macro-scan 容器的 /workspace/data
+        tianji_module = "/workspace/核心代码/tianji_db.py" if os.path.exists("/workspace") else None
+        if tianji_module and os.path.exists(tianji_module):
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("tianji_db", tianji_module)
+            tianji_db = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(tianji_db)
+        else:
+            import tianji_db  # 同容器时直接 import
+
+        import uuid
+        from datetime import datetime, timedelta
+
+        now = datetime.utcnow()
+        scenario_id = f"sim_{now.strftime('%Y%m%d_%H%M')}_{event[:20]}"
+
+        archived = 0
+        for path in paths:
+            if path.probability < 0.05:
+                continue  # 跳过概率极低路径
+
+            # 1. GRV 方向性预测（量化，可自动验证）
+            if hasattr(path, "final_grv_mean") and path.final_grv_mean is not None:
+                direction = "up" if path.final_grv_mean > world.grv else "down"
+                due_months = 24
+                due_at = (now + timedelta(days=due_months * 30)).isoformat()
+
+                pred = {
+                    "id":                     str(uuid.uuid4()),
+                    "due_at":                 due_at,
+                    "scenario_id":            scenario_id,
+                    "type":                   "quantitative",
+                    "prediction_target_type": "global_composite",
+                    "content":                (
+                        f"{event} 情景下，{path.label}路径（{path.probability:.0%}）："
+                        f"24个月后 GRV 预计 {direction}至 {path.final_grv_mean:.1f}"
+                    ),
+                    "outcome_definition":     (
+                        f"24个月后 GRV global_composite 值是否{('>' if direction == 'up' else '<')}{world.grv:.1f}"
+                    ),
+                    "target_metric":          "global_composite",
+                    "target_direction":       direction,
+                    "target_threshold":       round(world.grv, 1),
+                    "final_prob":             round(path.probability, 4),
+                    "confidence_tier":        "HIGH" if path.probability > 0.3 else "LOW",
+                    "time_horizon":           "yearly",
+                    "b_prob":                 round(path.probability, 4),
+                    "b_sample_count":         100,
+                }
+                pred_id = tianji_db.save_prediction(pred)
+
+                # 存推理溯源
+                causal_chains = []
+                for i, ev in enumerate(path.key_events[:5]):
+                    causal_chains.append({
+                        "chain_id": f"chain_{i:02d}",
+                        "nodes":    [ev.get("event", ""), "GRV变化"],
+                        "confidence": ev.get("frequency", 0.5),
+                        "source":   "simulation",
+                    })
+
+                tianji_db.save_reasoning_trace({
+                    "prediction_id":    pred_id,
+                    "agent_id":         "macro-sim",
+                    "input_signals":    [
+                        {"signal_name": "grv", "value": world.grv, "weight": 1.0},
+                        {"signal_name": "credit_spread", "value": world.credit_spread, "weight": 0.5},
+                    ],
+                    "historical_match": f"校准评分{calib_result.get('score', 0)}/100",
+                    "confidence_basis": "historical_freq",
+                    "llm_adjustment":   0.0,
+                    "causal_chains":    causal_chains,
+                    "reasoning":        f"仿真路径：{path.label}，触发事件：{event}",
+                })
+                archived += 1
+
+            # 2. 地缘路径主要事件（地缘类，需人工验证）
+            for ev in path.key_events[:2]:
+                if ev.get("frequency", 0) < 0.2:
+                    continue
+                due_months_geo = 6
+                pred_geo = {
+                    "id":                     str(uuid.uuid4()),
+                    "due_at":                 (now + timedelta(days=due_months_geo * 30)).isoformat(),
+                    "scenario_id":            scenario_id,
+                    "type":                   "geopolitical",
+                    "prediction_target_type": "global_composite",
+                    "content":                (
+                        f"{event} 情景下 {path.label}路径：{ev.get('event', '')} "
+                        f"（仿真频率{ev.get('frequency', 0):.0%}）"
+                    ),
+                    "outcome_definition":     f"6个月内是否发生：{ev.get('event', '')}",
+                    "final_prob":             round(ev.get("frequency", 0.5), 4),
+                    "confidence_tier":        "LOW",
+                    "time_horizon":           "monthly",
+                }
+                tianji_db.save_prediction(pred_geo)
+                archived += 1
+
+        if archived > 0:
+            print(f"[tianji] 存档 {archived} 条预测 → scenario_id={scenario_id}")
+
+    except Exception as e:
+        print(f"[tianji] 存档失败（降级），不影响主流程：{e}")
 
 
 # ── ntfy 推送 ─────────────────────────────────────────────
