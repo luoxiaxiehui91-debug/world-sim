@@ -59,11 +59,12 @@ macro-scan/               ← 本地工作目录（S:\world-sim\macro-scan\，gi
 | `docs/` | `/workspace/docs` | 报告输出 |
 | `logs/` | `/var/log/macro-scan` | 日志 |
 | `知识库/` | `/workspace/知识库` | 知识库只读 |
+| `config/` | `/workspace/config` | 权重矩阵/信源映射/prior（v3.7.0新增） |
 
 **红线**：
 1. `核心代码/` 里的 .py 文件全部同级平铺——不能分子目录，所有 `import` 和 subprocess 调用都依赖同级路径
 2. `核心代码/scorer.py` 的 `CRISIS_CSV` 常量硬编码了 `02_核心变量因果链/历史情景_量化指标.csv`——改该目录名时必须同步修改此常量
-3. docker-compose 的4条 volume 挂载不能少
+3. docker-compose 的5条 volume 挂载不能少（v3.7.0 新增 config/ 挂载）
 4. 配置只从 `optim_config.py` 读取——`KEY_INDICATORS`/路径常量/阈值均在此，不在其他模块重复定义
 5. 弱信号配置只从 `alert_config.py` 读取——`ALERT_KEYWORDS`/`_WATCH_COUNTRIES`/`_ACTOR_*` 在此，不在 `scan_weak_signals.py` 定义
 6. 推演类型映射只从 `hypothesis_config.py` 读取——`DIM_MAP` 在此，不在 `hypothesis_engine.py` 函数内定义
@@ -142,7 +143,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 | 新增或删除 `核心代码/*.py` | + `FILE_MANIFEST.md`（运行 `gen_docs.py --target manifest` 刷新）|
 | `Dockerfile` 或 `entrypoint.sh` | + `INDEX.md`（活跃容器表）|
 | `README.md`（路径/版本/结构变更）| + `世界推演系统_人类说明文档.md`（五、文件位置表）|
-| `docs/待办事项.md`（时间门控任务触发/完成）| + `TuiYan_CHANGELOG.md` + `INDEX.md`（路线图节）|
+
 
 **pre-commit 会自动拦截**：commit 时如果改了代码但联动文档未 staged，会打印具体提示并阻止提交。
 
@@ -234,22 +235,25 @@ macro-scan 是写入方，macro-sim 是只读消费方。容器内挂载路径�
 
 由 `核心代码/geo_risk_vector.py` 每日 06:10 写入（原子写，先写 `.tmp` 再 `os.replace`）。
 
-⚠️ **v3.5.39 起新增 `japan_monetary` 字段**（v3.5.41 修复 NameError，该字段现稳定写出）。
+⚠️ **v3.6.4 起新增 sanctions_risk / seismic_risk / energy_grid_risk 字段（v3.6.5 全部验证产出）。GRV 现为完整 11 维向量。**
 
 ```json
 {
   "_schema_version":    "1.0",
-  "taiwan_strait":      50.0,
-  "us_china_strategic": 45.0,
-  "russia_europe":      38.0,
-  "middle_east_energy": 42.0,
-  "global_composite":   55.0,
-  "climate_risk":       30.0,
-  "disaster_risk":      null,
-  "japan_monetary":     45.5,
-  "updated":            "2026-07-10T22:36:01",
-  "gdelt_updated":      "2026-07-10T10:06:06",
-  "gpr_twn_raw":        95.3,
+  "taiwan_strait":      52.7,
+  "us_china_strategic": 48.0,
+  "russia_europe":      41.9,
+  "middle_east_energy": 64.0,
+  "global_composite":   75.4,
+  "climate_risk":       0.0,
+  "disaster_risk":      37.0,
+  "sanctions_risk":     82.7,
+  "seismic_risk":       100.0,
+  "energy_grid_risk":   6.2,
+  "japan_monetary":     48.5,
+  "updated":            "2026-07-29T10:53:01",
+  "gdelt_updated":      "2026-07-28T22:07:22",
+  "gpr_twn_raw":        0.18,
   "gpr_twn_date":       "2026-06-01",
   "source_quality":     "gdelt+gpr"
 }
@@ -259,7 +263,7 @@ macro-scan 是写入方，macro-sim 是只读消费方。容器内挂载路径�
 |:-----|:-----|:-----|
 | `_schema_version` | string | 接口版本号，当前 `"1.0"`。macro-sim 启动时校验此字段，不一致则拒绝启动 |
 | `taiwan_strait` / `us_china_strategic` / `russia_europe` / `middle_east_energy` / `global_composite` | float 0–100 | GRV 五维度，必须字段，null 表示数据源暂缺 |
-| `climate_risk` / `disaster_risk` / `japan_monetary` | float 0–100 \| null | 可选，数据源不可用时为 null。`japan_monetary` = USD/JPY水位×0.5 + JGB 3M收益率变速×0.5 |
+| `climate_risk` / `disaster_risk` / `sanctions_risk` / `seismic_risk` / `energy_grid_risk` / `japan_monetary` | float 0–100 \| null | 可选扩展维度。`sanctions_risk`=OpenSanctions 国别暴露聚合；`seismic_risk`=USGS 地震压力；`energy_grid_risk`=UK Carbon Intensity；`japan_monetary`=USD/JPY×0.5+JGB 3M收益率变速×0.5 |
 | `updated` | ISO 8601 字符串 | 本次计算时间戳 |
 | `source_quality` | `"gdelt+gpr"` \| `"gdelt_only"` \| `"gpr_only"` \| `"stub"` | 数据来源质量标记 |
 

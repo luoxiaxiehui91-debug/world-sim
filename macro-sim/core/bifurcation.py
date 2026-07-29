@@ -23,6 +23,26 @@ from core.simulation import MacroSimModel, load_agents
 from core.agents.base import AgentParams
 
 
+def _get_military_backdrop_snippet() -> str:
+    """读取 SIPRI 军事背景卡片的摘要段（前600字符），注入推演叙事 prompt。"""
+    try:
+        import os
+        path = os.path.join(
+            os.environ.get("OPENCLAW_WORKSPACE", "/workspace"),
+            "data", "static", "military_backdrop.md"
+        )
+        if not os.path.exists(path):
+            return ""
+        with open(path, encoding="utf-8") as f:
+            content = f.read()
+        # 只取核心数据段，避免 token 过长
+        lines = [l for l in content.split("\n") if l.strip() and not l.startswith("#") and not l.startswith(">")]
+        snippet = "\n".join(lines[:15])[:600]
+        return f"\n【军事结构背景参考（SIPRI）】\n{snippet}\n\n"
+    except Exception:
+        return ""
+
+
 @dataclass
 class PathResult:
     """一条演化路径的完整结果"""
@@ -296,10 +316,11 @@ def _generate_narrative(path: PathResult, world: MacroWorldState) -> str:
             f"路径概率：{path.probability:.0%}\n"
             f"24个月走势：{grv_range}，{sent_final}，{spread_final}\n\n"
             f"关键事件（含触发原因）：\n{events_str}\n\n"
+            + (_get_military_backdrop_snippet()) +
             "请按以下结构输出，每项一句话，共3句：\n"
-            "1. 【情景定性】这条路径是什么性质（金融危机/慢性高压/政策托底/平稳缓和等）\n"
-            "2. 【核心传导链】谁触发了谁，怎么演化的\n"
-            "3. 【对你的影响】投资者需要警惕什么\n"
+            "1. **情景定性** 这条路径是什么性质（金融危机/慢性高压/政策托底/平稳缓和等）\n"
+            "2. **核心传导链** 谁触发了谁，怎么演化的\n"
+            "3. **对你的影响** 投资者需要警惕什么\n"
             "不要重复数字，语言直接简洁。"
         )
 
