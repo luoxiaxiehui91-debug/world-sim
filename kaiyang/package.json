@@ -1,0 +1,37 @@
+{
+  "name": "kaiyang-wave1",
+  "private": true,
+  "version": "1.0.2",
+  "type": "module",
+  "description": "世界推演系统 · 开阳 Wave 1 静态展示层（纯展示，只读契约文件）",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "d3-geo": "^3.1.1",
+    "echarts": "^5.5.1",
+    "globe.gl": "^2.46.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "0.185.1",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/d3-geo": "^3.1.0",
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@types/three": "0.185.1",
+    "@types/topojson-client": "^3.1.5",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.41",
+    "tailwindcss": "^3.4.10",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.8"
+  }
+}

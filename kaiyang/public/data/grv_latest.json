@@ -1,0 +1,14 @@
+{
+  "taiwan_strait": 60.1,
+  "us_china_strategic": 51.4,
+  "russia_europe": 29.7,
+  "middle_east_energy": 40.5,
+  "global_composite": 100.0,
+  "climate_risk": null,
+  "disaster_risk": 24.0,
+  "updated": "2026-06-28T06:10:07",
+  "gdelt_updated": "2026-06-27T22:04:30",
+  "gpr_twn_raw": 0.489,
+  "gpr_twn_date": "2026-05-01",
+  "source_quality": "gdelt+gpr"
+}
