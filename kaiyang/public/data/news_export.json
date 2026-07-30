@@ -1,0 +1,129 @@
+{
+  "schema_version": "1.0",
+  "updated": "2026-06-28",
+  "items": [
+    {
+      "date": "2026-06-28",
+      "source": "FRED",
+      "indicator": "美元/日元汇率",
+      "series_id": "DEXJPUS",
+      "current": 161.37,
+      "z_score": 2.68,
+      "direction": "偏高",
+      "level": "[注意]",
+      "title": "美元/日元汇率",
+      "category": "[注意]",
+      "alert_type": "WARNING"
+    },
+    {
+      "date": "2026-06-28",
+      "source": "FRED",
+      "indicator": "日元套利平仓风险",
+      "series_id": "DEXJPUS+IRLTLT01JPM156N",
+      "current": 161.37,
+      "details": "USD/JPY=161.4（>150，套利仓位极端）；JGB 10Y 3M变化=+54bp（>25bp，BOJ转向）",
+      "direction": "堆积中",
+      "level": "[警报]",
+      "risk_note": "若日银意外大幅加息或VIX>35，全球约4万亿美元套利仓位可能快速平仓，引发风险资产全面抛售（参考2024-08-05冲击：日经-12%，标普-3%，一日内）",
+      "title": "日元套利平仓风险",
+      "category": "[警报]",
+      "alert_type": "WARNING"
+    },
+    {
+      "date": "2026-06-28",
+      "source": "Crucix新闻",
+      "indicator": "关键词：衰退信号",
+      "current": 0.14,
+      "baseline": 0.01,
+      "ratio": 12.9,
+      "level": "[警报]",
+      "title": "关键词：衰退信号",
+      "category": "[警报]",
+      "alert_type": "WARNING"
+    },
+    {
+      "date": "2026-06-28",
+      "source": "Crucix新闻",
+      "indicator": "关键词：地缘升级",
+      "current": 1.29,
+      "baseline": 0.1,
+      "ratio": 12.9,
+      "level": "[警报]",
+      "trigger_titles": [
+        "<b>伊朗和伊拉克外长举行会晤 讨论双边关系及地区局势 |</b> 据央视新闻，当地时间28日，据伊拉克外交部声明，伊拉克外交部长侯赛因当天于巴格达与来访的伊朗外...",
+        "<b>乌军袭击俄境内两家炼油厂 |</b> 据新华社，乌克兰总统泽连斯基28日在社交媒体发文说，乌军当天凌晨对俄罗斯境内两家炼油厂实施了远程打击。<br /><br />泽连...",
+        "广发刘晨明：刺破科网泡沫的是联储加息吗？"
+      ],
+      "title": "关键词：地缘升级",
+      "category": "[警报]",
+      "alert_type": "WARNING"
+    },
+    {
+      "date": "2026-06-28",
+      "source": "Crucix新闻",
+      "indicator": "关键词：能源政治",
+      "current": 1.86,
+      "baseline": 0.14,
+      "ratio": 12.9,
+      "level": "[警报]",
+      "trigger_titles": [
+        "<b>伊朗和伊拉克外长举行会晤 讨论双边关系及地区局势 |</b> 据央视新闻，当地时间28日，据伊拉克外交部声明，伊拉克外交部长侯赛因当天于巴格达与来访的伊朗外...",
+        "两个世界，两手准备",
+        "广发刘晨明：刺破科网泡沫的是联储加息吗？"
+      ],
+      "title": "关键词：能源政治",
+      "category": "[警报]",
+      "alert_type": "WARNING"
+    },
+    {
+      "date": "2026-06-28",
+      "source": "Crucix新闻",
+      "indicator": "关键词：文化贸易摩擦",
+      "current": 0.43,
+      "baseline": 0.03,
+      "ratio": 12.9,
+      "level": "[警报]",
+      "trigger_titles": [
+        "<b>立新能源：2026年公司新增风电装机规模250万千瓦 |</b> 立新能源在投资者网上集体接待日表示，2026年公司新增风电装机规模250万千瓦，在建储能项目装机规模40...",
+        "“战略模糊”、“数据驱动”！沃什要做格林斯潘？那“看跌期权”要学吗？",
+        "<b>暑期机票预订量大涨 避暑城市机票预订量飙升 |</b> 据央视财经，全国暑运即将开始，民航方面，从目前的旅客预订情况来看，长线深度游和清凉避暑游成为今年暑..."
+      ],
+      "title": "关键词：文化贸易摩擦",
+      "category": "[警报]",
+      "alert_type": "WARNING"
+    },
+    {
+      "date": "2026-06-28",
+      "source": "Crucix新闻",
+      "indicator": "关键词：战略矿产",
+      "current": 1.14,
+      "baseline": 0.09,
+      "ratio": 12.9,
+      "level": "[警报]",
+      "trigger_titles": [
+        "<b>雅克科技：目前没有六氟化钨相关业务 |</b> 雅克科技发布股票交易异常波动公告，公司股票交易价格连续三个交易日收盘价格涨幅偏离值累计超过20%。目前，公司...",
+        "强美元、加息预期与AI虹吸",
+        "[东吴证券]策略周评：科技硬件的争议和机会"
+      ],
+      "title": "关键词：战略矿产",
+      "category": "[警报]",
+      "alert_type": "WARNING"
+    },
+    {
+      "date": "2026-06-28",
+      "source": "Crucix新闻",
+      "indicator": "关键词：自然灾害",
+      "current": 0.14,
+      "baseline": 0.01,
+      "ratio": 12.9,
+      "level": "[警报]",
+      "trigger_titles": [
+        "More than 68,000 people still missing in Venezuela after devastating earthquakes",
+        "In pictures: Race against time to rescue Venezuela earthquake survivors"
+      ],
+      "title": "关键词：自然灾害",
+      "category": "[警报]",
+      "alert_type": "WARNING"
+    }
+  ]
+}

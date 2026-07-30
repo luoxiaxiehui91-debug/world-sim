@@ -1,0 +1,207 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 颜色令牌与 src/config/theme.ts 保持一致（theme.ts 为单一事实来源，此处仅为 CSS 侧镜像）。 */
+:root {
+  color-scheme: dark;
+  --ky-cyan: #22d3ee;
+  --ky-teal: #5eead4;
+  --ky-amber: #fbbf24;
+  --ky-red: #f87171;
+  --ky-space: #0a0e1a;
+  --ky-space-deep: #04070f;
+  --ky-text: #d7e3ea;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background:
+    radial-gradient(1200px 700px at 78% -10%, rgba(34, 211, 238, 0.08) 0%, rgba(0, 0, 0, 0) 60%),
+    radial-gradient(900px 600px at 12% 6%, rgba(94, 234, 212, 0.07) 0%, rgba(0, 0, 0, 0) 55%),
+    radial-gradient(circle at 18% 8%, #0a1626 0%, var(--ky-space) 45%, var(--ky-space-deep) 100%);
+  color: var(--ky-text);
+  font-family: ui-sans-serif, system-ui, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 固定星野背景层（纯 CSS，无外部依赖；地球贴图加载失败时也有深空质感） */
+.starfield {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  background-image:
+    radial-gradient(1px 1px at 12% 22%, rgba(255, 255, 255, 0.55) 50%, transparent 51%),
+    radial-gradient(1px 1px at 28% 64%, rgba(180, 240, 255, 0.5) 50%, transparent 51%),
+    radial-gradient(1.4px 1.4px at 46% 18%, rgba(255, 255, 255, 0.45) 50%, transparent 51%),
+    radial-gradient(1px 1px at 61% 76%, rgba(160, 230, 255, 0.45) 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 74% 34%, rgba(255, 255, 255, 0.5) 50%, transparent 51%),
+    radial-gradient(1px 1px at 88% 58%, rgba(200, 245, 255, 0.4) 50%, transparent 51%),
+    radial-gradient(1px 1px at 34% 88%, rgba(255, 255, 255, 0.35) 50%, transparent 51%),
+    radial-gradient(1px 1px at 92% 12%, rgba(255, 255, 255, 0.4) 50%, transparent 51%);
+  background-size: 520px 520px;
+  background-repeat: repeat;
+}
+
+/* 面板内容位于星野之上 */
+.starfield ~ * {
+  position: relative;
+  z-index: 1;
+}
+
+@layer components {
+  /* 玻璃拟态卡片 */
+  .glass {
+    @apply rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      inset 0 0 0 1px rgba(34, 211, 238, 0.04);
+  }
+
+  .glass-panel {
+    @apply glass relative overflow-hidden p-4;
+    transition:
+      border-color 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+
+  .glass-panel:hover {
+    border-color: rgba(94, 234, 212, 0.22);
+    box-shadow:
+      0 10px 38px rgba(0, 0, 0, 0.5),
+      0 0 24px rgba(34, 211, 238, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  }
+
+  /* 扫描线点缀（酷感，参考 crucix 视觉但全中文 UI） */
+  .scanlines::before {
+    content: '';
+    @apply pointer-events-none absolute inset-0 z-0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(94, 234, 212, 0.045) 0px,
+      rgba(94, 234, 212, 0.045) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    opacity: 0.5;
+  }
+
+  .scanlines > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .panel-title {
+    @apply mb-2 flex items-center gap-2 text-sm font-semibold tracking-wide text-accent/90;
+    text-shadow: 0 0 14px rgba(94, 234, 212, 0.28);
+  }
+
+  .panel-title::before {
+    content: '';
+    @apply inline-block h-3.5 w-[2px] rounded-full;
+    background: linear-gradient(180deg, var(--ky-cyan), rgba(34, 211, 238, 0));
+    box-shadow: 0 0 8px rgba(34, 211, 238, 0.8);
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px];
+  }
+
+  .panel-card {
+    @apply rounded-xl border border-white/5 bg-black/20 p-2 transition-colors;
+  }
+
+  .panel-card:hover {
+    @apply border-white/10 bg-black/30;
+  }
+
+  .title-glow {
+    text-shadow: 0 0 16px rgba(94, 234, 212, 0.55);
+  }
+}
+
+/* 3D 地球舞台：贴图未加载完成时的深空兜底 */
+.globe-stage {
+  background:
+    radial-gradient(circle at 50% 45%, rgba(34, 211, 238, 0.06) 0%, rgba(0, 0, 0, 0) 55%),
+    radial-gradient(circle at 50% 50%, #060b16 0%, #03060d 100%);
+}
+
+/* 3D 地球上的高风险常驻标签（htmlElementsData 注入） */
+.globe-tag {
+  font: 11px/1.2 ui-sans-serif, system-ui, 'PingFang SC', sans-serif;
+  padding: 2px 6px;
+  border: 1px solid rgba(94, 234, 212, 0.5);
+  border-radius: 6px;
+  background: rgba(6, 11, 22, 0.75);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  transform: translate(8px, -50%);
+}
+
+/* 平面地图弧线流动虚线 */
+.flat-arc {
+  stroke-dasharray: 7 11;
+  animation: flat-arc-flow 2.4s linear infinite;
+}
+
+@keyframes flat-arc-flow {
+  from {
+    stroke-dashoffset: 36;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 平面地图高风险点位呼吸 */
+.flat-point-pulse {
+  animation: flat-point-breathe 2.2s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes flat-point-breathe {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* 信号流行 hover */
+.signal-row {
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+.signal-row:hover {
+  background-color: rgba(0, 0, 0, 0.4);
+  transform: translateX(2px);
+}
+
+/* 细滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(94, 234, 212, 0.25);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(94, 234, 212, 0.4);
+}
