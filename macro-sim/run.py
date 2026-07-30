@@ -19,7 +19,7 @@ from pathlib import Path
 
 NTFY_URL    = "https://ntfy.sh/***REMOVED***"
 REPORT_DIR  = Path(os.environ.get("REPORT_DIR", "/app/reports"))
-TRIGGER_PATH = Path("/app/sim_trigger.json")
+TRIGGER_PATH = Path("/app/macro_data/sim_trigger.json")
 
 
 # ── 完整仿真流程 ──────────────────────────────────────────

@@ -4,6 +4,78 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
 
+## 2026-07-31 [2.0.14] P0 修复：sim_trigger 单文件 bind mount inode 断链（by WorkBuddy/齐活林）
+
+**修改者**：WorkBuddy（齐活林）
+**修改理由**：三探针实测（P3）发现 P0 级未爆弹——scan 侧 `grv_threshold.py` 用 `os.replace()` 原子写 `sim_trigger.json`（更换 inode），而 macro-sim 以 **single-file bind mount** 挂载该文件，原子写换 inode 后容器内挂载锁死在旧 inode，scan 新触发信号永远进不了天璇（隔离容器实验实证：单文件挂载断链、目录挂载正常）。现存文件已 0 字节停更 Jul25。若不修，下次 GRV>=68 触发时天璇永久失联且全程静默。
+
+### 改动（修法 A：目录挂载，保留 scan 原子写）
+- `docker-compose.yml`：删除单文件挂载 `.../data/sim_trigger.json:/app/sim_trigger.json`，将 `.../macro-scan/data:/app/macro_data` 由 `:ro` 改 `:rw`（sim 消费后需原地清空触发文件）
+- `run.py` L22：`TRIGGER_PATH = Path("/app/sim_trigger.json")` -> `Path("/app/macro_data/sim_trigger.json")`
+
+### 验证
+- 重建镜像 + 从部署目录 `/vol2/1000/software/macro-sim` recreate 容器，挂载核验：单文件挂载消失、macro_data RW=True
+- 端到端实测：scan 容器 `os.replace` 写测试文件 -> sim 容器经目录挂载立即读到新内容（断链根治）
+- daemon 正常启动，轮询新路径 `/app/macro_data/sim_trigger.json`；现存 0 字节触发文件不会误触发（st_size>0 条件）
+
+### 不动
+- scan 侧 `grv_threshold.py` 零改动（os.replace 在目录挂载下安全）；schema 契约不变
+
+## 2026-07-29 接口兼容确认：macro-scan v3.6.5 GRV 新增字段（by WorkBuddy, 无代码变更）
+
+**修改者**：WorkBuddy
+**修改理由**：macro-scan v3.6.5 `grv_latest.json` 新增 `sanctions_risk` / `seismic_risk` / `energy_grid_risk` 三个扩展维度（v3.6.4 引入，v3.6.5 全量验证产出）。macro-sim 当前只读前 5 维 + `japan_monetary`，JSON 有额外键不影响解析。本条目仅记录接口 schema 变更，无代码改动。
+
+### 不动
+- macro-sim 代码、CHANGELOG、VERSION 均未动，本次仅文档同步。
+
+
+## 2026-07-28 [2.0.13] P3：叙事美化逻辑抽取为纯函数 format_narrative + 回归测试（by WorkBuddy/齐活林）
+
+**修改者**：WorkBuddy（齐活林）
+**修改理由**：v2.0.12 已在 run.py 内联完成 `**`→`【】` 归一化 + 美化分支修复（B1 第一次修复）。本次为可测性/可维护性二次改造：将 run.py L304–321 内联美化逻辑（含 `import re as _re`）抽取为纯函数 `core/narrative_format.format_narrative(raw: str) -> list[str]`，消除 run.py 局部 import、便于单元测试，行为逐字节等价（14 组样例 diff 全 `==`，IS_PASS: YES）。
+
+### 修改
+- **新增 `core/narrative_format.py`**：纯函数 `format_narrative(raw)` 封装归一化（`**label**`→`【label】`）+ `【】` 拆分 + 多段美化 / 兜底逻辑；仅依赖标准库 `re`，无循环 import。
+- **`run.py:304-306`**：原 L304–321 整段替换为 `if path.narrative: from core.narrative_format import format_narrative; lines += format_narrative(path.narrative)`；删除原局部 `import re as _re`（grep 确认无残留引用）。
+- **新增 `tests/test_narrative_format.py`**：自包含纯 Python 回归测试（不依赖 pytest），11 用例 ALL PASSED，锁定三类 `**label**` 主场景美化 + 空串/纯文本/数字前缀/单标签等边界。
+
+### 不动
+- 对外渲染格式（`**label**：content`）、仿真核心、数据流、跨子系统接口契约未变，向后兼容。
+- 未改 `core/bifurcation.py` 的叙事 prompt（保持 v2.0.12 的诚实化 `**` 分隔符）。
+
+### 已知边界（非主要场景，已固化测试，非阻塞）
+- 单标签（如 `**只一个标签**\n内容`）走 else 分支不美化，保留 `【label】内容` 形态（换行被 bold 正则 `\s*` 吞掉）。
+- 数字前缀列表首行（`1. **情景定性**\n内容`）因 `_DIGIT_PREFIX_RE` 仅匹配「\n数字.」、且单 label 走 else，输出 `1. 【情景定性】内容`，首行数字前缀未清理、不美化。GLM 实测稳定输出三类齐全的 `**label**：` 形态，上述边界在真实数据流极低频。
+
+### 关联 question 文档
+- B1: `docs/questions/world-deduction/20260718-world-deduction-report-narrative-separator-fragile.md`
+
+---
+
+## 2026-07-28 [2.0.12] P3：叙事分隔符兼容 GLM 真实 `**` 输出（by WorkBuddy/齐活林）
+
+**修改者**：WorkBuddy（齐活林）
+**修改理由**：B1 question 复查发现，叙事 prompt 要求 GLM 输出 `【情景定性】` 等方括号分隔符，但 GLM-Z1-9B（SiliconFlow，免费模型）实测稳定输出 `**情景定性**`（Markdown 加粗）。run.py 的叙事美化分支（`re.split/findall(r'【[^】]+】')`）只认 `【】`，导致 `findall` 永远空、美化逻辑死代码、报告始终走 else 原样兜底——"清晰"纯靠 `**` 被 MD 查看器碰巧加粗的侥幸，长期脆弱（见 B1 question 20260718）。
+
+### 修改
+
+- **`run.py:307` 后新增 1 行归一化**：`narrative = _re.sub(r'\*\*(.+?)\*\*\s*', r'【\1】', narrative)`
+  - 把 GLM 真实输出 `**label**` 统一归一成约定 `【label】`，下方既有 `【】` 拆分/标签提取逻辑无需改动即可正确命中美化分支，三段规范化为 `**label**：content`。
+  - 双兼容：GLM 未来吐回 `【】` 也照样生效；最坏情形（归一化未命中）仍落 else 兜底，不会比改动前更差。
+- **`core/bifurcation.py:299-302` prompt 诚实化**：叙事结构指令由 `【情景定性】/【核心传导链】/【对你的影响】` 改为 `**情景定性**/**核心传导链**/**对你的影响**`，使 prompt 与 GLM 真实行为一致，消灭"生产者-消费者"契约错位（B1 方案 E）。
+
+### 不动
+
+- 美化分支下游输出格式（`**label**：content`）与改动前渲染一致，无视觉回归。
+- 仿真核心 / 数据流 / 跨子系统接口契约未变，向后兼容。
+
+### 关联 question 文档
+
+- B1: `docs/questions/world-deduction/20260718-world-deduction-report-narrative-separator-fragile.md`
+
+---
+
 ## 2026-07-25 [2.0.11] P0：GRV 历史 None 值防御（by Hermes）
 
 **修改者**：Hermes
