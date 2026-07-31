@@ -1,7 +1,7 @@
 import { GRV_ARCS, getDimDef } from '@/config/grvDimensions';
 import { PALETTE, severityColor, severityLabel, withAlpha } from '@/config/theme';
 import { fmtNum } from '@/lib/format';
-import type { GrvDimension } from '@/types/contracts';
+import type { GrvDimension, GrvEvent } from '@/types/contracts';
 
 /**
  * 3D 地球与 2D 平面地图共用的数据构建层。
@@ -24,6 +24,10 @@ export interface RiskPoint {
   severity: string;
   /** 归一化强度 0~1（缺失按 0） */
   weight: number;
+  /** 是否为事件触发式告警柱（气候 / 灾害事件），视觉与文案区别于常驻地缘柱 */
+  isEvent?: boolean;
+  /** 事件补充说明（仅 isEvent 点可能存在） */
+  note?: string;
 }
 
 export interface RiskArc {
@@ -48,6 +52,8 @@ export function buildRiskPoints(dims: GrvDimension[]): RiskPoint[] {
   const out: RiskPoint[] = [];
   for (const d of dims) {
     if (d.kind !== 'geographic') continue;
+    // renderBar=false 的维度（气候/自然灾害）不画常驻柱，改由事件触发式告警柱表达
+    if (getDimDef(d.id)?.renderBar === false) continue;
     if (d.lat === null || d.lng === null) continue;
     const v = d.value;
     out.push({
@@ -63,6 +69,39 @@ export function buildRiskPoints(dims: GrvDimension[]): RiskPoint[] {
       color: severityColor(v),
       severity: severityLabel(v),
       weight: v === null ? 0 : Math.min(1, Math.max(0, v / 100)),
+    });
+  }
+  return out;
+}
+
+/**
+ * 由事件列表构建事件触发式告警柱（气候 / 自然灾害）。
+ * 入参为空 / undefined 时返回空数组（优雅降级：无事件则地图上什么都不画）。
+ */
+export function buildEventBars(events?: GrvEvent[]): RiskPoint[] {
+  if (!events || events.length === 0) return [];
+  const out: RiskPoint[] = [];
+  for (const e of events) {
+    // 坐标必须是有限数：Number.isFinite 不做类型强制，undefined / null / NaN / Infinity / 字符串均返回 false
+    if (!Number.isFinite(e?.lat) || !Number.isFinite(e?.lng)) continue;
+    // value 同样必须是有限数：否则 weight=NaN 且 severity 被错判为「低」，
+    // 会渲染出高度异常/不可见却显示「低」等级的误导性告警柱，与坐标无效跳过保持同一语义
+    if (!Number.isFinite(e?.value)) continue;
+    out.push({
+      id: e.id,
+      label: e.label,
+      lat: e.lat,
+      lng: e.lng,
+      value: e.value,
+      uncertainty: null,
+      uncertaintyEstimated: false,
+      group: e.type === 'disaster' ? '自然灾害' : '气候',
+      status: 'ok',
+      color: severityColor(e.value),
+      severity: severityLabel(e.value),
+      weight: Math.min(1, Math.max(0, e.value / 100)),
+      isEvent: true,
+      note: e.note,
     });
   }
   return out;
@@ -101,18 +140,33 @@ export function buildRiskArcs(dims: GrvDimension[]): RiskArc[] {
   return arcs;
 }
 
-/** 统一的点位提示气泡 HTML（globe.gl pointLabel 与平面地图 tooltip 共用）。 */
+/** 统一的点位提示气泡 HTML（globe.gl pointLabel 与平面地图 tooltip 共用；事件点走告警文案）。 */
 export function pointTooltipHtml(p: RiskPoint): string {
   const val = p.value === null ? '数据缺失' : fmtNum(p.value);
+  const shell =
+    `<div style="font:12px/1.5 ui-sans-serif,system-ui,'PingFang SC',sans-serif;` +
+    `background:rgba(6,11,22,0.92);border:1px solid ${withAlpha(p.color, 0.55)};` +
+    `box-shadow:0 0 18px ${withAlpha(p.color, 0.28)};color:${PALETTE.text};` +
+    `padding:6px 10px;border-radius:8px;white-space:nowrap;">`;
+
+  if (p.isEvent) {
+    const noteLine = p.note ? `<br/><span style="opacity:.6">详情：${p.note}</span>` : '';
+    return (
+      shell +
+      `<b style="color:${p.color}">⚠ ${p.label}</b>` +
+      `<span style="opacity:.5;margin-left:6px">事件类型：${p.group}</span><br/>` +
+      `事件严重度 <b>${val}</b> · 等级 ${p.severity}` +
+      noteLine +
+      `</div>`
+    );
+  }
+
   const unc =
     p.value === null || p.uncertainty === null
       ? '未知'
       : `±${fmtNum(p.uncertainty)}${p.uncertaintyEstimated ? '（估算）' : ''}`;
   return (
-    `<div style="font:12px/1.5 ui-sans-serif,system-ui,'PingFang SC',sans-serif;` +
-    `background:rgba(6,11,22,0.92);border:1px solid ${withAlpha(p.color, 0.55)};` +
-    `box-shadow:0 0 18px ${withAlpha(p.color, 0.28)};color:${PALETTE.text};` +
-    `padding:6px 10px;border-radius:8px;white-space:nowrap;">` +
+    shell +
     `<b style="color:${p.color}">${p.label}</b>` +
     `<span style="opacity:.5;margin-left:6px">${p.group}</span><br/>` +
     `风险值 <b>${val}</b> · 等级 ${p.severity}<br/>` +

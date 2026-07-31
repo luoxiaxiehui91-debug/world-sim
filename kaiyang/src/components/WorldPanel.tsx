@@ -4,7 +4,7 @@ import { FlatMapPanel } from '@/components/FlatMapPanel';
 import { useFeed } from '@/hooks/useFeed';
 import { useStatus } from '@/state/StatusContext';
 import { adaptGrv } from '@/lib/grvAdapter';
-import { buildRiskArcs, buildRiskPoints } from '@/lib/mapData';
+import { buildEventBars, buildRiskArcs, buildRiskPoints } from '@/lib/mapData';
 import { SEVERITY_LEGEND, severityColor, withAlpha } from '@/config/theme';
 import { fmtNum } from '@/lib/format';
 import type { GrvRaw } from '@/types/contracts';
@@ -36,6 +36,9 @@ export function WorldPanel() {
   const model = useMemo(() => adaptGrv(data), [data]);
   const points = useMemo(() => buildRiskPoints(model.geographic), [model]);
   const arcs = useMemo(() => buildRiskArcs(model.geographic), [model]);
+  // 事件触发式告警柱（气候 / 灾害事件）：无事件时为空数组，地图上什么都不画
+  const eventPoints = useMemo(() => buildEventBars(data?.events), [data]);
+  const allPoints = useMemo(() => [...points, ...eventPoints], [points, eventPoints]);
 
   // 记住上次的视图选择
   useEffect(() => {
@@ -63,9 +66,19 @@ export function WorldPanel() {
         <div className="panel-title mb-0">
           {mode === 'globe' ? '🌐 全球风险地球' : '🗺️ 全球风险平面图'}
         </div>
-        <span className="chip text-white/45" title="仅地理维度上图；综合维度不投影">
-          地理维度 {points.length}
+        <span className="chip text-white/45" title="仅地理维度上图；综合维度不投影；含事件触发式告警柱">
+          地理维度 {allPoints.length}
         </span>
+
+        {eventPoints.length > 0 && (
+          <span
+            className="chip"
+            title="气候 / 灾害事件触发的地图告警柱（来自 grv_latest.json events[]）"
+            style={{ borderColor: withAlpha('#f59e0b', 0.5), color: '#fbbf24' }}
+          >
+            ⚠ 事件 {eventPoints.length}
+          </span>
+        )}
 
         {headline && (
           <span
@@ -106,13 +119,13 @@ export function WorldPanel() {
           className={`absolute inset-0 ${mode === 'globe' ? '' : 'pointer-events-none invisible'}`}
           aria-hidden={mode !== 'globe'}
         >
-          <GlobePanel points={points} arcs={arcs} active={mode === 'globe'} />
+          <GlobePanel points={allPoints} arcs={arcs} active={mode === 'globe'} />
         </div>
         <div
           className={`absolute inset-0 ${mode === 'flat' ? '' : 'pointer-events-none invisible'}`}
           aria-hidden={mode !== 'flat'}
         >
-          <FlatMapPanel points={points} arcs={arcs} active={mode === 'flat'} />
+          <FlatMapPanel points={allPoints} arcs={arcs} active={mode === 'flat'} />
         </div>
 
         {loading && (

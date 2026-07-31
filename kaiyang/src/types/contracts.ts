@@ -4,14 +4,29 @@
  * 约定：每个 feed JSON 必须携带 schema_version（Wave 1 = "1.0"）。
  */
 
+/** 气候 / 自然灾害事件（按需触发地图告警柱）。由上游事件 feed 提供，缺失则不渲染。 */
+export interface GrvEvent {
+  id: string;
+  type: 'climate' | 'disaster';
+  label: string;
+  lat: number;
+  lng: number;
+  /** 事件严重度 0~100，决定柱高与配色 */
+  value: number;
+  /** 补充说明，如"7.8级地震 / 季风洪涝" */
+  note?: string;
+}
+
 /** GRV 原始契约（grv_latest.json）。允许未知额外字段，便于未来扩展。 */
 export interface GrvRaw {
   schema_version?: string;
   updated?: string;
   gdelt_updated?: string;
   source_quality?: string;
+  /** 气候 / 灾害事件列表（可选）：仅当上游推送事件时才在地图上画告警柱 */
+  events?: GrvEvent[];
   /** 任意维度数值键（如 taiwan_strait / middle_east_energy ...） */
-  [key: string]: number | string | null | undefined;
+  [key: string]: number | string | null | undefined | GrvEvent[];
 }
 
 /** 经适配后的单一 GRV 维度（统一内部模型，含坐标与缺失状态）。 */
