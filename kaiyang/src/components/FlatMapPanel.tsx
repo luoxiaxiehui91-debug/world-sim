@@ -247,9 +247,10 @@ export function FlatMapPanel({ points, arcs, active = true }: FlatMapPanelProps)
           {/* 风险点位（光晕 + 核心点 + 高风险常驻标签） */}
           <g>
             {projectedPoints.map(({ point: p, x, y }) => {
-              const core = 2.6 + p.weight * 3.4;
+              // 事件告警柱略放大以示告警感
+              const core = (2.6 + p.weight * 3.4) * (p.isEvent ? 1.25 : 1);
               const halo = core * 3.2;
-              const highlight = (p.value ?? 0) >= HIGHLIGHT_THRESHOLD;
+              const highlight = (p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent === true;
               return (
                 <g
                   key={p.id}
@@ -276,10 +277,15 @@ export function FlatMapPanel({ points, arcs, active = true }: FlatMapPanelProps)
                       fontSize={10}
                       style={{ pointerEvents: 'none', textShadow: `0 0 6px ${withAlpha(p.color, 0.6)}` }}
                     >
+                      {p.isEvent ? '⚠ ' : ''}
                       {p.label} {p.value === null ? '—' : p.value.toFixed(0)}
                     </text>
                   )}
-                  <title>{`${p.label} · ${p.value === null ? '数据缺失' : fmtNum(p.value)}`}</title>
+                  <title>
+                    {p.isEvent
+                      ? `⚠ 事件 ${p.label} · 严重度 ${fmtNum(p.value)}${p.note ? ` · ${p.note}` : ''}`
+                      : `${p.label} · ${p.value === null ? '数据缺失' : fmtNum(p.value)}`}
+                  </title>
                 </g>
               );
             })}
@@ -302,19 +308,27 @@ export function FlatMapPanel({ points, arcs, active = true }: FlatMapPanelProps)
           }}
         >
           <div className="font-semibold" style={{ color: hover.point.color }}>
+            {hover.point.isEvent ? '⚠ ' : ''}
             {hover.point.label}
-            <span className="ml-1.5 text-[10px] font-normal text-white/40">{hover.point.group}</span>
+            <span className="ml-1.5 text-[10px] font-normal text-white/40">
+              {hover.point.isEvent ? `事件类型：${hover.point.group}` : hover.point.group}
+            </span>
           </div>
           <div>
-            风险值 <b>{hover.point.value === null ? '数据缺失' : fmtNum(hover.point.value)}</b> · 等级{' '}
+            {hover.point.isEvent ? '事件严重度' : '风险值'}{' '}
+            <b>{hover.point.value === null ? '数据缺失' : fmtNum(hover.point.value)}</b> · 等级{' '}
             {hover.point.severity}
           </div>
-          <div className="text-white/50">
-            不确定区间{' '}
-            {hover.point.value === null || hover.point.uncertainty === null
-              ? '未知'
-              : `±${fmtNum(hover.point.uncertainty)}${hover.point.uncertaintyEstimated ? '（估算）' : ''}`}
-          </div>
+          {hover.point.isEvent ? (
+            hover.point.note && <div className="text-white/50">详情：{hover.point.note}</div>
+          ) : (
+            <div className="text-white/50">
+              不确定区间{' '}
+              {hover.point.value === null || hover.point.uncertainty === null
+                ? '未知'
+                : `±${fmtNum(hover.point.uncertainty)}${hover.point.uncertaintyEstimated ? '（估算）' : ''}`}
+            </div>
+          )}
         </div>
       )}
 

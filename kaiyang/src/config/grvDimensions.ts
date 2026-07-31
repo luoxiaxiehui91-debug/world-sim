@@ -23,6 +23,12 @@ export interface GrvDimDef {
   sourceKey?: string;
   /** 面板中的补充说明（可选） */
   note?: string;
+  /**
+   * 是否在地图上渲染常驻柱状图（默认 true）。
+   * 设为 false 的维度保留地理锚点（供 GRV_ARCS 弧线使用），但不画常驻柱；
+   * 其地图呈现改由事件触发式告警柱（grv_latest.json 的 events[]）承担。
+   */
+  renderBar?: boolean;
 }
 
 export const GRV_DIMENSIONS: GrvDimDef[] = [
@@ -41,8 +47,8 @@ export const GRV_DIMENSIONS: GrvDimDef[] = [
     sourceKey: 'global_composite',
     note: '全球综合风险指数，无地理位置，不投影到地图',
   },
-  { id: 'climate_risk', label: '气候风险', group: '非传统', kind: 'geographic', lat: 74.0, lng: 10.0, sourceKey: 'climate_risk', note: '锚点：北极圈（气候变化最敏感区）' },
-  { id: 'disaster_risk', label: '自然灾害', group: '非传统', kind: 'geographic', lat: -2.0, lng: -80.0, sourceKey: 'disaster_risk', note: '锚点：环太平洋地震带' },
+  { id: 'climate_risk', label: '气候风险', group: '非传统', kind: 'geographic', lat: 74.0, lng: 10.0, sourceKey: 'climate_risk', note: '锚点：北极圈（气候变化最敏感区）；不画常驻柱，改为事件触发式告警柱', renderBar: false },
+  { id: 'disaster_risk', label: '自然灾害', group: '非传统', kind: 'geographic', lat: -2.0, lng: -80.0, sourceKey: 'disaster_risk', note: '锚点：环太平洋地震带；不画常驻柱，改为事件触发式告警柱', renderBar: false },
   {
     id: 'global_south',
     label: '全球南方',

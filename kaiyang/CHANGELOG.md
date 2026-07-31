@@ -1,6 +1,12 @@
-# Changelog · 开阳（Kaiyang）展示层
+# Changelog · 开阳（Kaiyang）操作面板
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
+
+## [1.0.3] - 2026-07-31 · 气候/灾害改为事件触发式告警柱
+
+- **气候风险 / 自然灾害不再画常驻地图柱**：`grvDimensions` 新增 `renderBar?: boolean`，两维度置 `false`（保留 geographic 锚点供 GRV_ARCS 弧线使用），`buildRiskPoints` 据此跳过。
+- **新增事件触发式告警柱**：`grv_latest.json` 新增**可选**契约字段 `events[]`（`GrvEvent`：id/type/label/lat/lng/value/note）。有事件时才在事件发生地画告警柱（⚠ 前缀 tooltip/标签、脉冲光环、平面图放大点位）；缺省时不渲染（`buildEventBars` 优雅降级返回空数组）。
+- `public/data/grv_latest.json` 追加两条演示事件（土耳其地震 / 巴基斯坦洪涝），正式环境由后端事件 feed 提供。
 
 ## [1.0.2] — 2026-07-30 · 视觉增强（Wave 1 观感升级，对标 crucix）
 
@@ -35,7 +41,7 @@
 ## [1.0.0] — 2026-07-30 · Wave 1 交付
 
 **新增（Wave 1，构建通过 IS_PASS: YES）**
-- 完整 Vite + React + TS + Tailwind 静态站，纯展示层，只读天枢契约文件。
+- 完整 Vite + React + TS + Tailwind 静态站，前端操作面板（展示 + 控制双职能）；读侧只读天枢契约文件，写侧为受控指令通道（协议暂缓）。
 - 3D 地球面板（globe.gl）：11 维 GRV 风险点 + 地缘联动弧线（上游无坐标时按内置 11 维锚点）。
 - GRV 面板（ECharts）：各维度数值 + 不确定区间（误差带 / 扇形），区间缺失时按 8% 估算并标记 `uncertaintyEstimated`。
 - 经济面板（ECharts）：FRED 关键序列（manifest 14 个）。

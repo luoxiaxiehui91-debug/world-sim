@@ -142,7 +142,7 @@ export function GlobePanel({ points, arcs, active = true }: GlobePanelProps) {
         .pointLat('lat')
         .pointLng('lng')
         .pointColor('color')
-        .pointAltitude((p: RiskPoint) => (p.value === null ? 0.02 : 0.06 + p.weight * 0.34))
+        .pointAltitude((p: RiskPoint) => (p.value === null ? 0.01 : 0.03 + p.weight * 0.17))
         .pointRadius((p: RiskPoint) => (p.value === null ? 0.3 : 0.4 + p.weight * 0.25))
         .pointLabel((p: RiskPoint) => pointTooltipHtml(p))
         .arcsData(arcs)
@@ -161,9 +161,9 @@ export function GlobePanel({ points, arcs, active = true }: GlobePanelProps) {
         .arcDashAnimateTime((a: RiskArc) => 2600 - Math.min(1200, a.intensity * 12))
         .arcLabel((a: RiskArc) => arcTooltipHtml(a));
 
-      // 高风险点位脉冲光环（能力探测，缺失则跳过）
+      // 高风险点位脉冲光环（能力探测，缺失则跳过）；事件告警柱始终带光环
       if (typeof world.ringsData === 'function') {
-        const rings = points.filter((p) => (p.value ?? 0) >= HIGHLIGHT_THRESHOLD);
+        const rings = points.filter((p) => (p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent);
         world
           .ringsData(rings)
           .ringLat('lat')
@@ -174,21 +174,21 @@ export function GlobePanel({ points, arcs, active = true }: GlobePanelProps) {
           .ringRepeatPeriod(1100);
       }
 
-      // 高风险常驻发光标签（CSS2D 层，能力探测）
+      // 高风险常驻发光标签（CSS2D 层，能力探测）；事件告警柱始终带标签
       if (typeof world.htmlElementsData === 'function') {
-        const labeled = points.filter((p) => (p.value ?? 0) >= HIGHLIGHT_THRESHOLD);
+        const labeled = points.filter((p) => (p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent);
         world
           .htmlElementsData(labeled)
           .htmlLat('lat')
           .htmlLng('lng')
-          .htmlAltitude((p: RiskPoint) => 0.12 + p.weight * 0.34)
+          .htmlAltitude((p: RiskPoint) => 0.06 + p.weight * 0.17)
           .htmlElement((p: RiskPoint) => {
             const div = document.createElement('div');
             div.className = 'globe-tag';
             div.style.color = p.color;
             div.style.borderColor = withAlpha(p.color, 0.5);
             div.style.boxShadow = `0 0 12px ${withAlpha(p.color, 0.35)}`;
-            div.textContent = `${p.label} ${p.value === null ? '—' : p.value.toFixed(0)}`;
+            div.textContent = `${p.isEvent ? '⚠ ' : ''}${p.label} ${p.value === null ? '—' : p.value.toFixed(0)}`;
             return div;
           });
       }
