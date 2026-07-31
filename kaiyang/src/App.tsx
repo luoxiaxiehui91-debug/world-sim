@@ -27,7 +27,7 @@ export default function App() {
           })}
         </main>
         <footer className="px-4 pb-4 text-center text-[11px] text-white/30">
-          世界推演系统 · 开阳 Wave 1 · 纯展示层（只读契约文件，不调用任何数据源）
+          世界推演系统 · 开阳 Wave 1 · 操作面板（展示 + 控制双职能，只读契约 + 受控指令）
         </footer>
       </div>
     </StatusProvider>
