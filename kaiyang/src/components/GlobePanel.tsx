@@ -20,7 +20,7 @@ export interface GlobePanelProps {
 
 /**
  * 3D 地球视图（globe.gl / three r0.185.1）。
- * 纯展示组件：数据由 WorldPanel 统一构建后传入，与平面地图共用同一份点位/弧线。
+ * 展示组件：数据由 WorldPanel 统一构建后传入，与平面地图共用同一份点位/弧线。（开阳整体为操作面板，含向各后端下发受控指令的职能，详见 DESIGN.md / DATA_CONTRACT.md）
  *
  * 视觉：本地星空背景 + 加厚青绿大气 + 经纬网格 + 渐变粗弧线 + 光环点位 + 高风险常驻标签。
  * 兼容性：所有非核心 API（graticules / rings / htmlElements）均做能力探测，缺失时静默降级，

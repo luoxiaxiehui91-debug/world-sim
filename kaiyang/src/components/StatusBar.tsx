@@ -35,7 +35,7 @@ export function StatusBar() {
     <header className="glass scanlines mx-4 mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2 text-xs">
       <div className="mr-2 flex items-center gap-2">
         <span className="title-glow font-bold tracking-[0.3em] text-accent">开阳</span>
-        <span className="hidden text-white/40 sm:inline">WAVE 1 · 世界推演展示层</span>
+        <span className="hidden text-white/40 sm:inline">WAVE 1 · 世界推演操作面板</span>
       </div>
 
       {headline && (
