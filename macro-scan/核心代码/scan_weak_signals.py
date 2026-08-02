@@ -830,16 +830,24 @@ def _compute_gdelt_scores(rows: list) -> dict:
     def _norm(d, scale):
         return {k: round(min(100.0, v / scale * 100), 1) for k, v in d.items() if v > 0}
 
-    # Phase 2B：社会压力指数（0-100，越高说明该国新闻情绪越负面）
-    # Tone 均值 = tone_sum / tone_cnt，越负说明越多冲突事件
-    # 归一化：-5.0 = 50分（中度悲观），-10.0 = 100分（极度悲观）
+    # Phase 2B：社会压力指数（0-100，越高说明该国冲突情绪显著偏离基准）
+    # 归一化：基于相对偏差而非绝对值。
+    # GDELT 冲突类事件（CAMEO 14-20）Goldstein 天然在 -7~-10，直接用绝对值会使所有国家
+    # 都落在 70-100 区间，完全失去区分度。
+    # 基准线 BASE=-7.0（低张力时期冲突事件典型均值，实测约 -7.97）
+    # 公式：score = (mean_tone - BASE) / (−10.0 − BASE) * 100
+    #       mean_tone=-7.0 → 0分（基准），mean_tone=-10.0 → 100分（极度压力）
+    _TONE_BASE = -7.0   # 低张力基准线（实测校准值）
+    _TONE_FLOOR = -10.0  # 最大冲突（Goldstein 下限）
+
     def _tone_to_score(c: str) -> float:
         if tone_cnt[c] < 10:  # 样本不足跳过
             return 0.0
         mean_tone = tone_sum[c] / tone_cnt[c]
-        if mean_tone >= 0:  # 正向情绪，不触发
+        if mean_tone >= _TONE_BASE:  # 不超过基准线，无压力
             return 0.0
-        return round(min(100.0, abs(mean_tone) / 10.0 * 100), 1)
+        score = (mean_tone - _TONE_BASE) / (_TONE_FLOOR - _TONE_BASE) * 100
+        return round(min(100.0, max(0.0, score)), 1)
 
     social_stress = {}
     for _c in tone_cnt:

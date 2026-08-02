@@ -44,6 +44,68 @@ AUTH_GATEWAY_PORT = os.environ.get("AUTH_GATEWAY_PORT", "28789")
 # 优先从环境变量读取，如未设置则使用默认 Key
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 
+# ── CoinGecko Demo API（加密资产快照，免费档 100 RPM / ~1万月）──
+COINGECKO_API_KEY = os.environ.get("COINGECKO_API_KEY", "")
+
+# ── OpenSanctions bulk data 端点（制裁风险快照，方案 B：国别暴露聚合）──
+# 用官方「latest」重定向直取最新发布，免去解析 run 时间戳；
+# 实际发布文件为 targets.simple.csv（简化表格式，含 countries 列），
+# OpenSanctions 未提供 entities.csv。如需切换数据集/格式在此覆盖。
+OPEN_SANCTIONS_DATA_URL = os.environ.get(
+    "OPEN_SANCTIONS_DATA_URL",
+    "https://data.opensanctions.org/datasets/latest/sanctions/targets.simple.csv",
+)
+
+# ── 出站代理（NAS 出口，部分外部源直连不可达时走此，与 FRED 代理一致）──
+PROXY_URL = os.environ.get("PROXY_URL", "http://192.168.31.108:7890")
+
+# ── 新接入源配置（P0+P1，env 可覆盖）─────────────────────────────────────────
+# P0 — USGS 地震（真免key，实时 GeoJSON feed，带 time 时间戳）
+USGS_EARTHQUAKE_URL = os.environ.get(
+    "USGS_EARTHQUAKE_URL",
+    "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson",
+)
+
+# P1 — 能源/电网（英国 Carbon Intensity / National Grid ESO，NESO 公开 API 免key）
+UK_CARBON_INTENSITY_BASE = os.environ.get(
+    "UK_CARBON_INTENSITY_BASE", "https://api.carbonintensity.org.uk"
+)
+# National Grid ESO (NESO) BMRS 需免费 API key；未配则降级（见 fetch_energy.py 说明）
+NATIONAL_GRID_ESO_BMRS_KEY = os.environ.get("NATIONAL_GRID_ESO_BMRS_KEY", "")
+
+# P1 — 气象/太阳能（需 key）
+NREL_API_KEY = os.environ.get("NREL_API_KEY", "")
+NREL_PVWATTS_URL = os.environ.get(
+    "NREL_PVWATTS_URL", "https://developer.nrel.gov/api/pvwatts/v8.json"
+)
+AEMET_API_KEY = os.environ.get("AEMET_API_KEY", "")
+AEMET_BASE = os.environ.get("AEMET_BASE", "https://opendata.aemet.es/opendata/api")
+
+# P1 — 加密冗余行情（Binance / Kraken 公共端，免key）
+BINANCE_API_BASE = os.environ.get("BINANCE_API_BASE", "https://api.binance.com")
+KRAKEN_API_BASE = os.environ.get("KRAKEN_API_BASE", "https://api.kraken.com")
+
+# P1 — 新闻/情报聚合（均需 key）
+MARKETAUX_API_KEY = os.environ.get("MARKETAUX_API_KEY", "")
+MARKETAUX_API_URL = os.environ.get(
+    "MARKETAUX_API_URL", "https://api.marketaux.com/v1/news/all"
+)
+CURRENTS_API_KEY = os.environ.get("CURRENTS_API_KEY", "")
+CURRENTS_API_URL = os.environ.get(
+    "CURRENTS_API_URL", "https://api.currentsapi.services/v1/latest-news"
+)
+SUGRA_API_KEY = os.environ.get("SUGRA_API_KEY", "")
+SUGRA_API_URL = os.environ.get(
+    "SUGRA_API_URL", "https://api.sugra.ai/v1/observations"
+)
+
+# ── EIA（美国能源信息署，免费注册 key，~9000次/小时限额）────────────────────────
+EIA_API_KEY = os.environ.get("EIA_API_KEY", "")
+
+# P1 — HDX（人道/危机数据集，CKAN API 免 token）
+HDX_API_BASE = os.environ.get("HDX_API_BASE", "https://data.humdata.org/api/3/action")
+HDX_QUERY = os.environ.get("HDX_QUERY", "humanitarian OR conflict OR crisis")
+
 # ── Crucix API（NAS本地，直连地址） ───────────────────────────────────────────
 CRUCIX_REMOTE_URL = "http://192.168.31.108:3117/api/data"  # 按实际地址修改
 

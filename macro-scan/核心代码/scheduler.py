@@ -31,13 +31,15 @@ LOG_DIR = "/var/log/macro-scan"
 
 JOBS = [
     # name,         hhmm,   weekdays(1-5=Mon-Fri, 1-7=all), dom(day-of-month, None=any), command
-    ("disaster",    "0525", "1-7", None, [PYTHON, "fetch_disaster_signals.py"]),  # 自然灾害信号（最早）
+    ("disaster",    "I30", "1-7", None, [PYTHON, "fetch_disaster_signals.py"]),  # 自然灾害信号（事件档 每30分）
     ("fred_fetch",  "0530", "1-7", None, [PYTHON, "fetch_fred_history.py"]),
+    ("compute_fci", "0535", "1-7", None, [PYTHON, "compute_fci.py"]),  # L1 FCI 双轨（依赖 fred_fetch 刷新 fred_history）
+    ("compute_probit", "0540", "1-7", None, [PYTHON, "compute_probit.py"]),  # L3 probit
     ("gpr_fetch",   "0540", "1-7", None, [PYTHON, "fetch_gpr.py"]),
     ("china_fetch", "0545", "1-7", None, [PYTHON, "fetch_china_data.py"]),
     ("world_macro", "0550", "1-7", None, [PYTHON, "fetch_world_macro.py"]),
     ("fx_fetch",    "0555", "1-7", None, [PYTHON, "fetch_fx.py"]),
-    ("crypto",      "0600", "1-7", None, [PYTHON, "fetch_crypto.py"]),
+    ("crypto",      "I15", "1-7", None, [PYTHON, "fetch_crypto.py"]),         # CoinGecko（事件档 每15分；≤50%月限额）
     ("weak_signal", "0000", "1-7", None, [PYTHON, "scan_weak_signals.py"]),
     ("weak_signal", "0600", "1-7", None, [PYTHON, "scan_weak_signals.py"]),
     ("weak_signal", "1200", "1-7", None, [PYTHON, "scan_weak_signals.py"]),
@@ -45,10 +47,11 @@ JOBS = [
     ("sanctions",   "0605", "1-7", None, [PYTHON, "fetch_sanctions.py"]),
     # ── 新接入 P0+P1 源（fetcher_base 适配层；常驻进程、独立时间槽、互不阻塞）──
     # 喂 GRV 的源（earthquake / energy）排在大盘 grv_update 06:10 之前，保证当天先落盘
-    ("earthquake",  "0606", "1-7", None, [PYTHON, "fetch_earthquake.py"]),   # P0 USGS 地震（喂 seismic_risk）
+    ("earthquake",  "I15", "1-7", None, [PYTHON, "fetch_earthquake.py"]),   # P0 USGS 地震（事件档 每15分；喂 seismic_risk）
+    ("gdelt_geo",   "I15", "1-7", None, [PYTHON, "fetch_gdelt_geo.py", "--incremental"]),  # P1 GDELT 地理事件点（事件档 每15分；产出 news_geo.jsonl + news_geo_clusters.json）
     ("energy",      "0608", "1-7", None, [PYTHON, "fetch_energy.py"]),       # P1 电网/能源（喂 energy_grid_risk）
     # 以下不喂 GRV，仅落盘交叉验证/事件源，错峰在 grv_update 之后
-    ("crypto_extra","0612", "1-7", None, [PYTHON, "fetch_crypto_extra.py"]), # P1 Binance/Kraken 冗余行情
+    ("crypto_extra","I15", "1-7", None, [PYTHON, "fetch_crypto_extra.py"]), # P1 Binance/Kraken 冗余行情（事件档 每15分）
     ("news",        "0616", "1-7", None, [PYTHON, "fetch_news.py"]),         # P1 MarketAux/Currents/Sugra
     ("hdx",         "0620", "1-7", None, [PYTHON, "fetch_hdx.py"]),          # P1 人道/危机冲击
     # 新增 BDI / FAO（T01/T02：fetcher_base 适配层；仅落盘，不喂 GRV）
@@ -62,16 +65,15 @@ JOBS = [
     ("energy_eia",         "0630", "1-7", None, [PYTHON, "fetch_energy_eia.py"]),          # P0 EIA 能源（日频，错峰 commodity_yahoo 0626）
     ("china_meso",         "0930", "1-7", 1,    [PYTHON, "fetch_china_meso.py"]),          # P0 AkShare 中观（每月1日，错峰 fao 0925）
     # 地震为实时外生冲击，日内再刷 3 次（错峰，不与白天任务冲突）
-    ("earthquake",  "1206", "1-7", None, [PYTHON, "fetch_earthquake.py"]),
-    ("earthquake",  "1806", "1-7", None, [PYTHON, "fetch_earthquake.py"]),
-    ("earthquake",  "0006", "1-7", None, [PYTHON, "fetch_earthquake.py"]),
+
     ("grv_update",  "0610", "1-7", None, [PYTHON, "geo_risk_vector.py"]),
     ("morning",     "0730", "1-5", None, [PYTHON, "run_macro_analysis.py", "--country", "both", "--depth", "quick"]),
     ("us_daily",    "2000", "1-5", None, [PYTHON, "run_macro_analysis.py", "--country", "us", "--depth", "standard"]),
     ("china_daily", "2015", "1-5", None, [PYTHON, "run_macro_analysis.py", "--country", "china", "--depth", "standard"]),
     ("verify",      "0900", "1-7", 1,    [PYTHON, "verify_predictions.py"]),
     ("kb_update",   "0905", "1-7", 1,    [PYTHON, "update_kb_numbers.py"]),
-    ("climate",     "0910", "1-7", 1,    [PYTHON, "fetch_climate_signals.py"]),
+    ("firms",       "0908", "1-7", None, [PYTHON, "fetch_firms.py"]),           # NASA FIRMS 火点直连（crucix 退场前置，先于 climate 0910）
+        ("climate",     "0910", "1-7", 1,    [PYTHON, "fetch_climate_signals.py"]),
     ("daily_narrative", "0700", "1-7", None, [PYTHON, "daily_narrative.py"]),
     ("news_export",  "0705", "1-7", None, [PYTHON, "news_exporter.py"]),         # macro-sim JSON 导出
     ("narrative_proc","0710", "1-7", None, [PYTHON, "narrative_processor.py"]),  # 天玑 叙事预处理（叙事块写入+密度监测）
@@ -93,6 +95,7 @@ JOBS = [
 
 LOG_FILES = {
     "fred_fetch":  f"{LOG_DIR}/fred.log",
+    "compute_fci": f"{LOG_DIR}/compute_fci.log",
     "gpr_fetch":   f"{LOG_DIR}/gpr_fetch.log",
     "china_fetch": f"{LOG_DIR}/china.log",
     "weak_signal": f"{LOG_DIR}/scan.log",
@@ -103,7 +106,8 @@ LOG_FILES = {
     "kb_update":   f"{LOG_DIR}/kb_update.log",
     "grv_update":  f"{LOG_DIR}/grv.log",
     "daily_narrative": f"{LOG_DIR}/daily_narrative.log",
-    "climate":     f"{LOG_DIR}/climate.log",
+    "firms":       f"{LOG_DIR}/firms.log",
+        "climate":     f"{LOG_DIR}/climate.log",
     "situation_detect": f"{LOG_DIR}/situation_detect.log",
     "disaster":    f"{LOG_DIR}/disaster.log",
     "world_macro": f"{LOG_DIR}/world_macro.log",
@@ -111,6 +115,7 @@ LOG_FILES = {
     "crypto":      f"{LOG_DIR}/crypto.log",
     "sanctions":   f"{LOG_DIR}/sanctions.log",
     "earthquake":  f"{LOG_DIR}/earthquake.log",
+    "gdelt_geo":   f"{LOG_DIR}/gdelt_geo.log",
     "energy":      f"{LOG_DIR}/energy.log",
     "crypto_extra":f"{LOG_DIR}/crypto_extra.log",
     "news":        f"{LOG_DIR}/news.log",
@@ -151,17 +156,20 @@ def get_hhmm_wd():
     now = datetime.datetime.now()
     return now.strftime("%H%M"), now.isoweekday(), now.day  # Mon=1 Sun=7
 
-def should_run(sched_hhmm, sched_wd, sched_dom=None):
-    hhmm, wd, dom = get_hhmm_wd()
-    if hhmm != sched_hhmm:
-        return False
-    # day-of-month 检查（仅在指定时生效）
+def parse_interval(sched_hhmm):
+    """子小时间隔语法：'I15' = 每15分钟。返回间隔分钟数或 None。"""
+    if isinstance(sched_hhmm, str) and len(sched_hhmm) > 1 and sched_hhmm[0] in "iI" and sched_hhmm[1:].isdigit():
+        v = int(sched_hhmm[1:])
+        return v if 1 <= v <= 1440 else None
+    return None
+
+def wd_dom_ok(wd, dom, sched_wd, sched_dom):
+    """weekday / day-of-month 准入检查（interval 与每日档共用）。"""
     if sched_dom is not None and dom != sched_dom:
         return False
     if sched_wd == "1-7":
         return True
-    parts = sched_wd.split(",")
-    for part in parts:
+    for part in sched_wd.split(","):
         if "-" in part:
             try:
                 start, end = int(part.split("-")[0]), int(part.split("-")[1])
@@ -172,6 +180,18 @@ def should_run(sched_hhmm, sched_wd, sched_dom=None):
         elif str(wd) == part.strip():
             return True
     return False
+
+def should_run(sched_hhmm, sched_wd, sched_dom=None):
+    hhmm, wd, dom = get_hhmm_wd()
+    interval = parse_interval(sched_hhmm)
+    if interval:
+        mins = int(hhmm[0:2]) * 60 + int(hhmm[2:4])
+        if mins % interval != 0:
+            return False
+        return wd_dom_ok(wd, dom, sched_wd, sched_dom)
+    if hhmm != sched_hhmm:
+        return False
+    return wd_dom_ok(wd, dom, sched_wd, sched_dom)
 
 last_run = {}  # (job_name, sched_hhmm) -> last_run_ts
 
@@ -187,17 +207,30 @@ def main():
                 pass
 
         for job_name, sched_hhmm, sched_wd, sched_dom, cmd in JOBS:
-            key = (job_name, sched_hhmm)
-            now_ts = datetime.datetime.now().timestamp()
+            now_ts = time.time()
+            interval = parse_interval(sched_hhmm)
+            hhmm, wd, dom = get_hhmm_wd()
 
-            # Rate limit: skip if already ran within 50 minutes
-            if key in last_run:
-                if now_ts - last_run[key] < 3000:
+            if interval:
+                # 事件档：按当日分钟数对间隔取模触发（每 interval 分钟一次）
+                mins = int(hhmm[0:2]) * 60 + int(hhmm[2:4])
+                if mins % interval != 0:
                     continue
+                if not wd_dom_ok(wd, dom, sched_wd, sched_dom):
+                    continue
+                key = (job_name, sched_hhmm, mins // interval)
+                min_gap = interval * 60 - 10
+            else:
+                if hhmm != sched_hhmm:
+                    continue
+                if not wd_dom_ok(wd, dom, sched_wd, sched_dom):
+                    continue
+                key = (job_name, sched_hhmm)
+                min_gap = 3000  # 每日档：50 分钟内不重复触发
 
-            if not should_run(sched_hhmm, sched_wd, sched_dom):
+            if key in last_run and now_ts - last_run[key] < min_gap:
                 continue
-            
+
             log(f"FIRING: {job_name} ({' '.join(cmd[1:])})")
             last_run[key] = now_ts
             job_log(job_name, f"=== Job started: {' '.join(cmd[1:])} ===")

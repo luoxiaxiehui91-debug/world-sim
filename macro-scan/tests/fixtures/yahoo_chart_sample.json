@@ -1,0 +1,59 @@
+{
+  "CL=F": {
+    "meta": {
+      "symbol": "CL=F",
+      "shortName": "Crude Oil WTI",
+      "regularMarketPrice": 79.47,
+      "regularMarketTime": 1753710600,
+      "currency": "USD",
+      "exchangeName": "NYM"
+    },
+    "timestamp": [1753710600, 1753624200, 1753537800],
+    "indicators": {
+      "quote": [
+        {"close": [79.47, 78.91, 80.12]}
+      ]
+    }
+  },
+  "BZ=F": {
+    "meta": {
+      "symbol": "BZ=F",
+      "shortName": "Crude Oil Brent",
+      "regularMarketPrice": 83.12,
+      "regularMarketTime": 1753710600,
+      "currency": "USD",
+      "exchangeName": "NYM"
+    },
+    "timestamp": [1753710600, 1753624200, 1753537800],
+    "indicators": {
+      "quote": [
+        {"close": [83.12, 82.55, 84.01]}
+      ]
+    }
+  },
+  "HG=F": {
+    "meta": {
+      "symbol": "HG=F",
+      "shortName": "Copper",
+      "regularMarketPrice": 4.52,
+      "regularMarketTime": 1753710600,
+      "currency": "USD",
+      "exchangeName": "COMEX"
+    },
+    "timestamp": [1753710600, 1753624200, 1753537800],
+    "indicators": {
+      "quote": [
+        {"close": [4.52, 4.48, 4.55]}
+      ]
+    }
+  },
+  "AH=F": {
+    "chart": {
+      "result": null,
+      "error": {
+        "code": "404",
+        "description": "Not Found"
+      }
+    }
+  }
+}

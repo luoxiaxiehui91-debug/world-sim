@@ -342,6 +342,68 @@ def compute_grv() -> dict:
     except Exception:
         pass
 
+    # ── 接入制裁信号（sanctions_risk）──────────────────────────
+    # 来源：fetch_sanctions.py 用 OpenSanctions bulk data（sanctions 数据集
+    # targets.simple.csv）做国别制裁暴露聚合，写出 data/sanctions_risk.json。
+    # 这里直接消费其全局基线 global_sanctions_risk（0–100，长期持久基线）。
+    sanctions_risk = None
+    try:
+        sanc_path = os.path.join(DATA_DIR, "sanctions_risk.json")
+        if os.path.exists(sanc_path):
+            with open(sanc_path, encoding="utf-8") as _sf:
+                _sd = json.load(_sf)
+            if _sd.get("status") == "ok":
+                g = _sd.get("global_sanctions_risk")
+                if isinstance(g, (int, float)):
+                    sanctions_risk = round(float(g), 1)
+                else:
+                    logger.warning("[GRV] sanctions_risk 全局值缺失/类型异常，留空")
+            else:
+                logger.info("[GRV] 制裁数据 status=%s，sanctions_risk 留空", _sd.get("status"))
+    except Exception as _e:
+        logger.warning(f"[GRV] 制裁信号读取失败（非阻断）: {_e}")
+
+    # ── 接入地震压力（seismic_risk）──────────────────────────
+    # 来源：fetch_earthquake.py（USGS Earthquake feed，全局地震压力指数 0–100）。
+    # 与 fetch_disaster_signals.py 的 disaster_risk（事件级告警）互补：
+    # 此处为全局结构性压力基线，喂 GRV 的 energy/grid 外生冲击维度。
+    seismic_risk = None
+    try:
+        eq_path = os.path.join(DATA_DIR, "earthquake_risk.json")
+        if os.path.exists(eq_path):
+            with open(eq_path, encoding="utf-8") as _eq:
+                _ed = json.load(_eq)
+            if _ed.get("status") == "ok":
+                s = _ed.get("seismic_risk")
+                if isinstance(s, (int, float)):
+                    seismic_risk = round(float(s), 1)
+                else:
+                    logger.warning("[GRV] seismic_risk 全局值缺失/类型异常，留空")
+            else:
+                logger.info("[GRV] 地震数据 status=%s，seismic_risk 留空", _ed.get("status"))
+    except Exception as _e:
+        logger.warning(f"[GRV] 地震信号读取失败（非阻断）: {_e}")
+
+    # ── 接入能源/电网压力（energy_grid_risk）──────────────────
+    # 来源：fetch_energy.py（UK Carbon Intensity API → grid_carbon_risk，0–100）。
+    # 高值 = 电网更脏（化石占比高）/ 能源外生压力更大，喂 GRV 的 energy/grid 维度。
+    energy_grid_risk = None
+    try:
+        en_path = os.path.join(DATA_DIR, "energy_risk.json")
+        if os.path.exists(en_path):
+            with open(en_path, encoding="utf-8") as _en:
+                _end = json.load(_en)
+            if _end.get("status") in ("ok", "partial"):
+                g = _end.get("grid_carbon_risk")
+                if isinstance(g, (int, float)):
+                    energy_grid_risk = round(float(g), 1)
+                else:
+                    logger.warning("[GRV] grid_carbon_risk 缺失/类型异常，留空")
+            else:
+                logger.info("[GRV] 能源数据 status=%s，energy_grid_risk 留空", _end.get("status"))
+    except Exception as _e:
+        logger.warning(f"[GRV] 能源信号读取失败（非阻断）: {_e}")
+
     # ── 日元货币压力（japan_monetary）─────────────────────────
     japan_monetary = _compute_japan_monetary()
 
@@ -361,6 +423,9 @@ def compute_grv() -> dict:
         "global_composite":   global_composite,
         "climate_risk":       climate_risk,
         "disaster_risk":      disaster_risk,
+        "sanctions_risk":     sanctions_risk,  # 新增：制裁风险（OpenSanctions bulk data，国别暴露聚合）
+        "seismic_risk":       seismic_risk,    # 新增：全球地震压力指数（USGS feed，energy/grid 外生冲击）
+        "energy_grid_risk":   energy_grid_risk,  # 新增：能源/电网压力（UK Carbon Intensity，energy/grid 外生冲击）
         "japan_monetary":     japan_monetary,   # 新增：日元货币压力（USD/JPY水位 + JGB收益率变速）
         "updated":            now,
         "gdelt_updated":      gdelt_updated,
@@ -453,6 +518,9 @@ def main():
     print(f"  全球综合:  {grv['global_composite']}")
     print(f"  气候风险:  {grv['climate_risk']}")
     print(f"  灾害风险:  {grv['disaster_risk']}")
+    print(f"  制裁风险:  {grv['sanctions_risk']}")
+    print(f"  地震压力:  {grv['seismic_risk']}")
+    print(f"  能源电网:  {grv['energy_grid_risk']}")
     print(f"  日元压力:  {grv['japan_monetary']}")
     print(f"  数据质量:  {grv['source_quality']}")
     logger.info(f"geo_risk_vector.py 完成，写入 {GRV_OUTPUT}")
