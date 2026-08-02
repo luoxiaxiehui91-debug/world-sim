@@ -49,3 +49,9 @@ uvicorn>=0.20.0
 # YAML 解析（situation_tracker.py / synthesis_rules.yaml 等热加载配置）
 # pyyaml 通常已随其他包安装，显式列出确保版本
 pyyaml>=6.0
+
+# Pydantic v2 数据契约（contracts.py I1 接口层）
+pydantic>=2.0.0
+
+# PDF 解析（ged_codebook_extract.py 解析 UCDP GED codebook PDF）
+pypdf>=4.0.0
