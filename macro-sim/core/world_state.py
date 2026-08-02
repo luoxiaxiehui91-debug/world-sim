@@ -29,6 +29,13 @@ class MacroWorldState:
     credit_spread: float      # 信用利差 bps (BAA-10Y)
     dff: float                # 联邦基金利率 %
     situation_level: int
+    # D7 fix: 补充 6 个 GRV 维度，使仿真输入与天枢产出的 11 维对齐
+    climate_risk: float = 0.0       # 气候风险 [0,100]，来自 fetch_climate_signals
+    disaster_risk: float = 0.0      # 灾害风险 [0,100]，来自 fetch_disaster_signals
+    sanctions_risk: float = 0.0     # 制裁风险 [0,100]，来自 fetch_sanctions
+    seismic_risk: float = 0.0       # 地震压力 [0,100]，来自 fetch_earthquake
+    energy_grid_risk: float = 0.0   # 能源电网压力 [0,100]，来自 fetch_energy
+    japan_monetary: float = 0.0     # 日元货币压力 [0,100]，来自 DEXJPUS+JGB
 
     # ── 内生变量（仿真中演化）────────────────────────────
     fed_rate_change: float = 0.0
@@ -89,6 +96,10 @@ class MacroWorldState:
             ctx["t10y2y"]            = self.t10y2y
             ctx["fund_risk_appetite"] = round(self.fund_risk_appetite, 3)
             ctx["credit_tightening"] = round(self.bank_credit_tightening, 3)
+            # D7: 制裁风险和地震/灾害压力影响全球避险情绪
+            ctx["sanctions_risk"]  = round(self.sanctions_risk / 100.0, 3)
+            ctx["disaster_risk"]   = round(self.disaster_risk / 100.0, 3)
+            ctx["seismic_risk"]    = round(self.seismic_risk / 100.0, 3)
 
         if agent_role == "fed":
             ctx["fed_rate_change"] = self.fed_rate_change
@@ -104,6 +115,9 @@ class MacroWorldState:
             ctx["energy_tension"] = round(
                 energy_shift + self.energy_supply_risk + self.grv_energy / 100.0, 3
             )
+            # D7: 能源电网和气候信号对能源国决策有直接影响
+            ctx["energy_grid_risk"] = round(self.energy_grid_risk / 100.0, 3)
+            ctx["climate_risk"]     = round(self.climate_risk / 100.0, 3)
 
         if agent_role == "media":
             ctx["recent_news"] = self.recent_news[:3]
@@ -121,7 +135,9 @@ class MacroWorldState:
             ctx["us_fiscal_pressure"] = round(self.us_fiscal_pressure, 3)
 
         if agent_role == "boj":
-            ctx["yen_carry_risk"] = round(self.yen_carry_risk, 3)
+            ctx["yen_carry_risk"]  = round(self.yen_carry_risk, 3)
+            # D7: japan_monetary 直接驱动 BOJ 决策
+            ctx["japan_monetary"]  = round(self.japan_monetary / 100.0, 3)
 
         if agent_role == "ecb":
             ctx["ecb_rate"] = round(self.ecb_rate, 2)
@@ -158,6 +174,13 @@ class MacroWorldState:
             "ecb_rate":               round(self.ecb_rate, 2),
             "sp500_change":           round(self.sp500_change, 4),
             "consecutive_negative_steps": self.consecutive_negative_steps,
+            # D7: 6个新GRV维度
+            "climate_risk":     round(self.climate_risk, 1),
+            "disaster_risk":    round(self.disaster_risk, 1),
+            "sanctions_risk":   round(self.sanctions_risk, 1),
+            "seismic_risk":     round(self.seismic_risk, 1),
+            "energy_grid_risk": round(self.energy_grid_risk, 1),
+            "japan_monetary":   round(self.japan_monetary, 1),
         }
 
     def get_observable_values(self) -> dict:
@@ -400,6 +423,13 @@ def load_from_macro_scan(
     grv_military  = (grv.get("russia_europe", 0) + grv.get("taiwan_strait", 0)) / 200
     grv_trade     = grv.get("us_china_strategic", 0) / 100
     us_china_grv  = grv.get("us_china_strategic", 50.0)
+    # D7: 读取天枢产出的6个额外GRV维度（缺失时安全默认值）
+    climate_risk     = float(grv.get("climate_risk") or 0.0)
+    disaster_risk    = float(grv.get("disaster_risk") or 0.0)
+    sanctions_risk   = float(grv.get("sanctions_risk") or 0.0)
+    seismic_risk     = float(grv.get("seismic_risk") or 0.0)
+    energy_grid_risk = float(grv.get("energy_grid_risk") or 0.0)
+    japan_monetary   = float(grv.get("japan_monetary") or 0.0)
 
     def read_latest(filename):
         path = os.path.join(fred_path, filename)
@@ -525,6 +555,13 @@ def load_from_macro_scan(
         usd_cny=float(usd_cny),
         ecb_rate=float(ecb_rate),
         sp500_change=float(sp500_change),
+        # D7: 6个新GRV维度
+        climate_risk=climate_risk,
+        disaster_risk=disaster_risk,
+        sanctions_risk=sanctions_risk,
+        seismic_risk=seismic_risk,
+        energy_grid_risk=energy_grid_risk,
+        japan_monetary=japan_monetary,
         situation_level=situation_level,
         trigger_event=trigger_event,
         recent_news=recent_news,

@@ -4,6 +4,30 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
 
+## 2026-08-03 [2.0.16] D7 fix：MacroWorldState 接入 6 个新 GRV 维度（by Claude Code）
+
+**修改者**：Claude Code  
+**修改理由**：D7 缺陷——天枢 geo_risk_vector 产出 11 维 GRV，但 MacroWorldState 只读取 5 维，导致 climate_risk/disaster_risk/sanctions_risk/seismic_risk/energy_grid_risk/japan_monetary 被仿真引擎完全忽略。
+
+### 改动
+
+- **`core/world_state.py`**
+  - `MacroWorldState` 新增 6 个外生变量字段（均有默认值 0.0，向后兼容）：
+    `climate_risk` / `disaster_risk` / `sanctions_risk` / `seismic_risk` / `energy_grid_risk` / `japan_monetary`
+  - `load_from_macro_scan()` 从 `grv_latest.json` 读取这 6 个字段（`or 0.0` 防 None）
+  - `to_dict()` 输出包含 6 个新字段
+  - `get_agent_context()` 三处增强：
+    - `energy_gov` 角色新增 `energy_grid_risk` / `climate_risk`
+    - `hedge_fund` / `institution` 角色新增 `sanctions_risk` / `disaster_risk` / `seismic_risk`
+    - `boj` 角色新增 `japan_monetary`（直接驱动 BOJ 决策的天枢信号）
+- **`VERSION`**：2.0.15 → 2.0.16
+
+### 注意
+
+- `social_stress` / `cultural_friction` 两个维度来自 `gdelt_scores.json` 而非 `grv_latest.json`，读取路径不同，本次未处理，留待 B+A/NOVEL 重写 Sprint
+- 6 个新字段全部有 `= 0.0` 默认值，calibrator.py / bifurcation.py 等调用处无需修改
+
+
 ## 2026-08-03 [2.0.15] D1/D4/D12 P0 bug 修复（by Claude Code）
 
 **修改者**：Claude Code  
