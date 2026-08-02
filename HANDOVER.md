@@ -111,3 +111,29 @@ kaiyang（开阳）→ 只读 data/*.json，展示 + 控制面板
 2. **验证 macro-sim inode 修复**：force-recreate 后等 GRV 触发，确认 predictions 表有写入
 3. **A3a 控制 API 实现**：设计文档已完整（T01-T05），开阳控制面板即可真正工作
 4. **世界推演系统/ 设计副本**：已全部合并，可以归档或清理该目录
+
+---
+
+## 关键架构决策（来自 Sprint-0，by 用户）
+
+- **天璇本 Sprint 不建预测引擎**，延后（2026-07-31 拍板）
+- **crucix = AGPL-3.0**：开阳复刻零代码继承，天枢整合须纯重写，crucix 容器最终退场
+- **天枢 = 唯一数据中枢**：开阳永不直连数据源，只读契约文件
+- **采集频率 ≤50% rate-limit 红线**：任何新 fetcher 加入前必须审核频率
+- **部署 = scp 单文件 + 基线校验**，禁止 scp/rsync 混用
+- **NAS SMB 挂载不可靠**，所有操作走 SSH + docker exec
+
+> 详细决策背景见 `docs/archive/worldsim-review-synthesis.md`
+
+---
+
+## 已知坑（踩过的，下次别再踩）
+
+| 坑 | 说明 |
+|---|---|
+| sim_trigger.json inode 断链 | 单文件 bind mount + `os.replace` 原子写 = 容器内永久锁死旧 inode，天璇静默收不到信号。修复 = 改为目录挂载（v2.0.14 已修，容器需 force-recreate）|
+| optim_config 无 FRED_PROXY | 须用 `os.environ.get("FRED_PROXY", "")` 取代直接 import，否则 ImportError |
+| venv 在 Git Bash 下静默失效 | Windows Git Bash 里 activate 看起来成功但 pip 仍走全局，用 `which python` 确认 |
+| BAMLH0A0HYM2 PCA 窗口瓶颈 | 该序列仅 837 行，限制了 FCI 双轨 PCA 的回溯窗口深度 |
+| probit 禁直连 FRED | 只读落盘 CSV，系数固定为 Estrella-Trubin 2006，禁止在线 fitting |
+
