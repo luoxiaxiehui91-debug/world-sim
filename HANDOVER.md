@@ -9,6 +9,179 @@
 ### 系统版本
 | 子系统 | 版本 | 状态 |
 |---|---|---|
+| macro-scan（天枢）| v3.8.5 | ✅ 本地代码完整，待部署到 NAS |
+| macro-sim（天璇）| v2.0.17 | ✅ D1/D4/D7/D12 全部修复，待 force-recreate 部署 |
+| kaiyang（开阳）| v1.7.2 | ✅ MOCK 关闭，需 npm run build + 部署 |
+
+### 本地路径
+- 代码：`C:\Users\I327394\Desktop\S\world-sim\`
+- Git 分支：`main`，最新 commit：`8a452c0`
+- NAS 路径（待同步）：`/vol2/1000/software/world-sim/`
+
+---
+
+## 本次维护内容（2026-08-03 夜间，by Claude）
+
+### 一、macro-sim bug 修复
+
+**D1 fix（simulation.py）**：传导矩阵全量 delta 叠加 → per-agent delta 追踪，消除 N 倍放大
+
+**D4 fix（world_state.py）**：`apply_natural_decay` 补充 4 个遗漏变量衰减（fund_risk_appetite/em_capital_outflow/us_fiscal_pressure/china_credit_impulse）
+
+**D7 fix（world_state.py）**：MacroWorldState 接入完整 13 维 GRV
+- 天枢原生 11 维：climate_risk/disaster_risk/sanctions_risk/seismic_risk/energy_grid_risk/japan_monetary（从 grv_latest.json 读取）
+- R09/R10 两维：social_stress/cultural_friction（经 geo_risk_vector.py 聚合后写入 grv_latest.json，天璇直接读）
+- `get_agent_context()` 按角色分发：energy_gov/hedge_fund/institution/boj/media
+
+**D12 fix（run.py）**：`_archive_to_tianji` 中 GRV 预测 content 与 target_metric 对齐（均指向 global_composite）
+
+### 二、macro-scan 新增
+
+**新文件 `核心代码/startup_checks.py`**：天枢启动完整性校验，source_dimension_map 遗漏映射阻断启动（N9 阻塞项）
+
+**新文件 `核心代码/brier_calc.py`**：Brier Score/BSS/锐度计算，供天玑 V1 月度验证调用
+
+**新文件 `核心代码/control_server.py`**：A3a 控制 API，端口 8900
+- 8 个端点：fetchers 列表/日志/频率/重跑/暂停/恢复/调度更新/操作状态
+- 读 `data/scheduler_state.json`（scheduler 每 60s 落盘），写 `data/control_pause.json` / `data/control_overrides.json`
+
+**`核心代码/scheduler.py` 修改**：
+- 每 60s 落盘运行状态到 `scheduler_state.json`
+- 主循环读 `control_pause.json` 跳过已暂停 job
+- startup_checks 接入
+
+**`核心代码/slow_variables.py` 修改**：权重从 grv_weights.yaml 读取 + cron 幂等保护 + manual_score 降级修复
+
+**`核心代码/geo_risk_vector.py` 修改**：R09/R10 social_stress/cultural_friction 从 gdelt_scores 聚合后写入 grv_latest.json
+
+**`config/grv_weights.yaml` 修改**：追加 slow_variables_weights 节
+
+### 三、kaiyang 变更
+
+**`src/config/controlConfig.ts`**：
+- API base URL 改为 `http://192.168.31.108:8900/api/v1/control/`
+- `MOCK_ENABLED` 默认改为 `false`（天枢控制 API 已上线）
+
+---
+
+## 待部署操作清单
+
+> 部署时按此顺序执行：
+
+- [ ] `git pull` on NAS（`/vol2/1000/software/world-sim/`）
+- [ ] NAS macro-sim：`docker compose up --force-recreate`（D1/D4/D7/D12 修复，v2.0.17）
+- [ ] NAS macro-scan：`docker restart macro-scan-macro-scan-1`（scheduler/slow_variables/geo_risk_vector 改动）
+- [ ] **NAS entrypoint.sh 追加**（control_server.py 启动）：
+  ```bash
+  python3 /app/control_server.py >> /var/log/macro-scan/control.log 2>&1 &
+  ```
+  加在 web_server.py 启动行下面，然后 `docker restart` 使生效
+- [ ] NAS kaiyang：`npm run build`（在 kaiyang/ 目录下），然后重启 nginx 容器
+- [ ] 手动更新 NAS 上的 `macro-scan/docker-compose.yml`（新增 kaiyang 服务 + 8900 端口映射，文件在 .gitignore）
+
+### 验证步骤
+```bash
+# 天枢控制 API 是否在线
+curl http://192.168.31.108:8900/api/v1/control/health
+
+# 采集源列表（scheduler 启动 60s 后状态文件生成）
+curl http://192.168.31.108:8900/api/v1/control/fetchers
+
+# startup_checks
+docker exec macro-scan python 核心代码/startup_checks.py
+
+# brier_calc 自测
+docker exec macro-scan python 核心代码/brier_calc.py
+
+# D1/D4 修复验证
+docker exec macro-sim python -c "from core.simulation import gm_resolve_rules; print('D1 OK')"
+docker exec macro-sim python -c "from core.world_state import apply_natural_decay; print('D4 OK')"
+```
+
+---
+
+## 已知问题 / 技术债
+
+| 优先级 | 问题 | 状态 |
+|---|---|---|
+| P0 | macro-sim inode 断链（sim_trigger.json 持续 0 字节，天璇从未自动触发） | 代码已修复 v2.0.14，**容器未重建**，本次部署须 force-recreate |
+| P0-fixed | D1：传导矩阵全量 delta 叠加 | ✅ v2.0.15 |
+| P0-fixed | D4：apply_natural_decay 遗漏 4 个变量 | ✅ v2.0.15 |
+| P0-fixed | D12：target_metric 与 content 不匹配 | ✅ v2.0.15 |
+| P0-fixed | D7：GRV 11+2 维度未接入 MacroWorldState | ✅ v2.0.16-17 |
+| P1 | signal_synthesizer Staging→Live 切换 | **最早 2026-08-09**（双层守门：STAGING_MODE=0 + news.db ≥30天）|
+| P1 | R11/R12 开启 | 待 NAS 确认 climate_risk 积累情况后更新时间 |
+| P2 | kaiyang 控制 API 待验证（control_server.py 首次部署） | 部署后在开阳控制面板点「重跑」验证端到端 |
+| P2 | GRV 权重 grv_weights.yaml 无实证基础 | 等 macro-sim 首次产出后 2026-09 月度验证 |
+
+---
+
+## 新增文件清单（本次维护）
+
+| 文件 | 说明 |
+|------|------|
+| `macro-scan/核心代码/startup_checks.py` | 天枢启动完整性校验 |
+| `macro-scan/核心代码/brier_calc.py` | Brier/BSS/锐度计算，天玑 V1 调用 |
+| `macro-scan/核心代码/control_server.py` | A3a 控制 API，端口 8900 |
+| `docs/arch_review_20260802.md` | 六角色三轮辩论架构裁定，15个P0缺陷 |
+
+---
+
+## 架构说明（快速上手）
+
+```
+macro-scan（天枢）→ 落盘 data/*.json
+    ├── scheduler.py — 46个调度任务，每60s落盘state，读pause标志
+    │   └── startup_checks.run_all_checks() — 启动时校验
+    ├── geo_risk_vector.py — 产出 grv_latest.json（13维 GRV）
+    │   └── social_stress/cultural_friction 从 gdelt_scores 聚合透传
+    ├── slow_variables.py — IRP/UCRI/GCI，权重从grv_weights.yaml读取
+    ├── control_server.py — 控制 API :8900（A3a，新）
+    └── web_server.py — 问答/状态 UI :8899
+
+macro-sim（天璇）→ 读 sim_trigger.json，产出仿真报告
+    └── core/simulation.py — D1 fix: per-agent delta 传导
+    └── core/world_state.py — D4/D7 fix: 13维GRV + 4变量衰减
+
+kaiyang（开阳）→ nginx :8080，控制面板连接 :8900
+    └── MOCK_ENABLED=false（v1.7.2 起，连接真实控制 API）
+
+天玑（规划中）→ 月度验证层
+    └── brier_calc.py — Brier/BSS/锐度计算已备好
+```
+
+---
+
+## 已知坑
+
+| 坑 | 说明 |
+|---|---|
+| sim_trigger.json inode 断链 | v2.0.14 已修，容器需 force-recreate |
+| entrypoint.sh 改动需重建镜像 | control_server.py 通过 entrypoint 追加启动，**不需要重建**，restart 即可 |
+| kaiyang dist/ 在 .gitignore | NAS 上须手动 npm run build，不从 git 同步 |
+| control_server.py 首次启动无 scheduler_state.json | scheduler 启动 60s 后才生成，/fetchers 端点初始返回空列表属正常 |
+| D1 传导矩阵 N 倍放大 | 已修复 v2.0.15 |
+
+---
+
+## 关键架构决策
+
+- **天璇 P0 hotfix 与 B+A/NOVEL 重写严禁捆绑**（arch_review 铁律第1条）
+- **玉衡不独立成星**，weight_matrix.py 并入天玑 V2（arch_review 铁律第2条）
+- **A3a 采用 HTTP 方案**（web_server.py 已有 FastAPI，直接加端点；文件投递方案归档）
+- **crucix = AGPL-3.0**，开阳复刻零代码继承，天枢整合须纯重写
+- **NAS SMB 挂载不可靠**，所有操作走 SSH + docker exec
+
+
+> 每次维护后必须更新本文件（规则来自项目规范）。
+
+---
+
+## 当前状态（2026-08-03，by Claude）
+
+### 系统版本
+| 子系统 | 版本 | 状态 |
+|---|---|---|
 | macro-scan（天枢）| v3.8.3 | ✅ 本地代码完整，待部署到 NAS |
 | macro-sim（天璇）| v2.0.15 | ✅ D1/D4/D12 bug 已修，待 force-recreate 部署 |
 | kaiyang（开阳）| v1.7.1 (Wave-2) | ✅ dist/ 已构建，待部署 |
