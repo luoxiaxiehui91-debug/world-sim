@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useControl } from '@/state/ControlContext';
-import { DRAWER_WIDTH } from '@/config/controlConfig';
+import { DRAWER_WIDTH, MOCK_ENABLED } from '@/config/controlConfig';
 import { TabBar } from '@/control/TabBar';
 import { TianshuTab } from '@/control/TianshuTab';
 import { PlaceholderTab } from '@/control/PlaceholderTab';
@@ -58,6 +58,20 @@ export function ControlDrawer() {
         aria-label="控制面板"
       >
 
+      {MOCK_ENABLED && (
+        <div
+          className="flex items-center gap-2 px-3 py-2 text-[11px] font-medium"
+          style={{
+            background: 'rgba(251,191,36,0.10)',
+            borderBottom: '1px solid rgba(251,191,36,0.25)',
+            color: 'var(--ky-amber)',
+          }}
+          aria-label="MOCK模式提示"
+        >
+          <span style={{ fontSize: 13 }}>⚠</span>
+          控制功能未连接（天枢侧 API 未实现）
+        </div>
+      )}
       <TabBar />
       <div className="flex-1 overflow-y-auto px-3 pb-3">
         {activeTab === 'tianshu' && <TianshuTab />}
