@@ -3,6 +3,59 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.8.3 — 2026-08-03 (by Claude Code)
+
+**修改理由**：arch_review_20260802 裁定的 P1 运营基础设施 + grv_weights 外部化。
+
+### 新增
+
+- **`核心代码/startup_checks.py`**：天枢启动完整性校验
+  - `check_source_dimension_map()`：校验所有 primary 映射到已知 GRV 11维之一，遗漏映射报 RuntimeError 阻断启动
+  - `run_all_checks(strict=True)`：由 scheduler.py main() 第一行调用
+  - N9 阻塞项修复：防止数据源静默接收零数据
+
+- **`核心代码/brier_calc.py`**：Brier Score / BSS / 锐度计算（天玑 V1 核心）
+  - `compute_brier_score(prob, outcome)` → (f-o)²
+  - `compute_bss(bs, climatology_prob=0.5)` → 1 - BS/BS_clim
+  - `compute_sharpness(prob_list)` → 落在30%-70%外比例
+  - `batch_score(records)` → 批量摘要
+  - `score_grv_prediction(prob, direction, actual_change)` → GRV 方向预测专用验证
+
+### 修改
+
+- **`config/grv_weights.yaml`**：追加 `slow_variables_weights` 节
+  - 新增 `ucri`（5分量权重）和 `gci`（3分量权重）
+  - slow_variables.py 从此处读取权重，天玑 V2 可写回，无需改代码
+
+- **`核心代码/slow_variables.py`**：三处改动
+  - 权重外部化：`compute_ucri` / `compute_gci` 从 grv_weights.yaml 读取，fallback 硬编码默认值
+  - cron 幂等保护：`compute_all(force=False)` 本月已计算则跳过重算
+  - `_load_manual_score` 修复：记录未当月更新的 key，`compute_all` 结束时打印 `⚠️ 手工评估未当月更新` 警告
+
+- **`核心代码/scheduler.py`**：`main()` 启动时调用 `startup_checks.run_all_checks()`
+
+
+
+### 新增每日健康摘要 ntfy 推送（瑶光简化方案落地）
+
+**修改理由**：架构重审裁定（docs/arch_review_20260802.md）：系统曾出现"天璇 predictions 表断路数月无人感知"的故障。三数字每日推送是防止此类静默断路重演的最低可接受观测底线，实现成本约 2 小时。瑶光不独立成星，以此方式关闭独立立项。
+
+#### observability.py — 新增 `daily_health_push()`
+
+- 每日推送三个数字到 ntfy（topic: `NTFY_URL` 环境变量）：
+  1. `grv_latest.json` 的 `updated` 时间戳（天枢采集是否跑通）
+  2. 降级 fetcher 数量（`source_quality != "gdelt+gpr"` 时 = 1）
+  3. `forecast_tracker.db` 的 `predictions` 表当前行数（天璇→天玑 数据链）
+- `predictions` 行数为 0 时推送红色告警 🔴 并附注"天璇→天玑数据链断路"
+- 遵循 observability 零风险原则：出错只记日志，绝不抛异常到调用方
+
+#### scheduler.py — 新增 `health_push` job
+
+- 每日 `21:00`（1-7），在所有日档采集任务完成后运行
+- 调用 `daily_health_push()`
+- 新增 `LOG_FILES["health_push"]` → `health_push.log`
+
+
 ## v3.8.1 — 2026-08-02 (by Claude)
 
 ### scheduler.py 补充 GDELT 地理事件点调度 + kaiyang 升级至 Wave-2 v1.7.0

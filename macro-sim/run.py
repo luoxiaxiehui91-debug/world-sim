@@ -119,6 +119,7 @@ def run_predict_only(
 
     calib_result = {"score": 0, "avg_error": 0, "param_changes": [], "error_series": []}
     report_path = _write_report(world, calib_result, paths, level, event)
+    _archive_to_tianji(world, paths, calib_result, event, level, report_path)
     _send_ntfy(world, calib_result, paths, report_path)
 
 
@@ -476,117 +477,193 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
 
 # ── 天玑存档钩子 ─────────────────────────────────────────
 
+# DB 路径：macro-scan/data/ 挂载在 /app/macro_data（docker-compose rw）
+_TIANJI_DB_PATH = Path(os.environ.get("TIANJI_DB_PATH", "/app/macro_data/forecast_tracker.db"))
+
+_TIANJI_DDL = """
+CREATE TABLE IF NOT EXISTS predictions (
+    id                     TEXT PRIMARY KEY,
+    created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    due_at                 DATETIME NOT NULL,
+    scenario_id            TEXT,
+    type                   TEXT NOT NULL CHECK(type IN ('quantitative','geopolitical')),
+    prediction_target_type TEXT NOT NULL,
+    content                TEXT NOT NULL,
+    outcome_definition     TEXT NOT NULL,
+    target_metric          TEXT,
+    target_direction       TEXT,
+    target_threshold       REAL,
+    b_prob                 REAL,
+    b_sample_count         INTEGER,
+    b_max_similarity       REAL,
+    llm_adj                REAL,
+    final_prob             REAL,
+    prob_low               REAL,
+    prob_high              REAL,
+    confidence_tier        TEXT CHECK(confidence_tier IN ('HIGH','LOW','VERY_LOW','NOVEL')),
+    time_horizon           TEXT CHECK(time_horizon IN ('weekly','monthly','quarterly','yearly')),
+    status                 TEXT NOT NULL DEFAULT 'pending'
+                               CHECK(status IN ('pending','verified','awaiting_human')),
+    outcome_value          REAL,
+    brier_score            REAL,
+    brier_skill_score      REAL,
+    verified_at            DATETIME,
+    verified_by            TEXT
+);
+
+CREATE TABLE IF NOT EXISTS reasoning_trace (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    prediction_id     TEXT NOT NULL REFERENCES predictions(id),
+    agent_id          TEXT,
+    input_signals     TEXT,
+    historical_match  TEXT,
+    confidence_basis  TEXT CHECK(confidence_basis IN ('historical_freq','llm_adjusted','llm_primary','novel')),
+    llm_adjustment    REAL,
+    causal_chains     TEXT,
+    reasoning         TEXT
+);
+"""
+
+
+def _tianji_conn():
+    import sqlite3 as _sq3
+    _TIANJI_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = _sq3.connect(str(_TIANJI_DB_PATH))
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.executescript(_TIANJI_DDL)
+    conn.commit()
+    return conn
+
+
 def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level: int, report_path):
     """
-    推演完成后把可验证预测存入天玑数据库。
-    失败时静默降级（不阻断主流程）。
+    推演完成后把可验证预测写入 forecast_tracker.db predictions 表。
+    失败时打印错误但不阻断主流程。
     """
+    import uuid, json as _json
+    from datetime import timedelta
+
     try:
-        import sys, os
-        # 天玑 DB 在 macro-scan 容器的 /workspace/data
-        tianji_module = "/workspace/核心代码/tianji_db.py" if os.path.exists("/workspace") else None
-        if tianji_module and os.path.exists(tianji_module):
-            import importlib.util
-            spec = importlib.util.spec_from_file_location("tianji_db", tianji_module)
-            tianji_db = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(tianji_db)
-        else:
-            import tianji_db  # 同容器时直接 import
+        conn = _tianji_conn()
+    except Exception as e:
+        print(f"[tianji] 无法打开数据库 {_TIANJI_DB_PATH}：{e}")
+        return
 
-        import uuid
-        from datetime import datetime, timedelta
-
+    try:
         now = datetime.utcnow()
         scenario_id = f"sim_{now.strftime('%Y%m%d_%H%M')}_{event[:20]}"
-
         archived = 0
+
         for path in paths:
             if path.probability < 0.05:
-                continue  # 跳过概率极低路径
+                continue
 
-            # 1. GRV 方向性预测（量化，可自动验证）
+            # ── 1. GRV 方向性预测（自动验证，3 个月时间窗口）────────────────
             if hasattr(path, "final_grv_mean") and path.final_grv_mean is not None:
-                direction = "up" if path.final_grv_mean > world.grv else "down"
-                due_months = 24
-                due_at = (now + timedelta(days=due_months * 30)).isoformat()
+                grv_diff = path.final_grv_mean - world.grv
+                if grv_diff > 5:
+                    direction, conf_tier = "up", "HIGH" if path.probability > 0.3 else "LOW"
+                elif grv_diff < -5:
+                    direction, conf_tier = "down", "HIGH" if path.probability > 0.3 else "LOW"
+                else:
+                    direction, conf_tier = "neutral", "VERY_LOW"
 
-                pred = {
-                    "id":                     str(uuid.uuid4()),
-                    "due_at":                 due_at,
-                    "scenario_id":            scenario_id,
-                    "type":                   "quantitative",
-                    "prediction_target_type": "global_composite",
-                    "content":                (
-                        f"{event} 情景下，{path.label}路径（{path.probability:.0%}）："
-                        f"24个月后 GRV 预计 {direction}至 {path.final_grv_mean:.1f}"
-                    ),
-                    "outcome_definition":     (
-                        f"24个月后 GRV global_composite 值是否{('>' if direction == 'up' else '<')}{world.grv:.1f}"
-                    ),
-                    "target_metric":          "global_composite",
-                    "target_direction":       direction,
-                    "target_threshold":       round(world.grv, 1),
-                    "final_prob":             round(path.probability, 4),
-                    "confidence_tier":        "HIGH" if path.probability > 0.3 else "LOW",
-                    "time_horizon":           "yearly",
-                    "b_prob":                 round(path.probability, 4),
-                    "b_sample_count":         100,
-                }
-                pred_id = tianji_db.save_prediction(pred)
+                due_at = (now + timedelta(days=90)).isoformat()  # 3 个月验证窗口
+                pred_id = str(uuid.uuid4())
 
-                # 存推理溯源
-                causal_chains = []
-                for i, ev in enumerate(path.key_events[:5]):
-                    causal_chains.append({
-                        "chain_id": f"chain_{i:02d}",
-                        "nodes":    [ev.get("event", ""), "GRV变化"],
-                        "confidence": ev.get("frequency", 0.5),
-                        "source":   "simulation",
-                    })
+                conn.execute("""
+                    INSERT OR IGNORE INTO predictions
+                      (id, created_at, due_at, scenario_id, type, prediction_target_type,
+                       content, outcome_definition, target_metric, target_direction,
+                       target_threshold, b_prob, b_sample_count,
+                       final_prob, confidence_tier, time_horizon, status)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')
+                """, (
+                    pred_id,
+                    now.isoformat(),
+                    due_at,
+                    scenario_id,
+                    "quantitative",
+                    "grv_direction",
+                    (f"{event} 情景下，{path.label}路径（{path.probability:.0%}）："
+                     f"3个月后 GRV global_composite 预计 {direction}（当前 {world.grv:.1f}，"
+                     f"仿真终值 {path.final_grv_mean:.1f}）"),
+                    (f"3个月后 grv_history.jsonl 中 global_composite 变化幅度"
+                     f"{'超过' if direction != 'neutral' else '不超过'} +5/-5 阈值"),
+                    "global_composite",  # D12 fix: target_metric 与 content/outcome_definition 一致
+                    direction,
+                    round(world.grv, 1),          # target_threshold = 当前基准
+                    round(path.probability, 4),    # b_prob
+                    100,                           # b_sample_count = MC 次数
+                    round(path.probability, 4),    # final_prob
+                    conf_tier,
+                    "quarterly",
+                ))
 
-                tianji_db.save_reasoning_trace({
-                    "prediction_id":    pred_id,
-                    "agent_id":         "macro-sim",
-                    "input_signals":    [
-                        {"signal_name": "grv", "value": world.grv, "weight": 1.0},
-                        {"signal_name": "credit_spread", "value": world.credit_spread, "weight": 0.5},
-                    ],
-                    "historical_match": f"校准评分{calib_result.get('score', 0)}/100",
-                    "confidence_basis": "historical_freq",
-                    "llm_adjustment":   0.0,
-                    "causal_chains":    causal_chains,
-                    "reasoning":        f"仿真路径：{path.label}，触发事件：{event}",
-                })
+                # 推理溯源
+                causal_chains = [
+                    {"chain_id": f"chain_{i:02d}",
+                     "nodes": [ev.get("event", ""), "GRV变化"],
+                     "confidence": ev.get("frequency", 0.5),
+                     "source": "simulation"}
+                    for i, ev in enumerate(path.key_events[:5])
+                ]
+                conn.execute("""
+                    INSERT INTO reasoning_trace
+                      (prediction_id, agent_id, input_signals, historical_match,
+                       confidence_basis, llm_adjustment, causal_chains, reasoning)
+                    VALUES (?,?,?,?,?,?,?,?)
+                """, (
+                    pred_id,
+                    "macro-sim",
+                    _json.dumps([
+                        {"signal_name": "grv",           "value": world.grv,           "weight": 1.0},
+                        {"signal_name": "credit_spread",  "value": world.credit_spread, "weight": 0.5},
+                        {"signal_name": "t10y2y",         "value": world.t10y2y,        "weight": 0.3},
+                    ], ensure_ascii=False),
+                    f"校准评分{calib_result.get('score', 0)}/100",
+                    "historical_freq",
+                    0.0,
+                    _json.dumps(causal_chains, ensure_ascii=False),
+                    f"仿真路径：{path.label}，触发事件：{event}，GRV变化{grv_diff:+.1f}",
+                ))
                 archived += 1
 
-            # 2. 地缘路径主要事件（地缘类，需人工验证）
+            # ── 2. 地缘关键事件（人工验证，6 个月窗口）──────────────────────
             for ev in path.key_events[:2]:
                 if ev.get("frequency", 0) < 0.2:
                     continue
-                due_months_geo = 6
-                pred_geo = {
-                    "id":                     str(uuid.uuid4()),
-                    "due_at":                 (now + timedelta(days=due_months_geo * 30)).isoformat(),
-                    "scenario_id":            scenario_id,
-                    "type":                   "geopolitical",
-                    "prediction_target_type": "global_composite",
-                    "content":                (
-                        f"{event} 情景下 {path.label}路径：{ev.get('event', '')} "
-                        f"（仿真频率{ev.get('frequency', 0):.0%}）"
-                    ),
-                    "outcome_definition":     f"6个月内是否发生：{ev.get('event', '')}",
-                    "final_prob":             round(ev.get("frequency", 0.5), 4),
-                    "confidence_tier":        "LOW",
-                    "time_horizon":           "monthly",
-                }
-                tianji_db.save_prediction(pred_geo)
+                geo_id = str(uuid.uuid4())
+                conn.execute("""
+                    INSERT OR IGNORE INTO predictions
+                      (id, created_at, due_at, scenario_id, type, prediction_target_type,
+                       content, outcome_definition,
+                       final_prob, confidence_tier, time_horizon, status)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,'monthly','awaiting_human')
+                """, (
+                    geo_id,
+                    now.isoformat(),
+                    (now + timedelta(days=180)).isoformat(),
+                    scenario_id,
+                    "geopolitical",
+                    "geopolitical_event",
+                    (f"{event} 情景下 {path.label}路径：{ev.get('event', '')} "
+                     f"（仿真频率{ev.get('frequency', 0):.0%}）"),
+                    f"6个月内是否发生：{ev.get('event', '')}",
+                    round(ev.get("frequency", 0.5), 4),
+                    "LOW",
+                ))
                 archived += 1
 
-        if archived > 0:
-            print(f"[tianji] 存档 {archived} 条预测 → scenario_id={scenario_id}")
+        conn.commit()
+        print(f"[tianji] ✅ 存档 {archived} 条预测 → {_TIANJI_DB_PATH}  scenario_id={scenario_id}")
 
     except Exception as e:
-        print(f"[tianji] 存档失败（降级），不影响主流程：{e}")
+        print(f"[tianji] 存档失败（不影响主流程）：{e}")
+        import traceback; traceback.print_exc()
+    finally:
+        conn.close()
 
 
 # ── ntfy 推送 ─────────────────────────────────────────────

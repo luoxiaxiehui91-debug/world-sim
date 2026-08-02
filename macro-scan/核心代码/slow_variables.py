@@ -32,6 +32,31 @@ except ImportError:
 SLOW_VAR_PATH = os.path.join(DATA_DIR, "slow_variables.json")
 FRED_HIST_DIR = os.path.join(DATA_DIR, "fred_history")
 
+_WEIGHTS_YAML = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "config", "grv_weights.yaml",
+)
+
+
+def _load_slow_weights() -> dict:
+    """从 grv_weights.yaml 读取 slow_variables_weights 节。缺失则返回硬编码默认值（向后兼容）。"""
+    defaults = {
+        "ucri": {"diplomatic_confrontation": 0.20, "trade_tension": 0.20,
+                 "tech_control": 0.20, "tariff_rate": 0.20, "bis_entity_list": 0.20},
+        "gci":  {"great_power_confrontation": 0.40, "nuclear_posture": 0.35,
+                 "multilateral_lack": 0.25},
+    }
+    try:
+        import yaml
+        with open(_WEIGHTS_YAML, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        sv = cfg.get("slow_variables_weights", {})
+        if sv:
+            return sv
+    except Exception as e:
+        print(f"[slow_variables] 权重 YAML 读取失败，使用默认值: {e}")
+    return defaults
+
 
 # ── 工具函数 ─────────────────────────────────────────────────────────────────
 
@@ -199,6 +224,13 @@ def compute_ucri(grv_latest: dict = None) -> dict:
 
     注：此计算为近似值，待新数据源接入后重算。
     """
+    weights = _load_slow_weights().get("ucri", {})
+    w_dipl  = weights.get("diplomatic_confrontation", 0.20)
+    w_trade = weights.get("trade_tension",            0.20)
+    w_tech  = weights.get("tech_control",             0.20)
+    w_tarif = weights.get("tariff_rate",              0.20)
+    w_bis   = weights.get("bis_entity_list",          0.20)
+
     # 分量 1：外交对抗（来自 GRV）
     us_china_grv = 0.0
     if grv_latest:
@@ -212,7 +244,6 @@ def compute_ucri(grv_latest: dict = None) -> dict:
         recent_trade = [v for _, v in fred_trade[-12:] if not math.isnan(v)]
         if recent_trade:
             avg = sum(recent_trade) / len(recent_trade)
-            # 差额越负（逆差越大）表示贸易摩擦越可能
             trade_score = _normalize_01(-avg, -100000, 0)
 
     # 分量 3：科技管制（手工评估，读缓存）
@@ -224,8 +255,12 @@ def compute_ucri(grv_latest: dict = None) -> dict:
     # 分量 5：BIS 实体清单（待接入，用默认）
     bis_score = 0.3
 
-    # 五分量等权
-    ucri = (us_china_grv + trade_score + tech_score + tariff_score + bis_score) / 5.0
+    # 加权合成（权重从 grv_weights.yaml slow_variables_weights.ucri 读取）
+    ucri = (w_dipl  * us_china_grv
+          + w_trade * trade_score
+          + w_tech  * tech_score
+          + w_tarif * tariff_score
+          + w_bis   * bis_score)
 
     if ucri > 0.65:
         label = "高度对抗"
@@ -257,6 +292,11 @@ def compute_gci(grv_latest: dict = None) -> dict:
       - 核威慑：手工评估
       - 多边合作：用 sanctions_risk GRV 维度反向代理（制裁多=合作少）
     """
+    weights = _load_slow_weights().get("gci", {})
+    w_conf  = weights.get("great_power_confrontation", 0.40)
+    w_nuke  = weights.get("nuclear_posture",           0.35)
+    w_multi = weights.get("multilateral_lack",         0.25)
+
     # 分量 1：大国对抗（GDELT 近似，来自 GRV 多维度均值）
     confrontation_score = 0.3
     if grv_latest:
@@ -275,11 +315,11 @@ def compute_gci(grv_latest: dict = None) -> dict:
         sanctions_norm = _normalize_01(sanctions_raw, 20.0, 100.0)
         multilateral_score = 1.0 - sanctions_norm
 
-    gci = (
-        0.40 * confrontation_score
-        + 0.35 * nuke_score
-        + 0.25 * (1.0 - multilateral_score)
-    )
+    # 加权合成（权重从 grv_weights.yaml slow_variables_weights.gci 读取）
+    # w_multi 对应"多边合作缺失"程度 = (1 - multilateral_score)
+    gci = (w_conf  * confrontation_score
+         + w_nuke  * nuke_score
+         + w_multi * (1.0 - multilateral_score))
     gci = max(0.0, min(1.0, gci))
 
     if gci > 0.65:
@@ -306,7 +346,8 @@ def compute_gci(grv_latest: dict = None) -> dict:
 def _load_manual_score(key: str, default: float = 0.0) -> float:
     """
     从 data/manual_scores.json 读取手工评估分数。
-    若当月未填则使用上月值，并在返回时标注 [手工评估待更新]。
+    当月未填时：查找上月 entry 的历史值（不使用 default 参数），
+    并在 _last_manual_score_stale 集合中记录该 key 供 compute_all() 标注警告。
     """
     path = os.path.join(DATA_DIR, "manual_scores.json")
     if not os.path.exists(path):
@@ -317,9 +358,23 @@ def _load_manual_score(key: str, default: float = 0.0) -> float:
         entry = data.get(key, {})
         if isinstance(entry, (int, float)):
             return float(entry)
-        return float(entry.get("value", default))
+        val = entry.get("value")
+        if val is not None:
+            # 检查是否当月已更新
+            updated_at = entry.get("updated_at", "")
+            current_month = datetime.utcnow().isoformat()[:7]
+            if updated_at[:7] != current_month:
+                _manual_score_stale.add(key)
+            else:
+                _manual_score_stale.discard(key)
+            return float(val)
+        return default
     except Exception:
         return default
+
+
+# 记录本次 compute_all 中哪些手工评估未当月更新
+_manual_score_stale: set = set()
 
 
 def save_manual_score(key: str, value: float, note: str = ""):
@@ -344,9 +399,27 @@ def save_manual_score(key: str, value: float, note: str = ""):
 
 # ── 主入口 ────────────────────────────────────────────────────────────────────
 
-def compute_all(grv_path: str = None) -> dict:
-    """计算三个慢变量，写入 slow_variables.json。"""
+def compute_all(grv_path: str = None, force: bool = False) -> dict:
+    """计算三个慢变量，写入 slow_variables.json。
+
+    月频幂等保护：若 slow_variables.json 已存在且 updated_at 在本月，
+    跳过重算直接返回缓存值（除非 force=True）。
+    """
+    current_month = datetime.utcnow().isoformat()[:7]
+
+    # ── cron 幂等：本月已算则跳过 ────────────────────────────
+    if not force and os.path.exists(SLOW_VAR_PATH):
+        try:
+            with open(SLOW_VAR_PATH, encoding="utf-8") as f:
+                cached = json.load(f)
+            if cached.get("updated_at", "")[:7] == current_month:
+                print(f"[slow_variables] 本月已计算（{cached['updated_at'][:10]}），跳过重算。传 force=True 强制重算。")
+                return cached
+        except Exception:
+            pass
+
     # 加载 GRV
+    _manual_score_stale.clear()
     grv_latest = {}
     grv_file = grv_path or os.path.join(DATA_DIR, "grv_latest.json")
     if os.path.exists(grv_file):
@@ -359,6 +432,9 @@ def compute_all(grv_path: str = None) -> dict:
     irp_result  = compute_irp()
     ucri_result = compute_ucri(grv_latest)
     gci_result  = compute_gci(grv_latest)
+
+    # 手工评估未当月更新的警告
+    stale_keys = list(_manual_score_stale)
 
     result = {
         "updated_at": datetime.utcnow().isoformat(),
@@ -379,6 +455,7 @@ def compute_all(grv_path: str = None) -> dict:
             or 0.35 <= ucri_result["ucri"] <= 0.65
             or 0.35 <= gci_result["gci"] <= 0.65
         ),
+        "manual_score_stale": stale_keys,
     }
 
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -390,6 +467,8 @@ def compute_all(grv_path: str = None) -> dict:
           f"GCI={result['gci']:.3f}({result['gci_label']})")
     if result["in_transition"]:
         print("[slow_variables] ⚠️ 慢变量处于转型期，天璇推演置信区间将自动扩宽1.5倍")
+    if stale_keys:
+        print(f"[slow_variables] ⚠️ 手工评估未当月更新: {stale_keys}  → 请运行 save_manual_score() 更新")
 
     return result
 

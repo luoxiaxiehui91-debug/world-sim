@@ -235,6 +235,11 @@ def apply_natural_decay(world: MacroWorldState):
     world.energy_supply_risk     *= 0.98
     world.retail_panic           *= 0.80   # 散户情绪消退快
     world.yen_carry_risk         *= 0.92
+    # D4 fix: 补充 4 个遗漏变量，防止无均值回归导致单调漂移锁边
+    world.fund_risk_appetite     *= 0.90
+    world.em_capital_outflow     *= 0.93
+    world.us_fiscal_pressure     *= 0.97
+    world.china_credit_impulse   *= 0.92   # 信用脉冲均值回归到 0
 
     # GRV 均值回归
     world.grv = world.grv * 0.97 + world.grv_baseline * 0.03
