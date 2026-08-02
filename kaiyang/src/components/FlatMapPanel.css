@@ -1,0 +1,109 @@
+/* ═══════════════════════════════════════════════════════════
+   FlatMapPanel Leaflet 2D 地图样式（Wave 2 1.7.0）
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 地图容器 ───────────────────────────────────────────── */
+
+.flat-map-container {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #060b16;
+}
+
+.flat-map-container .leaflet-container {
+  background: #060b16;
+}
+
+/* ── 弧线流动虚线动画 ──────────────────────────────────── */
+
+.leaflet-arc {
+  stroke-dasharray: 7 11;
+  animation: leaflet-arc-flow 2.4s linear infinite;
+}
+
+@keyframes leaflet-arc-flow {
+  from {
+    stroke-dashoffset: 36;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ── 点位脉冲呼吸动画（复用 --ky-pulse-duration CSS 变量） ── */
+
+.leaflet-point-pulse {
+  animation: leaflet-point-breathe var(--ky-pulse-duration, 2.2s) ease-in-out infinite;
+}
+
+@keyframes leaflet-point-breathe {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ── 缺失态：灰 + 虚线 + 无光晕（决策 C2-A）─────────────── */
+
+.leaflet-point-missing {
+  stroke-dasharray: 2.5 2;
+  stroke-opacity: 0.85;
+  fill-opacity: 0.18;
+  /* 缺失点不参与呼吸动画，避免「无数据」被误读为「活跃」 */
+  animation: none !important;
+  filter: none !important;
+}
+
+/* ── 战略要地星标样式 ──────────────────────────────────── */
+
+.leaflet-site-icon {
+  background: transparent !important;
+  border: none !important;
+  color: #fbbf24;
+  font-size: 18px;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 0 8px #fbbf24;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* ── 缩放级别指示器 ────────────────────────────────────── */
+
+.leaflet-zoom-indicator {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 1000;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(10, 14, 26, 0.8);
+  border: 1px solid rgba(94, 234, 212, 0.25);
+  color: rgba(215, 227, 234, 0.7);
+  font-size: 11px;
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+/* ── Leaflet Tooltip 暗色玻璃拟态覆盖 ──────────────────── */
+
+.leaflet-tooltip-dark {
+  background: rgba(6, 11, 22, 0.92) !important;
+  border: 1px solid rgba(94, 234, 212, 0.3) !important;
+  border-radius: 8px !important;
+  color: #d7e3ea !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+  padding: 6px 10px !important;
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.12) !important;
+}
+
+.leaflet-tooltip-dark::before {
+  border-top-color: rgba(6, 11, 22, 0.92) !important;
+}

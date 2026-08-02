@@ -1,7 +1,8 @@
 # 开阳（Kaiyang）操作面板 · 设计文档
 
-> 版本：Wave 1 · v1.0.3 对齐版 ｜ 更新日期：2026-07-31
+> 版本：Wave 2 · v1.7.0 对齐版 ｜ 更新日期：2026-08-02
 > 配套数据权威标准：同目录 [`DATA_CONTRACT.md`](./DATA_CONTRACT.md)
+> 接手快照：同目录 [`NEXT_SESSION_HANDOFF.md`](./NEXT_SESSION_HANDOFF.md)
 
 ---
 
@@ -28,6 +29,31 @@
 - **采集半边** → 天枢 **Python 重实现**（用户：先不急，属天枢范围）。
 - **控制半边** → 开阳**操作面板职能**（本设计新增）：面向全系统的受控指令下发，协议暂缓（见 §1）。
 
+### 2.1 复刻进度（2026-08-01 · v1.6.0）
+
+「对标 CRUCIX MONITOR 升级」= **继续执行本节既定的复刻策略**，把开阳从"只复刻 GRV 一类投影"推进到 crucix 的多类别图层形态，**不是新方向、不是竞品**。身份定性与 27 源反推详见 [`CRUCIX_ANALYSIS.md`](./CRUCIX_ANALYSIS.md)，逐项显示需求详见 [`CRUCIX_LAYER_REQUIREMENTS.md`](./CRUCIX_LAYER_REQUIREMENTS.md)。
+
+| 复刻项 | 状态 |
+|---|---|
+| 3D 地球 + 2D 平面图双视图 | ✅ 已有（Wave1 · v1.0.2） |
+| 右侧信号流 / 顶栏状态条 / 多面板大屏骨架 | ✅ 已有 |
+| **P0-① 分类图层地基**（`RiskPoint.category` + 按类着色 + 类别图例 + 逐类开关） | ✅ **已交付（v1.2.0）** |
+| **P0-② 核设施图层 + 核设施监视面板壳**（6 站静态种子，读数降级「—」） | ✅ **已交付（v1.2.0）** |
+| P1：战略要地标签（1.3.0✅）/ 菱形符号推广（核设施已用✅）/ 地区 Tab（1.4.0✅）/ 顶栏 KPI 计数（1.4.0✅）/ 信号编号与点击联动（1.4.0✅） / 左侧指标树（1.5.0✅） | 纯前端批已全部完成 |
+| P1：新闻地理化上图 / 冲突事件图层 | ⏸ 待后端小改 feed（news_geo 读取层骨架已于 1.6.0 预埋） |
+| **§4.5 清扫**（GrvPanel 硬编码色 / P2 死代码删除 / Tab 镜像标注） | ✅ **已交付（v1.6.0）** |
+| **news_geo 读取层骨架 + 决策矩阵** | ✅ **已交付（v1.6.0）：FEEDS 登记 + 适配器 + 28 测试 + DECISION_MATRIX.md** |
+| P2：空域 / 热异常 / 海上 / 太空 / 卫生 / OSINT / SDR 图层、行情带、风险仪表、sweep delta | ⏸ 待后端新建 feed（market_quotes 类型+FEEDS 已于 1.6.0 预埋） |
+
+**已拍板的关键设计决策 · D1 颜色编码 = 方案 A**：**色相编码"类别"，严重度改由尺寸 + 光环脉冲 + 亮度表达**。理由是贴近 crucix 原型，且既有 `HIGHLIGHT_THRESHOLD` 光环 / 常驻标签机制可直接承接严重度表达。派生约束（已在代码中固化）：
+
+- `value`(0–100) 是唯一严重度数值，`weight`(0–1) 是唯一强度驱动源，`severity`（字符串）**仅作展示标签**，禁止参与着色 / 尺寸数学；
+- `status==='missing'` / `value===null` ⇒ **强制**灰 + 虚线 + 无光晕 + 无常驻标签，任何类别色不得覆盖；
+- 类别图例与既有 `SEVERITY_LEGEND` **并存两栏**；
+- 类别枚举唯一真源 `src/config/layerCategories.ts`，色值唯一真源 `src/config/theme.ts` 的 `CATEGORY_PALETTE`；渲染器保持只读，换算前移到 `src/lib/`。
+
+**升级路线**：主线走**路线 A（在现有双视图上加分类图层体系，零新依赖）**；路线 B（引入 Leaflet / MapLibre）需用户批准解锁依赖，暂不启用；路线 C（全量大屏重构）留作后端多 feed 就绪后的独立 Wave。
+
 ## 3. 技术栈（已定，不改动）
 
 - React + Vite + TypeScript + Tailwind CSS
@@ -45,7 +71,17 @@
   - 新闻 / 叙事面板：`news_export` 条目列表
   - 顶部状态条：数据时间戳 + 缺失字段告警
   - **v1.0.3 增强**：气候风险 / 自然灾害维度**不再画常驻地图柱**，改为 `events[]` **事件触发式告警柱**（有事件才在事发地画 ⚠ 柱，缺省不渲染）。
-- **Wave 2（待启动）** —— 接入天璇（D.hypothesis）/ macro-sim（D.sim）/ 天玑（D.verification）新格式输出；新增面板 = 只加 `panelRegistry` 注册项，不改布局。同时落地写侧受控指令协议（端点 / 鉴权 / 权限分级）。
+- **Wave 2（进行中 · 双线并行，两条 P0 均已交付）**
+
+  | 线 | 内容 | 状态 |
+  |---|---|---|
+  | **a. 控制面第一版** | 右侧 380px 玻璃拟态抽屉 + 天枢运维 Tab（重跑 fetcher / 暂停恢复采集源 / 调采集频率）+ 五 Tab 导航 + 三层进度反馈 + 操作日志。天璇 / 天玑 / 玉衡为「建设中」占位 | **P0（T01-T03）已交付 · v1.1.0**，复盘 0 缺陷。后端控制 API 未就绪，`MOCK_ENABLED=true` **Mock 模式自闭环** |
+  | **b. crucix 复刻分类图层** | P0-① 分类图层地基 + P0-② 核设施图层与面板壳（见 §2.1） | **已交付 · v1.2.0**，QA 双轮独立验证 139/139 + `tsc` 干净 + `vite build` 绿。后端图层 feed 未就绪，读数降级「—」 |
+
+  两条线**互不阻塞**，均以 Mock / 静态种子自闭环，后端就绪后切换即可。
+  **当前唯一硬卡点**：需向天枢（macro-scan）索取《现有 fetcher × crucix 源》映射表，决定 P1/P2 哪些图层可立即开工。问题单见 [`天枢-fetcher×crucix-映射表-询问.md`](./天枢-fetcher×crucix-映射表-询问.md)。
+
+- **Wave 2 后续** —— 接入天璇（D.hypothesis）/ macro-sim（D.sim）/ 天玑（D.verification）新格式输出；新增面板 = 只加 `panelRegistry` 注册项，不改布局。同时落地写侧受控指令协议（端点 / 鉴权 / 权限分级）。
 
 ## 5. 扩展标准（预埋，新增信息只加注册项、不改布局）
 
@@ -70,12 +106,23 @@
 - **写侧**：控制指令经受控通道下发至各后端执行（协议暂缓，详见 `DATA_CONTRACT.md` §2.3）。
 - 详见 `DATA_CONTRACT.md` §4。
 
-## 8. 当前交付状态（2026-07-31 · v1.0.3）
+## 8. 当前交付状态（2026-08-01 · v1.6.0）
 
-- 源码已落地 `S:\world-sim\kaiyang`（A 同步：commit `519f1d6`，已 push main）。
-- 本次对齐：将本设计文档由旧「纯展示层」定位改写为「操作面板（展示 + 控制双职能）」，与 `DATA_CONTRACT.md` 完全对齐；修正 §1 / §3 / §7 中「无后端 / 纯展示」等滞后措辞。
-- S 盘侧需重建：`npm install && npm run build`（建议 NAS 主机本地路径执行，避免 SMB 上 symlink 问题）。
-- 开发期预览：WorkBuddy 副本 `kaiyang-wave1/`（与 NAS 同源，待用户确认是否保留）仍可 `npm run dev`（:5173）/ `npm run preview`（:4173）。
+**Wave 2 双线 P0 均已交付并通过独立 QA 验证（GO）**：
+
+- **线 a 控制面 P0（v1.1.0）**：T01-T03 实现完毕，组队复盘 P0=0 / P1=0 / P2=7（仅死代码），`tsc --noEmit` 零错误，Mock 模式自闭环。**1.6.0 增补** A2（控制面 P2 死代码 7 处清扫）+ A3（5 Tab 镜像「已评:保留镜像」标注）。
+- **线 b 分类图层 P0（v1.2.0）**：P0-①② 实现完毕，**QA 双轮独立验证 139/139 单测通过** + `tsc` 干净 + `vite build` 绿。期间修复一处源码 Bug（`src/lib/nuclearData.ts:199` 的 `level:'unknown'` 分支状态不自洽），已补回归用例钉死；修复后为**零源码缺陷干净版**。
+- **产品决策已闭环**：D1 颜色编码定为**方案 A**（见 §2.1），代码与 QA 均按此口径。
+- **1.6.0 P1 后端小改批读取预埋（B + C2）**：`news_geo`（§2.6 第 ⑩ 项，草案契约 §2.7）与 `market_quotes`（§2.6 第 ⑬ 项，无字段契约）均已在 `dataSources.ts` 的 `FEEDS` 登记、`contracts.ts` 新增类型、`WorldPanel` 接线（newsGeoPoints 合入 K7 层叠），**面板未上图**——等天枢首次产出后回改定稿字段即可立即上图，前端无需重构。
+- **待办与卡点**：《天枢现有 fetcher × crucix 源》映射表已于 2026-08-01 实查回填并吸收进 `DATA_CONTRACT.md` §2.6（见 [`NEXT_SESSION_HANDOFF.md`](./NEXT_SESSION_HANDOFF.md) §4.2）。不依赖后端的 P1 纯前端批已**全部完成**（战略要地标签 1.3.0、地区 Tab / 顶栏 KPI 计数 / 信号编号与点击联动 1.4.0、左侧指标树 1.5.0）。剩余 P1 后端小改批（news_geo 读取已就绪待首产 / fred 增序列 / market 增 Nasdaq 读取已就绪待字段回正）与 P2 逐类接入待天枢 feed 就绪后排。完整接手快照见 [`NEXT_SESSION_HANDOFF.md`](./NEXT_SESSION_HANDOFF.md)。
+- **不阻塞的可选清理**：`src/components/GrvPanel.tsx:118` 散落连线色 `#e2e8f0`；`src/index.css` 手工镜像 `CATEGORY_PALETTE` 的 `--ky-cat-*` 变量（已有漂移守卫测试兜底）。
+
+**工程环境**：
+
+- 工作区为 `kaiyang-wave2/`（`kaiyang-wave1` 已备份下线）；正式位置仍为 world-sim monorepo 下的 `kaiyang`。
+- NAS 侧重建：`npm install && npm run build`（建议在 NAS 主机本地路径执行，避免 SMB 上 symlink 问题）。
+- 本地预览：`npm run dev`（:5173）/ `npm run preview`（:4173）/ `npm test`（应为 297/297，1.6.0 起原 269 + newsGeoAdapter 28）。
+- ⚠ **依赖版本钉死不可动**：`three` 与 `@types/three` 精确 `0.185.1`、`globe.gl ^2.46.1`。降版会导致 `three-globe` 调用 `Matrix4.determinantAffine()` 缺失、地球渲染循环异步抛错且被 React 静默吞掉（表现为容器空白无报错）。
 
 ## 9. 目录结构
 
@@ -84,16 +131,26 @@ kaiyang/
 ├── index.html
 ├── package.json
 ├── vite.config.ts / tsconfig*.json / tailwind.config.js / postcss.config.js
-├── DATA_CONTRACT.md          ← 数据契约权威标准
-├── DESIGN.md                 ← 本设计文档（操作面板 · 设计总纲）
+├── docs/
+│   ├── DESIGN.md                 ← 本设计文档（操作面板 · 设计总纲）
+│   ├── DATA_CONTRACT.md          ← 数据契约权威标准
+│   ├── NEXT_SESSION_HANDOFF.md   ← 下个 session 接手快照
+│   ├── CRUCIX_ANALYSIS.md        ← 对标 crucix 竞品/参考分析
+│   ├── CRUCIX_LAYER_REQUIREMENTS.md ← 前端显示需求清单（§7 派生后端 feed 清单）
+│   ├── CRUCIX_UPGRADE_DESIGN.md  ← 升级技术设计
+│   ├── 天枢-fetcher×crucix-映射表-询问.md ← 给后端的问题单（当前卡点）
+│   └── archive/开阳Crucix新闻地理坐标需求-给后端.md
 ├── src/
 │   ├── main.tsx / App.tsx / index.css
-│   ├── components/  (EChart / GlobePanel / GrvPanel / EconomyPanel / NewsPanel / StatusBar / WorldPanel / FlatMapPanel)
-│   ├── config/      (dataSources: DATA_BASE_URL+FEEDS / grvDimensions: 11维坐标+弧线+renderBar)
+│   ├── components/  (EChart / GlobePanel / FlatMapPanel / WorldPanel / GrvPanel / EconomyPanel / NewsPanel / StatusBar
+│   │                 / LayerLegend 类别图例与开关 / NuclearWatchPanel 核设施监视 / 控制抽屉与天枢运维 Tab)
+│   ├── config/      (dataSources: DATA_BASE_URL+FEEDS / grvDimensions: 11维坐标+弧线+renderBar
+│   │                 / layerCategories: 图层类别唯一真源 / theme: CATEGORY_PALETTE 色值唯一真源 / nuclearSites: 6站静态种子)
 │   ├── hooks/       (useFeed 统一读取层 / useFRED)
-│   ├── lib/         (readLayer fetchJson/fetchCsv / grvAdapter 适配容错 / mapData buildRiskPoints/buildEventBars / format)
+│   ├── lib/         (readLayer fetchJson/fetchCsv / grvAdapter 适配容错 / mapData buildRiskPoints/buildEventBars
+│   │                 / nuclearData readingToValue 归一化 / format)
 │   ├── panels/      (registry: panelRegistry)
 │   ├── state/       (StatusContext: 时间戳/告警/schema版本)
-│   └── types/       (contracts: GrvRaw / GrvEvent / NewsItem / FredSeriesMeta)
-└── public/data/     ← 开发快照（grv_latest.json / news_export.json / sim_trigger.json / fred_history/*）
+│   └── types/       (contracts: GrvRaw / GrvEvent / NewsItem / FredSeriesMeta / NuclearSite / NuclearWatchReading)
+└── public/data/     ← 开发快照（grv_latest.json / news_export.json / sim_trigger.json / nuclear_sites.json / fred_history/*）
 ```

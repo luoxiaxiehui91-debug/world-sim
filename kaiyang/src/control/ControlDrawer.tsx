@@ -1,0 +1,88 @@
+/**
+ * 控制抽屉容器组件
+ * 380px 玻璃拟态 + slide-in-right / slide-out-right CSS 动画
+ * z-index 覆盖在现有网格上方，不破坏原有布局
+ */
+
+import { useEffect, useRef, useState } from 'react';
+import { useControl } from '@/state/ControlContext';
+import { DRAWER_WIDTH } from '@/config/controlConfig';
+import { TabBar } from '@/control/TabBar';
+import { TianshuTab } from '@/control/TianshuTab';
+import { PlaceholderTab } from '@/control/PlaceholderTab';
+import { ToastContainer } from '@/control/Toast';
+
+type AnimationPhase = 'entering' | 'entered' | 'exiting' | 'exited';
+
+export function ControlDrawer() {
+  const { drawerOpen, activeTab } = useControl();
+  const [phase, setPhase] = useState<AnimationPhase>('exited');
+  const prevOpen = useRef(false);
+
+  useEffect(() => {
+    if (drawerOpen && !prevOpen.current) {
+      setPhase('entering');
+      const id = requestAnimationFrame(() => {
+        requestAnimationFrame(() => { setPhase('entered'); });
+      });
+      prevOpen.current = true;
+      return () => cancelAnimationFrame(id);
+    } else if (!drawerOpen && prevOpen.current) {
+      setPhase('exiting');
+      const id = setTimeout(() => { setPhase('exited'); }, 350);
+      prevOpen.current = false;
+      return () => clearTimeout(id);
+    }
+  }, [drawerOpen]);
+
+  if (phase === 'exited') return null;
+  const isVisible = phase === 'entering' || phase === 'entered';
+
+  return (
+    <>
+      {isVisible && (
+        <div
+          className="fixed inset-0"
+          style={{ zIndex: 40, background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(2px)' }}
+          onClick={() => {
+            /* backdrop click → close by clicking the StatusBar's toggle button */
+            const sb = document.querySelector('button[title*="关闭控制台"], button[title*="控制台"]');
+            if (sb instanceof HTMLElement) sb.click();
+          }}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={`control-drawer glass scanlines ${isVisible ? 'drawer-open' : 'drawer-closing'}`}
+        style={{ width: DRAWER_WIDTH, overflow: 'visible', zIndex: 50 }}
+        aria-label="控制面板"
+      >
+
+      <TabBar />
+      <div className="flex-1 overflow-y-auto px-3 pb-3">
+        {activeTab === 'tianshu' && <TianshuTab />}
+        {activeTab === 'tianxuan' && <PlaceholderTab title="天璇" description="推演控制 · 建设中" />}
+        {activeTab === 'tianji' && <PlaceholderTab title="天玑" description="校验触发 · 建设中" />}
+        {activeTab === 'yuheng' && <PlaceholderTab title="玉衡" description="权重矩阵审批 · 建设中" />}
+        {activeTab === 'operation_log' && <PlaceholderTab title="操作日志" description="日志功能 · 建设中" />}
+      </div>
+      <ToastContainer />
+
+      {/* 关闭按钮 — 点击 StatusBar 的 🔧 按钮（toggleDrawer 的最可靠触发方式） */}
+      <button
+        type="button"
+        onClick={() => {
+          const sb = document.querySelector('button[title*="关闭控制台"], button[title*="控制台"]');
+          if (sb instanceof HTMLElement) sb.click();
+        }}
+        className="absolute top-3 right-3 flex h-9 w-9 items-center justify-center rounded-md border border-rose-400/40 bg-rose-500/15 text-rose-200 hover:border-rose-400/70 hover:bg-rose-500/30 hover:text-rose-100 transition-colors"
+        style={{ zIndex: 9999 }}
+        title="关闭控制台"
+        aria-label="关闭控制台"
+      >
+        <span style={{ fontSize: 18, fontWeight: 'bold' }}>✕</span>
+      </button>
+    </aside>
+    </>
+  );
+}

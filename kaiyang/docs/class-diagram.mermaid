@@ -1,0 +1,114 @@
+classDiagram
+    class FlatMapPanelProps {
+        +RiskPoint[] points
+        +RiskArc[] arcs
+        +StrategicSite[] sites
+        +boolean active
+        +RegionKey region
+        +string | null focusPointId
+        +(point: RiskPoint) => void onPointClick
+    }
+
+    class RiskPoint {
+        +string id
+        +string label
+        +number lat
+        +number lng
+        +number | null value
+        +number | null uncertainty
+        +boolean uncertaintyEstimated
+        +string group
+        +PointStatus status
+        +string color
+        +string severity
+        +number weight
+        +LayerCategory category
+        +PointShape shape
+        +string rawMetric
+        +boolean isEvent
+        +string note
+    }
+
+    class RiskArc {
+        +string id
+        +number startLat
+        +number startLng
+        +number endLat
+        +number endLng
+        +string fromLabel
+        +string toLabel
+        +string startColor
+        +string endColor
+        +number intensity
+    }
+
+    class StrategicSite {
+        +string id
+        +string name
+        +number lat
+        +number lng
+        +StrategicSiteType type
+        +1|2|3 importance
+        +string note
+    }
+
+    class PanelRegistration {
+        +string id
+        +string title
+        +string feed
+        +int order
+        +boolean visible
+        +string className
+        +Layout defaultLayout
+        +ComponentType component
+    }
+
+    class Layout {
+        +string i
+        +int x
+        +int y
+        +int w
+        +int h
+        +int minW
+        +int minH
+        +boolean static
+    }
+
+    class FlatMapPanel {
+        -L.Map map
+        -L.TileLayer tileLayer
+        -Map~string, L.CircleMarker~ pointMarkers
+        -Map~string, L.Polyline[]~ arcPolylines
+        -Map~string, L.Marker~ siteMarkers
+        +initMap(container)
+        +updatePoints(points)
+        +updateArcs(arcs)
+        +updateSites(sites)
+        +flyToRegion(region)
+        +resetView()
+        -buildCircleMarker(point) L.CircleMarker
+        -buildArcPolylines(arc) L.Polyline[]
+        -buildSiteIcon(site) L.DivIcon
+        -onZoomEnd() void
+        -onDblClick() void
+    }
+
+    class App {
+        -Layout[] layout
+        -Layout[] defaultLayout
+        +onLayoutChange(layout)
+        +onResetLayout()
+        -loadLayout() Layout[]
+        -saveLayout(layout)
+    }
+
+    FlatMapPanelProps --> RiskPoint : points[]
+    FlatMapPanelProps --> RiskArc : arcs[]
+    FlatMapPanelProps --> StrategicSite : sites[]
+    FlatMapPanel ..> FlatMapPanelProps : props
+    FlatMapPanel ..> RiskPoint : CircleMarker 渲染
+    FlatMapPanel ..> RiskArc : Polyline 渲染
+    FlatMapPanel ..> StrategicSite : DivIcon 渲染
+    PanelRegistration --> Layout : defaultLayout
+    App --> PanelRegistration : PANELS[]
+    App ..> Layout : grid layout items

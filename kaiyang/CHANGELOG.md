@@ -2,6 +2,249 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.7.0] - 2026-08-02 · 运行时修复 + 控制抽屉关闭 + 2D 平面地图移除
+
+> 版本递进：**1.6.0 → 1.7.0**。本条目为 1.6.0 上线后的紧急 BugFix + 架构清理批次：修复 Leaflet 2D 地图运行时崩溃（NaN LatLng）、修复控制抽屉关闭逻辑 bug（`prevOpen` 状态管理死循环）、全局错误边界（ErrorBoundary），以及因 CartoDB/ESRI/OSM/Voyager 四家第三方瓦片服务均存在数据缺口且无法弥补，**最终移除 2D 平面地图视图**，WorldPanel 永久锁定为 3D 地球模式。
+
+**BugFix — `Invalid LatLng object: (NaN, NaN)`**
+
+- **根因**：react-grid-layout 在面板初始化阶段给容器 0 高度时，Leaflet 的 `flyToBounds` 内部像素投影全算 NaN → 构造 `L.latLng(NaN, NaN)` → 抛异常 → 整页白屏。
+- **修复**：FlatMapPanel 的 region→flyTo useEffect 加 `map.getSize()` 零尺寸检查（`size.x<=0 || size.y<=0`），为 0 时延迟 300ms 重试；各处坐标生成加 `isNaN` 防护（点位/弧线/要地/聚焦光环）；地图切换 active 态时双 rAF 后调 `map.invalidateSize()`。
+- **验证**：Playwright headless Chromium 实测无错误。
+
+**BugFix — 控制抽屉能开不能关**
+
+- **根因**：`ControlDrawer` 的 `prevOpen.current = drawerOpen` 赋值在 `if-else` 条件分支的 `return` 语句之后，永远执行不到 → prevOpen 始终为 true → `!drawerOpen && prevOpen.current` 分支无法被进入 → 关闭动画从不触发。
+- **修复**：将 `prevOpen.current = true/false` 移入对应的 if/else 分支内部；X 按钮改用 `onClick` 触发 StatusBar 的 🔧 按钮 DOM click（最可靠的 toggleDrawer 路径）。
+- **验证**：Playwright 实测 → 点击 X 后抽屉从 DOM 消失。
+
+**移除 — 2D 平面地图**
+
+- CartoDB `dark_all`（zoom 2.5/3, 12/15 瓦片加载, 俄罗斯/中亚 3 瓦片持久缺口）、ESRI `World_Dark_Gray_Base`（0/15 加载, 全黑）、OSM `tile.openstreetmap.org`（0 加载）、CartoDB `voyager`（多处中断, 反更差）——四家瓦片服务经 Playwright 实测均不可接受。
+- `WorldPanel` 移除 `FlatMapPanel` import 与渲染，3D/平面 toggle 按钮永久定为「🌐 3D 地球」。
+- FlatMapPanel 组件文件保留在仓库中备用，等自建 tileserver 或可靠瓦片源出现后可恢复。
+- `panelRegistry` 标题从「世界视图（3D/平面）」不变，但视图模式硬编码 `'globe'`。
+
+**新增 — ErrorBoundary**
+
+- `main.tsx` 新增 `ErrorBoundary` 类组件：任何子组件抛错时不再白屏，展示红色错误信息。
+
+**工程**
+
+- 未增删 npm 依赖。`package.json` 仅 `version` 1.6.0→1.7.0。
+- 修改 6 文件：`VERSION`, `CHANGELOG.md`, `src/App.tsx`(footer 自动布局/重置布局按钮), `src/main.tsx`(ErrorBoundary), `src/components/StatusBar.tsx`(WAVE 2), `src/components/FlatMapPanel.tsx`(NaN 防护 + 瓦片切换), `src/components/WorldPanel.tsx`(移除 FlatMapPanel), `src/control/ControlDrawer.tsx`(prevOpen 修复 + X 按钮), `src/state/ControlContext.tsx`(CLOSE_DRAWER action), `src/types/control.ts`(closeDrawer 类型)。
+
+## [1.6.0] - 2026-08-01 · 控制面 P2 死代码清扫（§4.5 A2）+ news_geo 读取层骨架（B）+ 市场行情读取预埋（C2）
+
+> 版本递进：**1.5.0 → 1.6.0**。本条目属于「Wave2 第三批」的快进模式交付——**清扫既有死代码**（A2）+ **先行登记与搭建新闻地理化读取层骨架**（B，不含面板与可视层上线）+ **市场行情读取预埋**（C2），**不引入任何新架构决策**、**零新 npm 依赖**。代码改动严格在 `§3 扩展标准` 既有扩展点内（`FEEDS` 登记 + `useFeed` 复用 + `lib/` 适配器）。
+>
+> **本批 P1 后端小改批进度**：§2.6 第 ⑩ 项 `news_geo.json`、第 ⑬ 项 `market_quotes.json` 均已在开阳侧先行登记并搭建读取层骨架，**待天枢首次产出后回改定稿字段契约即可上图**。
+
+**改了什么**
+
+- **§4.5 A2 控制面 7 处 P2 死代码清除**：根据团队 P0=0 / P1=0 / P2=7 复盘结论，彻底删除控制面 P2 占位（天璇 / 天玑 / 玉衡 / 操作日志 / Token 设置）遗留在 `panels/registry.ts`、`hooks/useControlApi.ts`、`lib/controlApi.ts` 等处的 P2 死代码 7 处。控制抽屉本身与天枢运维 Tab（1.1.0）保留不动，本批**未引入任何新面板**，亦**未删减任何已交付能力**。
+- **§4.5 A3 控制面 5 Tab 镜像标注**：5 个控制面 Tab（天枢 / 天璇 / 天玑 / 玉衡 / 操作日志）中其余 4 个「建设中」占位的镜像文案与路由条目增加**显式"已评：保留镜像，等待后端 P1+"注释**，明确「这是 P0 交付的镜像占位而非未规划」——避免后续维护者误判为遗漏。
+- **B 节 news_geo 读取层骨架（§2.6 第 ⑩ 项先行登记）**：
+  - `src/config/dataSources.ts` 登记 `news_geo` + `market_quotes` 两个新 feed 项（path / type / `schemaVersion: '1.0'`）。
+  - `src/types/contracts.ts` 新增 `NewsGeoEvent` / `NewsGeoRaw`（§2.7 草案字段级 + `events: []` 必填 + 顶层 `schema_version` / `updated`）+ `MarketQuote` / `MarketQuotesRaw`（兜底预埋，无对应面板）。
+  - 新增 `src/lib/newsGeoAdapter.ts`（与既有 `nuclearData.ts` 同构）：`adaptNewsGeo()` 把 `NewsGeoRaw` → `RiskPoint[]`，按 4 位小数 / 有限数 / ±90·±180 校验坐标、按 0–100 夹取并归整 `intensity`、按 `newsgeo:<id>` 命名空间组装 id（K2 防撞车）、`category='news'` 复用既有类别色（K6 只读契约）、`weight=intensity/100`（视觉双轴 D1）、缺失强度整条跳过不进 missing 通道、重复 id 取先。**K5 红线**：入参 nullish → 空数组，绝不抛异常。
+  - `src/components/WorldPanel.tsx` 接线：复用既有 `useFeed<NewsGeoRaw>('news_geo')` + `useMemo(adaptNewsGeo)`，把 `newsGeoPoints` 合入 K7 层叠序列（海量点 → 常规点 → 事件点 → **地理新闻（1.6.0 新插入层）** → 固定设施）。`market_quotes` 仅 fetch 备查（`void marketRaw` 显式消费），**未上图**。
+  - `LayerTreePanel` 计数**自动合并**：复用既有 `category='news'` 类计数通道，`news`（未来 RSS 上图）+ `news_geo`（本批）合并到同一行；选中态走既有 `SelectionContext`，`focusPointId` 由 id 命名空间自动路由。
+- **B5 测试（+28，全量 297 通过）**：新增 `src/lib/newsGeoAdapter.test.ts` 28 用例，5 个 describe 块覆盖（入参降级 6 例 / 类别形状 id 4 例 / 字段容错 7 例 / 展示字段 8 例 / 与图层体系契约 3 例）。**零新依赖**，复用项目既有 vitest + `@/` 别名。
+- **C1 useFRED 评估（不变）**：`src/hooks/useFRED.ts` 已满足 §2.6 第 ⑪ 项需求（`manifest` 为 null 时降级为空序列并告警；单序列 fail→空+状态条报告；`cancelled` 标志清理 effect），**零改动**。
+- **C2 market_quotes 预埋**：`src/config/dataSources.ts` 登记 `market_quotes`（仅 fetch 备查）；`src/types/contracts.ts` 加 `MarketQuote` / `MarketQuotesRaw`（`symbol` / `name` / `price` / `change_pct` / `updated` / `category`）。**无面板、无上图**，待天枢定下文件形态后按 §2.6.3 回补字段契约再转正。
+- **C3 useFRED 测试（跳过）**：评估需引入 `@testing-library/react-hooks`（或新方案如 `renderHook` 配 `jsdom`），**违反"零新依赖"约束**，本批跳过；既有 `useFRED` 测试覆盖由适配器层测试兜底（`fred_history` 序列适配逻辑已稳定）。
+- **D 质量门（GO）**：`tsc --noEmit` 零错误（修复 newsGeoAdapter.test.ts 中 2 处类型断言）；`vitest run` **297/297 通过**（13 个测试文件，含本批 +28）；`vite build` 绿（10.84s，1066 modules）；`grep` 复查 `news_geo` / `newsgeo` / `NewsGeo` / `market_quotes` / `MarketQuotes` / `MarketQuote` 全部引用均为有意位置（contracts / dataSources / newsGeoAdapter / newsGeoAdapter.test / WorldPanel.tsx 接线 + SelectionContext/GlobePanel/SignalStreamPanel 旧注释"等天枢 GDELT news_geo feed 就绪"现可陆续清理，本批未动）。
+
+**为什么这么改**
+
+- **B 节为何「先行登记 + 仅读取层骨架，不上图」**：`docs/DATA_CONTRACT.md` §2.7 明确「待天枢首次产出后回改定稿字段」。但开阳侧的字段草案已经稳定（`NewsGeoEvent` 9 字段、强校验规则、4 位小数约定），等天枢首产再补会拖 1 个 sprint。本批以**读取层骨架预埋**形式把 `useFeed` 通路、`adaptNewsGeo` 适配器、WorldPanel 接线 + 图层体系接入全部建好，**图层面板**（独立「地理新闻」面板或归入既有信号流）留待天枢首产数据后再决策；天枢首产后只需把 §2.7「草案」标记摘除并按实际字段微调契约，**前端无需重构**。
+- **K7 层叠把「地理新闻」插在事件点之后、固定设施之前**：新闻点位是「事件衍生的高频动态层」，视觉密度高于固定设施（核设施 / 战略要地），但与既有事件点同根（都是 GDELT / `grv_latest.events` 衍生）；把它放在事件点之后，让 3D/2D 双视图在大量新闻点位涌入时仍能保证战略要地不被覆盖。
+- **C2 为何只 fetch 不上图**：§2.6 第 ⑬ 项明确「行情带 5 格中 4 格已有底数，待天枢把分散产物统一落成 `market_quotes.json`」；当前先读取不渲染，避免给用户展示「只有部分指数」的残缺面板。等天枢统一文件形态后，**适配器已就位、面板只是 `panelRegistry` 加一项**。
+- **A2 死代码清除严格只删 P2 占位**：天枢 Tab 是 P0 核心交付（已通过组队复盘），其余 4 Tab 是「建设中」镜像占位（P2 占位但保留 UI 镜像）。本批只删其中**与 P0 实现毫无引用关系**的 7 处死代码，5 个 Tab 的 UI 镜像不动；A3 同步加注释说明「已评：保留镜像」避免维护者误判。
+
+**明确没有改的（防误读）**
+
+- ❌ **没有引入任何新 npm 依赖**（`package.json` 的 `dependencies` / `devDependencies` 与 1.5.0 完全一致，仅 `version` 行 1.5.0→1.6.0）。**未引入 jsdom / testing-library / @testing-library/react-hooks**。
+- ❌ **没有做地理新闻的可视层**：未新增「地理新闻」面板，未改 LayerTreePanel 的 12 类清单（`category='news'` 走既有 12 类通路的同一行计数合并，未新增 13 类），未改 GlobePanel / FlatMapPanel 的渲染器（仍是只读 `p.color / p.weight / p.shape / p.status`）。**首产数据上线前地图上不会多出任何点位**（`useFeed` 拉不到文件 → 空数据流 → 适配器降级返回空数组 → 不渲染）。
+- ❌ **没有改数据流**：`useFeed` / `adaptGrv` / `mapData` / `nuclearData` / `GlobePanel` / `FlatMapPanel` / `RegionTabs` / `StatusBar` / `SignalStreamPanel` / `LayerTreePanel` / `LayerLegend` 渲染器全部零改动；只增不删不减。
+- ❌ **没有把 `news_geo` 接入「新闻面板」**：`news_export.json`（RSS 纯文本）仍是新闻面板的唯一源；`news_geo`（GDELT 地理事件）仅走地图层，**两者互不替代**。
+- ❌ **没有编造任何点位**：所有 `newsGeoPoints` 都源自 `useFeed('news_geo')` 的真实 fetch 结果；适配器对非法坐标 / 缺失强度一律丢弃，不为缺失数据画占位点。
+- ❌ **没有改 §2.6 / §2.7 的契约状态**：`news_geo.json` 仍是「**1.0 草案**」（待天枢首产回改定稿）；`market_quotes.json` 仍是无 §2.x 字段契约的预埋。本批只把"读取层就绪"前置到契约定稿前，**契约权威性仍以 DATA_CONTRACT.md 为准**。
+- ❌ **没有动控制面 5 Tab 中「天枢」之外的 4 Tab UI 镜像**（保留镜像占位），仅清理其**死代码引用**并加注释；天枢 Tab 完整功能保留。
+
+**工程**
+
+- 新增 4 文件（`src/lib/newsGeoAdapter.ts` + 测试、`src/lib/newsGeoAdapter.test.ts`；**B5 测试用例数 28**）。
+- 修改 6 文件：`src/config/dataSources.ts`（B1 + C2）/ `src/types/contracts.ts`（B2 + C2）/ `src/components/WorldPanel.tsx`（B3+B4.2）/ `src/panels/registry.ts`（A2 P2 死代码 4 处）/ `src/hooks/useControlApi.ts`（A2 1 处）/ `src/lib/controlApi.ts`（A2 2 处）。
+- 测试 269 → 297（+28），**全量 297/297 通过**。
+- 共享约定：所有 `MarketQuote` 字段名与 §2.6.3 表格中建议字段一致（`symbol` / `name` / `price` / `change_pct` / `updated`），新增 `category`（分类标签）便于未来面板分组；不破坏既有 12 类清单。
+
+**质量验证（GO）**
+
+- **单元测试 297/297 通过**（`npm test`，13 个测试文件：原 269 + 本批 +28）。
+- `tsc --noEmit` 零错误；`vite build` 绿（10.84s）。
+- **IS_PASS: YES**。
+
+**产品决策**
+
+- **C2 market_quotes 读取但不渲染**已拍板——避免「4/5 行情格有数据、1/5 留空」的残缺面板体验；天枢统一 `market_quotes.json` 形态后即转正。
+- **B 节读取层骨架先行**已拍板——草案阶段就把读取 + 适配 + 接线做完，等数据即可上图；不依赖契约定稿节奏，避免 1 个 sprint 闲置。
+
+## [1.5.0] - 2026-08-01 · 左侧指标树 LayerTreePanel（P1 纯前端收尾③）+ 底部图例精简
+
+> 版本递进：**1.4.0 → 1.5.0**。本条目交付 P1 纯前端批的**最后一项**：对标开源 crucix monitor 左栏的「指标树」。零新依赖、纯前端、不改数据流，可独立验收。
+
+**改了什么**
+
+- **左侧指标树（新）**：新增 `src/components/LayerTreePanel.tsx`，做进 `WorldPanel` 内部、地图左侧的一列（`w-40 shrink-0 overflow-y-auto`）。12 类风险图层按落地阶段 `phase` 分成三个**可折叠**分组（`P0 已就位` / `P1 规划` / `P2 待后端`），组头显示 `本组已开/本组总数` 并带 `aria-expanded`；每个类别叶子行 = 形状色块（复用 `ShapeSwatch`）+ **状态灯** + 中文名（`truncate`）+ 计数（`tabular-nums`），整行即开关（`aria-pressed` + `data-off`）。战略要地作为独立一行（`StarSwatch` + 琥珀金）置于树顶，不进 phase 分组。树头提供全开 / 全关，树底在 `missingCount>0` 时提示「数据缺失 N」。
+- **状态灯三态（新的诚实表达）**：`rowStatus()` 纯函数把「开且当前范围有数据 = live（青绿发光）」「开但当前范围无数据 = empty（灰）」「已关闭 = off（更淡的灰）」三种情况**显式区分**，DOM 上以 `data-status` 暴露。P2 图层恒为 0 点位是「等后端」，不是故障，也绝不因为空就伪装成 live。
+- **底部图例精简**：`LayerLegend` 移除「战略要地开关」与「双列逐类别开关 grid」，收窄为「标题 + N/12 + 全开/全关 + 强度(尺寸/脉冲)说明 + 数据缺失徽标」。`LayerLegendProps` 相应收窄为 `{ visible, onSetAll, missingCount }`。`ShapeSwatch` / `StarSwatch` 改为 `export` 供左树复用，`LayerCountMap` 类型仍从此文件导出（`WorldPanel` 与左树共用）。
+- **`WorldPanel` 布局**：原「地图容器」外层改为一行 flex —— `[LayerTreePanel] [地图容器 flex-1 min-w-0]`，两个子视图的绝对定位与 loading / error 覆盖层原样内移，未改任何渲染参数。
+- **测试（+26，243 → 269）**：新增 `src/components/LayerTreePanel.test.tsx`（26 用例，6 个 describe）：12 类全渲染 / 战略要地行有无 / P0·P1·P2 组头与顺序 / 计数只来自 `counts` / 类别色源自 `CATEGORY_PALETTE` / 状态灯三态 / 逐类别 `onToggle` 参数正确 / `onToggleSites` 不误触 / 全开·全关回调与禁用态 / 组头折叠后叶子行不渲染 / `groupByPhase` 覆盖无遗漏 / 布局与无障碍属性。测试文件数 11 → 12。
+
+**为什么这么改**
+
+- **左树必须复用 WorldPanel 已有状态，不能自成一套**。`useFeed` 不做缓存，任何在别处重新 `useFeed('grv')` 的写法都会变成第二次网络请求 + 两份可能不一致的计数。因此左树是**纯受控组件**：`visible / counts / onToggle / onSetAll / missingCount / sitesVisible / onToggleSites` 全部由 `WorldPanel` 下传，组件内不 fetch、不建 Context、不自算计数。
+- **同一个开关不能有两套 UI**。左树上线后若底部图例仍保留逐类开关，用户会看到两处状态、两处点击入口，迟早出现「我关的是哪一个」的困惑。故把开关**迁移**而非复制，底部图例只留全局动作与图注。
+- **色块 SVG 只留一份**。`ShapeSwatch` / `StarSwatch` 从 `LayerLegend` 导出复用，而不是在左树里重画一遍 —— 否则地图符号、图例、左树三处形状迟早漂移。类别色一律走 `def.color`（源头是 `CATEGORY_PALETTE`），组件内零硬编码 hex，已由测试钉死。
+- **按 phase 分组而不是按字母 / 按计数排**，是为了让「这层为什么是 0」当场可解释：P2 组头写明「待后端」，用户不会把未接入误读成数据丢失。
+
+**明确没有改的（防误读）**
+
+- ❌ **没有引入任何新依赖**（仍无 jsdom / testing-library）。新测试沿用项目既有做法：`renderToStaticMarkup` + 直接调用无 hook 的纯组件取元素树手动触发 `onClick`。
+- ❌ **没有改数据流**：`useFeed` / `adaptGrv` / `mapData` / `nuclearData` / `GlobePanel` / `FlatMapPanel` / `RegionTabs` / `StatusBar` / `SignalStreamPanel` 全部零改动。图层显隐仍只由 `WorldPanel` 持有并写 `localStorage`（键位 `kaiyang.layerVisibility` / `kaiyang.strategicSitesVisible` 未变）。
+- ❌ **没有编造任何计数**：所有数字都来自 `WorldPanel` 传入的 `counts`（当前地区范围口径），左树不做二次统计。
+- ⚠ **折叠状态不持久化**：`LayerTreePanel` 内部 `useState` 持有「哪些分组展开」，默认全展开，刷新后回到默认。这是刻意的 —— 它是纯 UI 局部偏好，不值得再占一个 `localStorage` 键位。
+- ⚠ **实现上的一处微调**：折叠状态放在 `LayerTreePanel` 这一层（而非每个分组各自 `useState`），并把全部标记抽成无 hook 的纯组件 `LayerTreeView` / `LayerTreeGroup` / `LayerTreeRow`。原因是项目无 jsdom，只有纯组件才能被直接调用做交互断言；对外行为（默认展开、点组头折叠）完全一致。
+
+## [1.4.0] - 2026-08-01 · 地区 Tab（R-P1-02）+ 顶栏 KPI / 信号序号与选中联动（R-P1-03）
+
+> 版本递进：**1.3.0 → 1.4.0**。本条目纳入 P1 纯前端批**剩余两项**：地区筛选 Tab 与顶栏 KPI + 信号流序号/选中联动。两项在设计文档中均标注「后端门控：否」，零新依赖、纯前端，可独立验收。
+
+**改了什么**
+
+- **地区 Tab（R-P1-02）**：新增 `src/config/regions.ts`，定义 6 个地区（全球 / 美洲 / 欧洲 / 中东 / 亚太 / 非洲）的 bbox 与派生工具（`regionOf` / `inRegion` / `regionCamera` / `regionPolygon`）。新增 `src/components/RegionTabs.tsx`（6 个 Tab，`aria-pressed` + 中文 title，选中态复用既有 `accent`）。`WorldPanel` 持有 region 状态并经 `localStorage` 键 `kaiyang.region` 记忆，同时过滤风险点位、战略要地与统计计数；2D 平面图按 bbox 走 `fitExtent` 重算投影，3D 地球按 bbox 中心 + 跨度估算高度走 `pointOfView` 飞行。
+- **顶栏 KPI（R-P1-03）**：`StatusBar` 新增 `useFeed<NewsItem[]>('news')` 与**纯函数** `deriveKpis()`，输出「信号 / 新闻 / 主告警」三个 chip。主告警 >0 用红（rose），=0 用弱化琥珀。口径与信号流**共用同一套** `newsItemsOf` / `signalLevelOf` / `SIGNAL_DISPLAY_LIMIT`，不另抄判定逻辑。
+- **信号流序号与选中（R-P1-03）**：新增 `src/state/SelectionContext.tsx`（`selectionReducer` 纯函数 + `SelectionProvider` / `useSelection`），挂载于 `App`。信号流每行加 `#序号` 前缀（等宽数字），行改为可点击 `button`（`aria-pressed` + 键盘可达），选中行加 accent 边框；再次点击同一行取消选中。`SignalRow` 抽成无 hook 的纯组件以便零依赖渲染测试。
+- **测试（+83）**：新增 `regions.test.ts`(31) / `SelectionContext.test.tsx`(12) / `RegionTabs.test.tsx`(8) / `SignalStreamPanel.test.tsx`(19) / `StatusBar.test.tsx`(13)。node 环境无 jsdom，统一用 `renderToStaticMarkup`（react-dom 自带）+ 直接调用纯函数组件的方式断言，**未引入任何新依赖**。
+- **顺带修的地雷**：`dataSources.ts` 在模块顶层裸读 `window`，导致任何 import 链触达 `useFeed` 的测试直接 `ReferenceError` 崩掉；改为 `typeof window === 'undefined'` 探测后再读（同时对未来 SSR 安全）。
+
+**为什么这么改**
+
+- 地区筛选的真值必须**只有一份**：bbox 定义在 `regions.ts`，2D 的 `fitExtent` 与 3D 的 `pointOfView` 都从它派生，避免两个视图各自硬编码一套「亚太是哪儿」而慢慢漂移。
+- 顶栏 KPI 与信号流如果各算各的，迟早出现「顶栏说 40 条、列表显示 37 条」这种自相矛盾。因此 KPI 直接复用信号流的归一化与等级判定函数，并用测试钉死 `deriveKpis().signals === deriveSignals().length`。
+- 选中态拆成 `selectedSignalKey`（行内选中）与 `focusPointId`（地图聚焦）两个正交槽位，是为了能**诚实表达**「选中了信号但没有可聚焦的地图点」，而不是随便挑个点位假装跳转。
+
+**明确没有改的（防误读）**
+
+- ❌ **没有伪造「点信号 → 地图跳转」**。当前 `news_export.json` 既无 lat/lng 也无点位 id，`Signal.focusId` 恒为 null，点击只做行内选中，tooltip 明写「该信号无地理坐标，暂不联动地图」。聚焦 API（相机飞行 + 光环高亮）已在 `GlobePanel` / `FlatMapPanel` 建好并通过**点击地图点位**验证可用；等天枢 GDELT `news_geo` feed 就绪、条目带上 `point_id` 后，无需改动组件即自动生效。
+- ❌ **没有引入任何新依赖**，没有装 jsdom / testing-library / 地图交互库；2D 平面图仍不支持鼠标 pan/zoom（地区切换靠 Tab 重算投影）。
+- ❌ **没有动 D1 颜色方案**：`CATEGORY_PALETTE` / `SEVERITY_COLORS` / 战略要地琥珀金一律未改，Tab 与选中态复用既有 `accent`，KPI 告警复用既有 rose / amber。
+- ⚠ **地区 bbox 是静态矩形近似**，苏伊士等边界点会同时落入中东与非洲两个框（`inRegion` 双真，`regionOf` 按 `REGIONS` 顺序取首个），这是刻意保留的已知行为，已在 `regions.test.ts` 中钉死断言。
+
+## [1.3.0] - 2026-08-01 · 战略要地叠加层（P1 第一刀）+ osint 死代码清除
+
+> 版本递进：**1.2.0 → 1.3.0**。本条目纳入 P1 纯前端批的**第一刀**：战略要地常驻叠加层（双视图一致），以及天枢合规否决后的 osint 图层死代码清除。两者均不依赖后端 feed，可独立交付。
+
+**改了什么**
+
+- **战略要地叠加层（P1 新功能）**：新增 `src/data/strategicSites.ts`，内置 8 个国际公认地理要地种子（霍尔木兹 / 苏伊士 / 博斯普鲁斯 / 直布罗陀 / 马六甲 / 巴拿马运河 / 好望角 / 曼德海峡）。在 3D 地球（`GlobePanel`，customLayer 四角星 Sprite + 拉远隐藏标签）与 2D 平面图（`FlatMapPanel`，d3-geo 投影星形 + 窄屏隐藏标签）双视图叠加常驻标记 + 中文标签。
+- **独立视觉与独立开关**：本层固定琥珀金 `PALETTE.amber`（#fbbf24），用四角星形符号明显区别于 RiskPoint 的圆点 / 菱形，**不进入 12 类风险色轴**。图例（`LayerLegend`）新增独立的「战略要地」开关（默认开），显隐经 `localStorage` 键 `kaiyang.strategicSitesVisible` 持久化，与分类图层键互不干扰。`WorldPanel` 持有该状态并下传两个子视图。
+- **容错降级（K5 红线）**：`validStrategicSites()` 跳过坐标越界 / 缺字段 / 重复 id 的项，非法 `type` 回落 `chokepoint`、非法 `importance` 回落 1；空数据 / 投影失败只丢单层，绝不白屏。新增 `src/data/strategicSites.test.ts`（21 测试）覆盖坐标区间、必填字段、id/name 唯一、色值独立、显隐常量与脏数据降级。
+- **osint 死代码清除（天枢合规否决）**：从 `CATEGORY_PALETTE`（`theme.ts`）、`LAYER_CATEGORIES`（`layerCategories.ts`，含联合类型与图例项）、`--ky-cat-*` 镜像（`index.css`）、`categoryColor` 分支与单测中**彻底移除 `osint`**。类别枚举由 13 收窄为 12（osint 永久删除 —— 不做社媒抓取），三处键集合（`CATEGORY_PALETTE` / `LAYER_CATEGORIES` key / `--ky-cat-*`）保持严格一致（`missing` 作为元状态色，在 palette 与 css 中均保留，但不计入 12 类）。
+
+**为什么这么改**
+
+- 战略要地是「常驻地理参照物」，与风险事件在语义上必须一眼可分：靠**固定色 + 星形符号 + 常驻标签**区分，而不是靠挤进类别色轴（那会稀释 D1「色相 = 类别」的编码）。因此把它设计成完全独立的叠加层，渲染器只读其预计算字段，不污染 12 类契约。
+- osint 图层对应的社媒抓取能力已被天枢合规永久否决，残留的代码属于死代码，留着只会诱使后续维护者误以为该图层可用。趁本次 P1 改动一并清除，并钉死「三处键集合一致」的契约测试（K6），防止日后再次出现 palette / legend / css 漂移。
+
+**明确没有改的（防误读）**
+
+- ❌ **没有把战略要地塞进 `CATEGORY_PALETTE` 的 12 类色轴**，也没有给它分配风险严重度 —— 它只承载地理坐标与重要度（仅驱动符号尺寸），不参与任何风险数学。
+- ❌ **没有改 `PALETTE` / `SEVERITY_COLORS` / `SEVERITY_LEGEND` / `MAP_THEME`**。`STRATEGIC_SITE_COLOR` 直接引用 `PALETTE.amber`，不复制 hex。
+- ❌ **本次未做** P1 其余子项（news_geo 读取层、地区 Tab / 顶栏 KPI / 信号流序号等），保持改动面最小、可独立验收。
+
+## [1.2.0] - 2026-08-01 · 分类图层体系（对标 CRUCIX MONITOR，P0）
+
+> 版本递进：**1.1.0 → 1.2.0**。本条目纳入 Wave2 线 b（crucix 复刻）的 **P0-① 分类图层地基** + **P0-② 核设施图层与面板壳** + 对应 hotfix。Wave2 线 a（控制面 P0）见 1.1.0 条目，两条线并行、互不影响。
+
+**改了什么**
+
+- **视觉双轴落地（决策 D1）**：把过去「颜色 = 严重度」的单轴编码拆成两轴——**色相 = 图层类别**、**强度（尺寸 / 光环 / 脉冲速率）= 严重度**。同一屏上既能看出「这是哪一层」，也能看出「有多严重」。
+- **分类图层枚举**：新增 `src/config/layerCategories.ts` 作为类别的**唯一真源**（13 类：地缘 / 事件 / 核设施 / 地理新闻 / 冲突 / 战略要地 / 空域 / 热异常 / 海上 / 太空 / 卫生 / 开源情报 / SDR，含 P0/P1/P2 阶段标注）；色值唯一真源在 `src/config/theme.ts` 新增的 `CATEGORY_PALETTE`，`src/index.css` 的 `--ky-cat-*` 只是 CSS 侧镜像。
+- **缺失态元状态（决策 C2-A）**：`status==='missing'` 或 `value===null` 的点位**强制**灰 `#64748b` + 虚线描边 + 无光晕 + 无常驻标签，任何类别色都不得覆盖。让「无数据」再也不会被误读成「低风险」。
+- **点位 id 命名空间**：`RiskPoint.id` 统一为 `${category}:${原始id}`（`geo:taiwan_strait` / `event:evt-xxx` / `nuclear:zaporizhzhia`），多图层合并时不再可能撞车。
+- **核设施图层（P0 新增数据层）**：新增 `nuclear_sites.json` feed 契约 + 6 站静态种子（扎波罗热 / 切尔诺贝利 / 福岛第一 / 布什尔 / 宁边 / 三里岛）+ 「核设施监视」面板（`order: 8`）。地图上以**菱形**符号呈现，读数经 `readingToValue` 归一化到 0–100 统一量纲。
+- **图层图例与开关**：新增 `LayerLegend`，双列、逐类别显隐、点位计数、全开 / 全关；选择经 `localStorage` 键 `kaiyang.layerVisibility` 持久化，且对**未来新增类别前向兼容**（老快照里没登记过的新类别按 `defaultVisible` 自动出现，而不是对老用户永久隐身）。
+- **信号流双轴分离**：`SignalStreamPanel` 左侧竖色条改为**类别色**（与地图同色相），右侧脉冲点与等级文字保留**严重度色**。
+- **契约文档**：`docs/DATA_CONTRACT.md` §1 登记 `nuclearSites`，新增 §2.5 完整字段定义与归一化规则。
+
+**为什么这么改**
+
+- 对标 CRUCIX MONITOR 后暴露的核心差距不是「面板不够多」，而是**信息维度只有一维**：所有点位共用一套严重度配色，用户无法区分「这是地缘风险还是核设施」。加一层数据只会让同色点位更挤，不会提升可读性。
+- 类别枚举、色值、localStorage 键各自单一真源，是为了让后续 10 个 P1/P2 图层接入时「只加一处登记」，而不是每次都要改渲染器 —— 与既有的 `FEEDS` / `panelRegistry` 扩展标准同构。
+- 渲染器保持**只读**（只读 `p.color / p.weight / p.shape / p.status`，不 import `layerCategories`），换算全部前移到 `lib/mapData.ts` / `lib/nuclearData.ts`。这是「3D 地球与 2D 平面图观感永远一致」的既有保证机制，本次没有破坏它。
+
+**明确没有改的（防误读）**
+
+- ❌ **没有引入任何数值 `severity` 字段**（决策 C1-A）。`RiskPoint.value`(0–100) 仍是唯一严重度数值、`weight`(0–1) 仍是唯一强度驱动源，`severity`(字符串 '低/中/高/缺失') 仍然**只是展示标签**，禁止参与着色 / 尺寸数学。类型定义处已加注释固化这条约束。
+- ❌ **没有改 `PALETTE` / `SEVERITY_COLORS` / `SEVERITY_LEGEND` / `MAP_THEME`**。`CATEGORY_PALETTE` 是纯追加，且其中 5 个共用色直接引用 `PALETTE`，不复制 hex。
+- ❌ **没有改 `RiskArc`**。地缘联动弧线仍按 `severityColor` 着色（P0 范围外），只是会随 `geo` 图层一起显隐。
+- ❌ **没有改 `App.tsx`**。新面板只在 `src/panels/registry.ts` 数组**末尾追加**一项，既有 7 项的 `order` / `className` 一字未动。
+- ❌ **没有新增任何 npm 依赖**。`package.json` 的 `dependencies` / `devDependencies` 与 1.1.0 完全一致，仅 `version` 行变化。
+- ❌ **没有实现 13 类图层的后端采集**。P1/P2 的 10 个类别只在图例中以阶段徽标占位（计数为 0），等后端 feed 就绪后按扩展标准接入，前端无需重构。
+- ❌ **前端不编造辐射读数**。静态种子只含站点属性（名称 / 国家 / 坐标 / 类型），`public/data/nuclear_sites.json` 开发快照的 `readings` 是空数组；无读数即显示「—」与灰色虚线菱形。
+
+**工程**
+
+- 新增 6 文件（`config/layerCategories.ts` + 测试、`config/nuclearSites.ts`、`lib/nuclearData.ts` + 测试、`components/NuclearWatchPanel.tsx`、`components/LayerLegend.tsx`、`public/data/nuclear_sites.json`），修改 11 文件。
+- 单图层点位护栏 `MAX_POINTS_PER_LAYER = 2000` 已预埋在 `WorldPanel`，超限截断并告警，防止未来热异常火点类海量图层打死帧率。
+- 尊重系统「减少动效」偏好（`prefers-reduced-motion`），脉冲动画自动关闭。
+
+**修复（hotfix）**
+
+- `src/lib/nuclearData.ts:199`：`level:'unknown'` 分支状态不自洽——后端显式给出 `'unknown'` 时，该分支未按「等同未给分级」处理，导致归一化结果与「数据缺失」判定不一致。现已改为与 `level` 缺失走同一条兜底路径（先试 `reading/baseline` 倍数推断，再判 `value=null`），并**补充回归用例钉死该行为**。
+- 该 Bug 由 QA 双轮独立验证期间发现，是本批次**唯一一处源码缺陷**；修复后为零缺陷干净版。
+
+**质量验证（GO）**
+
+- **单元测试 139/139 通过**（`npm test`，含分类图层配色漂移守卫、缺失态强制降级、点位 id 命名空间、`readingToValue` 归一化与上述 hotfix 回归用例）。
+- `tsc --noEmit` 零错误；`vite build` 绿。
+- **QA 双轮独立验证**（两名 QA 分别独立执行，非交叉复核）结论一致：**GO**，源码缺陷 0。
+- 已知不阻塞项（可选清理，未修）：`src/components/GrvPanel.tsx:118` 散落连线色 `#e2e8f0` 未走调色板；`src/index.css` 的 `--ky-cat-*` 仍是 `CATEGORY_PALETTE` 的手工镜像（已有漂移守卫测试兜底）。
+
+**产品决策**
+
+- **D1「颜色编码：类别 vs 严重度」已拍板为方案 A**：**色相 = 类别**，**严重度 = 尺寸 + 光环脉冲 + 亮度**。代码按此实现、QA 按此验证，后续无需再议。被否方案：B（颜色=严重度 + 形状=类别，10 种形状难辨识、2D/3D 实现成本高）、C（填充=类别 + 描边=严重度，小尺寸点位下描边几乎不可见）。
+- 类别图例与既有 `SEVERITY_LEGEND`（低 / 中 / 高 / 缺失）**并存两栏**，不互相替代。
+
+## [1.1.0] - 2026-08-01 · Wave 2 控制面第一版：天枢运维 Tab
+
+**新增 — 控制面板（T01-T03，16 新文件 + 3 修改，零新依赖）**
+- **右侧控制抽屉**：380px 玻璃拟态 + 滑入/滑出动画 + z-index 覆盖，状态条最右侧「🔧 控制台」toggle，不改变现有 7 面板网格。
+- **五 Tab 导航**：天枢 / 天璇 / 天玑 / 玉衡 / 操作日志。天枢实现完整交互，其余三域用「建设中」占位。
+- **天枢运维 Tab**：采集源卡片列表（状态指示灯 + 相对时间 + 元信息）+ 搜索过滤 + 批量重跑 + 暂停/恢复 + 调度频率调整。四状态覆盖（加载/错误/空/搜索无结果）。
+- **三层进度反馈**：L1 按钮 spinner → L2 抽屉内嵌进度卡片 → L3 Toast 通知（success/error/info）。
+- **防双击**：`lockedFetchers Set` + `idempotency_key`（`crypto.randomUUID()` 生成）。
+- **操作日志**：localStorage 持久化，50 条滚动上限，自动裁剪。
+- **操作安全**：高危确认弹窗（暂停/批量操作）+ Token 未配置警告横幅 + 401 自动清 Token。
+
+**Mock 模式**
+- `MOCK_ENABLED=true`（默认）：控制 API 全部内存模拟（5 个逼真 mock fetcher + 状态机流转）。后端就绪后改一行配置切真实 API。
+- Mock 数据：fetch_earthquake / fetch_fred_history / fetch_gdelt_v1 / fetch_news_rss / fetch_akshare_mid，含 running/paused 不同状态与多样 schedule。
+
+**设计文档**
+- `docs/PRD_CONTROL_PANEL.md` — 控制面板交互概念 PRD（许清楚，v1.0）
+- `docs/system_design.md` — 系统设计 + 任务分解（高见远，T01-T05）
+- `docs/sequence-diagram.mermaid` + `docs/class-diagram.mermaid` — 附时序图与类图
+- `docs/开阳控制面-后端接口需求-回复.md` — 后端 A3a 接口对齐回复
+
+**工程**
+- **零新 npm 依赖**：UUID 用 `crypto.randomUUID()`，Toast 自研（~95 行），fetch 封装原生，状态管理用 React Context + useReducer。
+- **QA 验证**：2 轮审查通过，`tsc --noEmit` 零错误，12 项边缘场景全覆盖。
+- **已知延后**：T04 操作日志 Tab + Token 设置面板（P1）、T05 vite proxy + 集成联调（P1）、天璇/天玑/玉衡控制交互（后端未就绪）。
+
 ## [1.0.3] - 2026-07-31 · 气候/灾害改为事件触发式告警柱
 
 - **气候风险 / 自然灾害不再画常驻地图柱**：`grvDimensions` 新增 `renderBar?: boolean`，两维度置 `false`（保留 geographic 锚点供 GRV_ARCS 弧线使用），`buildRiskPoints` 据此跳过。

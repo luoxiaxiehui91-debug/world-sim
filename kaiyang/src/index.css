@@ -150,37 +150,12 @@ body {
   transform: translate(8px, -50%);
 }
 
-/* 平面地图弧线流动虚线 */
-.flat-arc {
-  stroke-dasharray: 7 11;
-  animation: flat-arc-flow 2.4s linear infinite;
+/* 战略要地常驻标签：位于星形符号正下方居中，与风险点标签（右侧）错开互不压字 */
+.globe-tag-site {
+  transform: translate(-50%, 9px);
+  letter-spacing: 0.02em;
 }
 
-@keyframes flat-arc-flow {
-  from {
-    stroke-dashoffset: 36;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-/* 平面地图高风险点位呼吸 */
-.flat-point-pulse {
-  animation: flat-point-breathe 2.2s ease-in-out infinite;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-@keyframes flat-point-breathe {
-  0%,
-  100% {
-    opacity: 0.85;
-  }
-  50% {
-    opacity: 1;
-  }
-}
 
 /* 信号流行 hover */
 .signal-row {
@@ -204,4 +179,322 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(94, 234, 212, 0.4);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   控制面板样式（Wave 2 新增）
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 控制抽屉 ──────────────────────────────────────────── */
+
+.control-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px 0 0 16px;
+  background: rgba(10, 14, 26, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow:
+    -8px 0 32px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 0 0 1px rgba(34, 211, 238, 0.03);
+  overflow: hidden;
+}
+
+.control-drawer.drawer-open {
+  transform: translateX(0);
+}
+
+.control-drawer.drawer-closing {
+  transform: translateX(100%);
+}
+
+/* ── 抽屉滑入/滑出关键帧（JS 驱动用 CSS transition） ───── */
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-out-right {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* ── Toast 通知动画 ────────────────────────────────────── */
+
+.toast-enter {
+  animation: toast-in 280ms ease-out forwards;
+}
+
+.toast-exit {
+  animation: toast-out 260ms ease-in forwards;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+}
+
+/* ── Toast 容器 ────────────────────────────────────────── */
+
+.toast-container {
+  pointer-events: none;
+}
+
+.toast-container > * {
+  pointer-events: auto;
+}
+
+/* ── 呼吸脉冲（状态指示灯用） ──────────────────────────── */
+
+@keyframes pulseSoft {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 4px currentColor;
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 10px currentColor;
+  }
+}
+
+.animate-pulseSoft {
+  animation: pulseSoft 2s ease-in-out infinite;
+}
+
+/* ── 旋转动画（spinner 用） ────────────────────────────── */
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 1.2s linear infinite;
+}
+
+/* ── 进度条动画 ────────────────────────────────────────── */
+
+@keyframes progress-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.progress-bar-animated {
+  animation: progress-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── 确认弹窗遮罩层 ────────────────────────────────────── */
+
+.confirm-overlay {
+  animation: overlay-in 200ms ease-out;
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ═══ 分类图层样式（大屏升级）═══════════════════════════ */
+/*
+ * 双轴视觉编码（决策 D1）：
+ *   色相 hue  = 图层分类 category → 下方 --ky-cat-* 变量
+ *   强度 level = 严重度 weight(0~1) → 尺寸 / 光晕 / 脉冲速率
+ * 本区块只做「镜像」：颜色权威来源仍是 src/config/theme.ts
+ * 的 CATEGORY_PALETTE（K1 枚举唯一真源）。此处变量仅供纯
+ * CSS 场景（图例色块、静态装饰）使用；渲染器内联样式一律
+ * 直接读取 point.color，不读这些变量，避免双份真源漂移。
+ */
+
+:root {
+  /* —— 分类色相镜像（与 CATEGORY_PALETTE 一一对应）—— */
+  --ky-cat-geo: #5eead4;
+  --ky-cat-event: #fbbf24;
+  --ky-cat-nuclear: #facc15;
+  --ky-cat-news: #22d3ee;
+  --ky-cat-conflict: #f87171;
+  --ky-cat-chokepoint: #e2e8f0;
+  --ky-cat-air: #34d399;
+  --ky-cat-thermal: #fb923c;
+  --ky-cat-maritime: #c084fc;
+  --ky-cat-space: #818cf8;
+  --ky-cat-health: #a3e635;
+  --ky-cat-sdr: #60a5fa;
+  /* 缺失态强制灰（决策 C2-A），任何分类色都不得覆盖 */
+  --ky-cat-missing: #64748b;
+
+  /* —— 脉冲速率区间：weight 越高越快 —— */
+  --ky-pulse-slow: 3.2s;
+  --ky-pulse-fast: 1.1s;
+  /* 单点实际速率由渲染器按 weight 插值后写入内联 style */
+  --ky-pulse-duration: 2.2s;
+}
+
+/* ── 图例交互 ───────────────────────────────────────────── */
+
+.layer-legend-item {
+  transition:
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.layer-legend-item:hover {
+  background-color: rgba(148, 163, 184, 0.12);
+}
+
+.layer-legend-item[data-off='true'] {
+  opacity: 0.4;
+}
+
+.layer-legend-item[data-off='true'] .layer-legend-label {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* ── 降级：尊重系统「减少动效」偏好（K5 无异常兜底）───── */
+
+@media (prefers-reduced-motion: reduce) {
+  .leaflet-point-pulse,
+  .leaflet-arc {
+    animation: none;
+  }
+
+  .react-grid-item.react-draggable-dragging {
+    transition: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Leaflet 控件暗色覆盖样式（Wave 2 1.7.0 新增）
+   ═══════════════════════════════════════════════════════════ */
+
+.leaflet-control-zoom a {
+  background-color: rgba(10, 14, 26, 0.88) !important;
+  color: #d7e3ea !important;
+  border-color: rgba(94, 234, 212, 0.3) !important;
+  backdrop-filter: blur(8px);
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: rgba(34, 211, 238, 0.18) !important;
+  border-color: rgba(94, 234, 212, 0.55) !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(10, 14, 26, 0.7) !important;
+  color: rgba(215, 227, 234, 0.45) !important;
+  font-size: 9px !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   react-grid-layout 覆盖样式（Wave 2 1.7.0 新增 / K10）
+   ═══════════════════════════════════════════════════════════ */
+
+.react-grid-item {
+  background: transparent !important;
+}
+
+/* 拖拽中的面板：提升 z-index + 阴影（避免被其他面板遮挡） */
+.react-grid-item.react-draggable-dragging {
+  z-index: 60;
+  opacity: 0.92;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.6),
+    0 0 24px rgba(34, 211, 238, 0.12);
+  transition: none !important;
+}
+
+/* 拖拽占位符：青绿色虚线框 */
+.react-grid-placeholder {
+  background: rgba(34, 211, 238, 0.08) !important;
+  border: 1px dashed rgba(34, 211, 238, 0.3) !important;
+  border-radius: 8px;
+  opacity: 0.7;
+}
+
+.react-resizable-handle {
+  opacity: 0.35;
+  transition: opacity 0.2s ease;
+}
+
+.react-resizable-handle::after {
+  border-color: rgba(94, 234, 212, 0.5) !important;
+}
+
+.react-resizable-handle:hover {
+  opacity: 0.9;
+}
+
+.react-resizable-handle:hover::after {
+  border-color: rgba(94, 234, 212, 0.85) !important;
+}
+
+/* ── 面板拖拽手柄（玻璃拟态标题栏） ─────────────────────── */
+
+.panel-drag-handle {
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px 8px 0 0;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(215, 227, 234, 0.7);
+  user-select: none;
+}
+
+.panel-drag-handle:active {
+  cursor: grabbing;
 }
