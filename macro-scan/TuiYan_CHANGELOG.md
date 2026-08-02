@@ -3,7 +3,20 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## v3.8.3 — 2026-08-03 (by Claude Code)
+## v3.8.4 — 2026-08-03 (by Claude Code)
+
+**修改理由**：geo_risk_vector.py 输出补齐 social_stress/cultural_friction，使天枢产出真正覆盖 R09/R10 维度并透传给天璇。
+
+### 修改
+
+- **`核心代码/geo_risk_vector.py`**：
+  - 从 `gdelt_scores`（`scan_weak_signals` 每6h写入）读取 `social_stress`（字典→均值聚合）和 `cultural_friction`（标量）
+  - 写入 `grv_latest.json`，天璇 `load_from_macro_scan()` 可直接读取
+  - 打印输出补充两行
+- **`核心代码/startup_checks.py`**：KNOWN_GRV_DIMENSIONS 补入 `social_stress` / `cultural_friction`（否则启动校验会误报未知维度）
+- **`VERSION`**：3.8.3 → 3.8.4
+
+
 
 **修改理由**：arch_review_20260802 裁定的 P1 运营基础设施 + grv_weights 外部化。
 

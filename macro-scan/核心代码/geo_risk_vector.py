@@ -414,6 +414,25 @@ def compute_grv() -> dict:
     else:
         global_composite = gpr_global  # 任一缺失时退回纯 GPR
 
+    # ── 社会压力/文化摩擦（R09/R10，来自 gdelt_scores.json）───────
+    # social_stress 在 gdelt_scores 中是 {country: score} 字典，取均值作为全局标量
+    # cultural_friction 已经是 [0,100] 标量
+    # 两者不经过 GRV 聚合层，直接透传到 grv_latest.json 供天璇读取
+    social_stress_val = None
+    cultural_friction_val = None
+    try:
+        if gdelt_scores:
+            ss = gdelt_scores.get("social_stress", {})
+            if isinstance(ss, dict) and ss:
+                social_stress_val = round(sum(ss.values()) / len(ss), 1)
+            elif isinstance(ss, (int, float)):
+                social_stress_val = round(float(ss), 1)
+            cf = gdelt_scores.get("cultural_friction")
+            if cf is not None:
+                cultural_friction_val = round(float(cf), 1)
+    except Exception as _e:
+        logger.warning(f"[GRV] social_stress/cultural_friction 读取失败（非阻断）: {_e}")
+
     grv = {
         "_schema_version":    "1.0",
         "taiwan_strait":      taiwan_strait,
@@ -423,10 +442,12 @@ def compute_grv() -> dict:
         "global_composite":   global_composite,
         "climate_risk":       climate_risk,
         "disaster_risk":      disaster_risk,
-        "sanctions_risk":     sanctions_risk,  # 新增：制裁风险（OpenSanctions bulk data，国别暴露聚合）
-        "seismic_risk":       seismic_risk,    # 新增：全球地震压力指数（USGS feed，energy/grid 外生冲击）
-        "energy_grid_risk":   energy_grid_risk,  # 新增：能源/电网压力（UK Carbon Intensity，energy/grid 外生冲击）
-        "japan_monetary":     japan_monetary,   # 新增：日元货币压力（USD/JPY水位 + JGB收益率变速）
+        "sanctions_risk":     sanctions_risk,
+        "seismic_risk":       seismic_risk,
+        "energy_grid_risk":   energy_grid_risk,
+        "japan_monetary":     japan_monetary,
+        "social_stress":      social_stress_val,      # R09：社会情绪压力（gdelt_scores 聚合均值）
+        "cultural_friction":  cultural_friction_val,  # R10：文化摩擦（gdelt_scores 标量）
         "updated":            now,
         "gdelt_updated":      gdelt_updated,
         "gpr_twn_raw":        gpr_twn_raw,
@@ -522,6 +543,8 @@ def main():
     print(f"  地震压力:  {grv['seismic_risk']}")
     print(f"  能源电网:  {grv['energy_grid_risk']}")
     print(f"  日元压力:  {grv['japan_monetary']}")
+    print(f"  社会压力:  {grv['social_stress']}")
+    print(f"  文化摩擦:  {grv['cultural_friction']}")
     print(f"  数据质量:  {grv['source_quality']}")
     logger.info(f"geo_risk_vector.py 完成，写入 {GRV_OUTPUT}")
 
