@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FlatMapPanel } from '@/components/FlatMapPanel';
 import { GlobePanel } from '@/components/GlobePanel';
 import { LayerLegend, type LayerCountMap } from '@/components/LayerLegend';
 import { LayerTreePanel } from '@/components/LayerTreePanel';
@@ -323,10 +324,18 @@ export function WorldPanel() {
           <button
             type="button"
             onClick={() => setMode('globe')}
-            className={`rounded-full px-2.5 py-0.5 text-[11px] transition bg-accent/20 text-accent`}
-            aria-pressed={true}
+            className={`rounded-full px-2.5 py-0.5 text-[11px] transition ${mode === 'globe' ? 'bg-accent/20 text-accent' : 'text-white/40 hover:text-white/70'}`}
+            aria-pressed={mode === 'globe'}
           >
             🌐 3D 地球
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('flat')}
+            className={`rounded-full px-2.5 py-0.5 text-[11px] transition ${mode === 'flat' ? 'bg-accent/20 text-accent' : 'text-white/40 hover:text-white/70'}`}
+            aria-pressed={mode === 'flat'}
+          >
+            🗺️ 平面
           </button>
         </div>
       </div>
@@ -364,6 +373,21 @@ export function WorldPanel() {
               arcs={visibleArcs}
               sites={sites}
               active={mode === 'globe'}
+              region={region}
+              focusPointId={focusPointId}
+              onPointClick={handlePointClick}
+            />
+          </div>
+
+          <div
+            className={`absolute inset-0 ${mode === 'flat' ? '' : 'pointer-events-none invisible'}`}
+            aria-hidden={mode !== 'flat'}
+          >
+            <FlatMapPanel
+              points={visiblePoints}
+              arcs={visibleArcs}
+              sites={sites}
+              active={mode === 'flat'}
               region={region}
               focusPointId={focusPointId}
               onPointClick={handlePointClick}

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import * as topojson from 'topojson-client';
+import worldAtlas from 'world-atlas/countries-110m.json';
 import { MAP_THEME, withAlpha } from '@/config/theme';
 import { regionBbox, type RegionKey } from '@/config/regions';
 import {
@@ -149,12 +151,25 @@ export function FlatMapPanel({
     if (!map) throw new Error('L.map 返回 null');
     mapForCleanup = map;
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      subdomains: 'abcd',
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-      maxZoom: 8,
-      keepBuffer: 4,
+    // 离线 GeoJSON 底图（world-atlas Natural Earth 110m，无需外网）
+    // 替代 CARTO tile layer，解决内网环境图块缺失问题
+    const landGeo = topojson.feature(
+      worldAtlas as unknown as Parameters<typeof topojson.feature>[0],
+      (worldAtlas as any).objects.land,
+    );
+    const countriesGeo = topojson.feature(
+      worldAtlas as unknown as Parameters<typeof topojson.feature>[0],
+      (worldAtlas as any).objects.countries,
+    );
+
+    L.geoJSON(landGeo as GeoJSON.GeoJsonObject, {
+      style: { fillColor: '#1a2332', fillOpacity: 1, color: 'transparent', weight: 0 },
+      interactive: false,
+    }).addTo(map);
+
+    L.geoJSON(countriesGeo as GeoJSON.GeoJsonObject, {
+      style: { fillColor: 'transparent', fillOpacity: 0, color: '#2a3f5a', weight: 0.5, opacity: 0.7 },
+      interactive: false,
     }).addTo(map);
 
     map.doubleClickZoom.disable();
