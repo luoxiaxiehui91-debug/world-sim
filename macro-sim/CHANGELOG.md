@@ -4,6 +4,21 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
 
+## 2026-08-03 [2.0.17] D7 完整版：补接 social_stress/cultural_friction（by Claude Code）
+
+**修改者**：Claude Code  
+**修改理由**：D7 修复续集——v2.0.16 补了6个来自 grv_latest.json 的维度，但 social_stress/cultural_friction 存在 gdelt_scores.json 而非 grv_latest.json，需由 geo_risk_vector.py 聚合后透传。
+
+### 改动
+
+- **`core/world_state.py`**
+  - `MacroWorldState` 新增 `social_stress` / `cultural_friction` 两个字段（默认 0.0）
+  - `load_from_macro_scan()` 从 grv_latest.json 读取（由天枢 geo_risk_vector 聚合写入）
+  - `to_dict()` 输出包含新字段
+  - `get_agent_context()` 中 `media` 角色新增 `social_stress` / `cultural_friction`（媒体放大社会压力的核心驱动）
+- **`VERSION`**：2.0.16 → 2.0.17
+
+
 ## 2026-08-03 [2.0.16] D7 fix：MacroWorldState 接入 6 个新 GRV 维度（by Claude Code）
 
 **修改者**：Claude Code  

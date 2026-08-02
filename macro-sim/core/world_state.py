@@ -36,6 +36,8 @@ class MacroWorldState:
     seismic_risk: float = 0.0       # 地震压力 [0,100]，来自 fetch_earthquake
     energy_grid_risk: float = 0.0   # 能源电网压力 [0,100]，来自 fetch_energy
     japan_monetary: float = 0.0     # 日元货币压力 [0,100]，来自 DEXJPUS+JGB
+    social_stress: float = 0.0      # 社会情绪压力 [0,100]，来自 gdelt_scores（R09，v3.8.3）
+    cultural_friction: float = 0.0  # 文化摩擦 [0,100]，来自 gdelt_scores（R10，v3.8.3）
 
     # ── 内生变量（仿真中演化）────────────────────────────
     fed_rate_change: float = 0.0
@@ -120,7 +122,10 @@ class MacroWorldState:
             ctx["climate_risk"]     = round(self.climate_risk / 100.0, 3)
 
         if agent_role == "media":
-            ctx["recent_news"] = self.recent_news[:3]
+            ctx["recent_news"]      = self.recent_news[:3]
+            # R09/R10：社会压力和文化摩擦是媒体放大的核心驱动
+            ctx["social_stress"]    = round(self.social_stress / 100.0, 3)
+            ctx["cultural_friction"] = round(self.cultural_friction / 100.0, 3)
 
         if agent_role == "em_central_bank":
             ctx["em_capital_outflow"] = round(self.em_capital_outflow, 3)
@@ -181,6 +186,8 @@ class MacroWorldState:
             "seismic_risk":     round(self.seismic_risk, 1),
             "energy_grid_risk": round(self.energy_grid_risk, 1),
             "japan_monetary":   round(self.japan_monetary, 1),
+            "social_stress":    round(self.social_stress, 1),
+            "cultural_friction": round(self.cultural_friction, 1),
         }
 
     def get_observable_values(self) -> dict:
@@ -430,6 +437,9 @@ def load_from_macro_scan(
     seismic_risk     = float(grv.get("seismic_risk") or 0.0)
     energy_grid_risk = float(grv.get("energy_grid_risk") or 0.0)
     japan_monetary   = float(grv.get("japan_monetary") or 0.0)
+    # R09/R10：social_stress/cultural_friction 现在由 geo_risk_vector 透传到 grv_latest.json
+    social_stress    = float(grv.get("social_stress") or 0.0)
+    cultural_friction = float(grv.get("cultural_friction") or 0.0)
 
     def read_latest(filename):
         path = os.path.join(fred_path, filename)
@@ -562,6 +572,8 @@ def load_from_macro_scan(
         seismic_risk=seismic_risk,
         energy_grid_risk=energy_grid_risk,
         japan_monetary=japan_monetary,
+        social_stress=social_stress,
+        cultural_friction=cultural_friction,
         situation_level=situation_level,
         trigger_event=trigger_event,
         recent_news=recent_news,
