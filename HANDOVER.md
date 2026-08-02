@@ -9,7 +9,7 @@
 ### 系统版本
 | 子系统 | 版本 | 状态 |
 |---|---|---|
-| macro-scan（天枢）| v3.8.2 | ✅ 本地代码完整，待部署到 NAS |
+| macro-scan（天枢）| v3.8.3 | ✅ 本地代码完整，待部署到 NAS |
 | macro-sim（天璇）| v2.0.15 | ✅ D1/D4/D12 bug 已修，待 force-recreate 部署 |
 | kaiyang（开阳）| v1.7.1 (Wave-2) | ✅ dist/ 已构建，待部署 |
 

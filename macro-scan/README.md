@@ -28,6 +28,10 @@ S:\world-sim\macro-scan\           （本机源码路径，SMB 挂载 software �
 │       └── 04_分析框架/
 │           ├── propagation_paths.yaml  （20条传导路径库）
 │           └── ...
+├── config/                 ← 权重矩阵/信源映射/prior（v3.7.0新增，必须挂载 volume）
+│   ├── grv_weights.yaml        GRV信源×事件权重矩阵 + slow_variables_weights节（v3.8.3新增）
+│   ├── source_dimension_map.yaml  数据源→GRV维度映射（天枢启动时校验完整性）
+│   └── causal_assumptions.md   因果假设说明
 ├── data/
 │   ├── fred_history/               FRED历史数据（32条序列含EU/JP）
 │   ├── grv_latest.json             GRV地缘风险向量（每日06:10更新）
@@ -81,11 +85,13 @@ docker exec macro-scan-macro-scan-1 tail -50 /var/log/macro-scan/us_daily.log
 | 05:45 | `fetch_china_data.py`（中国7个宏观指标） |
 | 00/06/12/18 | `scan_weak_signals.py`（弱信号扫描，8路由RSS+Crucix） |
 | 06:10 | `geo_risk_vector.py`（GRV向量聚合） |
+| 06:1x | `fetch_gdelt_geo.py --incremental`（GDELT地理事件点，每15分，v3.8.1新增） |
 | 06:30 | `situation_detector.py`（情境话题检测） |
 | 07:00 | `daily_narrative.py`（今日世界摘要推送） |
 | 工作日 07:30 | 中美全球快速报告 |
 | 工作日 20:00/20:15 | 美国/中国深度报告 |
 | 周五 20:00 | `weekly_synthesis.py`（周报） |
+| 每日 21:00 | `observability.py daily_health_push`（三数字健康摘要推送，v3.8.3新增） |
 | 每月1日 09:00-09:20 | 预测校验 / KB更新 / 气候 / 假设校准 / news.db清理 |
 
 ## 假设推演快速上手

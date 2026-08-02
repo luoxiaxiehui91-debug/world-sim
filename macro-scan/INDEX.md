@@ -1,6 +1,6 @@
 # 世界推演系统 INDEX
 
-> 生成时间：2026-07-30 | 版本：v3.7.0 | **只读索引，修改请更新 CHANGELOG**
+> 生成时间：2026-08-03 | 版本：v3.8.3 | **只读索引，修改请更新 CHANGELOG**
 
 ---
 
@@ -51,8 +51,10 @@
 | daily_narrative | 07:00 | 每日 | `daily_narrative.py` | ✅ |
 | news_export | 07:05 | 每日 | `news_exporter.py` | ✅ |
 | situation_detect | 06:30 | 每日 | `situation_detector.py` | ✅ |
+| gdelt_geo | I15 | 每日每15分 | `fetch_gdelt_geo.py --incremental` | ✅ v3.8.1新增 |
 | weekly_synthesis | 20:00 | 周五 | `weekly_synthesis.py` | ✅ |
 | dashboard | 20:30 | 工作日 | `dashboard.py` | ✅ |
+| health_push | 21:00 | 每日 | `observability.py daily_health_push` | ✅ v3.8.3新增 |
 | verify_auto | 09:15 | 每月1日 | `verify_hypothesis.py` | ✅ |
 | news_prune | 09:20 | 每月1日 | `python -c "import news_db; news_db.prune_old_articles('/workspace/data/news.db', 90)"` | ✅ |
 

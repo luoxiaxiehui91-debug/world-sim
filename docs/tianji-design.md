@@ -1,7 +1,13 @@
 # 天玑（Tianji）— 北斗第三星：验证层设计文档
 
-> 状态：DRAFT v0.1（2026-07-24，by Claude Code）  
+> 状态：DRAFT v0.2（2026-07-24 初稿，2026-08-03 arch_review 更新）  
 > 定位：北斗七星第三星，在天枢（macro-scan）+ 天璇（macro-sim）之上，对推演结果做事后验证和校准闭环。
+>
+> **2026-08-02 arch_review_20260802 裁定摘要**：
+> - 天玑定位确认为**纯验证层**，不承担任何推演或采集职责
+> - 玉衡（权重写回）**并入天玑 V2**，不独立成星（weight_matrix.py 移入天玑目录）
+> - 天玑 V1 解锁前提：天璇 P0 hotfix 完成且 predictions 表有真实数据（非测试数据）
+> - 详见 `docs/arch_review_20260802.md`
 
 ---
 
@@ -172,9 +178,11 @@ class PredictionVerifier:
 
 ## 七、V1 快速原型步骤
 
+> **前置条件**（2026-08-03 更新）：天璇 P0 hotfix 完成（inode 修复 + predictions 表写入正常）且首批真实预测已落表，预计最早 2026-09。在此之前本节不可执行。
+
 1. 在 `macro-scan/核心代码/` 建 `verification.py`（建库+录入+验证）
 2. 从现有 `docs/仿真报告/` 里人工识别已到期预测，手动录入
-3. 对 GRV 方向性预测用 `grv_history.jsonl` 自动评分
+3. 对 GRV 方向性预测用 `grv_history.jsonl` 自动评分，调用 `brier_calc.py`（v3.8.3 新增）
 4. 输出第一份准确率报告
 
 ---

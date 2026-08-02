@@ -13,8 +13,8 @@
 | ✅ | 2026-07-10 | **C线切 Live + R07 启用** | C线由 mock 切换 Live 数据；R07（气候风险）信号 `enabled: true` |
 | ✅ | 2026-07-25（v3.5.61） | **situation_detector 阈值 2.0→1.5** | 降低告警触发门槛，改善中度地缘压力下的信号灵敏度 |
 | ✅ | 2026-07-25（v3.5.62） | **R09/R10 启用** | social_stress / cultural_friction 积累基线后正式 `enabled: true`；v3.5.62 修复相关 bug 后完成 |
-| ⏳ | 约 2026-08-01 | **R11/R12 开启** | 气候/多域信号积累基线后启用；前置条件：climate_risk 和跨域维度各积累 ≥3 周有效数据 |
-| ⏳ | 约 2026-08-10 | **signal_synthesizer Staging→Live 切换** | `docker-compose.yml` 加 `STAGING_MODE=0` + `force-recreate`；切后 R09/R10 真正调 LLM + 推 ntfy；前置：signal_synthesizer 上线满 30 天（2026-07-10 起算）|
+| ⏳ | 待核实（原约2026-08-01已过期） | **R11/R12 开启** | 气候/多域信号积累基线后启用；前置条件：climate_risk 和跨域维度各积累 ≥3 周有效数据；**需 SSH 到 NAS 确认实际积累情况后更新此日期** |
+| ⏳ | 2026-08-09 | **signal_synthesizer Staging→Live 切换** | `docker-compose.yml` 加 `STAGING_MODE=0` + `force-recreate`；切后 R09/R10 真正调 LLM + 推 ntfy；前置：signal_synthesizer 上线满 30 天（2026-07-10 起算，08-09 满足）；**注意：代码内有独立数据成熟度守门（news.db ≥30天），两层均需满足** |
 | ⏳ | 2026-09-10 | **GDELT scale 校准** | 校准 `religious_conflict` / `regime_change` / `social_stress` / `cultural_friction` 的 scale 参数（含 2026-07-25 v3.5.62 新增两个维度，scale=200 为估算值需实测验证）；GDELT 信号量级与 GRV 其他维度对齐 |
 | ⏳ | 约 2026-08-10 前 | **天枢叙事摄取真正跑通** | narrative_chunks 当前只有 3 行（3 个测试维度）；scheduler 任务 narrative_proc 调度是否实际写入需验证；目标：每日稳定产出 ≥50 条叙事块覆盖 ≥6 个维度 |
 | ⏳ | 约 2026-08-10 前 | **慢变量 slow_variables.json 首次产出** | slow_variables.py 代码在容器，但 slow_variables.json 不存在（月度 cron 08-01 首次触发）；UCRI/GCI 需手工评估分数才能完整计算，需在 08-01 前准备 manual_scores |
@@ -100,6 +100,14 @@
 | P3 | **非洲/南亚传导路径** | 当前 GRV 维度对非洲次大陆和南亚次区域的传导路径覆盖不足 |
 | P3 | **L4 极端尾部场景** | 极低概率高影响事件（核威慑升级、全球性金融危机）缺乏独立建模路径 |
 | P3 | **假阳性率回测框架** | 对历史 GRV 告警做回测，量化假阳性率；为调整 situation_detector 阈值提供数据依据 |
+| P2 | **月度调用配额计数器** | fetcher_base.py 加 `monthly_call_limit` 类属性 + `data/fetch_quota.json` 计数，超限返回 SKIPPED；子类声明上限即可（如 CoinGecko 免费版月限10000的50% = 5000）。现有防线仅靠调度频率，无数值验证 |
+| P2 | **IRP 扩充历史标注期** | 补充朝鲜战争通胀（1950-06/1951-12）、越战通胀（1966-01/1970-12）、金融危机前后（2003-01/2009-12），样本从~170条增至~450条；同时补 DFII10 近似中性利率差特征 |
+| P2 | **仿真引入历史 VAR 基准轨道** | Agent 轨道（定性方向）+ VAR 轨道（历史统计量级）并行，Agent 只提供相对基准的偏离量；适合 B+A/NOVEL 重写 Sprint 一并处理 |
+| P2 | **天枢 MC 与天璇 Agent 仿真协同** | 目前两套完全独立：天枢统计 MC 出"衰退概率35%"、天璇 Agent 出"情绪崩溃路径"，无法互相校准。改进方向：天璇启动时从天枢 mc_engine 结果读取基准轨道（GDP/通胀/利率的统计期望路径），Agent 冲击叠加在此基准上而非凭空生成绝对数值；两套输出进入同一个 predictions 表对比 |
+| P2 | **清理 mc_engine.py 废代码** | `mc_engine.run_monte_carlo()` 原版函数已无调用方（全部切到 monte_carlo_v2），保留只会误导维护者；清理后 mc_engine 职责变为：中国路径封装 + 压力测试 + 情景比较，定位清晰 |
+| P1 | **hypothesis_engine / signal_synthesizer 从 Staging 切 Live** | 两层独立守门均需满足：①docker-compose.yml 加 STAGING_MODE=0；②news.db 数据成熟度 ≥30天（_check_data_maturity）；按2026-07-10起算，**最早 2026-08-09 执行**；切换前确认 NAS 容器内 news.db 实际积累天数 |
+| P2 | **GM 规则量级实证校准** | 用 FRED+历史事件数据做事件研究，对每条 GM 规则（如 CUT_50BP→sentiment+0.35）验证量级合理性，写回 agents.yaml 的 magnitude |
+| P1 | **慢变量接入 MacroWorldState** | world_state.py 加 irp/ucri/gci 三字段，load_from_macro_scan() 读取 slow_variables.json 注入；Agent _decide_rules() 据此调整阈值；"转型期置信区间扩宽1.5倍"真正落地 |
 
 ---
 
