@@ -16,11 +16,32 @@
 | ⏳ | 约 2026-08-01 | **R11/R12 开启** | 气候/多域信号积累基线后启用；前置条件：climate_risk 和跨域维度各积累 ≥3 周有效数据 |
 | ⏳ | 约 2026-08-10 | **signal_synthesizer Staging→Live 切换** | `docker-compose.yml` 加 `STAGING_MODE=0` + `force-recreate`；切后 R09/R10 真正调 LLM + 推 ntfy；前置：signal_synthesizer 上线满 30 天（2026-07-10 起算）|
 | ⏳ | 2026-09-10 | **GDELT scale 校准** | 校准 `religious_conflict` / `regime_change` / `social_stress` / `cultural_friction` 的 scale 参数（含 2026-07-25 v3.5.62 新增两个维度，scale=200 为估算值需实测验证）；GDELT 信号量级与 GRV 其他维度对齐 |
-| ⏳ | 建议 2026-09-30 | **天玑 V1 启动** | 第一批 macro-sim 预测到期后，手动建 `prediction_ledger.db`，录入已有预测并完成首次评分 |
+| ⏳ | 约 2026-08-10 前 | **天枢叙事摄取真正跑通** | narrative_chunks 当前只有 3 行（3 个测试维度）；scheduler 任务 narrative_proc 调度是否实际写入需验证；目标：每日稳定产出 ≥50 条叙事块覆盖 ≥6 个维度 |
+| ⏳ | 约 2026-08-10 前 | **慢变量 slow_variables.json 首次产出** | slow_variables.py 代码在容器，但 slow_variables.json 不存在（月度 cron 08-01 首次触发）；UCRI/GCI 需手工评估分数才能完整计算，需在 08-01 前准备 manual_scores |
+| ⏳ | 约 2026-09-30 | **天玑 V1 启动** | 第一批 macro-sim 预测到期后，手动建 `prediction_ledger.db`，录入已有预测并完成首次评分；目前 predictions 表仅 1 条测试数据 |
 | ⏳ | 2026-11-19 | **N2 新闻库第二阶段** | news.db 架构第二阶段；扩展信号采集覆盖范围，配套 synthesis_log 验证 |
 | ⏳ | 2027-05-23 | **N3 信号月度校验** | 月度信号校验闭环全面激活；解锁天玑 V4 校准闭环 |
 | ⏳ | 真实地缘事件发生后 | **M2-4 校准闭环激活** | 利用实际发生的重大地缘事件对 macro-sim M2-M4 校准参数做后验核查 |
 | ⏳ | 推演后验准确率 ≥60% 且 ≥10 条样本后 | **M3 开放量化区间** | 天玑准确率面板达标后解锁；允许 macro-sim 对 GRV 方向性预测给出置信区间 |
+
+---
+
+## 新架构迁移状态（2026-07-30 SSH 实测）
+
+> 基于 `S:\20260729\16_世界推演系统_架构总文档_v1.0.md` 定义的新架构，v3.7.0 部署后的真实状态。
+
+| 模块 | 声称状态 | 实测状态 | 关键缺口 |
+|------|---------|---------|---------|
+| 天枢调度（GRV/FRED/GDELT/新闻） | Live | ✅ 真实运行，今日22 job 正常触发 | — |
+| narrative_chunks 叙事摄取 | 骨架已接入 | ⚠️ 只有 3 行，未稳定产出 | scheduler 任务是否真正写入待验证 |
+| slow_variables（IRP/UCRI/GCI） | IRP 已上线 | ❌ slow_variables.json 不存在 | 月度 cron 08-01 首触发；UCRI/GCI 手工评估节点未准备 |
+| predictions / reasoning_trace | 天玑已测试 | ⚠️ 各 1 条测试数据（pending） | 未真正运转 |
+| weight_update_log | — | ❌ 0 行 | 玉衡未运转 |
+| narrative_density_flags | — | ❌ 0 行，json 不存在 | — |
+| sim_trigger.json | GRV 告警自动触发天璇 | ❌ 空文件 | 路径A从未触发 |
+| 天璇 macro-sim | v2.0.13 运行 | ⚠️ 旧版 Monte Carlo，新架构 B+A/Agent 体系未重写 | 最大空白 |
+| grv_weights.yaml | 19 源 1254 条 | ✅ 1281 行，正常 | — |
+| source_dimension_map.yaml | 完整性校验 | ✅ 2157 bytes，存在 | 启动校验逻辑是否真正执行待查 |
 
 ---
 
@@ -57,11 +78,14 @@
 
 来源：`S:\docs\questions\world-deduction\`
 
+> **编号约定**：表格「编号」列 P2 / P3 / P4 为**顺序问题编号**（沿用 question 文档命名，相当于工单号），**并非优先级等级**。优先级档位另见 `S:\docs\backlog\world-sim-optimization-proposal.md`（P0=阻塞 … P3=暂缓，共 4 档）。勿将「P4 编号」误读为「最低优先级」。
+
 | 编号 | 状态 | 问题 | 来源文件 | 说明 |
 |------|------|------|---------|------|
-| P3 | 🔍 待处理 | **报告叙事分隔符脆弱** | `20260718-world-deduction-report-narrative-separator-fragile.md` | LLM 生成报告中叙事段落分隔符不稳定，下游解析偶发失败；需加鲁棒性处理 |
-| P4 | ⏸ 暂缓 | **GDELT 全0信号** | `20260627-world-deduction-gdelt-normalization-zero.md` | GDELT 原始信号全部归零；已明确根因为 scale 参数问题；与 2026-09-10 GDELT scale 校准任务合并处理 |
+| P3 | ✅ 已修复 | **报告叙事分隔符脆弱（B1）** | `20260718-world-deduction-report-narrative-separator-fragile.md` | v2.0.12 归一化+prompt 诚实化；v2.0.13 抽 format_narrative 纯函数+11 用例回归测试；2026-07-28 部署验证通过 |
+| P4 | ⏸ 观察（降级） | **GDELT 全0信号（疑似）** | `20260627-world-deduction-gdelt-normalization-zero.md` | 2026-07-28 抽 NAS 实测 GDELT 当前**非全0**（管线健康），原「本期立项」假设失效；防御补全并入 2026-09-10 GDELT scale 校准任务，不单独占本期。实际严重度低（观测层低风险增强），编号 P4 为工单号非优先级 |
 | P2 | ⏸ 暂缓 | **路径多样性低** | `20260714-world-deduction-low-path-diversity-high-grv.md` | 高 GRV 下路径多样性下降为正常系统特征；待天玑积累数据后重新评估是否真实问题 |
+| G5a | ✅ 已完成（2026-07-28） | **联动矩阵补 README.md** | macro-sim/AGENTS.md | 天璇 macro-sim 联动矩阵补充同步目标 macro-sim/README.md；零代码风险，防版本漏同步（B1 收尾曾漏改 README）；已落 NAS，VERSION 不 bump |
 
 ---
 

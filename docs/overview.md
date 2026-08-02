@@ -1,6 +1,6 @@
 # 世界推演系统 · 总览
 
-> macro-scan v3.5.62（天枢）· macro-sim v2.0.10（天璇）· 天玑 v0.1 DRAFT · 2026-07-25
+> macro-scan v3.6.5（天枢）· macro-sim v2.0.13（天璇）· 天玑 v0.1 DRAFT · 2026-07-29
 
 ---
 
@@ -18,13 +18,13 @@ FRED / GPR / GDELT / 新闻（RSSHub + Crucix）
               ▼
         ┌─────────────┐
         │  macro-scan  │  观测层（天枢）
-        │  v3.5.59    │  每日定时采集 → GRV向量 → LLM分析报告 → ntfy手机
+        │  v3.6.5     │  每日定时采集 → GRV向量 → LLM分析报告 → ntfy手机
         └──────┬──────┘
                │ GRV告警时写 sim_trigger.json
                ▼
         ┌─────────────┐
         │  macro-sim  │  仿真层（天璇）
-        │  v2.0.9     │  Monte Carlo×100 → 概率路径树 → ntfy手机
+        │  v2.0.13    │  Monte Carlo×100 → 概率路径树 → ntfy手机
         └─────────────┘
 ```
 
@@ -70,6 +70,9 @@ FRED / GPR / GDELT / 新闻（RSSHub + Crucix）
 | 文档 | 路径 | 适合谁读 |
 |------|------|---------|
 | **本文件** | `docs/overview.md` | 任何人，快速了解全局 |
+| **架构最终方案** | `S:\20260729\07_北斗七星架构设计.md` | AI agent / 架构维护 |
+| **迁移路线图** | `S:\20260729\08_架构迁移路线图.md` | Phase 0-3 任务分解 |
+| **现状+方向桥接** | `S:\20260729\11_综合审视与下一步.md` | 新 session 开场必读 |
 | macro-scan 使用手册 | `macro-scan/世界推演系统_人类说明文档.md` | 你（功能/操作/维护/故障排查）|
 | macro-sim 使用手册 | `macro-sim/macro-sim_人类说明文档.md` | 你（仿真原理/触发/报告/已知问题）|
 | macro-scan 运行状态 | `macro-scan/INDEX.md` | 运维视角，查调度/数据管道/LLM链 |

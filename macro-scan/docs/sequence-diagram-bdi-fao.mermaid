@@ -1,0 +1,25 @@
+sequenceDiagram
+    participant S as scheduler.py (JOBS)
+    participant M as fetch_bdi/fao __main__()
+    participant F as BdiFetcher / FaoFetcher
+    participant Net as Stooq / FAO
+    participant D as data/*.json
+
+    S->>M: subprocess.Popen(fetch_bdi.py @0625 / fetch_fao.py @0925 dom=1)
+    M->>F: run()
+    F->>F: collect()
+    alt BDI
+        F->>Net: _solve_stooq_challenge() → GET CSV (带 cookie)
+    else FAO
+        F->>Net: _resolve_csv_url() → GET 版本化 CSV
+    end
+    Net-->>F: CSV text
+    F->>F: 解析 → 组装 dict(status, 主信号, 子项)
+    alt status == ok
+        F->>D: save_json() 原子写盘(注入 _schema_version/updated)
+        D-->>F: path
+    else 失败 / 异常 / 校验非 CSV
+        F->>F: run() 捕获 → 返回 None
+        F->>D: load_previous_good() 保留上次良值(不覆盖)
+        Note over F,D: 无良值则 save_json 写 status=unavailable(兜底)
+    end
