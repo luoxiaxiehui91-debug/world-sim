@@ -17,7 +17,7 @@ Run as: python3 /app/scheduler.py >> /var/log/macro-scan/scheduler.log 2>&1
   us_daily/china_daily (20:00/20:15) → 独立，不依赖白天任务
 所有任务通过 subprocess.Popen 后台非阻塞启动，调度线程不等待完成。
 """
-import subprocess, time, sys, os, datetime
+import subprocess, time, sys, os, datetime, json
 
 # T1-2 可观测性：心跳+任务计数（零风险，纯写日志，出错不阻断调度器）
 try:
@@ -198,6 +198,50 @@ def should_run(sched_hhmm, sched_wd, sched_dom=None):
     return wd_dom_ok(wd, dom, sched_wd, sched_dom)
 
 last_run = {}  # (job_name, sched_hhmm) -> last_run_ts
+_last_run_ts = {}   # job_name -> last fired timestamp（供状态落盘）
+_last_run_ok = {}   # job_name -> bool（最近一次是否成功，暂用 True 占位）
+_STATE_PATH  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "scheduler_state.json")
+_PAUSE_PATH  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "control_pause.json")
+_last_state_dump = 0.0   # 上次落盘时间
+
+
+def _load_paused() -> set:
+    """读取 control_server 写入的暂停集合。"""
+    try:
+        with open(_PAUSE_PATH, encoding="utf-8") as f:
+            return set(json.load(f).get("paused", []))
+    except Exception:
+        return set()
+
+
+def _dump_state():
+    """每 60s 把运行时状态落盘，供 control_server 读取。"""
+    global _last_state_dump
+    now = time.time()
+    if now - _last_state_dump < 60:
+        return
+    _last_state_dump = now
+    try:
+        import datetime as _dt
+        jobs_meta = {}
+        for job_name, sched_hhmm, *_ in JOBS:
+            jobs_meta[job_name] = {
+                "schedule":    sched_hhmm,
+                "last_run_ts": _last_run_ts.get(job_name),
+                "last_ok":     _last_run_ok.get(job_name, True),
+            }
+        state = {
+            "updated": _dt.datetime.now().isoformat()[:19],
+            "jobs": list(jobs_meta.keys()),
+            **jobs_meta,
+        }
+        tmp = _STATE_PATH + ".tmp"
+        os.makedirs(os.path.dirname(_STATE_PATH), exist_ok=True)
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False)
+        os.replace(tmp, _STATE_PATH)
+    except Exception as e:
+        log(f"[scheduler] 状态落盘失败（非阻断）: {e}")
 
 def main():
     log("Python scheduler started (seccomp-free)")
@@ -245,10 +289,16 @@ def main():
             if key in last_run and now_ts - last_run[key] < min_gap:
                 continue
 
+            # A3a: 检查是否被控制面板暂停
+            _paused = _load_paused()
+            if job_name in _paused:
+                continue
+
             log(f"FIRING: {job_name} ({' '.join(cmd[1:])})")
             last_run[key] = now_ts
+            _last_run_ts[job_name] = now_ts
             job_log(job_name, f"=== Job started: {' '.join(cmd[1:])} ===")
-            
+
             # Spawn job in background
             log_file = LOG_FILES.get(job_name, f"{LOG_DIR}/{job_name}.log")
             try:
@@ -270,7 +320,10 @@ def main():
             except Exception as e:
                 log(f"Job spawn failed: {job_name} {e}")
                 job_log(job_name, f"Job spawn ERROR: {e}")
-        
+                _last_run_ok[job_name] = False
+
+        # A3a: 定期落盘调度器状态供 control_server 读取
+        _dump_state()
         time.sleep(30)
 
 if __name__ == "__main__":
