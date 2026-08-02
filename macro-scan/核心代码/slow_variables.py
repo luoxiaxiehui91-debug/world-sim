@@ -291,6 +291,11 @@ def compute_gci(grv_latest: dict = None) -> dict:
       - 大国对抗：GDELT 冲突事件（ACLED 放弃，使用 GDELT 近似）
       - 核威慑：手工评估
       - 多边合作：用 sanctions_risk GRV 维度反向代理（制裁多=合作少）
+
+    面效度历史锚点（6个，Europe/MiddleEast/Asia state-based 冲突烈度）：
+      已生成：data/ged/gci_anchors.json（generate_gci_anchors.py，GED v26.1）
+      验证状态：PASS（高期均值=0.847 > 低期均值=0.665）
+      待实现：check_gci_validity() 函数（天玑 V1 任务）消费该锚点做月度相关性校验
     """
     weights = _load_slow_weights().get("gci", {})
     w_conf  = weights.get("great_power_confrontation", 0.40)

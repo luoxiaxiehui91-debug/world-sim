@@ -115,5 +115,6 @@
 
 | 项目 | 前置条件 | 说明 |
 |------|---------|------|
-| **ACLED 武装冲突数据接入** | 申请 `acleddata.com` API key | ACLED 提供高质量武装冲突事件数据集；接入后可大幅提升 `armed_conflict` / `regime_change` 维度信号质量 |
+| **ACLED 武装冲突数据接入** | 申请 `acleddata.com` API key | ACLED 提供实时武装冲突事件数据；GED v26.1 年度快照已接入（`etl_ged.py` 产物在 `data/ged/`，含 GCI 历史锚点），ACLED 用于提升实时信号质量 |
+| **天玑 GCI 面效度验证函数** | GED 锚点已生成（`data/ged/gci_anchors.json`，PASS） | 实现 `check_gci_validity()`，月度对比当前 GCI 分数与历史锚点的相关性；预计天玑 V1 周期实施 |
 

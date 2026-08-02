@@ -3,7 +3,32 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## v3.8.5 — 2026-08-03 (by Claude Code)
+## v3.8.6 — 2026-08-03 (by Claude Code)
+
+**修改理由**：GED v26.1 离线 ETL 首次运行并通过三道质量闸门；生成 GCI 面效度历史锚点，为天玑 V1 校准准备。
+
+### 新增
+
+- **`核心代码/generate_gci_anchors.py`**（新建）：GCI 历史面效度锚点生成器
+  - 基于 `etl_ged` 年度聚合产物（consumer=calibration，符合冻结守卫）
+  - 统计 Europe/MiddleEast/Asia state-based 冲突烈度（过滤 Africa/Americas 内战噪声）
+  - 6个锚点：高期（乌克兰+IS/俄乌战争/伊拉克内战高峰）vs 低期（波斯尼亚停火后/伊拉克稳定初期/叙利亚收尾）
+  - 面效度验证 **PASS**（高期均值=0.847 > 低期均值=0.665）
+  - 产物：`data/ged/gci_anchors.json`
+
+### 执行操作
+
+- 首次运行 `etl_ged.py`：处理 GEDEvent_v26_1.csv（506,625行，262MB）
+  - Gate A（完整性/隔离率）：**PASS**
+  - Gate B（死亡数一致性/clamp率）：**PASS**
+  - Gate C（GPR全局月度相关性）：**PASS**
+  - 产物写入 `data/ged/`（年度表/月度表/质量报告/manifest）
+
+### 修改
+
+- **`核心代码/slow_variables.py`**：`compute_gci()` 文档字符串补充锚点引用（指向 `data/ged/gci_anchors.json`，待天玑 V1 实现 `check_gci_validity()`）
+
+
 
 **修改理由**：A3a 控制 API 实现——开阳控制面板 MOCK 模式解除，天枢侧补实际后端。
 
