@@ -6,104 +6,140 @@ world-sim 是一个三组件宏观推演系统（macro-scan 天枢 v3.8.6 / macr
 
 本次 session 是**部署前最后一次全面排查**，代码已在本地完成修改，尚未同步到 NAS。
 
-**排查目标**：发现任何可能导致部署后系统行为不正确、静默失败、或难以调试的问题，优先级：
+**排查目标**：发现任何可能导致部署后系统行为不正确、静默失败、或难以调试的问题。范围是**整个代码库**，不限于最近修改——历史积累的代码同样可能存在问题。
+
+优先级：
 1. 会导致系统启动失败或关键功能断路的问题（P0）
 2. 会导致仿真/预测结果不可信的逻辑错误（P0/P1）
 3. 接口不匹配、数据格式问题（P1）
-4. 设计意图与实现不一致（P2）
+4. 设计意图与实现不一致，或文档与代码不符（P2）
+5. 潜在的安全风险（P1）
 
 ---
 
 ## 必读文档（按顺序，每步完整读）
 
-1. `AGENTS.md`（根目录）— 系统全貌
-2. `HANDOVER.md` — 今晚所有变更和已知问题
-3. `docs/arch_review_20260802.md` — 15个已确认设计缺陷（其中 D1/D4/D7/D12 今晚已修）
-4. `macro-sim/CHANGELOG.md` 前100行 — 天璇所有变更
-5. `macro-scan/TuiYan_CHANGELOG.md` 前100行 — 天枢所有变更
+1. `AGENTS.md`（根目录）— 系统全貌与三子系统定位
+2. `HANDOVER.md` — 当前状态、所有变更、已知问题、部署清单
+3. `docs/arch_review_20260802.md` — 15个已确认设计缺陷，了解哪些已修（D1/D4/D7/D12）、哪些未修（D2/D3/D5/D6/D8-D15）
+4. `macro-sim/CHANGELOG.md` 前150行 — 天璇完整变更历史
+5. `macro-scan/TuiYan_CHANGELOG.md` 前150行 — 天枢完整变更历史
+6. `ROADMAP.md` — 时间门控任务和已知积压问题
 
 ---
 
 ## 排查维度（多 agent 并行，≤15个请求）
 
-请用**多 agent 并行**覆盖以下维度，每个维度独立执行，结果汇总后交叉验证：
+请用**多 agent 并行**覆盖以下维度，每个维度独立、全量排查，不只看最近改动。
 
-### 维度 A：天璇仿真引擎（macro-sim）
+### 维度 A：天璇仿真引擎核心逻辑
 
-重点文件：`macro-sim/core/simulation.py` / `world_state.py` / `calibrator.py` / `bifurcation.py` / `run.py`
+全量排查 `macro-sim/core/` 下所有文件：`simulation.py` / `world_state.py` / `calibrator.py` / `bifurcation.py` / `agents/base.py` / `agents/financial.py` / `agents/geopolitical.py` / `agents/social.py`
 
-排查要点：
-- D1 修复后的传导矩阵：per-agent delta 路径是否完整覆盖所有 12 个 Agent？有没有遗漏某个 Agent 的行动没用 `add()` 函数？
-- D4 修复后：`apply_natural_decay` 里4个新增变量的衰减系数是否合理？`china_credit_impulse` 允许负值，衰减方向是否正确？
-- D7 修复后：`load_from_macro_scan()` 读取的13个 GRV 字段，有没有哪个用了 `or 0.0` 但实际上 None 和 0.0 语义不同？
-- D12 修复后：`_archive_to_tianji` 中 content/target_metric/outcome_definition 三者现在对齐了吗？验证逻辑是否还存在其他 content≠metric 的情况？
-- `calibrator.py`：校准参数调整的是 AgentParams 还是 causal_chain.confidence？哪个才是设计预期？（D2/D3 缺陷的延续）
-- `run.py`：`--daemon` 模式下轮询 sim_trigger.json 的读取方式，修复 inode 问题后是否真的用目录挂载而非单文件？
+排查要点（新增改动 + 历史积累）：
+- **D1修复验证**：per-agent delta 是否覆盖所有12个 Agent 的所有行动分支？有没有某个行动还在直接写 `delta["key"] = ...` 而不走 `add()`？
+- **D4修复验证**：`china_credit_impulse` 允许 [-1, 1] 负值，乘以 0.92 衰减后方向正确；`us_fiscal_pressure` 的 min/max 截断逻辑在衰减后是否仍然适用？
+- **历史问题：D2/D3**（arch_review 确认未修）：校准循环 calibrator.py 的误差函数对象是外生变量（grv/credit_spread/t10y2y/dff），而 Agent 行动改变的是内生变量——这个校准逻辑是否会导致参数调整方向系统性错误？
+- **历史问题：D6**（arch_review 确认未修）：校准结果是否在重启后丢失？calibration_state 文件是否存在？
+- **历史问题：D8**（arch_review）：`bifurcation.py` 里固定 predict_steps=24，没有动态停止条件——这个硬编码对结果质量有什么影响？
+- **历史问题：D10**（arch_review）：双峰检测 bug——`_detect_bifurcation()` 的分叉判断逻辑是否存在阈值问题导致漏检？
+- `agents/base.py`：`decide_with_trace()` vs `decide()`——`simulation.py` 的 `step()` 调用的是哪个？causal_chains 字段在运行时是否真的为空？
+- `run.py` 整体流程：daemon 模式读取 sim_trigger.json 的方式，inode 断链修复（目录挂载）是在 docker-compose 配置里还是代码里？
 
-### 维度 B：天枢数据管道（macro-scan）
+### 维度 B：天枢数据采集与信号管道
 
-重点文件：`macro-scan/核心代码/scheduler.py` / `geo_risk_vector.py` / `slow_variables.py` / `control_server.py` / `startup_checks.py`
-
-排查要点：
-- `scheduler.py`：`_dump_state()` 每60秒落盘，`_load_paused()` 每轮读取——在高频 I15 任务（每15分钟）下，文件读写会不会成为瓶颈？
-- `control_server.py`：`rerun` 端点用 `subprocess.Popen` 执行 fetcher，`fetcher_id` 直接拼接脚本路径——有没有路径遍历风险？fetcher_id 是否做了白名单校验？
-- `geo_risk_vector.py`：social_stress 是 `{country: score}` 字典，聚合取均值——如果字典为空（GDELT 当天没有高于20分的国家），均值计算会不会产生 None 而不是 0？
-- `startup_checks.py`：KNOWN_GRV_DIMENSIONS 里有13个维度，但 source_dimension_map.yaml 的 primary 字段只有11个原始维度。social_stress/cultural_friction 不在 source_dimension_map 里——校验会不会误报这两个维度为"未知映射"？
-- `slow_variables.py`：cron 幂等保护用 `updated_at[:7]` 比较月份，如果服务器时区和 UTC 差了一天会不会本月第一天就被跳过？
-
-### 维度 C：天璇与天枢接口（数据契约）
-
-重点文件：`macro-sim/core/world_state.py` / `macro-scan/核心代码/geo_risk_vector.py` / `macro-scan/AGENTS.md` 接口契约节
+全量排查 `macro-scan/核心代码/` 核心模块：`scheduler.py` / `geo_risk_vector.py` / `slow_variables.py` / `grv_threshold.py` / `control_server.py` / `startup_checks.py` / `fetcher_base.py`
 
 排查要点：
-- grv_latest.json 的 `_schema_version` 字段：`load_from_macro_scan()` 验证版本号，但 geo_risk_vector.py 写出时用的 key 是 `_schema_version` 还是 `schema_version`（有没有下划线）？
-- 新增的 social_stress/cultural_friction 字段：geo_risk_vector.py 写出时值可能为 None（gdelt_scores 不存在时），load_from_macro_scan 用 `or 0.0` 处理——但 None or 0.0 = 0.0，float(None or 0.0) = 0.0，这条路径是否真的安全？
-- 接口契约文档写 GRV 是"13维"，但 grv_latest.json 实际产出字段数量——有没有维度缺失或多出？
+- **新问题：control_server.py 安全性**：`rerun` 端点接受 `fetcher_ids` 列表，直接拼接 `f"{fid}.py"` 作为脚本路径，是否做了白名单校验防止路径遍历？
+- **新问题：geo_risk_vector social_stress 空字典**：`scan_weak_signals.py` 写出的 social_stress 是 `{country: score}` 字典，只含 score≥20 的国家；当天所有国家都低于20时字典为空——`geo_risk_vector.py` 聚合时 `sum(ss.values()) / len(ss)` 会抛 ZeroDivisionError 还是返回 0？
+- **新问题：startup_checks.py 误报风险**：`KNOWN_GRV_DIMENSIONS` 包含 social_stress/cultural_friction（13个），但 source_dimension_map.yaml 的 primary 字段只有11个原始维度，social_stress/cultural_friction 不在映射文件里——校验逻辑会不会把这两个当作"未知维度"误报 ERROR？
+- **历史问题：grv_threshold.py**：GRV 触发天璇的阈值逻辑，台海阈值68是绝对值还是相对值？D5（arch_review 未修）指出这个阈值在正常 GRV 范围内可能永远触达不到。
+- **历史问题：scheduler.py 30秒主循环**：JOBS 里有 I15（每15分钟）和日档（固定时间）混合，30秒循环间隔对 I15 任务是否足够精确？有没有任务被跳过的风险？
+- **历史问题：各 fetcher 的降级逻辑**：fetcher_base 的 `load_previous_good()` 在数据不可用时保留旧值——旧值最老能有多旧？有没有 staleness 上限保护？
 
-### 维度 D：kaiyang 前端（开阳）
+### 维度 C：接口契约与数据流完整性
 
-重点文件：`kaiyang/src/components/WorldPanel.tsx` / `FlatMapPanel.tsx` / `src/config/controlConfig.ts`
+全量排查数据流的每个关键节点：
 
-排查要点：
-- 2D 平面地图修复：FlatMapPanel 现在正确渲染了吗？`mode === 'flat'` 时 FlatMapPanel 是 visible 而 GlobePanel 是 `pointer-events-none invisible`，顺序是否正确？
-- localStorage 持久化：`readInitialMode()` 读 localStorage，如果用户上次用的是 'flat' 模式，刷新后会恢复到 flat——但这时 Leaflet 地图容器可能还没初始化，有没有时序问题？
-- control_server 端点：`API_BASE_URL` 指向 `192.168.31.108:8900`，在本地开发环境（localhost）下会 CORS 失败——开发时是否需要 mock？`MOCK_ENABLED` 默认 false，开发时怎么切换？
-
-### 维度 E：部署脚本与容器配置
-
-重点文件：`deploy.sh` / `macro-scan/docker-compose.yml`（如存在）/ `macro-sim/` Dockerfile 相关
+`geo_risk_vector.py` 产出 → `grv_latest.json` → `world_state.load_from_macro_scan()` → `MacroWorldState`
+`scheduler.py` → `sim_trigger.json` → `run.py --daemon`
+`macro-sim` → `forecast_tracker.db` → 天玑
 
 排查要点：
-- `entrypoint.sh` 是否已经包含 control_server.py 的启动行？（HANDOVER 里说需要手动追加）
-- macro-sim 的 `config/agents.yaml` 是热挂载还是 COPY？CHANGELOG 里有矛盾记录（今晚已修，确认修复后版本）
-- `deploy.sh macro-scan` 做的是 rsync + restart，`deploy.sh macro-sim` 做的是 rsync + rebuild + restart——GED 产物 `data/ged/` 不进 git，部署时会不会被 rsync 误删？
+- **schema_version 不一致**：geo_risk_vector.py 写出 grv_latest.json 时用的字段名是 `_schema_version` 还是 `schema_version`？`load_from_macro_scan()` 验证时用的是哪个？两边不匹配会抛 RuntimeError 阻断仿真。
+- **接口契约文档声称13维**，实际 grv_latest.json 中有多少个字段是真正被天璇 MacroWorldState 消费的？有没有字段写出了但从未被读？
+- **predictions 表写入**：`_archive_to_tianji()` 写入时字段数量与 DDL 是否一致？有没有新增字段但 INSERT 语句未更新的情况？
+- **sim_trigger.json 格式**：grv_threshold.py 写出的格式，与 run.py daemon 模式读取时的解析逻辑是否匹配？有没有字段缺失导致 KeyError？
+- **历史问题：news_export.json schema**：macro-sim `load_from_macro_scan()` 读取 news_export.json 时验证 schema_version，但 news_export.py 产出时是否每次都写入正确的 schema_version？
+
+### 维度 D：kaiyang 前端全量排查
+
+全量排查 `kaiyang/src/` 关键组件：`App.tsx` / `components/WorldPanel.tsx` / `FlatMapPanel.tsx` / `GlobePanel.tsx` / `hooks/useFeed.ts` / `lib/controlApi.ts` / `lib/grvAdapter.ts`
+
+排查要点：
+- **2D/3D 切换时序**：WorldPanel 切换到 flat 时，FlatMapPanel 从 `invisible` 变为 visible，但 Leaflet 地图容器在 invisible 时 `clientWidth/Height = 0`，切换后需要调用 `invalidateSize()`——FlatMapPanel 的 `active` prop 变化时是否已处理这个时序问题？
+- **useFeed 重复请求**：多个组件调用 `useFeed('grv')` 会各自发一次请求，没有去重——实际运行时有多少个组件在消费 grv？会不会造成频繁请求？
+- **control API 错误处理**：`controlApi.ts` 的 `apiFetch()` 在网络错误时抛异常，但 control_server 可能还没启动——UI 层有没有 try-catch 防止控制面板崩溃？
+- **grv_latest.json 缺失字段降级**：`grvAdapter.ts` 读取 GRV 数据时，如果某个维度字段缺失（值为 null 或不存在），降级逻辑是什么？会不会导致 NaN 传入渲染层？
+- **历史问题：GRV 数据时效性警告**：kaiyang 顶部状态栏显示 GRV 更新时间，如果 GRV 超过24小时未更新是否有视觉告警？用户是否能发现数据已过期？
+
+### 维度 E：系统整体：配置/部署/安全/可观测性
+
+排查 `deploy.sh` / `macro-scan/docker-compose.yml` / `macro-sim/config/agents.yaml` / `macro-scan/核心代码/observability.py` / `HANDOVER.md` 部署清单
+
+排查要点：
+- **entrypoint.sh 缺失 control_server**：HANDOVER 明确说"需手动追加 control_server.py 启动行"——这是部署阻塞项，当前 entrypoint.sh 内容是什么？追加后是否需要重建镜像？
+- **agents.yaml 挂载方式**：macro-sim 的 docker-compose 里 agents.yaml 是 volume mount（热更新）还是 COPY 进镜像（需 rebuild）？CHANGELOG 有历史矛盾记录，当前实际配置是什么？
+- **data/ged/ rsync 风险**：GED 产物不进 git，deploy.sh macro-scan 使用 rsync——如果 rsync 命令包含 `--delete` 标志，NAS 上的 `data/ged/` 会被删除；如果没有 `--delete`，则 NAS 上的旧数据文件也不会被清除。实际 deploy.sh 怎么写的？
+- **历史问题：D11**（arch_review 未修）：`situation_level` 参数在 run.py 里被传入但 simulation.py 不使用——这个参数现在走哪条代码路径？是真的无效还是有隐式效果？
+- **observability.py 三数字推送**：daily_health_push 推送的是 GRV时间戳/降级fetcher数/predictions行数——predictions 行数取自哪个数据库路径？路径是否与 `_TIANJI_DB_PATH` 一致？
+- **credentials 暴露**：macro-scan/AGENTS.md 里明文写了 `FRED_API_KEY=REDACTED_FRED_KEY`——虽然 FRED key 是公共低风险的，但其他配置文件（optim_config.py, docker-compose.yml）是否有更敏感的 key 明文存在？这些文件是否在 .gitignore 中？
 
 ---
 
 ## 输出要求
 
-每个排查维度产出一份报告，格式：
+五个维度分别产出报告，格式：
 
 ```
 ## 维度 X 排查报告
 
 ### ✅ 验证通过
-- 条目：具体证据（文件:行号）
+- 条目：具体证据（文件路径:行号 或 代码片段）
 
 ### ⚠️ 疑问/风险（需人工确认）
-- 条目：描述 + 建议
+- 条目：描述 + 为什么不确定 + 建议确认方式
 
 ### ❌ 确认问题（建议修复）
-- 条目：问题描述 + 根因 + 修复建议
+- 条目：问题描述 + 根因 + 影响范围 + 修复建议
 ```
 
-最后汇总一份**部署风险清单**，按 P0/P1/P2 分级，P0 项在部署前必须修复。
+五个报告完成后，输出一份**部署风险清单**：
+
+```
+## 部署风险清单
+
+### P0（部署前必须修复）
+- [问题] [来源维度] [修复方案]
+
+### P1（建议修复，可部署但风险已知）
+- [问题] [来源维度] [影响]
+
+### P2（文档/设计问题，不阻断部署）
+- [问题] [来源维度]
+
+### 部署前人工确认项
+- [ ] 条目（需要在 NAS 上确认）
+```
 
 ---
 
 ## 约束
 
-- 请求总数 ≤15个（包含所有 agent 的工具调用）
+- Claude agent 请求总数 ≤15个
+- **全量排查，不限于最近改动**——历史代码同样可能有问题
 - 不修改任何代码，只读+报告
 - 对不确定的地方明确标注"需人工确认"，不要猜测
-- 优先深读核心修改文件（今晚 diff 的部分），不要泛读
+- 发现问题时给出具体文件路径和行号，不要泛泛而谈
+- 如果某个问题在 arch_review_20260802.md 里已被记录为已知缺陷，标注"已知缺陷 Dxx"而不是重复描述
