@@ -1,6 +1,6 @@
 # 世界推演系统 · 总览
 
-> macro-scan v3.8.1（天枢）· macro-sim v2.0.14（天璇）· kaiyang v1.7.0（开阳）· 2026-08-02
+> macro-scan v3.8.3（天枢）· macro-sim v2.0.15（天璇）· kaiyang v1.7.1（开阳）· 2026-08-03
 >
 > **当前状态与待部署事项** → 见 [`HANDOVER.md`](../HANDOVER.md)
 
@@ -19,19 +19,19 @@ FRED / GPR / GDELT / 新闻（RSSHub，crucix 退场中）
               │  46个调度任务（I15/I30/日档/月档）
               ▼
         ┌─────────────┐
-        │  macro-scan  │  观测层（天枢）v3.8.1
+        │  macro-scan  │  观测层（天枢）v3.8.3
         │              │  采集 → GRV向量 → LLM分析报告 → ntfy手机
         └──────┬──────┘
                │ GRV告警时写 sim_trigger.json
                ▼
         ┌─────────────┐
-        │  macro-sim  │  仿真层（天璇）v2.0.14
+        │  macro-sim  │  仿真层（天璇）v2.0.15
         │              │  Monte Carlo×100 → 概率路径树 → ntfy手机
         └─────────────┘
                │ 落盘 data/*.json（只读契约文件）
                ▼
         ┌─────────────┐
-        │   kaiyang   │  可视化操作面板（开阳）v1.7.0
+        │   kaiyang   │  可视化操作面板（开阳）v1.7.1
         │              │  3D地球 + 经济面板 + 控制抽屉（:8080）
         └─────────────┘
 ```
@@ -101,113 +101,3 @@ bash /s/world-sim/deploy.sh macro-sim    # rsync + rebuild + restart
 1. `docker ps` — 容器是否在线
 2. scheduler.log / docker logs — 最近错误
 3. `HANDOVER.md` 已知问题节
-
-
----
-
-## 一、这是什么
-
-跑在家用 NAS（192.168.31.108）上的宏观情报 + 仿真系统。每天自动拉取全球宏观/地缘数据、写分析报告、推手机；GRV 告警时自动触发 12-Agent Monte Carlo 仿真，预测未来 24 个月概率路径。
-
----
-
-## 二、系统架构
-
-```
-FRED / GPR / GDELT / 新闻（RSSHub + Crucix）
-              │
-              ▼
-        ┌─────────────┐
-        │  macro-scan  │  观测层（天枢）
-        │  v3.6.5     │  每日定时采集 → GRV向量 → LLM分析报告 → ntfy手机
-        └──────┬──────┘
-               │ GRV告警时写 sim_trigger.json
-               ▼
-        ┌─────────────┐
-        │  macro-sim  │  仿真层（天璇）
-        │  v2.0.13    │  Monte Carlo×100 → 概率路径树 → ntfy手机
-        └─────────────┘
-```
-
-| 子系统 | 别称 | 定位 | 容器模式 | NAS路径 | 详细文档 |
-|--------|------|------|----------|---------|---------|
-| macro-scan | 天枢 | 观测层 | 热挂载（改代码即生效） | `/vol2/1000/software/macro-scan` | `macro-scan/世界推演系统_人类说明文档.md` |
-| macro-sim | 天璇 | 仿真层 | COPY模式（改代码需重建镜像） | `/vol2/1000/software/macro-sim` | `macro-sim/macro-sim_人类说明文档.md` |
-| macro-ji（规划中） | **天玑** | 验证层（DRAFT v0.1） | 热挂载（macro-scan扩展模块） | 待建 | `docs/tianji-design.md` |
-
----
-
-## 三、日常使用
-
-**手机订阅**：ntfy 客户端订阅 `macro-tsx-9005` 接收报告。
-
-**最常用指令**（向 `macro-tsx-9005-cmd` 发送，格式 `1900 <指令>`）：
-
-| 指令 | 效果 |
-|------|------|
-| `1900 narrative` | 立即生成今日世界摘要 |
-| `1900 both` | 立即生成中美全球报告 |
-| `1900 hypothesis 台海 L2` | 触发假设推演 |
-| `1900 status` | 系统运行状态摘要 |
-| `1900 situations` | 查看追踪事件状态 |
-| `1900 ask 你的问题` | 自由问答（约30秒） |
-
-**Web UI**：`http://192.168.31.108:8899`（局域网内，含问答/事件追踪/系统状态三面板）
-
----
-
-## 四、当前状态
-
-| 项目 | 状态 |
-|------|------|
-| macro-scan | 稳定运行。C线（信号共振）已切 Live；R07（宗教冲突×能源）已开；R09/R10 等 social_stress/cultural_friction 积累中（约2026-08启用）|
-| macro-sim | 早期开发阶段。基础仿真管道完整可用，校准评分约70/100，路径多样性有待改善 |
-| GRV→macro-sim 联动 | 已打通。台海≥68 或单日涨幅≥6 自动触发仿真 |
-
----
-
-## 五、文档导航
-
-| 文档 | 路径 | 适合谁读 |
-|------|------|---------|
-| **本文件** | `docs/overview.md` | 任何人，快速了解全局 |
-| **架构最终方案** | `S:\20260729\07_北斗七星架构设计.md` | AI agent / 架构维护 |
-| **迁移路线图** | `S:\20260729\08_架构迁移路线图.md` | Phase 0-3 任务分解 |
-| **现状+方向桥接** | `S:\20260729\11_综合审视与下一步.md` | 新 session 开场必读 |
-| macro-scan 使用手册 | `macro-scan/世界推演系统_人类说明文档.md` | 你（功能/操作/维护/故障排查）|
-| macro-sim 使用手册 | `macro-sim/macro-sim_人类说明文档.md` | 你（仿真原理/触发/报告/已知问题）|
-| macro-scan 运行状态 | `macro-scan/INDEX.md` | 运维视角，查调度/数据管道/LLM链 |
-| 待办事项 | `macro-scan/docs/待办事项.md` | 下一步要做什么 |
-| AI 工作入口 | `AGENTS.md` | AI agent 用，人类一般不需要读 |
-| macro-scan 变更日志 | `macro-scan/TuiYan_CHANGELOG.md` | 追查具体变更时查 |
-| macro-sim 变更日志 | `macro-sim/CHANGELOG.md` | 追查具体变更时查 |
-
----
-
-## 六、快速运维
-
-```bash
-# SSH 连接 NAS
-ssh TSX@192.168.31.108
-
-# 查看两个容器状态
-docker ps | grep -E "macro-scan|macro-sim"
-
-# macro-scan 日志
-docker exec macro-scan-macro-scan-1 tail -20 /var/log/macro-scan/scheduler.log
-
-# macro-sim 日志
-docker logs macro-sim --tail 50
-
-# 重新部署 macro-scan（rsync + restart，不重建镜像）
-bash /s/world-sim/deploy.sh macro-scan
-
-# 重新部署 macro-sim（rsync + rebuild + restart）
-bash /s/world-sim/deploy.sh macro-sim
-```
-
-**出问题先看**：
-1. `docker ps` — 容器是否在线
-2. scheduler.log / docker logs — 最近错误
-3. `macro-scan/INDEX.md` 快速诊断节 — 一键状态检查命令
-4. `macro-scan/世界推演系统_人类说明文档.md` 第八节故障排查表

@@ -1,6 +1,6 @@
 # FILE_MANIFEST — 文件清单与职责说明
 
-> 版本：v3.8.1 | 最后更新：2026-08-02
+> 版本：v3.8.3 | 最后更新：2026-08-03
 > 本文档描述 macro-scan 项目各文件的职责、挂载路径和修改影响。
 
 ---
@@ -177,7 +177,9 @@
 |:---|:---|
 | `tianji_db.py` | 天玑数据库 schema + CRUD（predictions/reasoning_trace/narrative_chunks/weight_update_log 四张表）|
 | `narrative_processor.py` | 叙事预处理：11维叙事桶，staleness 衰减，天璇取用接口 |
-| `slow_variables.py` | 三个慢变量（IRP/UCRI/GCI），月频计算 |
+| `slow_variables.py` | 三个慢变量（IRP/UCRI/GCI），月频计算；v3.8.3 新增：权重从 grv_weights.yaml 读取、cron 幂等保护、manual_score 降级修复 |
+| `startup_checks.py` | 天枢启动完整性校验（v3.8.3 新增）：source_dimension_map 遗漏映射阻断启动；scheduler.py main() 第一行调用 |
+| `brier_calc.py` | Brier Score / BSS / 锐度计算（v3.8.3 新增）：供天玑 V1 月度验证调用；含 score_grv_prediction() GRV 方向预测专用验证 |
 | `tianji_verifier.py` | 月度验证运行器：Brier/BSS/锐度三指标 |
 | `weight_matrix.py` | GRV 权重矩阵读写（grv_weights.yaml），玉衡审批，双层 clip 约束 |
 | `observability.py` | 调度器健康心跳（每30秒写 `.scheduler_heartbeat`，任务计数写 observability_*.json）|

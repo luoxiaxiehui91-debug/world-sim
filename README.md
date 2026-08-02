@@ -12,9 +12,10 @@
 world-sim/
 ├── macro-scan/              宏观信号观测系统（天枢）
 ├── macro-sim/               宏观演化仿真系统（天璇）
+├── kaiyang/                 可视化操作面板（开阳）v1.7.1
 ├── docs/
 │   ├── overview.md          系统总览（功能/架构/运维一页通）
-│   └── tianji-design.md     天玑（验证层）设计文档 v0.1
+│   └── tianji-design.md     天玑（验证层）设计文档 v0.2
 ├── deploy.sh                统一部署脚本
 ├── ROADMAP.md               项目内权威 todo（时间门控任务 + 天玑路线图）
 ├── AGENTS.md                AI 工作入口
@@ -32,6 +33,11 @@ world-sim/
 - 功能：基于当前宏观状态进行多智能体仿真，压力测试宏观假设路径
 - NAS 运行路径：`/vol2/1000/software/macro-sim`
 - 详见 [macro-sim/README.md](macro-sim/README.md)
+
+### kaiyang — 可视化操作面板（开阳）
+- 功能：只读展示天枢产出数据，3D地球 + 经济面板 + 控制抽屉（MOCK_ENABLED=true）
+- NAS 访问：`http://192.168.31.108:8080`
+- 详见 [kaiyang/README.md](kaiyang/README.md)
 
 ## 部署
 
