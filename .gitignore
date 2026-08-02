@@ -19,3 +19,10 @@ macro-scan/docker-compose.yml
 # macro-sim 运行时
 macro-sim/output/
 macro-sim/sim_log.db
+
+# 备份/临时文件
+*.bak
+kaiyang.bak*/
+macro-scan/核心代码/NDH6SA~M
+macro-scan/核心代码/qa_result.txt
+

@@ -1,0 +1,58 @@
+classDiagram
+    class FetcherBase {
+        <<abstract>>
+        +str name
+        +float rate_interval
+        +int max_retries
+        +float base_backoff
+        +str _SCHEMA_VERSION
+        +bool feeds_grv
+        +str schedule
+        +str output_file
+        +request(url, params, headers, timeout) Response
+        +save_json(filename, payload) str
+        +load_previous_good() dict
+        +_is_good(data) bool
+        +collect() dict
+        +run() dict
+    }
+    class BdiFetcher {
+        +str name = "bdi"
+        +str output_file = "bdi.json"
+        +bool feeds_grv = False
+        +str schedule = "0625"
+        +_solve_stooq_challenge(session) str
+        +_fetch_series(session) list
+        +collect() dict
+        +_is_good(data) bool
+    }
+    class FaoFetcher {
+        +str name = "fao"
+        +str output_file = "fao_food_price.json"
+        +bool feeds_grv = False
+        +str schedule = "0925"
+        +_resolve_csv_url() str
+        +_parse_csv(text) dict
+        +collect() dict
+        +_is_good(data) bool
+    }
+    class BdiPayload {
+        +str status
+        +float bdi_index
+        +list series
+        +str source
+        +str updated
+        +str _schema_version
+    }
+    class FaoPayload {
+        +str status
+        +float fao_food_price_index
+        +dict sub_indices
+        +str source
+        +str updated
+        +str _schema_version
+    }
+    FetcherBase <|-- BdiFetcher
+    FetcherBase <|-- FaoFetcher
+    BdiFetcher ..> BdiPayload : produces
+    FaoFetcher ..> FaoPayload : produces

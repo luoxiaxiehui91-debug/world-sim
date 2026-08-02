@@ -1,17 +1,20 @@
 #!/bin/bash
-# deploy.sh — macro-scan NAS 部署脚本
+# deploy.sh — macro-scan NAS 部署脚本（旧版，推荐改用 monorepo 根目录的 deploy.sh）
 # 用法：bash deploy.sh [选项]
-#   --sync       全量同步源码区到 NAS 运行区（改完代码必须先跑这个）
+#   --sync       全量同步 Git repo 源码到 NAS 运行区（改完代码必须先跑这个）
 #   --build      重建 Docker 镜像（修改了 Dockerfile 或 entrypoint.sh 时使用）
 #   --restart    仅重启容器（不重建镜像）
 #   --check      检查容器运行状态（不执行部署）
 #   --logs       查看最近 50 行 scheduler 日志
 #   无参数        等同于 --sync（全量同步）
+#
+# 注意：2026-07-29 修复——原 NAS_SRC 指向不存在的 /vol2/1000/software/macro-scan-src，
+# 改为指向 Git repo 的 macro-scan 子目录。SMB 挂载不可靠，所有操作通过 NAS 本地 rsync。
 
 set -e
 
 NAS_HOST="TSX@192.168.31.108"
-NAS_SRC="/vol2/1000/software/macro-scan-src"
+NAS_SRC="/vol2/1000/software/world-sim/macro-scan"  # 2026-07-29 修复：源从 Git repo 取
 NAS_DIR="/vol2/1000/software/macro-scan"
 CONTAINER="macro-scan-macro-scan-1"
 
@@ -29,6 +32,9 @@ _sync() {
     --exclude='知识库/财经知识库/*/_raw/' \
     --exclude='docker-compose.yml' \
     --exclude='key.txt' \
+    --exclude='docs/分析报告/' \
+    --exclude='__pycache__/' \
+    --exclude='*.pyc' \
     ${NAS_SRC}/ ${NAS_DIR}/"
   echo "=== 同步完成 ==="
 }

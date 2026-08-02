@@ -3,7 +3,54 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## v3.7.0 — 2026-07-30 (by Claude)
+## v3.8.1 — 2026-08-02 (by Claude)
+
+### scheduler.py 补充 GDELT 地理事件点调度 + kaiyang 升级至 Wave-2 v1.7.0
+
+**修改理由**：v3.8.0 合并了 fetch_gdelt_geo.py + gdelt_country_map.py，但 scheduler.py 漏加了对应任务，文件落地却从未被调用。同时将开阳前端升级至全新设计的 Wave-2（v1.7.0），保留旧版运行时数据不中断。
+
+#### 改动（scheduler.py）
+- JOBS 列表新增 `gdelt_geo`：`I15` 事件档，调用 `fetch_gdelt_geo.py --incremental`，插在 `earthquake` 之后（同为地理信号，喂 GRV 之前落盘）
+- LOG_PATHS 字典新增 `"gdelt_geo": f"{LOG_DIR}/gdelt_geo.log"`
+
+#### 改动（kaiyang/）
+- 用 Wave-2（来自 Desktop/S/世界推演系统开阳/kaiyang-wave2）替换 Wave-1（v1.0.3）
+- 版本：1.0.3 → 1.7.0
+- 新增能力：control/ 控制抽屉（ControlDrawer + FetcherCard + TianshuTab）、nuclear_sites.json + NuclearWatchPanel、useControlApi + useOperationPolling hooks、LayerLegend/LayerTreePanel/RegionTabs 组件、newsGeoAdapter（对接 fetch_gdelt_geo 产出）
+- 运行时数据（grv_latest/news_export/sim_trigger/fred_history）从旧版迁移，无数据断档
+- dist/ 已构建（1117 模块，vite 5.4.21）
+
+ — 2026-08-02 (by Claude)
+
+### 新系统设计成果合并 + crucix 退场基础
+
+**修改理由**：将「世界推演系统」设计副本（Desktop/S/世界推演系统天枢/design/）的净新增成果合并进
+旧系统天枢代码库（macro-scan/）；同时新增开阳 Wave-2 前端服务定义。
+三个原定「冲突文件」（fetcher_base_v1.1、fetch_gdelt_geo、fetch_rss_news）diff 结果完全一致，
+无需覆盖——旧系统已是最新版本。
+
+#### 新增文件（核心代码/）
+- `contracts.py` — Pydantic v2 接口契约（I1 层）：ValueStatus 枚举、IndicatorPoint/IndicatorEnvelope 模型、39个 selftest 断言、UsagePolicy 用途白名单；"缺失不是一个数值，是一个状态"
+- `compute_probit.py` — L3 衰退概率：Estrella-Trubin 2006 固定系数 probit，T10Y3M 口径，黄金值三重口径断言
+- `ged_analysis.py` — UCDP GED 武装冲突数据分析（country×year×type 聚合）
+- `ged_codebook_extract.py` — UCDP GED codebook PDF 解析提取器
+- `etl_ged.py` — GED ETL 管道：清洗→聚合→三质量闸门（年度冻结快照，硬禁止被日更路径读取）
+- `gdelt_country_map.py` — GDELT FIPS→ISO 国家码映射（从 fetch_gdelt_geo 拆分独立，单一职责）
+
+#### 新增文件（tests/）
+- `static_gate_check.py` — 静态门控检查：契约合规、硬编码检测、UsagePolicy 白名单验证
+
+#### 清理
+- 删除 核心代码/test_airtraffic.py、核心代码/test_commodity.py（空文件，完整版本在 tests/ 目录）
+
+#### 依赖（requirements.txt）
+- 新增 `pydantic>=2.0.0`（contracts.py I1 层依赖）
+- 新增 `pypdf>=4.0.0`（ged_codebook_extract.py PDF 解析依赖）
+
+#### 部署（docker-compose.yml）
+- 新增 `kaiyang` 服务（nginx:alpine，端口 8080）：挂载 kaiyang-wave2/dist 静态站 + macro-scan/data 只读数据目录
+
+
 
 ### 新架构核心模块接入（天玑/玉衡/叙事层）
 

@@ -6,7 +6,7 @@
 
 **定位**：macro-scan（天枢）发现信号 → macro-sim（天璇）演化未来（不是推理，是演化）
 
-**当前版本**：见 `VERSION`（当前 v2.0.10）
+**当前版本**：见 `VERSION`
 
 ---
 
@@ -120,6 +120,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 | 任何 `core/*.py`（版本号变更时）| + `macro-sim_人类说明文档.md` 文件头版本号 |
 | 任何 `core/*.py`（版本号变更时）| + `S:\world-sim\docs\overview.md` 头部版本行（`macro-sim vX.Y.Z`）+ 架构图版本号 |
 | 任何 `core/*.py`（版本号变更时）| + `docs/PROGRESS.md`（版本号 + 版本历史表）|
+| 任何 `core/*.py`（版本号变更时）| + `README.md`（天璇；当前动态引用"见 VERSION"，无静态版本号；纳入矩阵仅防未来漏改）|
 | `core/world_state.py`（新增字段） | `docs/design_v2.md` |
 | `config/agents.yaml`（新增 Agent）| `core/agents/` 对应子类 + README |
 | 接口契约变更 | 两边 AGENTS.md 的接口契约节 + 两边 CHANGELOG |
@@ -155,7 +156,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 **macro-scan → macro-sim 数据文件：**
 
 - `grv_history.jsonl`：GRV 快照序列（1985~2026-06 月频，2026-07 起日频），校准循环读取。⚠️ **读基线时应按日期范围（6个月前）查找，不应用行偏移 `lines[-N]`**
-- `grv_latest.json`：当前 GRV，需含 `_schema_version: "1.0"`；v3.5.41 起稳定包含 `japan_monetary` 字段
+- `grv_latest.json`：当前 GRV，需含 `_schema_version: "1.0"`。v3.6.4 起新增 `sanctions_risk` / `seismic_risk` / `energy_grid_risk` 字段（v3.6.5 全量稳定产出），当前完整 11 维：taiwan_strait / us_china_strategic / russia_europe / middle_east_energy / global_composite / climate_risk / disaster_risk / sanctions_risk / seismic_risk / energy_grid_risk / japan_monetary。macro-sim 只读前 5 维 + japan_monetary，新增字段本次不消费，但需兼容 JSON 有额外键
 - `fred_history/T10Y2Y.csv` / `BAA10Y.csv` / `DFF.csv`：FRED 日度数据，单位 `%`，读取后 ×100 转 bp
 - `news_export.json`：近7天新闻，需含 `_schema_version: "1.0"`
 - `sim_trigger.json`：触发文件，格式 `{"level":3,"event":"...","triggered_at":"..."}`
