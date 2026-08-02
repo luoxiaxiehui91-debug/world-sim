@@ -1,75 +1,117 @@
-# AGENTS.md · 开阳（Kaiyang）操作面板
+# 开阳（Kaiyang）操作面板 — AI 工作入口
 
-AI 协作者的 session 入口。改动前先读本文档 + [`docs/DATA_CONTRACT.md`](./docs/DATA_CONTRACT.md) + [`docs/DESIGN.md`](./docs/DESIGN.md)。
+**系统定位**：世界推演系统的前端操作面板，展示 + 控制双职能。读侧只读天枢契约文件做可视化，写侧代表人类 operator 向各后端下发操作指令（只发令、后端执行）。
 
 ---
 
-## 1. 项目角色与边界（硬约束）
+## 新 session 阅读路径
 
-- **操作面板（展示 + 控制双职能）**：世界推演系统下独立前端子项目，正式位置 `S:\world-sim\kaiyang`，与 `macro-scan` / `macro-sim` 平级。
-- **读侧（展示）**：只读契约文件，**永不直接调用数据源 / 爬虫 / 外部 API**；信息获取归天枢（macro-scan, Python），开阳只做呈现。
-- **写侧（控制）**：代表人类 operator 经受控指令通道向各后端（天枢 / 天璇 / 天玑 / 玉衡 / crucix）下发操作指令（触发推演 / 重跑采集 / 调参 / 审批等），**开阳只发令、后端执行**；指令通道协议暂缓设计，待后端闭环搭起后再定。
-- **隔离铁律（用户硬性）**：
-  - 禁止 `import` / 拷贝 macro-scan / macro-sim / 天玑 / crucix 任何源码。
-  - 禁止硬编码 NAS / SMB 绝对路径（如 `S:\...` / `192.168.x`）；部署靠外部只读挂载 + 改 `DATA_BASE_URL`。
-  - 唯一外部耦合 = `DATA_BASE_URL` 只读契约文件（见 §3）；另有受控指令通道（写侧，协议暂缓）。
+按顺序读完，每步只需几分钟：
 
-## 2. 目录结构
+1. **本文件**（根 `AGENTS.md`）— 了解约束和关键文件
+2. **`VERSION`**（1 行，当前版本号）
+3. **`CHANGELOG.md` 前 80 行** — 了解最新版本变更
+4. **`docs/NEXT_SESSION_HANDOFF.md`**（约 200 行）— 60 秒全貌快照
+5. **`docs/DESIGN.md` §2.1** — 进度总览表
+6. 按任务分支：
+   - 改代码 → 先读「扩展标准」（下面三入口表）
+   - 加 feed → `src/config/dataSources.ts`
+   - 加面板 → `src/panels/registry.ts`
+   - 加类别 → `src/config/layerCategories.ts` + `theme.ts`
+   - 控制面 → `docs/A3a-控制API-开阳对接文档.md`
+
+---
+
+## 关键操作约束
+
+| 约束 | 说明 |
+|:-----|:-----|
+| **铁律三条** | ① 永不自行调第三方数据源/爬虫 ② 严禁硬编码 NAS/SMB 绝对路径 ③ 数据缺失一律降级不白屏 |
+| **three 版本钉死** | `three: 0.185.1`（精确，不加 `^`）；降版 → `Matrix4.determinantAffine()` 缺失 → 地球空白 |
+| **开发端口** | `:3118`（vite dev 5x73），`localhost` 测试 |
+| **React StrictMode** | 开发态 reducer 跑两遍，别误以为 bug |
+| **useFeed 不缓存** | 两个组件调 `useFeed('grv')` 会发两次请求，共享数据走 props 下传 |
+| **改后必做** | bump `VERSION` + `package.json` → 追加 `CHANGELOG.md` → 同步 `docs/` → `npm run build` 绿 + `npm test` 全过 |
+| **CHANGELOG 承诺 ≠ 落盘** | 每次 bump 逐条 grep 源码核实，不凭计划/计划预设 |
+| **错误边界** | `main.tsx` 有 `ErrorBoundary`，组件崩溃不白屏 |
+| **`??` 挡不住哨兵值** | 枚举 fallback 必须显式排除 `'unknown'`/`''` 等哨兵；案例见 `nuclearData.ts:199` |
+
+---
+
+## 技术栈
+
+| 项目 | 选型 |
+|------|------|
+| 框架 | React + Vite + TypeScript |
+| 样式 | Tailwind CSS（玻璃拟态 + 青绿主色 + 扫描线） |
+| 3D 地球 | globe.gl（MIT，three 0.185.1） |
+| 图表 | ECharts（Apache-2.0） |
+| 2D 地图 | Leaflet（已移除 1.7.0，组件保留备恢复） |
+| 测试 | Vitest |
+| 语言 | 全中文 UI，无 i18n |
+| 依赖包 | 零新依赖（1.7.0 vs 1.6.0 unchanged） |
+
+---
+
+## 扩展标准（改代码记住三条入口）
+
+| 操作 | 只改一个文件 | 例 |
+|------|-------------|-----|
+| 加新 feed | `src/config/dataSources.ts` `FEEDS` 登记一项 | `news_geo`、`market_quotes` 均如此 |
+| 加新面板 | `src/panels/registry.ts` `panelRegistry` 加一项 | NuclearWatchPanel |
+| 加新类别 | `src/config/layerCategories.ts` 加一项 + `theme.ts` 加色 | — |
+
+---
+
+## 项目结构
 
 ```
-kaiyang/
-├── README.md              ← 人类概览
-├── AGENTS.md              ← 本文件（AI 入口）
-├── CHANGELOG.md           ← 变更记录
-├── VERSION                ← 版本号（与 CHANGELOG 头一致）
-├── index.html / package.json / vite.config.ts / tsconfig*.json
-├── tailwind.config.js / postcss.config.js / .gitignore
-├── docs/
-│   ├── DESIGN.md          ← 设计总纲（定位/技术栈/Wave/扩展标准）
-│   └── DATA_CONTRACT.md   ← 数据契约权威标准（读侧 feed/字段/schema_version/部署 + 写侧指令通道）
+kaiyang-wave2/
+├── AGENTS.md               ← 本文件
+├── ROADMAP.md               ← 项目内权威 todo
+├── README.md                ← 项目概述
+├── VERSION                  ← 当前版本号（1.7.0）
+├── CHANGELOG.md             ← 变更记录
+├── package.json
 ├── src/
-│   ├── App.tsx / main.tsx / index.css
-│   ├── components/  (EChart / GlobePanel / GrvPanel / EconomyPanel / NewsPanel / StatusBar)
-│   ├── config/      (dataSources: DATA_BASE_URL+FEEDS / grvDimensions: 11维坐标+弧线)
-│   ├── hooks/       (useFeed 统一读取层 / useFRED)
-│   ├── lib/         (readLayer fetchJson/fetchCsv / grvAdapter 适配容错 / format)
-│   ├── panels/      (registry: panelRegistry)
-│   ├── state/       (StatusContext: 时间戳/告警/schema版本)
-│   └── types/       (contracts)
-└── public/data/     ← 开发快照（grv_latest.json / news_export.json / sim_trigger.json / fred_history/*）
+│   ├── main.tsx             ← ErrorBoundary 入口
+│   ├── App.tsx              ← grid-layout + 面板注册表
+│   ├── config/              ← dataSources / layerCategories / theme / regions / controlConfig
+│   ├── components/          ← WorldPanel / GlobePanel / FlatMapPanel(备) / LayerTreePanel …
+│   ├── control/             ← ControlDrawer / TianshuTab / FetcherCard …
+│   ├── hooks/               ← useFeed / useControlApi / useOperationPolling …
+│   ├── lib/                 ← adaptGrv / nuclearData / newsGeoAdapter / controlApi …
+│   ├── panels/              ← registry.ts（面板注册表）+ 各面板组件
+│   ├── state/               ← ControlContext / SelectionContext / StatusContext
+│   └── types/               ← contracts.ts / control.ts
+├── docs/                    ← DESIGN / DATA_CONTRACT / HANDOFF / DECISION_MATRIX / PRD …
+├── public/
+│   └── data/                ← 开发快照（grv_latest.json / fred_history / nuclear_sites.json …）
+└── dist/                    ← 构建产物
 ```
 
-## 3. 数据接口契约（读侧 · 只读）
+---
 
-- 读取根 `DATA_BASE_URL`，默认 `./data/`（含 `public/data` 开发快照），部署改指向 NAS 只读挂载。
-- 4 个 feed：`grv` / `news` / `fred` / `simTrigger`，schema 均 `1.0`。
-- 字段定义、CSV 格式、扩展方式、部署细节 → **权威标准见 [`docs/DATA_CONTRACT.md`](./docs/DATA_CONTRACT.md)**。
+## 数据契约
 
-## 4. 扩展标准（新增信息只加注册项、不改布局）
+- 权威标准：`docs/DATA_CONTRACT.md`
+- feed 统一入口：`src/config/dataSources.ts` → `useFeed()` 自动读取
+- 字段容错降级：`null` / 缺失 → 空数组 / fallback 值，不白屏
+- `schema_version`：读取层比对告警，不阻塞渲染
 
-1. **统一读取层** `useFeed(feedName)`：`src/hooks/useFeed.ts` + `src/lib/readLayer.ts`。新增 feed 只在 `src/config/dataSources.ts` 的 `FEEDS` 登记一项，读取层不动。
-2. **面板注册表** `panelRegistry`（`src/panels/registry.ts`）：每面板 = 组件 + 注册项（`id/title/feed/order/visible/className`）。新增面板只加一项，`App.tsx` 网格布局不变。
-3. **字段容错**：缺失 → 「数据缺失」占位 + 状态条告警，不白屏 / 不崩。
-4. **schema 版本**：每个 feed JSON 带 `schema_version`（Wave1 = `1.0`）；breaking change 须 bump，读取层比对并告警。
-5. **数据契约权威文档** `docs/DATA_CONTRACT.md`：后续扩展的唯一标准（读侧 feed + 写侧指令通道）。
+---
 
-### 加一个新面板
+## 测试
 
-1. 在 `src/components/` 写组件，用 `useFeed` 取数；
-2. 在 `src/panels/registry.ts` 加一条注册项（`id/title/feed/order/visible`）。完成——布局无需改动。
+```bash
+npm test          # 297 passed（1.6.0 基线，1.7.0 未改测试）
+```
 
-### 加一个新 feed
+## 部署
 
-1. 在 `src/config/dataSources.ts` 的 `FEEDS` 登记一项（文件名 / schema_version / 解析器）；
-2. 同步更新 `docs/DATA_CONTRACT.md` 的 Feed 注册表与字段定义。读取层无需改动。
+纯静态前端，端口 `:3118`：
 
-## 5. 维护铁律
-
-- **改前必读**：`AGENTS.md` + `docs/DATA_CONTRACT.md` + `docs/DESIGN.md`。
-- **改后必记**：① bump `VERSION`；② 在 `CHANGELOG.md` 追加一条（改了什么 / 为什么 / 不动什么）；③ 若接口或架构变动，同步更新 `docs/` 两份文档。
-- **禁止**：把获取逻辑写进开阳（爬虫 / fetcher / 外部 API）；把其它项目源码带入；硬编码部署路径；在开阳内实现后端业务逻辑（只发令、后端执行）。
-- **构建验证**：提交前 `npm run build` 必须绿（tsc --noEmit + vite build）。
-
-## 6. 阅读顺序建议
-
-`README.md` → `docs/DESIGN.md`（定位与边界）→ `docs/DATA_CONTRACT.md`（数据接口 + 指令通道）→ `src/config/dataSources.ts` + `src/panels/registry.ts`（扩展锚点）→ `src/lib/readLayer.ts` + `src/hooks/useFeed.ts`（读取层）。
+```bash
+npm install && npm run build
+# 产物在 dist/，任意静态服务器挂载即可
+```

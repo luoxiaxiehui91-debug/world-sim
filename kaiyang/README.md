@@ -6,7 +6,7 @@
 - **永不自行获取**：开阳**永不**直接调用数据源 / 爬虫 / 外部 API，唯一数据来源是只读契约文件（部署经 `DATA_BASE_URL` 只读挂载）。
 - **独立子项目**：位于 `S:\world-sim\kaiyang`，与 `macro-scan` / `macro-sim` 平级，纳入 world-sim monorepo。代码层与天枢 / 天璇 / 天玑 / crucix **完全隔离**（用户硬性铁律）。
 
-> 设计总纲见 [`docs/DESIGN.md`](./docs/DESIGN.md)；数据契约权威标准见 [`docs/DATA_CONTRACT.md`](./docs/DATA_CONTRACT.md)；AI 协作者入口见 [`AGENTS.md`](./AGENTS.md)；变更记录见 [`CHANGELOG.md`](./CHANGELOG.md)。
+> 设计总纲见 [`docs/DESIGN.md`](./docs/DESIGN.md)；数据契约权威标准见 [`docs/DATA_CONTRACT.md`](./docs/DATA_CONTRACT.md)；AI 协作者入口见 [`AGENTS.md`](./AGENTS.md)；变更记录见 [`CHANGELOG.md`](./CHANGELOG.md)；任务路线图见 [`ROADMAP.md`](./ROADMAP.md)。
 
 ---
 
@@ -38,5 +38,17 @@ npm run preview    # 预览构建产物
 
 ## 当前状态
 
-- **Wave 1（已完成，构建通过）**：3D 地球 + GRV + 经济 + 新闻四面板，基于天枢现有数据；操作面板定位与受控指令通道框架已就位（协议暂缓，待后端闭环）。
-- **Wave 2（待启动）**：接入天璇 / 天玑 / macro-sim 新格式输出，新增面板 = 只加注册项，不改布局。
+**`VERSION = 1.7.0`**（2026-08-02），297 测试通过。
+
+```
+Wave1 ✅ | Wave2 P0 ✅（控制面 + crucix 分类图层+核设施 139/139）
+         | Wave2 P1 ✅（战略要地 → 地区Tab/KPI/信号 → 指标树）
+         | 1.6.0  ✅（§4.5 清扫 + news_geo 骨架 + 决策矩阵）
+         | 1.7.0  ✅（NaN 崩溃修复 + 抽屉关闭 + ErrorBoundary + 2D 移除）
+         | 剩余 P1/P2 ⏸ 卡在后端 feed
+```
+
+- **分类图层 12 类**（osint 已删），D1 颜色编码方案 A 永久锁定
+- **3D 地球**正常工作，**2D 平面地图已移除**（CartoDB/ESRI/OSM/Voyager 瓦片全覆盖不可接受，组件备恢复）
+- **news_geo 读取层骨架**已就绪（1.6.0），等天枢 GDELT geo feed 到位后免改代码自动上图
+- **控制面** Mock 自闭环（`MOCK_ENABLED=true`），后端 API 就绪后改一行切真实

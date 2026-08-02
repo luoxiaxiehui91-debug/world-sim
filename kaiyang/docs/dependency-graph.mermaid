@@ -1,0 +1,55 @@
+graph TD
+    subgraph P0["P0 · 本轮交付（零新依赖 · 不阻塞后端）"]
+        T1["T-U01 分类图层地基<br/>config + 类型 + 令牌"]
+        T2["T-U02 数据层类别化<br/>mapData 承接 D1"]
+        T3["T-U03 核设施图层<br/>+ Nuclear Watch 面板"]
+        T4["T-U04 图例·开关·渲染器<br/>D1 视觉闭环"]
+        T5["T-U05 契约·文档·交付闸门"]
+    end
+
+    subgraph P1["P1 · 前端为主"]
+        R11["R-P1-01 战略要地 + 菱形体系"]
+        R12["R-P1-02 地区 Tab"]
+        R13["R-P1-03 顶栏 KPI + 信号联动"]
+        R14["R-P1-04 新闻上图 + 冲突图层"]
+    end
+
+    subgraph P2["P2 · 后端 feed 门控为主"]
+        R21["R-P2-01 LayerContext + 左侧指标树"]
+        R22["R-P2-02 抽稀 / 聚类引擎"]
+        R23["R-P2-03 七类图层逐类接入"]
+        R24["R-P2-04 底部信息带"]
+    end
+
+    T1 --> T2
+    T1 --> T3
+    T2 --> T3
+    T2 --> T4
+    T3 --> T4
+    T4 --> T5
+
+    T4 --> R11
+    T4 --> R12
+    T4 --> R13
+    R11 --> R14
+    R13 --> R21
+    R21 --> R22
+    R22 --> R23
+    R21 --> R24
+
+    BE1[["后端：news_export.json 补 lat/lng"]] -.门控.-> R14
+    BE2[["后端：conflict_events.json"]] -.门控.-> R14
+    BE3[["后端：nuclear_sites.json readings"]] -.仅读数.-> T3
+    BE4[["后端：7 类图层 feed"]] -.门控.-> R23
+    BE5[["后端：market_quotes / 风险仪表序列"]] -.门控.-> R24
+
+    style T1 fill:#0d9488,color:#fff
+    style T2 fill:#0d9488,color:#fff
+    style T3 fill:#0d9488,color:#fff
+    style T4 fill:#0d9488,color:#fff
+    style T5 fill:#0d9488,color:#fff
+    style BE1 fill:#7c2d12,color:#fff
+    style BE2 fill:#7c2d12,color:#fff
+    style BE3 fill:#7c2d12,color:#fff
+    style BE4 fill:#7c2d12,color:#fff
+    style BE5 fill:#7c2d12,color:#fff

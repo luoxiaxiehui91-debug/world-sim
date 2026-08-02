@@ -3,7 +3,7 @@ import type { EChartsOption } from 'echarts';
 import { EChart } from '@/components/EChart';
 import { useFeed } from '@/hooks/useFeed';
 import { adaptGrv } from '@/lib/grvAdapter';
-import { severityColor, withAlpha } from '@/config/theme';
+import { PALETTE, severityColor, withAlpha } from '@/config/theme';
 import { fmtNum } from '@/lib/format';
 import type { GrvDimension, GrvRaw } from '@/types/contracts';
 
@@ -115,7 +115,7 @@ export function GrvPanel() {
             const end = api.coord([val + half, catIdx]) as [number, number];
             const y = start[1];
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const style: any = { stroke: '#e2e8f0', lineWidth: 1.5, lineCap: 'round' };
+            const style: any = { stroke: PALETTE.axis, lineWidth: 1.5, lineCap: 'round' };
             return {
               type: 'group',
               children: [

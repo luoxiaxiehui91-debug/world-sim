@@ -109,3 +109,115 @@ export interface SimTriggerRaw {
   updated?: string;
   [key: string]: unknown;
 }
+
+/* ------------------------------------------------------------------ */
+/* 核设施 / 辐射监测（nuclear_sites.json，1.2.0 新增）                  */
+/* ------------------------------------------------------------------ */
+
+/** 辐射分级。后端优先给；缺失时前端按 baseline 倍数推断，再缺失则 'unknown'。 */
+export type NuclearLevel = 'normal' | 'elevated' | 'alert' | 'unknown';
+
+/** 核设施站点（nuclear_sites.json 的 sites[]；后端未就绪时用前端静态种子）。 */
+export interface NuclearSite {
+  /** 站点唯一 id（英文 kebab，如 'zaporizhzhia'） */
+  id: string;
+  /** 中文站名（显示用） */
+  name: string;
+  /** 英文/原文名（可选，tooltip 副标题） */
+  name_en?: string;
+  /** 国家/地区中文名 */
+  country: string;
+  /** 纬度，小数 4 位（≈11m） */
+  lat: number;
+  /** 经度，小数 4 位 */
+  lng: number;
+  /** 站点类型：npp=核电站 / monitor=辐射监测站 / legacy=事故遗址 */
+  type?: 'npp' | 'monitor' | 'legacy';
+  /** 补充说明 */
+  note?: string;
+}
+
+/** 核设施辐射读数（nuclear_sites.json 的 readings[]；后端未就绪时整段缺失，前端降级「—」）。 */
+export interface NuclearWatchReading {
+  /** 关联 NuclearSite.id */
+  site_id: string;
+  /** 辐射读数；null / 字段缺失 = 无数据，面板显示「—」 */
+  reading: number | null;
+  /** 读数单位，如 'µSv/h' | 'nSv/h' | 'CPM'。缺失时面板不显示单位 */
+  unit?: string;
+  /** 本底参考值（可选，用于算倍数） */
+  baseline?: number | null;
+  /** 该读数的观测时间，ISO 8601 UTC */
+  updated?: string;
+  /** 后端给出的分级；缺失时前端按 baseline 倍数推断，再缺失则 'unknown' */
+  level?: NuclearLevel;
+}
+
+/** nuclear_sites.json 顶层（sites / readings 均可选：整文件缺失或空数组均须优雅降级）。 */
+export interface NuclearSitesRaw {
+  schema_version?: string;
+  updated?: string;
+  sites?: NuclearSite[];
+  readings?: NuclearWatchReading[];
+}
+
+/* ------------------------------------------------------------------ */
+/* 地理化新闻事件（news_geo.json，1.6.0 新增，详见 docs/DATA_CONTRACT.md §2.7）*/
+/* ------------------------------------------------------------------ */
+
+/** 地理化新闻事件（GDELT ActionGeo 派生）。 */
+export interface NewsGeoEvent {
+  id: string;
+  /** 纬度，4 位小数（≈11m） */
+  lat: number;
+  /** 经度，4 位小数 */
+  lng: number;
+  /** 事件类别：天枢负责把 CAMEO 码映射到四类枚举；开阳对未知取值不猜 */
+  event_type: string;
+  /** 强度 0~100，与 §2.5 严重度同量纲；归一口径由天枢给定 */
+  intensity: number;
+  /** 国家/地区，建议用 ActionGeo_CountryCode */
+  country: string;
+  /** 该事件被提及次数（GDELT NumMentions），可作二级权重 */
+  mention_count?: number;
+  /** GKG 主题标签；缺失则整字段省略 */
+  theme?: string;
+  /** ActionGeo_FullName；缺失时回落显示 country */
+  location_name?: string;
+  /** 事件日期（GDELT SQLDATE），用于时间窗筛选 */
+  event_date?: string;
+}
+
+/** news_geo.json 顶层（events 必填；空数组是合法业务态）。 */
+export interface NewsGeoRaw {
+  schema_version?: string;
+  updated?: string;
+  events: NewsGeoEvent[];
+}
+
+/* ------------------------------------------------------------------ */
+/* 市场报价（market_quotes.json，1.6.0 新增 / 读取层预埋无面板）           */
+/* ------------------------------------------------------------------ */
+
+/** 单个品种报价快照。 */
+export interface MarketQuote {
+  /** 品种代码（如 'GC=F' 黄金 / 'CL=F' 原油 / '000001.SS' 沪深300） */
+  symbol: string;
+  /** 中文/英文显示名 */
+  name: string;
+  /** 最新价；null = 该品种本轮无报价（不删除该行，保留快照结构） */
+  price: number | null;
+  /** 当日涨跌幅 (%)；缺失时面板显示「—」 */
+  change_pct?: number | null;
+  /** 报价时间 ISO 8601 */
+  updated?: string;
+  /** 品种类别（'metal' | 'energy' | 'index' | ...），仅用于将来面板分组；当前无面板 */
+  category?: string;
+}
+
+/** market_quotes.json 顶层（quotes[] 可选：整文件缺失或空数组均须优雅降级）。 */
+export interface MarketQuotesRaw {
+  schema_version?: string;
+  updated?: string;
+  quotes?: MarketQuote[];
+}

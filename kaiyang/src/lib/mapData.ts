@@ -1,4 +1,11 @@
 import { GRV_ARCS, getDimDef } from '@/config/grvDimensions';
+import {
+  categoryColor,
+  categoryLabel,
+  categoryShape,
+  resolvePointStatus,
+} from '@/config/layerCategories';
+import type { LayerCategory, PointShape, PointStatus } from '@/config/layerCategories';
 import { PALETTE, severityColor, severityLabel, withAlpha } from '@/config/theme';
 import { fmtNum } from '@/lib/format';
 import type { GrvDimension, GrvEvent } from '@/types/contracts';
@@ -8,22 +15,42 @@ import type { GrvDimension, GrvEvent } from '@/types/contracts';
  * 目的：两种视图使用完全相同的点位/弧线/配色/提示逻辑，避免重复实现导致观感不一致。
  * 关键规则：只有 kind='geographic' 且坐标齐全的维度才会出现在地图上；
  * composite（全球综合 / 全球南方）不投影，改由 GRV 面板与状态条展示。
+ *
+ * 视觉双轴（决策 D1）在本层**预计算**成扁平字段，渲染器只做直读：
+ * - 色相 = `category` → `color`（缺失态覆盖为灰，决策 C2-A）
+ * - 强度 = `weight`   → 尺寸 / 光环 / 脉冲速率
+ * 渲染器不得反查类别定义（K6），这是「3D 与 2D 观感永远一致」的既有保证机制。
  */
 
 export interface RiskPoint {
+  /** 全局唯一点位 id，格式 `${category}:${原始id}`（K2 命名空间前缀，多图层合并时防撞车） */
   id: string;
   label: string;
+  /** 纬度，小数 4 位约定（K4） */
   lat: number;
+  /** 经度，小数 4 位约定（K4） */
   lng: number;
+  /** 严重度数值，统一 0~100 量纲（K3）；null = 数据缺失 */
   value: number | null;
   uncertainty: number | null;
   uncertaintyEstimated: boolean;
   group: string;
-  status: 'ok' | 'missing';
+  /** 数据状态；'missing' 是元状态，会覆盖类别色为灰（C2-A） */
+  status: PointStatus;
+  /** 预计算色值：categoryColor(category, status)。渲染器只读此字段 */
   color: string;
+  // severity = 展示标签，勿用于着色数学；weight = 唯一数值强度
+  /** 严重度**等级标签**（'低'|'中'|'高'|'缺失'）。⚠ 纯展示，禁止参与着色 / 尺寸数学 */
   severity: string;
-  /** 归一化强度 0~1（缺失按 0） */
+  // severity = 展示标签，勿用于着色数学；weight = 唯一数值强度
+  /** 归一化强度 0~1（缺失按 0）。★ 唯一数值强度驱动源：尺寸 / 环半径 / 高度 / 脉冲速率只认它 */
   weight: number;
+  /** 图层类别（D1 色相载体）。缺省视为 'geo'，保证旧数据不炸 */
+  category: LayerCategory;
+  /** 符号形状；缺省取 categoryDef(category).shape */
+  shape?: PointShape;
+  /** 类别内的原生度量原文（如 "0.12 µSv/h" / "37 人死亡"），仅供 tooltip 展示，不参与计算 */
+  rawMetric?: string;
   /** 是否为事件触发式告警柱（气候 / 灾害事件），视觉与文案区别于常驻地缘柱 */
   isEvent?: boolean;
   /** 事件补充说明（仅 isEvent 点可能存在） */
@@ -47,17 +74,27 @@ export interface RiskArc {
 /** 高严重度阈值（用于常驻标签 / 光环）。 */
 export const HIGHLIGHT_THRESHOLD = 55;
 
-/** 由维度列表构建地图点位（自动过滤 composite 与缺坐标项）。 */
-export function buildRiskPoints(dims: GrvDimension[]): RiskPoint[] {
+/**
+ * 由维度列表构建地图点位（自动过滤 composite 与缺坐标项）。
+ * 类别恒为 'geo'；id 带 `geo:` 命名空间前缀（K2）。
+ * 入参为 nullish 时返回空数组（K5 降级红线：任何路径不抛异常）。
+ */
+export function buildRiskPoints(dims: GrvDimension[] | null | undefined): RiskPoint[] {
+  if (!dims || dims.length === 0) return [];
   const out: RiskPoint[] = [];
   for (const d of dims) {
+    if (!d) continue;
     if (d.kind !== 'geographic') continue;
     // renderBar=false 的维度（气候/自然灾害）不画常驻柱，改由事件触发式告警柱表达
     if (getDimDef(d.id)?.renderBar === false) continue;
     if (d.lat === null || d.lng === null) continue;
+    // 坐标必须是有限数（K4）：配置/上游异常时跳过该点，而非画到 (0,0)
+    if (!Number.isFinite(d.lat) || !Number.isFinite(d.lng)) continue;
     const v = d.value;
+    // 元状态判定（C2-A）：上游 missing 或数值非有限，一律按缺失处理
+    const status = resolvePointStatus(d.status, v);
     out.push({
-      id: d.id,
+      id: `geo:${d.id}`,
       label: d.label,
       lat: d.lat,
       lng: d.lng,
@@ -65,10 +102,12 @@ export function buildRiskPoints(dims: GrvDimension[]): RiskPoint[] {
       uncertainty: d.uncertainty,
       uncertaintyEstimated: d.uncertaintyEstimated,
       group: d.group,
-      status: d.status,
-      color: severityColor(v),
+      status,
+      color: categoryColor('geo', status),
       severity: severityLabel(v),
       weight: v === null ? 0 : Math.min(1, Math.max(0, v / 100)),
+      category: 'geo',
+      shape: categoryShape('geo'),
     });
   }
   return out;
@@ -88,7 +127,7 @@ export function buildEventBars(events?: GrvEvent[]): RiskPoint[] {
     // 会渲染出高度异常/不可见却显示「低」等级的误导性告警柱，与坐标无效跳过保持同一语义
     if (!Number.isFinite(e?.value)) continue;
     out.push({
-      id: e.id,
+      id: `event:${e.id}`,
       label: e.label,
       lat: e.lat,
       lng: e.lng,
@@ -97,9 +136,12 @@ export function buildEventBars(events?: GrvEvent[]): RiskPoint[] {
       uncertaintyEstimated: false,
       group: e.type === 'disaster' ? '自然灾害' : '气候',
       status: 'ok',
-      color: severityColor(e.value),
+      // 已在上方通过 Number.isFinite 双校验，此处 status 恒为 'ok'
+      color: categoryColor('event', 'ok'),
       severity: severityLabel(e.value),
       weight: Math.min(1, Math.max(0, e.value / 100)),
+      category: 'event',
+      shape: categoryShape('event'),
       isEvent: true,
       note: e.note,
     });
@@ -149,13 +191,20 @@ export function pointTooltipHtml(p: RiskPoint): string {
     `box-shadow:0 0 18px ${withAlpha(p.color, 0.28)};color:${PALETTE.text};` +
     `padding:6px 10px;border-radius:8px;white-space:nowrap;">`;
 
+  // 类别行：告诉用户「这个色相代表哪一层」，是 D1 双轴的可读性兜底
+  const catLine = `<span style="opacity:.6">图层类别 ${categoryLabel(p.category)}</span>`;
+  // 原生度量行：仅在构建函数显式提供时出现（如核读数 "0.12 µSv/h"），不参与任何计算
+  const rawLine = p.rawMetric ? `<br/><span style="opacity:.6">原始读数 ${p.rawMetric}</span>` : '';
+
   if (p.isEvent) {
     const noteLine = p.note ? `<br/><span style="opacity:.6">详情：${p.note}</span>` : '';
     return (
       shell +
       `<b style="color:${p.color}">⚠ ${p.label}</b>` +
       `<span style="opacity:.5;margin-left:6px">事件类型：${p.group}</span><br/>` +
-      `事件严重度 <b>${val}</b> · 等级 ${p.severity}` +
+      `事件严重度 <b>${val}</b> · 等级 ${p.severity}<br/>` +
+      catLine +
+      rawLine +
       noteLine +
       `</div>`
     );
@@ -170,7 +219,9 @@ export function pointTooltipHtml(p: RiskPoint): string {
     `<b style="color:${p.color}">${p.label}</b>` +
     `<span style="opacity:.5;margin-left:6px">${p.group}</span><br/>` +
     `风险值 <b>${val}</b> · 等级 ${p.severity}<br/>` +
-    `<span style="opacity:.6">不确定区间 ${unc}</span>` +
+    catLine +
+    rawLine +
+    `<br/><span style="opacity:.6">不确定区间 ${unc}</span>` +
     `</div>`
   );
 }

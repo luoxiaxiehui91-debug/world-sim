@@ -1,342 +1,507 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import L from 'leaflet';
+import { MAP_THEME, withAlpha } from '@/config/theme';
+import { regionBbox, type RegionKey } from '@/config/regions';
 import {
-  geoEquirectangular,
-  geoGraticule10,
-  geoInterpolate,
-  geoPath,
-  type GeoPermissibleObjects,
-  type GeoProjection,
-  type GeoSphere,
-} from 'd3-geo';
-import { feature } from 'topojson-client';
-import type { FeatureCollection, Geometry } from 'geojson';
-import type { GeometryCollection, Topology } from 'topojson-specification';
-import { MAP_THEME, PALETTE, withAlpha } from '@/config/theme';
-import { HIGHLIGHT_THRESHOLD, type RiskArc, type RiskPoint } from '@/lib/mapData';
-import { fmtNum } from '@/lib/format';
+  HIGHLIGHT_THRESHOLD,
+  type RiskArc,
+  type RiskPoint,
+  pointTooltipHtml,
+  arcTooltipHtml,
+} from '@/lib/mapData';
+import {
+  siteScale,
+  siteTooltipText,
+  type StrategicSite,
+} from '@/data/strategicSites';
+import './FlatMapPanel.css';
 
 /**
- * 2D 平面世界地图视图（d3-geo + topojson-client + world-atlas，均为 MIT/ISC）。
+ * 2D 平面世界地图视图（Leaflet 原生渲染，Wave 2 1.7.0 迁移自 d3-geo + SVG）。
+ *
  * 与 3D 地球共用同一份点位/弧线数据与配色（lib/mapData.ts），信息密度更高、一眼看全。
  *
- * 离线：国界数据取自 world-atlas 的 countries-110m.json，已随包拷贝到 public/assets/，
- * 运行时按相对路径读取，不依赖任何外网 CDN。
+ * ⚠ 渲染器只读约定（K6）：本组件**只直读** `p.color / p.weight / p.shape / p.status`，
+ * 不 import `config/layerCategories`。类别 → 色/形/强度的换算全部在构建层完成，
+ * 保证与 3D 地球观感严格一致。
  */
 
-/** world-atlas countries-110m（构建产物内的静态资源，相对路径，离线可用）。 */
-const WORLD_TOPO_URL = `${import.meta.env.BASE_URL}assets/countries-110m.json`;
+/** 脉冲周期区间（秒）：weight 越高越快，对应「强度 = 脉冲速率」这一半双轴。 */
+const PULSE_SLOW_S = 3.2;
+const PULSE_FAST_S = 1.1;
+
+/** 要地星形符号基准外接半径（像素），再乘 siteScale(importance)。 */
+const SITE_STAR_RADIUS = 4.4;
+
+/** 大圆弧采样点数 */
+const ARC_SAMPLES = 56;
 
 export interface FlatMapPanelProps {
   points: RiskPoint[];
   arcs: RiskArc[];
+  /** 战略要地叠加层（独立于类别色轴；上层关掉开关时传空数组） */
+  sites?: StrategicSite[];
   /** 当前是否为可见视图；隐藏时清除 hover 状态（默认 true） */
   active?: boolean;
+  /** 地区取景（R-P1-02）：`world` 用整球 fitBounds，其余按 bbox 矩形 flyToBounds（默认 world） */
+  region?: RegionKey;
+  /** 聚焦点位 id（R-P1-03）：命中点加一圈聚焦光环；null = 不聚焦 */
+  focusPointId?: string | null;
+  /** 点击点位回调（供上层反向选中；未传则点位不可点击） */
+  onPointClick?: (point: RiskPoint) => void;
 }
 
-interface Size {
-  width: number;
-  height: number;
-}
+/**
+ * 球面线性插值：在两点之间沿大圆路径采样，生成折线坐标序列。
+ * 效果与 d3-geo 的 `geoInterpolate` 等价。
+ */
+function greatCircleArc(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+  samples: number = ARC_SAMPLES,
+): [number, number][] {
+  const toRad = Math.PI / 180;
+  const φ1 = lat1 * toRad;
+  const λ1 = lng1 * toRad;
+  const φ2 = lat2 * toRad;
+  const λ2 = lng2 * toRad;
 
-interface HoverState {
-  point: RiskPoint;
-  x: number;
-  y: number;
-}
+  // 球面角距
+  const Δφ = φ2 - φ1;
+  const Δλ = λ2 - λ1;
+  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  const δ = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-const SPHERE: GeoSphere = { type: 'Sphere' };
-const PADDING = 6;
-/** 大圆弧采样点数 */
-const ARC_SAMPLES = 56;
-
-/** 把大圆弧投影成若干条折线（跨 180° 经线处断开，避免横穿整幅地图）。 */
-function buildArcPolylines(projection: GeoProjection, arc: RiskArc, width: number): string[] {
-  const interpolate = geoInterpolate([arc.startLng, arc.startLat], [arc.endLng, arc.endLat]);
-  const segments: string[] = [];
-  let current: string[] = [];
-  let prevX: number | null = null;
-
-  for (let i = 0; i <= ARC_SAMPLES; i++) {
-    const [lng, lat] = interpolate(i / ARC_SAMPLES);
-    const projected = projection([lng, lat]);
-    if (!projected) {
-      if (current.length > 1) segments.push(current.join(' '));
-      current = [];
-      prevX = null;
-      continue;
-    }
-    const [x, y] = projected;
-    if (prevX !== null && Math.abs(x - prevX) > width / 2) {
-      if (current.length > 1) segments.push(current.join(' '));
-      current = [];
-    }
-    current.push(`${current.length === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`);
-    prevX = x;
+  if (δ < 1e-12) {
+    // 两点几乎重合，直接返回直线
+    return [
+      [lat1, lng1],
+      [lat2, lng2],
+    ];
   }
-  if (current.length > 1) segments.push(current.join(' '));
-  return segments;
+
+  const sinδ = Math.sin(δ);
+  const result: [number, number][] = [];
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples;
+    const A = Math.sin((1 - t) * δ) / sinδ;
+    const B = Math.sin(t * δ) / sinδ;
+    const x = A * Math.cos(φ1) * Math.cos(λ1) + B * Math.cos(φ2) * Math.cos(λ2);
+    const y = A * Math.cos(φ1) * Math.sin(λ1) + B * Math.cos(φ2) * Math.sin(λ2);
+    const z = A * Math.sin(φ1) + B * Math.sin(φ2);
+    const φ = Math.atan2(z, Math.sqrt(x * x + y * y));
+    const λ = Math.atan2(y, x);
+    result.push([φ / toRad, λ / toRad]);
+  }
+  return result;
 }
 
-export function FlatMapPanel({ points, arcs, active = true }: FlatMapPanelProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [size, setSize] = useState<Size>({ width: 0, height: 0 });
-  const [land, setLand] = useState<FeatureCollection<Geometry> | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [hover, setHover] = useState<HoverState | null>(null);
+/**
+ * 将像素半径转换为地理度数偏移（在指定纬度处）。
+ * Web Mercator 投影下 longitude 度/像素 = 360 / (256 * 2^z)，
+ * latitude 近似相同（对小符号可忽略 Mercator 纬向拉伸）。
+ */
+function pixelToDeg(pixelRadius: number, zoom: number): number {
+  if (isNaN(zoom) || zoom <= 0) return pixelRadius * (360 / 256);
+  return pixelRadius * (360 / (256 * Math.pow(2, zoom)));
+}
 
-  // 容器尺寸跟踪
+export function FlatMapPanel({
+  points,
+  arcs,
+  sites = [],
+  active = true,
+  region = 'world',
+  focusPointId = null,
+  onPointClick,
+}: FlatMapPanelProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const pointLayerRef = useRef<L.LayerGroup | null>(null);
+  const arcLayerRef = useRef<L.LayerGroup | null>(null);
+  const siteLayerRef = useRef<L.LayerGroup | null>(null);
+  const focusRingRef = useRef<L.LayerGroup | null>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(3);
+  const [mapReady, setMapReady] = useState(false);
+  const zoomLevelRef = useRef<number>(3);
+
+  /* ── 地图初始化 ──────────────────────────────────────────── */
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const apply = () => {
-      const width = el.clientWidth || el.parentElement?.clientWidth || 0;
-      const height = el.clientHeight || el.parentElement?.clientHeight || 0;
-      setSize((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
-    };
-    apply();
-    const ro = new ResizeObserver(apply);
+
+    let mapForCleanup: L.Map | null = null;
+    let ro: ResizeObserver | null = null;
+
+    try {
+    const map = L.map(el, {
+      center: [22, 70],
+      zoom: 3,
+      minZoom: 2,
+      maxZoom: 8,
+      zoomControl: true,
+      attributionControl: false,
+    });
+
+    if (!map) throw new Error('L.map 返回 null');
+    mapForCleanup = map;
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      subdomains: 'abcd',
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+      maxZoom: 8,
+      keepBuffer: 4,
+    }).addTo(map);
+
+    map.doubleClickZoom.disable();
+    map.on('dblclick', () => map.fitBounds([[-90, -180], [90, 180]]));
+    map.on('zoomend', () => {
+      const z = map.getZoom();
+      zoomLevelRef.current = z;
+      setZoomLevel(z);
+    });
+
+    // 创建图层组：自上而下 arc → point → site → focusRing
+    const arcLayer = L.layerGroup().addTo(map);
+    const pointLayer = L.layerGroup().addTo(map);
+    const siteLayer = L.layerGroup().addTo(map);
+    const focusRing = L.layerGroup().addTo(map);
+
+    mapRef.current = map;
+    arcLayerRef.current = arcLayer;
+    pointLayerRef.current = pointLayer;
+    siteLayerRef.current = siteLayer;
+    focusRingRef.current = focusRing;
+    const initZoom = map.getZoom();
+    zoomLevelRef.current = initZoom;
+    setZoomLevel(initZoom);
+    setMapReady(true);
+
+    // ResizeObserver → invalidateSize
+    ro = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
     ro.observe(el);
-    const raf = requestAnimationFrame(apply);
+
+    // react-grid-layout 延迟渲染 → 容器可能 0 高度时初始化地图
+    // 用双重 rAF 确保在布局稳定后再 invalidateSize
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        map?.invalidateSize();
+      });
+    });
+
+    } catch (err) {
+      console.error('FlatMapPanel 地图初始化失败', err);
+      setMapReady(false);
+    }
+
     return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
+      ro?.disconnect();
+      mapForCleanup?.remove();
+      mapRef.current = null;
+      arcLayerRef.current = null;
+      pointLayerRef.current = null;
+      siteLayerRef.current = null;
+      focusRingRef.current = null;
+      setMapReady(false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 国界拓扑加载（失败时降级为「只有经纬网格 + 点位」的地图，不阻断渲染）
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const res = await fetch(WORLD_TOPO_URL);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const topo = (await res.json()) as Topology;
-        if (cancelled) return;
-        const countries = topo.objects?.countries as GeometryCollection | undefined;
-        if (!countries) throw new Error('countries 图层缺失');
-        const fc = feature(topo, countries) as unknown as FeatureCollection<Geometry>;
-        setLand(fc);
-        setLoadError(null);
-      } catch (e) {
-        if (cancelled) return;
-        setLoadError(e instanceof Error ? e.message : String(e));
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  /* ── region prop → flyTo ────────────────────────────────── */
 
-  // 切走时清掉悬停卡片，避免隐藏视图残留提示
   useEffect(() => {
-    if (!active) setHover(null);
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    // ⛔ react-grid-layout 0 高度时 flyToBounds 会算出 NaN 像素 → 崩
+    const size = map.getSize();
+    if (size.x <= 0 || size.y <= 0) {
+      // 推迟到下次 invalidateSize 完成后再飞
+      setTimeout(() => {
+        if (mapRef.current && mapRef.current.getSize().x > 0) {
+          if (region === 'world') {
+            mapRef.current.flyToBounds([[-90, -180], [90, 180]], { duration: 0.8 });
+          } else {
+            const bbox = regionBbox(region);
+            if (bbox) {
+              const [minLng, minLat, maxLng, maxLat] = bbox;
+              mapRef.current.flyToBounds([[minLat, minLng], [maxLat, maxLng]], { duration: 0.8, padding: [6, 6] });
+            }
+          }
+        }
+      }, 300);
+      return;
+    }
+
+    if (region === 'world') {
+      map.flyToBounds([[-90, -180], [90, 180]], { duration: 0.8 });
+      return;
+    }
+
+    const bbox = regionBbox(region);
+    if (bbox) {
+      const [minLng, minLat, maxLng, maxLat] = bbox;
+      map.flyToBounds(
+        [
+          [minLat, minLng],
+          [maxLat, maxLng],
+        ],
+        { duration: 0.8, padding: [6, 6] },
+      );
+    }
+  }, [region, mapReady]);
+
+  /* ── active 显隐控制 ─────────────────────────────────────── */
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.style.display = active ? '' : 'none';
+    // ⛔ 切到 2D 视图时 Leaflet 容器尺寸缓存可能仍为 0 → 强制刷新
+    if (active) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const m = mapRef.current;
+          if (!m) return;
+          m.invalidateSize();
+        });
+      });
+    }
   }, [active]);
 
-  const { width, height } = size;
+  /* ── 切走时清除地图 hover（Leaflet 自带 tooltip 会自动消失）──── */
 
-  const projection = useMemo<GeoProjection | null>(() => {
-    if (width <= 0 || height <= 0) return null;
-    return geoEquirectangular().fitExtent(
-      [
-        [PADDING, PADDING],
-        [width - PADDING, height - PADDING],
-      ],
-      SPHERE,
-    );
-  }, [width, height]);
+  /* ── RiskPoint → CircleMarker / Polygon ──────────────────── */
 
-  const pathGen = useMemo(() => (projection ? geoPath(projection) : null), [projection]);
+  const buildPointLayer = useCallback(() => {
+    const layer = pointLayerRef.current;
+    const map = mapRef.current;
+    if (!layer || !map || !mapReady) return;
 
-  const spherePath = useMemo(
-    () => (pathGen ? pathGen(SPHERE as unknown as GeoPermissibleObjects) ?? '' : ''),
-    [pathGen],
-  );
+    layer.clearLayers();
+    const zoom = zoomLevelRef.current;
 
-  const graticulePath = useMemo(
-    () => (pathGen ? pathGen(geoGraticule10() as unknown as GeoPermissibleObjects) ?? '' : ''),
-    [pathGen],
-  );
+    for (const p of points) {
+      // ⛔ NaN 坐标降级跳过（防止 Invalid LatLng 崩溃）
+      if (isNaN(p.lat) || isNaN(p.lng)) continue;
+      const missing = p.status === 'missing';
+      const core = (2.6 + p.weight * 3.4) * (p.isEvent ? 1.25 : 1) * 1.5;
+      const halo = core * 3.2;
+      const highlight =
+        !missing && ((p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent === true);
 
-  const landPaths = useMemo<string[]>(() => {
-    if (!pathGen || !land) return [];
-    const out: string[] = [];
-    for (const f of land.features) {
-      const d = pathGen(f as unknown as GeoPermissibleObjects);
-      if (d) out.push(d);
+      const pulseSec = (PULSE_SLOW_S - p.weight * (PULSE_SLOW_S - PULSE_FAST_S)).toFixed(2);
+
+      const fillColor = missing ? withAlpha(p.color, 0.18) : p.color;
+      const strokeColor = missing ? p.color : withAlpha('#ffffff', 0.5);
+      const strokeWeight = missing ? 1 : 0.6;
+
+      const className = missing
+        ? 'leaflet-point-missing'
+        : highlight
+          ? 'leaflet-point-pulse'
+          : '';
+
+      if (p.shape === 'diamond') {
+        const diamondR = core * 1.4;
+        const offsetDeg = pixelToDeg(diamondR, zoom);
+        const polygon = L.polygon(
+          [
+            [p.lat + offsetDeg, p.lng],
+            [p.lat, p.lng + offsetDeg],
+            [p.lat - offsetDeg, p.lng],
+            [p.lat, p.lng - offsetDeg],
+          ],
+          {
+            fillColor,
+            color: strokeColor,
+            weight: strokeWeight,
+            fillOpacity: 0.85,
+            className,
+            lineJoin: 'round',
+          },
+        );
+
+        if (highlight) {
+          const el = polygon.getElement();
+          if (el) (el as HTMLElement).style.setProperty('--ky-pulse-duration', `${pulseSec}s`);
+        }
+
+        polygon.bindTooltip(pointTooltipHtml(p), {
+          direction: 'top',
+          offset: [0, -diamondR * 2],
+          className: 'leaflet-tooltip-dark',
+        });
+        polygon.on('click', () => onPointClick?.(p));
+        polygon.addTo(layer);
+      } else {
+        // 光环（非缺失态）
+        if (!missing) {
+          L.circleMarker([p.lat, p.lng], {
+            radius: halo,
+            fillColor: p.color,
+            color: 'transparent',
+            weight: 0,
+            fillOpacity: 0.14,
+            interactive: false,
+          }).addTo(layer);
+
+          L.circleMarker([p.lat, p.lng], {
+            radius: core * 1.8,
+            fillColor: p.color,
+            color: 'transparent',
+            weight: 0,
+            fillOpacity: 0.22,
+            interactive: false,
+          }).addTo(layer);
+        } else {
+          // 缺失点：透明命中区保证可悬停
+          L.circleMarker([p.lat, p.lng], {
+            radius: Math.max(halo, 9),
+            fillColor: 'transparent',
+            color: 'transparent',
+            weight: 0,
+            fillOpacity: 0,
+            interactive: true,
+          }).addTo(layer);
+        }
+
+        const marker = L.circleMarker([p.lat, p.lng], {
+          radius: core,
+          fillColor,
+          color: strokeColor,
+          weight: strokeWeight,
+          fillOpacity: 0.85,
+          className,
+        });
+
+        if (highlight) {
+          const el = marker.getElement();
+          if (el) (el as HTMLElement).style.setProperty('--ky-pulse-duration', `${pulseSec}s`);
+        }
+
+        marker.bindTooltip(pointTooltipHtml(p), {
+          direction: 'top',
+          offset: [0, -core],
+          className: 'leaflet-tooltip-dark',
+        });
+        marker.on('click', () => onPointClick?.(p));
+        marker.addTo(layer);
+      }
     }
-    return out;
-  }, [pathGen, land]);
+  }, [points, mapReady, onPointClick]);
 
-  const arcPaths = useMemo(() => {
-    if (!projection || width <= 0) return [];
-    return arcs.flatMap((a) =>
-      buildArcPolylines(projection, a, width).map((d, i) => ({
-        key: `${a.id}-${i}`,
-        d,
-        arc: a,
-      })),
-    );
-  }, [projection, arcs, width]);
+  useEffect(() => {
+    buildPointLayer();
+  }, [buildPointLayer]);
 
-  const projectedPoints = useMemo(() => {
-    if (!projection) return [];
-    return points.flatMap((p) => {
-      const xy = projection([p.lng, p.lat]);
-      if (!xy) return [];
-      return [{ point: p, x: xy[0], y: xy[1] }];
-    });
-  }, [projection, points]);
+  /* ── RiskArc → Polyline ─────────────────────────────────── */
 
-  const ready = width > 0 && height > 0 && projection !== null;
+  useEffect(() => {
+    const layer = arcLayerRef.current;
+    const map = mapRef.current;
+    if (!layer || !map || !mapReady) return;
+
+    layer.clearLayers();
+
+    for (const a of arcs) {
+      if (isNaN(a.startLat) || isNaN(a.startLng) || isNaN(a.endLat) || isNaN(a.endLng)) continue;
+      // 大圆弧采样，效果与 d3-geo 的 geoInterpolate 等价
+      const coords = greatCircleArc(a.startLat, a.startLng, a.endLat, a.endLng);
+      const polyline = L.polyline(coords, {
+        color: a.startColor,
+        weight: 0.9 + (a.intensity / 100) * 1.5,
+        dashArray: '6 10',
+        className: 'leaflet-arc',
+        opacity: 0.75,
+        lineCap: 'round',
+      });
+
+      polyline.bindTooltip(arcTooltipHtml(a), {
+        direction: 'center',
+        className: 'leaflet-tooltip-dark',
+      });
+      polyline.addTo(layer);
+    }
+  }, [arcs, mapReady]);
+
+  /* ── StrategicSite → DivIcon ────────────────────────────── */
+
+  useEffect(() => {
+    const layer = siteLayerRef.current;
+    const map = mapRef.current;
+    if (!layer || !map || !mapReady) return;
+
+    layer.clearLayers();
+
+    for (const s of sites) {
+      if (isNaN(s.lat) || isNaN(s.lng)) continue;
+      const r = SITE_STAR_RADIUS * siteScale(s.importance);
+      const iconSize = Math.round(r * 2);
+
+      const icon = L.divIcon({
+        html: '★',
+        className: 'leaflet-site-icon',
+        iconSize: [iconSize, iconSize],
+        iconAnchor: [iconSize / 2, iconSize / 2],
+      });
+
+      const marker = L.marker([s.lat, s.lng], { icon });
+      marker.bindTooltip(siteTooltipText(s), {
+        direction: 'top',
+        offset: [0, -iconSize / 2],
+        className: 'leaflet-tooltip-dark',
+      });
+      marker.addTo(layer);
+    }
+  }, [sites, mapReady]);
+
+  /* ── focusPointId → 聚焦光环 ────────────────────────────── */
+
+  useEffect(() => {
+    const layer = focusRingRef.current;
+    if (!layer || !mapReady) return;
+
+    layer.clearLayers();
+
+    if (focusPointId === null) return;
+
+    const target = points.find((p) => p.id === focusPointId);
+    if (!target) return;
+    if (isNaN(target.lat) || isNaN(target.lng)) return;
+
+    const core = (2.6 + target.weight * 3.4) * (target.isEvent ? 1.25 : 1) * 1.5;
+    const halo = core * 3.2;
+    const focusR = Math.max(halo * 1.35, 12);
+
+    L.circleMarker([target.lat, target.lng], {
+      radius: focusR,
+      fillColor: 'transparent',
+      color: withAlpha(target.color, 0.9),
+      weight: 1.2,
+      dashArray: '3 3',
+      fillOpacity: 0,
+      interactive: false,
+      className: 'animate-pulseSoft',
+    }).addTo(layer);
+  }, [focusPointId, points, mapReady]);
+
+  /* ── 渲染 ──────────────────────────────────────────────── */
 
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-hidden rounded-xl"
+      className="flat-map-container"
       style={{ background: MAP_THEME.flatOceanFill }}
     >
-      {ready && (
-        <svg width={width} height={height} role="img" aria-label="全球风险平面地图">
-          <defs>
-            {arcs.map((a) => (
-              <linearGradient key={`grad-${a.id}`} id={`arc-grad-${a.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor={a.startColor} stopOpacity={0.9} />
-                <stop offset="100%" stopColor={a.endColor} stopOpacity={0.9} />
-              </linearGradient>
-            ))}
-            <radialGradient id="flat-ocean-glow" cx="50%" cy="50%" r="60%">
-              <stop offset="0%" stopColor={withAlpha(PALETTE.cyan, 0.1)} />
-              <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-            </radialGradient>
-          </defs>
-
-          {/* 海洋 + 球体边界辉光 */}
-          <path d={spherePath} fill="url(#flat-ocean-glow)" stroke={withAlpha(PALETTE.cyan, 0.25)} strokeWidth={1} />
-          {/* 经纬网格 */}
-          <path d={graticulePath} fill="none" stroke={MAP_THEME.flatGraticule} strokeWidth={0.5} />
-          {/* 陆地 */}
-          <g>
-            {landPaths.map((d, i) => (
-              <path
-                key={`land-${i}`}
-                d={d}
-                fill={MAP_THEME.flatLandFill}
-                stroke={MAP_THEME.flatLandStroke}
-                strokeWidth={0.5}
-              />
-            ))}
-          </g>
-          {/* 地缘联动弧线（与 3D 同源同色，虚线流动） */}
-          <g>
-            {arcPaths.map(({ key, d, arc }) => (
-              <path
-                key={key}
-                d={d}
-                className="flat-arc"
-                fill="none"
-                stroke={`url(#arc-grad-${arc.id})`}
-                strokeWidth={0.9 + (arc.intensity / 100) * 1.5}
-                strokeLinecap="round"
-                opacity={0.75}
-              >
-                <title>{`${arc.fromLabel} ↔ ${arc.toLabel} · 联动强度 ${fmtNum(arc.intensity, 0)}`}</title>
-              </path>
-            ))}
-          </g>
-          {/* 风险点位（光晕 + 核心点 + 高风险常驻标签） */}
-          <g>
-            {projectedPoints.map(({ point: p, x, y }) => {
-              // 事件告警柱略放大以示告警感
-              const core = (2.6 + p.weight * 3.4) * (p.isEvent ? 1.25 : 1);
-              const halo = core * 3.2;
-              const highlight = (p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent === true;
-              return (
-                <g
-                  key={p.id}
-                  onMouseEnter={() => setHover({ point: p, x, y })}
-                  onMouseLeave={() => setHover(null)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <circle cx={x} cy={y} r={halo} fill={withAlpha(p.color, 0.14)} />
-                  <circle cx={x} cy={y} r={core * 1.8} fill={withAlpha(p.color, 0.22)} />
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r={core}
-                    fill={p.color}
-                    stroke={withAlpha('#ffffff', 0.5)}
-                    strokeWidth={0.6}
-                    className={highlight ? 'flat-point-pulse' : undefined}
-                  />
-                  {highlight && (
-                    <text
-                      x={x + halo + 3}
-                      y={y + 3}
-                      fill={p.color}
-                      fontSize={10}
-                      style={{ pointerEvents: 'none', textShadow: `0 0 6px ${withAlpha(p.color, 0.6)}` }}
-                    >
-                      {p.isEvent ? '⚠ ' : ''}
-                      {p.label} {p.value === null ? '—' : p.value.toFixed(0)}
-                    </text>
-                  )}
-                  <title>
-                    {p.isEvent
-                      ? `⚠ 事件 ${p.label} · 严重度 ${fmtNum(p.value)}${p.note ? ` · ${p.note}` : ''}`
-                      : `${p.label} · ${p.value === null ? '数据缺失' : fmtNum(p.value)}`}
-                  </title>
-                </g>
-              );
-            })}
-          </g>
-        </svg>
-      )}
-
-      {/* hover 提示卡 */}
-      {hover && (
-        <div
-          className="pointer-events-none absolute z-20 rounded-lg px-2.5 py-1.5 text-[11px] leading-relaxed"
-          style={{
-            left: Math.min(Math.max(hover.x + 12, 8), Math.max(8, width - 190)),
-            top: Math.min(Math.max(hover.y - 46, 8), Math.max(8, height - 74)),
-            background: 'rgba(6,11,22,0.92)',
-            border: `1px solid ${withAlpha(hover.point.color, 0.55)}`,
-            boxShadow: `0 0 18px ${withAlpha(hover.point.color, 0.28)}`,
-            color: PALETTE.text,
-            minWidth: 150,
-          }}
-        >
-          <div className="font-semibold" style={{ color: hover.point.color }}>
-            {hover.point.isEvent ? '⚠ ' : ''}
-            {hover.point.label}
-            <span className="ml-1.5 text-[10px] font-normal text-white/40">
-              {hover.point.isEvent ? `事件类型：${hover.point.group}` : hover.point.group}
-            </span>
-          </div>
-          <div>
-            {hover.point.isEvent ? '事件严重度' : '风险值'}{' '}
-            <b>{hover.point.value === null ? '数据缺失' : fmtNum(hover.point.value)}</b> · 等级{' '}
-            {hover.point.severity}
-          </div>
-          {hover.point.isEvent ? (
-            hover.point.note && <div className="text-white/50">详情：{hover.point.note}</div>
-          ) : (
-            <div className="text-white/50">
-              不确定区间{' '}
-              {hover.point.value === null || hover.point.uncertainty === null
-                ? '未知'
-                : `±${fmtNum(hover.point.uncertainty)}${hover.point.uncertaintyEstimated ? '（估算）' : ''}`}
-            </div>
-          )}
-        </div>
-      )}
-
-      {loadError && (
-        <div className="absolute bottom-2 left-2 z-10 rounded-md border border-amber-400/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-300">
-          国界数据加载失败（{loadError}），已降级为网格视图
-        </div>
-      )}
+      {/* 缩放级别指示器（P1-1） */}
+      <div className="leaflet-zoom-indicator">z={zoomLevel}</div>
     </div>
   );
 }

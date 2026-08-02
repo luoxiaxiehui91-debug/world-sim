@@ -1,0 +1,48 @@
+sequenceDiagram
+    actor User
+    participant WorldPanel
+    participant FlatMapPanel
+    participant LeafletMap as L.Map
+    participant TileLayer as L.TileLayer
+    participant CircleMarker as L.CircleMarker
+    participant Polyline as L.Polyline
+    participant DivIcon as L.DivIcon
+
+    Note over FlatMapPanel: mounted（mode='flat' 时）
+    FlatMapPanel->>LeafletMap: L.map(container, { center, zoom: 2.5, minZoom: 2, maxZoom: 8 })
+    FlatMapPanel->>TileLayer: L.tileLayer('CartoDB Dark Matter')
+    LeafletMap->>TileLayer: addTo(map)
+
+    Note over WorldPanel: feed 数据到达
+    WorldPanel->>FlatMapPanel: setProps({ points, arcs, sites, region, focusPointId })
+
+    FlatMapPanel->>FlatMapPanel: updatePoints(points)
+    loop 每个 RiskPoint
+        FlatMapPanel->>CircleMarker: L.circleMarker([lat, lng], { radius, color, className })
+        FlatMapPanel->>CircleMarker: bindTooltip(hoverCardHTML)
+        FlatMapPanel->>CircleMarker: on('click', () => onPointClick(p))
+        CircleMarker->>LeafletMap: addTo(map)
+    end
+
+    FlatMapPanel->>FlatMapPanel: updateArcs(arcs)
+    loop 每个 RiskArc
+        FlatMapPanel->>Polyline: L.polyline(gradientSegments, { dashArray: '7 11', className: 'leaflet-arc' })
+        Polyline->>LeafletMap: addTo(map)
+    end
+
+    FlatMapPanel->>FlatMapPanel: updateSites(sites)
+    loop 每个 StrategicSite
+        FlatMapPanel->>DivIcon: L.divIcon({ html: '★', className: 'leaflet-site-icon' })
+        FlatMapPanel->>LeafletMap: L.marker([lat, lng], { icon })
+    end
+
+    Note over FlatMapPanel: region 变化
+    FlatMapPanel->>LeafletMap: map.flyToBounds(regionBbox, { duration: 800, padding: [6, 6] })
+
+    Note over FlatMapPanel: 用户交互
+    User->>LeafletMap: wheel → map.zoomIn/zoomOut
+    User->>LeafletMap: drag → map.panBy
+    User->>LeafletMap: dblclick → map.fitBounds(worldBbox)
+    LeafletMap->>FlatMapPanel: zoomend → 更新缩放指示器
+    User->>CircleMarker: mouseenter → tooltip 弹出
+    User->>CircleMarker: click → onPointClick(p) → WorldPanel → SelectionContext
