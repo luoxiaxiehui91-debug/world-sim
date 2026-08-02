@@ -1,12 +1,15 @@
 # macro-sim（天璇）— Agent 工作指南
 
+> **如在 monorepo 中工作，先读根目录 [`../AGENTS.md`](../AGENTS.md)（系统全貌 + 阅读路径入口）。**
+
 ## 项目概览
 
 世界推演系统仿真层（天璇）：12个宏观角色在月度时间步长上互动演化，输出概率路径树。
 
 **定位**：macro-scan（天枢）发现信号 → macro-sim（天璇）演化未来（不是推理，是演化）
 
-**当前版本**：见 `VERSION`
+**当前版本**：v2.0.17（2026-08-03）  
+**主要变更**：D1/D4/D7/D12 P0 bug 修复；GRV 13维全部接入 MacroWorldState（含 social_stress/cultural_friction）
 
 ---
 
@@ -102,7 +105,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 ## 维护铁律
 
 1. 改动后必须 bump `VERSION` + 追加 `CHANGELOG.md`
-2. `config/agents.yaml` 是热更新文件，修改后重建镜像
+2. `config/agents.yaml` 是**热挂载文件**，直接编辑生效，**不需要重建镜像**
 3. FRED 数据读取后需 ×100 转 bp（T10Y2Y / BAA10Y）
 4. 校准期误差计算权重：GRV×0.4 + credit_spread×0.3 + t10y2y×0.2 + dff×0.1（测试后可调整）
 5. 路径概率 <5% 的路径不展开推演
@@ -146,7 +149,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 
 | macro-scan | macro-sim | 接口 schema |
 |---|---|---|
-| v3.5.41+   | v2.0.3+   | grv v1.0 / news v1.0 |
+| v3.8.5+   | v2.0.17+   | grv v1.0 / news v1.0 |
 
 **接口变更三步走：**
 1. 同时更新两边 AGENTS.md 的本节
@@ -165,7 +168,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 
 ## 新 session 快速继续
 
-> 如在 monorepo 中工作，先读根目录 `../AGENTS.md`（系统全貌 + 阅读路径入口）。
+> 如在 monorepo 中工作，先读根目录 `../AGENTS.md`（系统全貌 + 阅读路径入口）。此提示在文件头部已重复，请忽略本行。
 
 ```
 读 AGENTS.md → 读 CHANGELOG.md 前 50 行 → 按需读 docs/design_v2.md

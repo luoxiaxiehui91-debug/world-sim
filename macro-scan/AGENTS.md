@@ -4,7 +4,8 @@
 
 世界推演系统观测层（天枢）：全球宏观情报自动采集 + LLM分析推演 + 地缘风险向量引擎，运行在 NAS Docker 容器中。
 
-**当前版本**：见 `VERSION`  
+**当前版本**：v3.8.5（2026-08-03）
+**主要变更**：startup_checks.py 接入、brier_calc.py 新建、control_server.py（A3a，:8900）上线、GRV 13维全部接入天璇  
 **运维参考**：`世界推演系统_人类说明文档.md`  
 **变更日志**：`TuiYan_CHANGELOG.md`（改前必读，改后必追加）
 
@@ -15,10 +16,13 @@
 | `TuiYan_CHANGELOG.md` | 所有变更历史 | **每次 session 必读**（了解最新状态）|
 | `INDEX.md` | 运行状态：调度任务/数据管道/LLM链/ntfy指令/路线图 | 需要查运行细节时 |
 | `世界推演系统_人类说明文档.md` | 使用与维护手册 | 需要了解操作流程时 |
-| `docs/知识库扩展方案.md` | 知识库扩展方案（v1+v2合并版，含实施状态）| 涉及知识库改动时 |
-| `docs/社会信号扩展方案.md` | 待实施的信号扩展（R07/R09/R10）| 涉及弱信号/规则改动时 |
-| `docs/假设推演功能设计方案.md` | 假设推演完整设计（H0-H12工作流、置信度公式）| 涉及假设推演改动时 |
-| `docs/地缘推演增强方案.md` | GRV向量格式与地缘推演设计 | 涉及 GRV / geo_risk_vector.py 改动时 |
+| `docs/FILE_MANIFEST.md` | 各 py 文件职责 + 挂载路径 + 修改影响 | 不确定改哪个文件时 |
+| `docs/采集频率矩阵.md` | 逐源频率决策矩阵（安全水位50%、tier定义） | 涉及调度频率调整时 |
+| `docs/a3a_system_design.md` | A3a 控制 API 系统设计（文件投递方案备选） | 涉及控制API改动时 |
+| `docs/archive/知识库扩展方案.md` | 知识库扩展方案（v1+v2合并版，已实施完成）| 涉及知识库改动时（历史参考）|
+| `docs/archive/社会信号扩展方案.md` | 信号扩展设计（R07/R09/R10，已实施完成）| 涉及弱信号/规则改动时（历史参考）|
+| `docs/archive/假设推演功能设计方案.md` | 假设推演完整设计（H0-H12工作流，已实施完成）| 涉及假设推演改动时（历史参考）|
+| `docs/archive/地缘推演增强方案.md` | GRV向量格式与地缘推演设计（已实施完成）| 涉及 GRV / geo_risk_vector.py 改动时（历史参考）|
 
 ---
 
@@ -135,9 +139,9 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 | `核心代码/scheduler.py` | + `INDEX.md`（运行 `gen_docs.py --target scheduler` 刷新）|
 | `核心代码/hybrid_llm.py` | + `INDEX.md`（LLM调用链表手动更新）|
 | `核心代码/ntfy_listener.py` | + `INDEX.md`（运行 `gen_docs.py --target ntfy` 刷新）|
-| `核心代码/geo_risk_vector.py` | + `docs/地缘推演增强方案.md`（GRV向量格式节）+ `世界推演系统_人类说明文档.md` |
+| `核心代码/geo_risk_vector.py` | + `docs/archive/地缘推演增强方案.md`（GRV向量格式节，历史参考）+ `世界推演系统_人类说明文档.md` |
 | `核心代码/regime_detector.py` | + `INDEX.md`（宏观体制判断规则表）|
-| `核心代码/hypothesis_engine.py` 或 `hypothesis_config.py` | + `docs/假设推演功能设计方案.md`（假设推演工作流节）|
+| `核心代码/hypothesis_engine.py` 或 `hypothesis_config.py` | + `docs/archive/假设推演功能设计方案.md`（假设推演工作流节，历史参考）|
 | `核心代码/scorer.py` | + `AGENTS.md`（路径架构节 CRISIS_CSV 常量）|
 | `核心代码/situation_tracker.py` 或 `situation_detector.py` | + `世界推演系统_人类说明文档.md` |
 | 新增或删除 `核心代码/*.py` | + `FILE_MANIFEST.md`（运行 `gen_docs.py --target manifest` 刷新）|
@@ -227,7 +231,7 @@ macro-scan 是写入方，macro-sim 是只读消费方。容器内挂载路径�
 
 | macro-scan | macro-sim | 接口 schema |
 |:-----------|:----------|:------------|
-| v3.5.41+   | v2.0.3+   | grv v1.0 / news v1.0 |
+| v3.8.5+   | v2.0.17+   | grv v1.0 / news v1.0 |
 
 ---
 
