@@ -7,8 +7,8 @@ import type { ScheduleOption } from '@/types/control';
 
 // ── API Base URL ───────────────────────────────────────────
 
-/** 控制 API 默认 Base URL */
-const DEFAULT_API_BASE_URL = 'http://localhost:8900/api/v1/control/';
+/** 控制 API 默认 Base URL — 指向天枢 control_server.py（:8900） */
+const DEFAULT_API_BASE_URL = 'http://192.168.31.108:8900/api/v1/control/';
 
 /**
  * 控制 API Base URL。
@@ -58,11 +58,14 @@ export function setStoredToken(token: string | null): void {
 
 // ── Mock ───────────────────────────────────────────────────
 
-/** MOCK 开关：true = 使用内置 mock 数据，false = 真实 HTTP 请求 */
+/** MOCK 开关：true = 使用内置 mock 数据，false = 真实 HTTP 请求
+ *  A3a 天枢控制 API 上线后默认改为 false。
+ *  VITE_CONTROL_MOCK=true 可在开发时恢复 mock 模式。
+ */
 export const MOCK_ENABLED: boolean = (() => {
   const env = import.meta.env.VITE_CONTROL_MOCK as string | undefined;
-  if (env === 'false' || env === '0') return false;
-  return true; // 默认启用 mock
+  if (env === 'true' || env === '1') return true;
+  return false; // 默认关闭 mock，连接真实 API
 })();
 
 // ── 频率硬编码预设（频率选择器降级用）──────────────────────

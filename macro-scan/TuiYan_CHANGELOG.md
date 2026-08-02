@@ -3,7 +3,33 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## v3.8.4 — 2026-08-03 (by Claude Code)
+## v3.8.5 — 2026-08-03 (by Claude Code)
+
+**修改理由**：A3a 控制 API 实现——开阳控制面板 MOCK 模式解除，天枢侧补实际后端。
+
+### 新增
+
+- **`核心代码/control_server.py`**（新建）：天枢控制 API，端口 8900
+  - `GET  /api/v1/control/fetchers` — 列出所有采集源状态（读 scheduler_state.json）
+  - `GET  /api/v1/control/fetchers/{id}/logs` — 日志尾部（50行）
+  - `GET  /api/v1/control/fetchers/{id}/allowed-schedules` — 可用频率选项
+  - `POST /api/v1/control/fetchers/rerun` — 立即重跑（subprocess.Popen）
+  - `POST /api/v1/control/fetchers/{id}/pause` — 暂停（写 control_pause.json）
+  - `POST /api/v1/control/fetchers/{id}/resume` — 恢复（清除 pause 标志）
+  - `PUT  /api/v1/control/fetchers/{id}/schedule` — 调整频率（写 control_overrides.json）
+  - `GET  /api/v1/control/operations/{id}` — 查操作状态（in-memory）
+  - CORS 全开，Bearer Token 鉴权（CONTROL_TOKEN 环境变量，未设置跳过）
+
+### 修改
+
+- **`核心代码/scheduler.py`**：
+  - 加 `json` import
+  - 新增 `_load_paused()` 读取 control_pause.json，主循环跳过已暂停的 job
+  - 新增 `_dump_state()` 每 60s 落盘运行时状态到 `data/scheduler_state.json`
+  - 追踪 `_last_run_ts` / `_last_run_ok` 供状态落盘使用
+- **`VERSION`**：3.8.4 → 3.8.5
+
+
 
 **修改理由**：geo_risk_vector.py 输出补齐 social_stress/cultural_friction，使天枢产出真正覆盖 R09/R10 维度并透传给天璇。
 

@@ -2,6 +2,35 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.7.2] - 2026-08-03 · A3a 控制 API 接入，MOCK 模式关闭（by Claude Code）
+
+> 版本递进：**1.7.1 → 1.7.2**。天枢 control_server.py（v3.8.5）上线，开阳切换到真实 API。
+
+**修改 — controlConfig.ts**
+- `DEFAULT_API_BASE_URL` 从 `localhost:8900` 改为 `192.168.31.108:8900`（指向 NAS 天枢控制服务）
+- `MOCK_ENABLED` 默认值从 `true` 改为 `false`（开发时可通过 `VITE_CONTROL_MOCK=true` 恢复 mock）
+- 原 ⚠ MOCK 横幅在 `MOCK_ENABLED=false` 时自动隐藏（无需改 ControlDrawer）
+
+**部署说明**
+- 需重新 `npm run build` 生成新 dist/
+- NAS 须同时启动 `control_server.py`（见下方）
+
+
+
+> 版本递进：**1.7.0 → 1.7.1**。架构裁定要求：`MOCK_ENABLED=true` 时控制抽屉须在 UI 层显式标注，防止演示时误以为控制功能已接入天枢侧后端。
+
+**新增 — 控制抽屉 MOCK 横幅**
+
+- `src/control/ControlDrawer.tsx`：导入 `MOCK_ENABLED`（来自 `controlConfig.ts`）；当 `MOCK_ENABLED=true` 时在 TabBar 上方渲染琥珀色横幅「⚠ 控制功能未连接（天枢侧 API 未实现）」，`MOCK_ENABLED=false` 时横幅自动隐藏，不影响生产接入后的 UI。
+- 横幅样式：`--ky-amber` 色 + 半透明背景 + 底部分割线，与现有玻璃拟态风格一致；纯条件渲染，零新依赖。
+
+**工程**
+
+- 修改 1 文件：`src/control/ControlDrawer.tsx`（新增 `MOCK_ENABLED` import + 条件 banner）。
+- 测试：297/297 通过（零新测试用例，banner 为纯条件渲染，无业务逻辑分支需覆盖）。
+
+---
+
 ## [1.7.0] - 2026-08-02 · 运行时修复 + 控制抽屉关闭 + 2D 平面地图移除
 
 > 版本递进：**1.6.0 → 1.7.0**。本条目为 1.6.0 上线后的紧急 BugFix + 架构清理批次：修复 Leaflet 2D 地图运行时崩溃（NaN LatLng）、修复控制抽屉关闭逻辑 bug（`prevOpen` 状态管理死循环）、全局错误边界（ErrorBoundary），以及因 CartoDB/ESRI/OSM/Voyager 四家第三方瓦片服务均存在数据缺口且无法弥补，**最终移除 2D 平面地图视图**，WorldPanel 永久锁定为 3D 地球模式。
