@@ -73,197 +73,211 @@ def gm_resolve_rules(
     将 12 个 Agent 的行动转换为内生变量 delta。
     每个 delta 乘以对应 Agent 的 magnitude 参数。
     返回 delta dict，由 MacroSimModel 统一 apply。
+
+    D1 fix: 传导矩阵改为 per-agent delta 追踪，避免全量 delta 叠加导致
+    N 个 Agent 激活时传导强度 = 单 Agent 的 N 倍。
     """
+    # D1 fix: per-agent delta 记录，key = agent_id
+    per_agent_delta: dict[str, dict] = {}
     delta = {}
 
     def mag(agent_id: str) -> float:
         return agents[agent_id].params.magnitude if agent_id in agents else 1.0
 
+    def add(agent_id: str, key: str, val: float):
+        """同时写入全局 delta 和该 agent 的 per-agent delta"""
+        delta[key] = delta.get(key, 0.0) + val
+        if agent_id not in per_agent_delta:
+            per_agent_delta[agent_id] = {}
+        per_agent_delta[agent_id][key] = per_agent_delta[agent_id].get(key, 0.0) + val
+
     # ── A1 美联储 ─────────────────────────────────────────
     a1 = actions.get("A1", "HOLD")
     if a1 == "CUT_50BP":
         m = mag("A1")
-        delta["fed_rate_change"]      = -50
-        delta["market_sentiment"]     = delta.get("market_sentiment", 0) + 0.35 * m
-        delta["bank_credit_tightening"] = delta.get("bank_credit_tightening", 0) - 0.15 * m
+        add("A1", "fed_rate_change",        -50)
+        add("A1", "market_sentiment",         0.35 * m)
+        add("A1", "bank_credit_tightening",  -0.15 * m)
     elif a1 == "CUT_25BP":
         m = mag("A1")
-        delta["fed_rate_change"]      = -25
-        delta["market_sentiment"]     = delta.get("market_sentiment", 0) + 0.20 * m
-        delta["bank_credit_tightening"] = delta.get("bank_credit_tightening", 0) - 0.08 * m
+        add("A1", "fed_rate_change",        -25)
+        add("A1", "market_sentiment",         0.20 * m)
+        add("A1", "bank_credit_tightening",  -0.08 * m)
     elif a1 == "VERBAL_INTERVENTION":
-        delta["market_sentiment"]     = delta.get("market_sentiment", 0) + 0.12 * mag("A1")
+        add("A1", "market_sentiment",  0.12 * mag("A1"))
     elif a1 == "HIKE_25BP":
         m = mag("A1")
-        delta["fed_rate_change"]      = 25
-        delta["market_sentiment"]     = delta.get("market_sentiment", 0) - 0.12 * m
-        delta["bank_credit_tightening"] = delta.get("bank_credit_tightening", 0) + 0.10 * m
+        add("A1", "fed_rate_change",        25)
+        add("A1", "market_sentiment",       -0.12 * m)
+        add("A1", "bank_credit_tightening",  0.10 * m)
 
     # ── A2 商业银行 ───────────────────────────────────────
     a2 = actions.get("A2", "HOLD")
     if a2 == "TIGHTEN_CREDIT":
         m = mag("A2")
-        delta["bank_credit_tightening"] = delta.get("bank_credit_tightening", 0) + 0.25 * m
-        delta["liquidity_premium"]      = delta.get("liquidity_premium", 0)      + 0.12 * m
-        delta["market_sentiment"]       = delta.get("market_sentiment", 0)       - 0.08 * m
+        add("A2", "bank_credit_tightening",  0.25 * m)
+        add("A2", "liquidity_premium",        0.12 * m)
+        add("A2", "market_sentiment",        -0.08 * m)
     elif a2 == "EASE_CREDIT":
         m = mag("A2")
-        delta["bank_credit_tightening"] = delta.get("bank_credit_tightening", 0) - 0.18 * m
-        delta["liquidity_premium"]      = delta.get("liquidity_premium", 0)      - 0.08 * m
+        add("A2", "bank_credit_tightening", -0.18 * m)
+        add("A2", "liquidity_premium",       -0.08 * m)
 
     # ── A3 对冲基金 ───────────────────────────────────────
     a3 = actions.get("A3", "HOLD")
     if a3 == "SHORT_MARKET":
         m = mag("A3")
-        delta["market_sentiment"]  = delta.get("market_sentiment", 0)  - 0.18 * m
-        delta["liquidity_premium"] = delta.get("liquidity_premium", 0) + 0.10 * m
-        delta["fund_risk_appetite"] = -0.15 * m
+        add("A3", "market_sentiment",    -0.18 * m)
+        add("A3", "liquidity_premium",    0.10 * m)
+        add("A3", "fund_risk_appetite",  -0.15 * m)
     elif a3 == "DECREASE_RISK":
         m = mag("A3")
-        delta["market_sentiment"]  = delta.get("market_sentiment", 0)  - 0.08 * m
-        delta["fund_risk_appetite"] = -0.08 * m
+        add("A3", "market_sentiment",    -0.08 * m)
+        add("A3", "fund_risk_appetite",  -0.08 * m)
     elif a3 == "INCREASE_RISK":
         m = mag("A3")
-        delta["market_sentiment"]  = delta.get("market_sentiment", 0)  + 0.10 * m
-        delta["fund_risk_appetite"] = 0.10 * m
+        add("A3", "market_sentiment",    0.10 * m)
+        add("A3", "fund_risk_appetite",  0.10 * m)
 
     # ── A4 能源国 ─────────────────────────────────────────
     a4 = actions.get("A4", "HOLD")
     if a4 == "CUT_SUPPLY":
-        delta["energy_supply_risk"] = delta.get("energy_supply_risk", 0) + 0.20 * mag("A4")
+        add("A4", "energy_supply_risk",  0.20 * mag("A4"))
     elif a4 == "INCREASE_SUPPLY":
-        delta["energy_supply_risk"] = delta.get("energy_supply_risk", 0) - 0.10 * mag("A4")
+        add("A4", "energy_supply_risk", -0.10 * mag("A4"))
 
     # ── A5 机构投资者 ─────────────────────────────────────
     a5 = actions.get("A5", "HOLD")
     if a5 == "DECREASE_RISK":
         m = mag("A5")
-        delta["market_sentiment"]  = delta.get("market_sentiment", 0)  - 0.06 * m
-        delta["liquidity_premium"] = delta.get("liquidity_premium", 0) + 0.05 * m
+        add("A5", "market_sentiment",   -0.06 * m)
+        add("A5", "liquidity_premium",   0.05 * m)
     elif a5 == "INCREASE_RISK":
-        delta["market_sentiment"]  = delta.get("market_sentiment", 0) + 0.06 * mag("A5")
+        add("A5", "market_sentiment",    0.06 * mag("A5"))
 
     # ── A6 媒体 ───────────────────────────────────────────
     a6 = actions.get("A6", "HOLD")
     if a6 == "AMPLIFY_FEAR":
         m = mag("A6")
-        delta["market_sentiment"] = delta.get("market_sentiment", 0) - 0.15 * m
-        delta["retail_panic"]     = delta.get("retail_panic", 0)     + 0.20 * m
+        add("A6", "market_sentiment", -0.15 * m)
+        add("A6", "retail_panic",      0.20 * m)
     elif a6 == "AMPLIFY_OPTIMISM":
         m = mag("A6")
-        delta["market_sentiment"] = delta.get("market_sentiment", 0) + 0.10 * m
-        delta["retail_panic"]     = delta.get("retail_panic", 0)     - 0.10 * m
+        add("A6", "market_sentiment",  0.10 * m)
+        add("A6", "retail_panic",     -0.10 * m)
 
     # ── A7 新兴市场央行 ───────────────────────────────────
     a7 = actions.get("A7", "HOLD")
     if a7 == "CAPITAL_CONTROLS":
         m = mag("A7")
-        delta["em_capital_outflow"]  = delta.get("em_capital_outflow", 0) + 0.25 * m
-        delta["market_sentiment"]    = delta.get("market_sentiment", 0)   - 0.05 * m
+        add("A7", "em_capital_outflow",  0.25 * m)
+        add("A7", "market_sentiment",   -0.05 * m)
     elif a7 == "RAISE_RATES":
-        delta["em_capital_outflow"]  = delta.get("em_capital_outflow", 0) - 0.10 * mag("A7")
+        add("A7", "em_capital_outflow", -0.10 * mag("A7"))
     elif a7 == "CUT_25BP":
-        delta["market_sentiment"]    = delta.get("market_sentiment", 0)   + 0.05 * mag("A7")
+        add("A7", "market_sentiment",    0.05 * mag("A7"))
 
     # ── A8 中国央行/财政 ──────────────────────────────────
     a8 = actions.get("A8", "HOLD")
     if a8 == "CUT_RRR":
         m = mag("A8")
-        delta["china_credit_impulse"] = delta.get("china_credit_impulse", 0) + 0.20 * m
-        delta["market_sentiment"]     = delta.get("market_sentiment", 0)     + 0.08 * m
+        add("A8", "china_credit_impulse",  0.20 * m)
+        add("A8", "market_sentiment",       0.08 * m)
     elif a8 == "FISCAL_STIMULUS_CN":
         m = mag("A8")
-        delta["china_credit_impulse"] = delta.get("china_credit_impulse", 0) + 0.30 * m
-        delta["market_sentiment"]     = delta.get("market_sentiment", 0)     + 0.12 * m
+        add("A8", "china_credit_impulse",  0.30 * m)
+        add("A8", "market_sentiment",       0.12 * m)
     elif a8 == "CNY_INTERVENTION":
-        delta["em_capital_outflow"]   = delta.get("em_capital_outflow", 0)   - 0.15 * mag("A8")
+        add("A8", "em_capital_outflow",   -0.15 * mag("A8"))
     elif a8 == "TIGHTEN_CN":
-        delta["china_credit_impulse"] = delta.get("china_credit_impulse", 0) - 0.20 * mag("A8")
+        add("A8", "china_credit_impulse", -0.20 * mag("A8"))
     elif a8 == "CUT_LPR":
-        delta["china_credit_impulse"] = delta.get("china_credit_impulse", 0) + 0.15 * mag("A8")
+        add("A8", "china_credit_impulse",  0.15 * mag("A8"))
 
     # ── A9 美国财政部 ─────────────────────────────────────
     a9 = actions.get("A9", "HOLD")
     if a9 == "FISCAL_STIMULUS":
         m = mag("A9")
-        delta["market_sentiment"]   = delta.get("market_sentiment", 0)   + 0.15 * m
-        delta["us_fiscal_pressure"] = delta.get("us_fiscal_pressure", 0) + 0.10 * m
+        add("A9", "market_sentiment",    0.15 * m)
+        add("A9", "us_fiscal_pressure",  0.10 * m)
     elif a9 == "DEBT_CEILING_RISK":
         m = mag("A9")
-        delta["market_sentiment"]   = delta.get("market_sentiment", 0)   - 0.12 * m
-        delta["us_fiscal_pressure"] = delta.get("us_fiscal_pressure", 0) + 0.20 * m
-        delta["credit_spread_delta"] = 15 * m   # 债务上限危机直接冲击利差
+        add("A9", "market_sentiment",    -0.12 * m)
+        add("A9", "us_fiscal_pressure",   0.20 * m)
+        add("A9", "credit_spread_delta",  15 * m)  # 债务上限危机直接冲击利差
     elif a9 == "FISCAL_TIGHTEN":
         m = mag("A9")
-        delta["market_sentiment"]   = delta.get("market_sentiment", 0)   - 0.05 * m
-        delta["us_fiscal_pressure"] = delta.get("us_fiscal_pressure", 0) - 0.10 * m
+        add("A9", "market_sentiment",    -0.05 * m)
+        add("A9", "us_fiscal_pressure",  -0.10 * m)
 
     # ── A10 散户 ──────────────────────────────────────────
     a10 = actions.get("A10", "HOLD")
     if a10 == "PANIC_SELL":
         m = mag("A10")
-        delta["market_sentiment"]  = delta.get("market_sentiment", 0)  - 0.10 * m
-        delta["retail_panic"]      = delta.get("retail_panic", 0)      + 0.25 * m
-        delta["liquidity_premium"] = delta.get("liquidity_premium", 0) + 0.05 * m
+        add("A10", "market_sentiment",   -0.10 * m)
+        add("A10", "retail_panic",        0.25 * m)
+        add("A10", "liquidity_premium",   0.05 * m)
     elif a10 == "FOMO_BUY":
         m = mag("A10")
-        delta["market_sentiment"]  = delta.get("market_sentiment", 0) + 0.08 * m
-        delta["retail_panic"]      = delta.get("retail_panic", 0)     - 0.15 * m
+        add("A10", "market_sentiment",  0.08 * m)
+        add("A10", "retail_panic",     -0.15 * m)
 
     # ── A11 欧洲央行 ──────────────────────────────────────
     a11 = actions.get("A11", "HOLD")
     if a11 == "CUT_25BP":
         m = mag("A11")
-        delta["market_sentiment"]     = delta.get("market_sentiment", 0)     + 0.08 * m
-        delta["liquidity_premium"]    = delta.get("liquidity_premium", 0)    - 0.05 * m
+        add("A11", "market_sentiment",       0.08 * m)
+        add("A11", "liquidity_premium",     -0.05 * m)
     elif a11 == "QE_EXPAND":
         m = mag("A11")
-        delta["market_sentiment"]     = delta.get("market_sentiment", 0)     + 0.10 * m
-        delta["bank_credit_tightening"] = delta.get("bank_credit_tightening", 0) - 0.05 * m
+        add("A11", "market_sentiment",          0.10 * m)
+        add("A11", "bank_credit_tightening",   -0.05 * m)
     elif a11 == "HIKE_25BP":
         m = mag("A11")
-        delta["market_sentiment"]     = delta.get("market_sentiment", 0)     - 0.05 * m
-        delta["em_capital_outflow"]   = delta.get("em_capital_outflow", 0)   + 0.05 * m
+        add("A11", "market_sentiment",    -0.05 * m)
+        add("A11", "em_capital_outflow",   0.05 * m)
 
     # ── A12 日本央行 ──────────────────────────────────────
     a12 = actions.get("A12", "HOLD")
     if a12 == "ABANDON_YCC":
         m = mag("A12")
         # 放弃YCC是非线性事件，直接冲击全球流动性
-        delta["yen_carry_risk"]    = delta.get("yen_carry_risk", 0)    + 0.50 * m
-        delta["liquidity_premium"] = delta.get("liquidity_premium", 0) + 0.20 * m
-        delta["market_sentiment"]  = delta.get("market_sentiment", 0)  - 0.20 * m
+        add("A12", "yen_carry_risk",    0.50 * m)
+        add("A12", "liquidity_premium", 0.20 * m)
+        add("A12", "market_sentiment", -0.20 * m)
     elif a12 == "EMERGENCY_EASE":
         m = mag("A12")
-        delta["yen_carry_risk"]    = delta.get("yen_carry_risk", 0)    - 0.20 * m
-        delta["market_sentiment"]  = delta.get("market_sentiment", 0)  + 0.08 * m
+        add("A12", "yen_carry_risk",   -0.20 * m)
+        add("A12", "market_sentiment",  0.08 * m)
     elif a12 == "EASE_YCC":
-        delta["yen_carry_risk"]    = delta.get("yen_carry_risk", 0)    + 0.15 * mag("A12")
+        add("A12", "yen_carry_risk",    0.15 * mag("A12"))
 
     # ── 传导矩阵（第二轮）────────────────────────────────────
-    # 把主动 Agent 的 delta 按 transmission_coefficients × attenuation 传给下游
-    # attenuation 从 agents.yaml global 段读取，默认 0.5
+    # D1 fix: 每个 Agent 只传导自己产生的 per-agent delta，
+    # 避免把全量累积 delta 乘以传导系数（原代码导致 N 个 Agent 激活时
+    # 传导强度 = 单 Agent 的 N 倍）。
     attenuation = (global_cfg or {}).get("transmission_attenuation", 0.5)
 
-    active_count = sum(1 for a in actions.values() if a not in ("HOLD", "NO_ACTION"))
-    if active_count > 0:
-        for src_id, action in actions.items():
-            if action in ("HOLD", "NO_ACTION") or src_id not in agents:
+    for src_id, action in actions.items():
+        if action in ("HOLD", "NO_ACTION") or src_id not in agents:
+            continue
+        src_delta = per_agent_delta.get(src_id)
+        if not src_delta:
+            continue
+        coefficients = agents[src_id].transmission_coefficients
+        if not coefficients:
+            continue
+        for tgt_key, coeff in coefficients.items():
+            if coeff <= 0:
                 continue
-            coefficients = agents[src_id].transmission_coefficients
-            if not coefficients:
+            tgt_id = tgt_key[3:] if tgt_key.startswith("to_") else tgt_key
+            if tgt_id not in agents:
                 continue
-            for tgt_key, coeff in coefficients.items():
-                if coeff <= 0:
-                    continue
-                tgt_id = tgt_key[3:] if tgt_key.startswith("to_") else tgt_key
-                if tgt_id not in agents:
-                    continue
-                tgt_mag = agents[tgt_id].params.magnitude
-                # 把当前 delta 中所有 float 字段按比例传导给下游
-                for key, val in list(delta.items()):
-                    if isinstance(val, float):
-                        delta[key] = delta.get(key, 0.0) + val * coeff * attenuation * tgt_mag / active_count
+            tgt_mag = agents[tgt_id].params.magnitude
+            # 只传导该 Agent 自己产生的 delta（per_agent_delta），不跨 Agent 叠加
+            for key, val in src_delta.items():
+                if isinstance(val, float):
+                    delta[key] = delta.get(key, 0.0) + val * coeff * attenuation * tgt_mag
 
     # ── 正反馈环 ──────────────────────────────────────────
     # 情绪持续崩溃 → 媒体激活概率上升

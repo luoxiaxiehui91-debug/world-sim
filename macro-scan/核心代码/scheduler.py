@@ -81,6 +81,9 @@ JOBS = [
     ("situation_detect", "0630", "1-7", None, [PYTHON, "situation_detector.py"]),
     ("weekly_synthesis", "2000", "5",  None, [PYTHON, "weekly_synthesis.py"]),       # 周五20:00
     ("dashboard",    "2030", "1-5", None, [PYTHON, "dashboard.py"]),                  # us_daily+china_daily 结束后刷新
+    ("health_push",  "2100", "1-7", None, [PYTHON, "-c",
+        "from observability import daily_health_push; daily_health_push()"
+    ]),  # 每日健康摘要推送（三数字：GRV时间戳/降级fetcher数/predictions行数）
     ("verify_auto", "0915", "1-7", 1,   [PYTHON, "verify_hypothesis.py", "--commit", "--update-weights"]),  # 每月1日
     ("slow_vars",   "0935", "1-7", 1,   [PYTHON, "slow_variables.py"]),              # 天玑 慢变量更新（每月1日）
     ("tianji_verify","0940", "1-7", 1,   [PYTHON, "tianji_verifier.py"]),             # 天玑 月度验证+反哺检查（每月1日）
@@ -136,6 +139,7 @@ LOG_FILES = {
     "slow_vars":       f"{LOG_DIR}/slow_vars.log",
     "tianji_verify":   f"{LOG_DIR}/tianji_verify.log",
     "weight_health":   f"{LOG_DIR}/weight_health.log",
+    "health_push":     f"{LOG_DIR}/health_push.log",
 }
 
 def log(msg):
@@ -197,7 +201,17 @@ last_run = {}  # (job_name, sched_hhmm) -> last_run_ts
 
 def main():
     log("Python scheduler started (seccomp-free)")
-    
+
+    # 启动完整性校验（source_dimension_map 遗漏映射会导致 GRV 维度静默接收零数据）
+    try:
+        from startup_checks import run_all_checks
+        run_all_checks(strict=True)
+    except RuntimeError as e:
+        log(f"[startup_checks] FATAL: {e}")
+        raise
+    except Exception as e:
+        log(f"[startup_checks] 校验模块加载失败（非阻断）: {e}")
+
     while True:
         # T1-2: 心跳（每轮循环打一次，30s 间隔）
         if observe:

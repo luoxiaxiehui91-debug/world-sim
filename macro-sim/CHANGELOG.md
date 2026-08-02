@@ -4,6 +4,67 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
 
+## 2026-08-03 [2.0.15] D1/D4/D12 P0 bug 修复（by Claude Code）
+
+**修改者**：Claude Code  
+**修改理由**：arch_review_20260802 裁定的三个 P0 代码缺陷，导致仿真输出数值不可信。
+
+### 改动
+
+- **`core/simulation.py`**（D1 fix）：传导矩阵全量 delta 叠加 → per-agent delta 追踪
+  - 引入 `per_agent_delta: dict[str, dict]` 和 `add(agent_id, key, val)` 辅助函数
+  - 每个 Agent 只传导自己产生的 delta，不再把全量累积 delta 乘以传导系数
+  - 修复前：N 个 Agent 激活时传导强度 = 单 Agent 的 N 倍；修复后：各 Agent 独立传导
+  - 移除原 `active_count` 除法（该除法是对该 bug 的错误补偿）
+
+- **`core/world_state.py`**（D4 fix）：`apply_natural_decay` 补充 4 个遗漏变量
+  - 新增月度衰减：`fund_risk_appetite *= 0.90`、`em_capital_outflow *= 0.93`、
+    `us_fiscal_pressure *= 0.97`、`china_credit_impulse *= 0.92`
+  - 修复前：这 4 个变量无衰减，100 步内单调漂移至边界后锁死
+
+- **`run.py`**（D12 fix）：`_archive_to_tianji` content 与 target_metric 对齐
+  - `content` 从 "GRV taiwan_strait 预计..." 改为 "GRV global_composite 预计..."
+  - 与 `target_metric = "global_composite"` 和 `outcome_definition` 三者一致
+  - 修复前：验证时实际测量 global_composite，但 content 描述的是 taiwan_strait，Brier 分评的是错误变量
+
+### 验证
+
+```bash
+docker exec macro-sim python -c "from core.simulation import gm_resolve_rules; print('D1 OK')"
+docker exec macro-sim python -c "from core.world_state import apply_natural_decay; print('D4 OK')"
+```
+
+
+
+**修改者**：Claude Code  
+**修改理由**：天璇仿真引擎从未向 `forecast_tracker.db` 的 `predictions` 表写入任何真实预测数据，导致天玑验证层和校准闭环完全空转。根本原因：旧 `_archive_to_tianji` 通过动态 import `tianji_db.py` 写入，但该路径（`/workspace/核心代码/tianji_db.py`）在容器内不存在且未挂载，每次都静默走 `except` 分支失败。
+
+### 改动
+
+- **`run.py`**：重写 `_archive_to_tianji` 函数
+  - 移除对 `tianji_db.py` 的动态 import 依赖，改为直接用 `sqlite3` 写入
+  - 新增 `_TIANJI_DB_PATH`：默认 `/app/macro_data/forecast_tracker.db`（可通过环境变量 `TIANJI_DB_PATH` 覆盖），对应容器内已挂载的 `macro-scan/data/` rw 目录
+  - 新增 `_TIANJI_DDL`：幂等建表（predictions + reasoning_trace），无需依赖外部 schema 文件
+  - 新增 `_tianji_conn()` 辅助函数：打开连接 + 执行 DDL + 开启 WAL
+  - 写入格式改为概率分布（非点估计），符合架构裁定：
+    - GRV 方向预测：`prediction_target_type = "grv_direction"`，`due_at = 3个月`，direction 基于 ±5 阈值（up/down/neutral），`confidence_tier` 按 probability 自动判断
+    - 地缘事件：`prediction_target_type = "geopolitical_event"`，`status = "awaiting_human"`，`due_at = 6个月`
+  - 失败时打印完整 traceback，不再静默降级
+- **`run.py:run_predict_only()`**：补加 `_archive_to_tianji` 调用（原来缺失）
+- **`VERSION`**：2.0.14 → 2.0.15
+
+### 验证
+
+- 仿真完成后控制台打印 `[tianji] ✅ 存档 N 条预测 → /app/macro_data/forecast_tracker.db`
+- `sqlite3 forecast_tracker.db "SELECT COUNT(*) FROM predictions"` 应返回非零
+
+### 不动
+
+- 报告输出格式、ntfy 推送、校准逻辑、bifurcation.py 均未变动
+- `tianji_db.py`（天枢侧）未改动，两边独立维护 schema，幂等 DDL 保证兼容
+
+---
+
 ## 2026-07-31 [2.0.14] P0 修复：sim_trigger 单文件 bind mount inode 断链（by WorkBuddy/齐活林）
 
 **修改者**：WorkBuddy（齐活林）

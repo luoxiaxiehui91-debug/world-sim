@@ -1212,7 +1212,21 @@ weights:
     '通缩风险': 0.15
     '重大地震海啸冲击核心经济体': 0.1
     '量子计算突破威胁加密体系': 0.05
-  Yahoo_FX:
+
+# ── 慢变量分量权重（slow_variables.py 从此处读取，天玑 V2 可写回）──────────────
+# 修改此节后重启天枢容器即生效，无需改代码。
+slow_variables_weights:
+  ucri:
+    diplomatic_confrontation: 0.20   # 来自 GRV us_china_strategic
+    trade_tension:            0.20   # 来自 FRED BOPGSTB（待 UN Comtrade fetcher 替换）
+    tech_control:             0.20   # 手工评估
+    tariff_rate:              0.20   # 占位值 0.4（待 Peterson fetcher 接入）
+    bis_entity_list:          0.20   # 占位值 0.3（待 BIS fetcher 接入）
+  gci:
+    great_power_confrontation: 0.40  # 来自 GDELT/GRV 近似
+    nuclear_posture:           0.35  # 手工评估 -1/0/+1
+    multilateral_lack:         0.25  # 1 - 多边合作（当前用 sanctions_risk 反向代理）
+
     'AI军事应用突破': 0.05
     'AI监管重大政策分歧': 0.05
     'OPEC主动减产增产': 0.1
