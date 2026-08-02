@@ -1,6 +1,6 @@
 # FILE_MANIFEST — 文件清单与职责说明
 
-> 版本：v3.5.41 | 最后更新：2026-07-10
+> 版本：v3.8.1 | 最后更新：2026-08-02
 > 本文档描述 macro-scan 项目各文件的职责、挂载路径和修改影响。
 
 ---
@@ -141,3 +141,62 @@
 | `data/grv_latest.json` | 最新 GRV 向量 | 下次 06:10 任务自动更新 |
 | `logs/` | 各任务日志 | 无功能影响 |
 | `docs/分析报告/` | 分析报告输出 | 历史报告丢失，不影响运行 |
+
+---
+
+## 增量补录（v3.6.x ～ v3.8.1）
+
+> 以下文件在 v3.5.41 之后新增，补录至本清单。
+
+### 数据采集（v3.6.x 新增）
+
+| 文件 | 职责 | 数据输出 |
+|:---|:---|:---|
+| `fetch_bdi.py` | 波罗的海干散货指数（本地 CSV 生成式，实时拉取不可达时读预置历史） | `data/bdi_history.csv` |
+| `fetch_fao.py` | FAO 粮价指数（月档，每月 1 日触发） | `data/fao_ffpi.json` |
+| `fetch_commodity_yahoo.py` | Yahoo 商品期货（WTI/Brent/铜等） | `data/commodity_yahoo.json` |
+| `fetch_airtraffic_opensky.py` | OpenSky 航空流量（日档，**绝不可提频**，匿名 400 credits/日，全局请求 4 credits/次） | `data/airtraffic.json` |
+| `fetch_china_meso.py` | AkShare 中国中观（PMI/PPI/工业增加值等，月档） | `data/china_meso.json` |
+| `fetch_crypto.py` | CoinGecko 加密货币行情（I15 事件档） | `data/crypto.json` |
+| `fetch_crypto_extra.py` | Binance/Kraken 冗余行情（I15 事件档） | `data/crypto_extra.json` |
+| `fetch_earthquake.py` | USGS 地震数据（I15 事件档，喂 seismic_risk） | `data/earthquake.json` |
+| `fetch_energy.py` | UK Carbon/NESO/NREL 能源电网（日档，喂 energy_grid_risk） | `data/energy.json` |
+| `fetch_energy_eia.py` | EIA 能源数据（日档） | `data/energy_eia.json` |
+| `fetch_hdx.py` | HDX 人道危机数据（日档/事件档） | `data/hdx.json` |
+| `fetch_sanctions.py` | OpenSanctions 制裁名单 bulk（日档） | `data/sanctions.json` |
+| `fetch_fx.py` | Frankfurter/ECB 汇率（日档） | `data/fx.json` |
+| `fetch_world_macro.py` | World Bank + SotW 宏观数据（日档） | `data/world_macro.json` |
+| `fetch_gdelt_geo.py` | GDELT 地理事件点 feed（I15 增量拉取，产出 news_geo.jsonl + news_geo_clusters.json，**v3.8.0 新增**）| `data/news_geo.jsonl`, `data/news_geo_clusters.json` |
+| `fetch_defense_rss.py` | 防务/军事 RSS（Al Jazeera/Defense One/WotR，日档，喂 narrative_chunks） | 写 narrative_chunks 表 |
+| `fetch_firms.py` | NASA FIRMS 火点数据（日档，**直连替代 crucix**） | `data/firms_fire.json` |
+| `fetch_news.py` | MarketAux/Currents/Sugra 金融新闻 API（日档，需 API Key） | `data/news_risk.json` |
+
+### 新架构核心模块（v3.7.0 天玑层，v3.8.0 契约层）
+
+| 文件 | 职责 |
+|:---|:---|
+| `tianji_db.py` | 天玑数据库 schema + CRUD（predictions/reasoning_trace/narrative_chunks/weight_update_log 四张表）|
+| `narrative_processor.py` | 叙事预处理：11维叙事桶，staleness 衰减，天璇取用接口 |
+| `slow_variables.py` | 三个慢变量（IRP/UCRI/GCI），月频计算 |
+| `tianji_verifier.py` | 月度验证运行器：Brier/BSS/锐度三指标 |
+| `weight_matrix.py` | GRV 权重矩阵读写（grv_weights.yaml），玉衡审批，双层 clip 约束 |
+| `observability.py` | 调度器健康心跳（每30秒写 `.scheduler_heartbeat`，任务计数写 observability_*.json）|
+| `contracts.py` | **I1 Pydantic 数据契约**（v3.8.0 新增）：ValueStatus 枚举、IndicatorPoint/IndicatorEnvelope、UsagePolicy 白名单、39 个 selftest 断言 |
+| `compute_probit.py` | L3 衰退概率：Estrella-Trubin 2006 固定系数 probit，T10Y3M 口径（v3.8.0 新增）|
+| `gdelt_country_map.py` | GDELT FIPS→ISO 国家码映射，从 fetch_gdelt_geo 拆出（v3.8.0 新增）|
+
+### GED 数据管道（v3.8.0 新增）
+
+| 文件 | 职责 |
+|:---|:---|
+| `ged_analysis.py` | UCDP GED 武装冲突数据分析（country×year×type 聚合）|
+| `ged_codebook_extract.py` | UCDP GED codebook PDF 解析提取器（依赖 pypdf）|
+| `etl_ged.py` | GED ETL 管道：清洗→聚合→三质量闸门（年度冻结快照，硬禁止被日更路径读取）|
+
+### 配置文件（v3.7.0 新增）
+
+| 文件 | 职责 |
+|:---|:---|
+| `config/grv_weights.yaml` | GRV 权重矩阵（14源×68情景），Claude 初始值，月度 Brier 验证后自动反哺 |
+| `config/source_dimension_map.yaml` | 数据源→GRV维度映射（narrative_processor.py 读取）|
+

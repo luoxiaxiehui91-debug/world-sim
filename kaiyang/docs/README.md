@@ -2,7 +2,7 @@
 
 > 本文件是 `docs/` 的总导航。所有文档已统一收归 `docs/` 目录（项目根不再散落）。
 > 文档间以**裸文件名**互相引用（归档区 `docs/archive/` 除外），请勿随意改名或移入其他子文件夹，以免断链。
-> 最后整理：2026-08-01（VERSION 1.6.0——§4.5 清扫 + news_geo 读取层骨架 + 决策矩阵）。
+> 最后整理：2026-08-02（VERSION 1.7.0——BugFix NaN崩溃 + ErrorBoundary + 2D平面地图移除；新增控制面板 control/ + NuclearWatchPanel）。
 
 ---
 
