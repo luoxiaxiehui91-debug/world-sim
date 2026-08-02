@@ -9,13 +9,13 @@
 ### 系统版本
 | 子系统 | 版本 | 状态 |
 |---|---|---|
-| macro-scan（天枢）| v3.8.5 | ✅ 本地代码完整，待部署到 NAS |
+| macro-scan（天枢）| v3.8.6 | ✅ 本地代码完整，待部署到 NAS |
 | macro-sim（天璇）| v2.0.17 | ✅ D1/D4/D7/D12 全部修复，待 force-recreate 部署 |
-| kaiyang（开阳）| v1.7.2 | ✅ MOCK 关闭，需 npm run build + 部署 |
+| kaiyang（开阳）| v1.7.2 | ✅ 2D平面地图恢复+MOCK关闭，需 npm run build + 部署 |
 
 ### 本地路径
 - 代码：`C:\Users\I327394\Desktop\S\world-sim\`
-- Git 分支：`main`，最新 commit：`8a452c0`
+- Git 分支：`main`，最新 commit：`9296602`（GED ETL + GCI 锚点）
 - NAS 路径（待同步）：`/vol2/1000/software/world-sim/`
 
 ---
@@ -506,4 +506,29 @@ kaiyang（开阳）→ 只读 data/*.json，展示 + 控制面板
 | venv 在 Git Bash 下静默失效 | Windows Git Bash 里 activate 看起来成功但 pip 仍走全局，用 `which python` 确认 |
 | BAMLH0A0HYM2 PCA 窗口瓶颈 | 该序列仅 837 行，限制了 FCI 双轨 PCA 的回溯窗口深度 |
 | probit 禁直连 FRED | 只读落盘 CSV，系数固定为 Estrella-Trubin 2006，禁止在线 fitting |
+| D1 传导矩阵 N 倍放大 | 已修复 v2.0.15。原因：传导时把全量累积 delta 传给下游，N 个 Agent 激活 = N 倍强度 |
+| kaiyang 2D 地图图块缺失 | CARTO tile CDN 在内网不可达。已修复 v1.7.2：改用 world-atlas GeoJSON 离线底图 |
+| control_server 首次启动无状态 | scheduler_state.json 在 scheduler 启动 60s 后才生成，/fetchers 初始返回空列表属正常 |
+
+---
+
+## 本次维护后半段补充（2026-08-03 深夜，by Claude）
+
+### 四、后半段新增内容
+
+**kaiyang v1.7.2 — 2D 平面地图恢复**
+- 2D 平面切换按钮被误删，FlatMapPanel 渲染缺失，一并恢复
+- 底图从 CARTO tile CDN 改为 world-atlas GeoJSON（完全离线，解决内网图块缺失）
+
+**文档整理（neat-freak）**
+- 所有 AGENTS.md 统一为唯一入口：补入 kaiyang 子系统、修复版本号、修复 4个断链、修复 macro-sim 铁律矛盾
+- 新建 kaiyang/CLAUDE.md（薄包装，与其他子系统统一）
+- kaiyang/docs/ 归档 4个 Q&A 通信文件，重命名 ARCH_1.7.0→1.8.0 / PRD_1.7.0→1.8.0
+- 删除三个历史目录：_backup_20260802_1243（58MB）、世界推演系统/（NAS workbuddy）、20260729/（保留 16-19 四个规格文档归入 docs/archive/）
+
+**GED v26.1 ETL 首次运行（macro-scan v3.8.6）**
+- `etl_ged.py` 处理 506,625 行，Gate A/B/C 全部 PASS
+- 产物：`data/ged/`（年度表/月度表/质量报告/manifest）—— **不进 git，本地产物**
+- 新建 `generate_gci_anchors.py`：GCI 面效度历史锚点，6个时期，PASS（高期0.847 > 低期0.665）
+- 产物：`data/ged/gci_anchors.json`，供天玑 V1 `check_gci_validity()` 消费（待实现）
 
