@@ -1,24 +1,34 @@
 # 开阳（Kaiyang）操作面板 — AI 工作入口
 
-**系统定位**：世界推演系统的前端操作面板，展示 + 控制双职能。读侧只读天枢契约文件做可视化，写侧代表人类 operator 向各后端下发操作指令（只发令、后端执行）。
+> **如在 monorepo 中工作，先读根目录 [`../AGENTS.md`](../AGENTS.md)（系统全貌 + 阅读路径入口）。**
+
+## 当前状态快照
+
+**版本**：v1.7.2（2026-08-03）  
+**主要变更**：2D 平面地图恢复（GeoJSON 离线底图，替代 CARTO tiles）；A3a 控制 API 接入（MOCK_ENABLED=false，control_server.py :8900）  
+**待处理**：`docs/DECISION_MATRIX.md` 有 4 条待拍板决策；kaiyang 控制面板 A3a 首次部署后需验证端到端  
+**下一里程碑**：v1.8.0 — Leaflet 体验优化 + 可拖拽布局（见 `docs/ARCH_1.8.0.md`）
+
+---
+
+## 系统定位
+
+世界推演系统的前端操作面板，展示 + 控制双职能。读侧只读天枢契约文件做可视化，写侧代表人类 operator 向各后端下发操作指令（只发令、后端执行）。
 
 ---
 
 ## 新 session 阅读路径
 
-按顺序读完，每步只需几分钟：
-
-1. **本文件**（根 `AGENTS.md`）— 了解约束和关键文件
-2. **`VERSION`**（1 行，当前版本号）
-3. **`CHANGELOG.md` 前 80 行** — 了解最新版本变更
-4. **`docs/NEXT_SESSION_HANDOFF.md`**（约 200 行）— 60 秒全貌快照
-5. **`docs/DESIGN.md` §2.1** — 进度总览表
-6. 按任务分支：
+1. **本文件**（`AGENTS.md`）— 了解约束和当前状态
+2. **`CHANGELOG.md` 前 80 行** — 了解最新版本变更
+3. 按任务分支：
    - 改代码 → 先读「扩展标准」（下面三入口表）
    - 加 feed → `src/config/dataSources.ts`
    - 加面板 → `src/panels/registry.ts`
    - 加类别 → `src/config/layerCategories.ts` + `theme.ts`
    - 控制面 → `docs/A3a-控制API-开阳对接文档.md`
+   - 深层架构 → `docs/DESIGN.md`
+   - 待拍板事项 → `docs/DECISION_MATRIX.md`
 
 ---
 
@@ -28,13 +38,12 @@
 |:-----|:-----|
 | **铁律三条** | ① 永不自行调第三方数据源/爬虫 ② 严禁硬编码 NAS/SMB 绝对路径 ③ 数据缺失一律降级不白屏 |
 | **three 版本钉死** | `three: 0.185.1`（精确，不加 `^`）；降版 → `Matrix4.determinantAffine()` 缺失 → 地球空白 |
-| **开发端口** | `:3118`（vite dev 5x73），`localhost` 测试 |
+| **开发端口** | `:5174`（vite dev），`localhost` 测试 |
 | **React StrictMode** | 开发态 reducer 跑两遍，别误以为 bug |
 | **useFeed 不缓存** | 两个组件调 `useFeed('grv')` 会发两次请求，共享数据走 props 下传 |
-| **改后必做** | bump `VERSION` + `package.json` → 追加 `CHANGELOG.md` → 同步 `docs/` → `npm run build` 绿 + `npm test` 全过 |
-| **CHANGELOG 承诺 ≠ 落盘** | 每次 bump 逐条 grep 源码核实，不凭计划/计划预设 |
-| **错误边界** | `main.tsx` 有 `ErrorBoundary`，组件崩溃不白屏 |
-| **`??` 挡不住哨兵值** | 枚举 fallback 必须显式排除 `'unknown'`/`''` 等哨兵；案例见 `nuclearData.ts:199` |
+| **改后必做** | bump `VERSION` + `package.json` → 追加 `CHANGELOG.md` → `npm run build` 绿 + `npm test` 全过 |
+| **dist/ 不进 git** | 构建产物在 .gitignore，NAS 部署需手动 `npm run build` + scp |
+| **MOCK_ENABLED** | 默认 `false`（v1.7.2+），调试时用 `VITE_CONTROL_MOCK=true` 恢复 mock |
 
 ---
 
@@ -46,10 +55,9 @@
 | 样式 | Tailwind CSS（玻璃拟态 + 青绿主色 + 扫描线） |
 | 3D 地球 | globe.gl（MIT，three 0.185.1） |
 | 图表 | ECharts（Apache-2.0） |
-| 2D 地图 | Leaflet（已移除 1.7.0，组件保留备恢复） |
+| 2D 地图 | Leaflet + world-atlas GeoJSON（离线，无外网依赖） |
 | 测试 | Vitest |
 | 语言 | 全中文 UI，无 i18n |
-| 依赖包 | 零新依赖（1.7.0 vs 1.6.0 unchanged） |
 
 ---
 
@@ -63,31 +71,39 @@
 
 ---
 
+## 深入文档（按需读取）
+
+| 文件 | 内容 | 何时读 |
+|:-----|:-----|:-------|
+| `docs/DATA_CONTRACT.md` | 数据契约权威标准（字段/路径/schema_version） | 消费新数据源时 |
+| `docs/A3a-控制API-开阳对接文档.md` | 控制 API 对接规范（文件投递/命令格式） | 改控制面逻辑时 |
+| `docs/DESIGN.md` | 设计总纲（定位/边界/技术栈/Wave规划） | 做架构决策时 |
+| `docs/ARCH_1.8.0.md` | v1.8.0 架构计划（Leaflet体验优化/可拖拽布局） | 规划下个版本时 |
+| `docs/CRUCIX_UPGRADE_DESIGN.md` | P0 主设计：对标 crucix 升级系统设计 | 做 crucix 相关工作时 |
+| `docs/system_design.md` | 控制面 Tab 系统设计（状态机/Token鉴权） | 改控制面架构时 |
+| `docs/DECISION_MATRIX.md` | **4 条待拍板决策**（D2-D5） | 遇到相关技术决策点时 |
+
+---
+
 ## 项目结构
 
 ```
-kaiyang-wave2/
-├── AGENTS.md               ← 本文件
-├── ROADMAP.md               ← 项目内权威 todo
-├── README.md                ← 项目概述
-├── VERSION                  ← 当前版本号（1.7.0）
-├── CHANGELOG.md             ← 变更记录
-├── package.json
+kaiyang/
+├── AGENTS.md               ← 本文件（唯一 AI 工作入口）
+├── CLAUDE.md               ← Claude Code 兼容层（指向本文件）
+├── VERSION                 ← 当前版本号（1.7.2）
+├── CHANGELOG.md            ← 变更记录
 ├── src/
-│   ├── main.tsx             ← ErrorBoundary 入口
-│   ├── App.tsx              ← grid-layout + 面板注册表
-│   ├── config/              ← dataSources / layerCategories / theme / regions / controlConfig
-│   ├── components/          ← WorldPanel / GlobePanel / FlatMapPanel(备) / LayerTreePanel …
-│   ├── control/             ← ControlDrawer / TianshuTab / FetcherCard …
-│   ├── hooks/               ← useFeed / useControlApi / useOperationPolling …
-│   ├── lib/                 ← adaptGrv / nuclearData / newsGeoAdapter / controlApi …
-│   ├── panels/              ← registry.ts（面板注册表）+ 各面板组件
-│   ├── state/               ← ControlContext / SelectionContext / StatusContext
-│   └── types/               ← contracts.ts / control.ts
-├── docs/                    ← DESIGN / DATA_CONTRACT / HANDOFF / DECISION_MATRIX / PRD …
-├── public/
-│   └── data/                ← 开发快照（grv_latest.json / fred_history / nuclear_sites.json …）
-└── dist/                    ← 构建产物
+│   ├── config/             ← dataSources / layerCategories / theme / regions / controlConfig
+│   ├── components/         ← WorldPanel / GlobePanel / FlatMapPanel / LayerTreePanel …
+│   ├── control/            ← ControlDrawer / TianshuTab / FetcherCard …
+│   ├── hooks/              ← useFeed / useControlApi / useOperationPolling …
+│   ├── lib/                ← adaptGrv / nuclearData / newsGeoAdapter / controlApi …
+│   ├── panels/             ← registry.ts（面板注册表）+ 各面板组件
+│   ├── state/              ← ControlContext / SelectionContext / StatusContext
+│   └── types/              ← contracts.ts / control.ts
+├── docs/                   ← 设计文档（DATA_CONTRACT/DESIGN/ARCH/PRD/…）
+└── public/data/            ← 开发快照（grv_latest.json / fred_history / nuclear_sites.json）
 ```
 
 ---
@@ -101,17 +117,9 @@ kaiyang-wave2/
 
 ---
 
-## 测试
+## 测试与部署
 
 ```bash
-npm test          # 297 passed（1.6.0 基线，1.7.0 未改测试）
-```
-
-## 部署
-
-纯静态前端，端口 `:3118`：
-
-```bash
-npm install && npm run build
-# 产物在 dist/，任意静态服务器挂载即可
+npm test              # Vitest 单元测试
+npm run build         # 构建产物到 dist/（dist/ 不进 git）
 ```
