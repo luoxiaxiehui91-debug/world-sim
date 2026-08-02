@@ -248,6 +248,95 @@ def check_heartbeat(max_age_seconds: int = 300) -> dict:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 每日健康摘要推送（三数字 ntfy）
+# ══════════════════════════════════════════════════════════════════════════════
+def daily_health_push() -> None:
+    """
+    每日推送三个数字到 ntfy，防止"系统运行但数据链断路无人感知"。
+
+    三个数字：
+      1. grv_latest.json 的 updated 时间戳（采集是否跑通）
+      2. 当日降级 fetcher 数量（GRV source_quality != "gdelt+gpr" 计数）
+      3. predictions 表当前行数（天璇→天玑 数据链是否有数据）
+
+    出错只记日志，绝不抛异常（遵循 observability 零风险原则）。
+    """
+    import urllib.request
+    try:
+        ntfy_url = os.environ.get("NTFY_URL", "https://ntfy.sh/macro-tsx-9005")
+        today = datetime.date.today().isoformat()
+
+        # ── 数字1：grv_latest.json updated 时间戳 ──────────────────────────
+        grv_path = os.path.join(DATA_DIR, "grv_latest.json")
+        grv_updated = "N/A"
+        try:
+            with open(grv_path, encoding="utf-8") as f:
+                grv = json.load(f)
+            grv_updated = grv.get("updated", "N/A")
+        except Exception:
+            grv_updated = "读取失败"
+
+        # ── 数字2：降级 fetcher 数量（source_quality != gdelt+gpr）──────────
+        degraded_count = 0
+        try:
+            with open(grv_path, encoding="utf-8") as f:
+                grv = json.load(f)
+            sq = grv.get("source_quality", "gdelt+gpr")
+            if sq != "gdelt+gpr":
+                degraded_count = 1  # GRV 整体降级
+        except Exception:
+            degraded_count = -1  # 无法读取
+
+        # ── 数字3：predictions 表当前行数 ─────────────────────────────────
+        predictions_rows = 0
+        try:
+            db_path = os.path.join(DATA_DIR, "forecast_tracker.db")
+            if os.path.exists(db_path):
+                conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+                cur = conn.execute("SELECT COUNT(*) FROM predictions")
+                predictions_rows = cur.fetchone()[0]
+                conn.close()
+            else:
+                predictions_rows = -1  # DB 不存在
+        except Exception:
+            predictions_rows = -1
+
+        # ── 推送 ──────────────────────────────────────────────────────────
+        # 判断整体健康状态
+        alert = predictions_rows == 0 or grv_updated == "读取失败"
+        icon = "🔴" if alert else "🟢"
+
+        title = f"{icon} 世界推演 日健康摘要 {today}"
+        body = (
+            f"GRV更新: {grv_updated}\n"
+            f"降级fetcher: {degraded_count if degraded_count >= 0 else '无法读取'}\n"
+            f"predictions表行数: {predictions_rows if predictions_rows >= 0 else 'DB不存在'}"
+        )
+        if predictions_rows == 0:
+            body += "\n⚠️ predictions表为空——天璇→天玑数据链断路"
+
+        data = body.encode("utf-8")
+        req = urllib.request.Request(
+            ntfy_url,
+            data=data,
+            headers={
+                "Title": title.encode("utf-8"),
+                "Priority": "high" if alert else "default",
+                "Tags": "world-sim,health",
+            },
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=10)
+
+    except Exception as e:
+        # 只记录，不抛出
+        try:
+            print(f"[observability] daily_health_push failed: {e}", flush=True)
+        except Exception:
+            pass
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 单例
 # ══════════════════════════════════════════════════════════════════════════════
 observe = _Observability()
