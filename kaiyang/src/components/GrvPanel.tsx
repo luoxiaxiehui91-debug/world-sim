@@ -40,7 +40,10 @@ export function GrvPanel() {
 
   const option = useMemo<EChartsOption>(() => {
     const sorted = [...dims].sort((a, b) => (b.value ?? -1) - (a.value ?? -1));
-    const categories = sorted.map((d) => d.label);
+    const categories = sorted.map((d) => {
+      // 推导维度用 ◈ 前缀区分实测维度
+      return d.isDerived ? `◈ ${d.label}` : d.label;
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const barData: any[] = sorted.map((d) => {
       const c = severityColor(d.value);
@@ -85,7 +88,16 @@ export function GrvPanel() {
           const d = sorted[i];
           const uncTxt = d.uncertainty === null ? '未知' : `±${d.uncertainty}`;
           const est = d.uncertaintyEstimated ? '（估算）' : '';
-          return `<b>${d.label}</b><br/>数值：${d.value === null ? '缺失' : fmtNum(d.value)}<br/>不确定区间：${uncTxt}${est}`;
+          const derivedTxt = d.isDerived
+            ? `<br/><span style="color:#f59e0b">◈ 推导值</span>` +
+              (d.derivedConfidence != null
+                ? ` · 置信度 ${Math.round(d.derivedConfidence * 100)}%`
+                : '') +
+              (d.derivedMissing?.length
+                ? `<br/><span style="opacity:0.6;font-size:11px">缺失国家：${d.derivedMissing.join(', ')}</span>`
+                : '')
+            : '';
+          return `<b>${d.label}</b>${derivedTxt}<br/>数值：${d.value === null ? '缺失' : fmtNum(d.value)}<br/>不确定区间：${uncTxt}${est}`;
         },
       },
       xAxis: {

@@ -33,6 +33,9 @@ export interface GrvModel {
 
 export function adaptGrv(raw: GrvRaw | null): GrvModel {
   const missingKeys: string[] = [];
+  // 推导维度元数据（来自 grv_latest.json._derived_meta）
+  const derivedMeta = (raw as Record<string, unknown> | null)?._derived_meta as
+    Record<string, { confidence?: number; missing?: string[]; note?: string }> | undefined;
 
   const dimensions: GrvDimension[] = GRV_DIMENSIONS.map((def) => {
     const rawVal = def.sourceKey ? raw?.[def.sourceKey] : undefined;
@@ -41,7 +44,19 @@ export function adaptGrv(raw: GrvRaw | null): GrvModel {
       missingKeys.push(def.sourceKey);
     }
     const isComposite = def.kind === 'composite';
-    const uncertainty = numVal === null ? null : isComposite ? 0 : estimateUncertainty(numVal);
+    // 推导维度不确定区间 = 实测维度的 1.5-2 倍（confidence < 0.65 用 2 倍）
+    let uncertainty: number | null = null;
+    if (numVal !== null && !isComposite) {
+      const base = estimateUncertainty(numVal);
+      if (def.isDerived) {
+        const conf = derivedMeta?.[def.id]?.confidence ?? 0;
+        uncertainty = Math.round(base * (conf >= 0.65 ? 1.5 : 2.0) * 10) / 10;
+      } else {
+        uncertainty = base;
+      }
+    }
+
+    const meta = def.isDerived ? derivedMeta?.[def.id] : undefined;
     return {
       id: def.id,
       label: def.label,
@@ -54,6 +69,9 @@ export function adaptGrv(raw: GrvRaw | null): GrvModel {
       group: def.group,
       note: def.note,
       status: numVal === null ? 'missing' : 'ok',
+      isDerived: def.isDerived ?? false,
+      derivedConfidence: meta?.confidence,
+      derivedMissing: meta?.missing,
     };
   });
 

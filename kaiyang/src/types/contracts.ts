@@ -49,6 +49,12 @@ export interface GrvDimension {
   /** 补充说明（来自维度定义，可选） */
   note?: string;
   status: 'ok' | 'missing';
+  /** 是否为推导维度（GDELT聚合，无GPR基线）。true时前端显示推导值徽章+虚线边框 */
+  isDerived?: boolean;
+  /** 推导维度置信度 0-1（来自 grv_latest.json._derived_meta）；实测维度为 undefined */
+  derivedConfidence?: number;
+  /** 推导维度缺失的国家列表（来自 _derived_meta.missing） */
+  derivedMissing?: string[];
 }
 
 /** 新闻 / 叙事条目（news_export.json 数组元素）。字段宽松，缺失即降级渲染。 */

@@ -259,6 +259,34 @@ def compute_grv() -> dict:
       middle_east_energy = GDELT×0.6 + GPR 伊朗/沙特×0.4
       global_composite   = GPR 全球指数归一化
     """
+    # ── 推导维度辅助函数（定义在函数顶层，确保 try 块内可见）──────
+    def _d_sf(fd, c):
+        """安全取单国分数，缺失返回 None。"""
+        v = fd.get(c) if isinstance(fd, dict) else None
+        return float(v) if v is not None else None
+
+    def _d_norm(fd, c, scale):
+        """取单国分数并归一化到 [0,100]。"""
+        v = _d_sf(fd, c)
+        return min(100.0, v * scale) if v is not None else None
+
+    def _d_ws(pairs):
+        """加权均值，过滤 None 后归一化权重。"""
+        valid = [(v, w) for v, w in pairs if v is not None]
+        if not valid:
+            return None
+        tw = sum(w for _, w in valid)
+        return sum(v * (w / tw) for v, w in valid)
+
+    def _d_rb(scores, weights=None):
+        """0.6·max + 0.4·加权均值，有效值<1时返回None。"""
+        pairs = [(s, (weights[i] if weights else 1.0)) for i, s in enumerate(scores) if s is not None]
+        if not pairs:
+            return None
+        vals = [s for s, _ in pairs]
+        tw = sum(w for _, w in pairs)
+        wmean = sum(s * (w / tw) for s, w in pairs)
+        return round(0.6 * max(vals) + 0.4 * wmean, 1)
     logger = _get_logger()
     gdelt_scores, gdelt_updated = _load_gdelt()
 
@@ -487,6 +515,120 @@ def compute_grv() -> dict:
     except Exception as _e:
         logger.warning(f"[GRV] social_stress/cultural_friction 读取失败（非阻断）: {_e}")
 
+    # ── 推导地缘维度（四个无 GPR 数据源的区域，2026-08-03）──────────
+    # 来源：多角色论证（地缘政治+数据科学+怀疑者+工程师），详见 docs/grv_datasource_fix.md
+    # 这四个维度是 GDELT 国别分数的加权聚合推导值，不使用 GPR 混合。
+    # 设计原则：信号正交性优先，刻意选择与实测维度不重叠的 GDELT 字段。
+    # 置信度说明：south_china_sea=0.50（VNM/PHL/IDN缺失）/ korean_peninsula=0.65（KOR缺失，PRK稀疏）
+    #             india_pacific=0.70 / global_south=0.60（概念操作化有根本限制）
+    _derived_dims = {}
+    try:
+        def _sf(field_dict, country):
+            """安全取单国分数，缺失返回 None（不用0填充），归一化到 [0, 100]。"""
+            v = field_dict.get(country) if isinstance(field_dict, dict) else None
+            return float(v) if v is not None else None
+
+        def _norm(field_dict, country, scale):
+            """取单国分数并乘以 scale 归一化到 [0, 100]，结果 clip 到上限。"""
+            v = _sf(field_dict, country)
+            return min(100.0, v * scale) if v is not None else None
+
+        # gdelt_scores 字段解包
+        _gdelt = gdelt_scores or {}
+        _mil   = _gdelt.get("military", {})
+        _sanc  = _gdelt.get("sanction", {})
+        _tens  = _gdelt.get("tension", {})
+        _soc   = _gdelt.get("social_stress", {})   # 注意：social_stress 是 {country: score} 字典
+        _reg   = _gdelt.get("regime_change", {})
+        _prot  = _gdelt.get("protest", {})
+        _relig = _gdelt.get("religious_conflict", {})
+        _cult  = _gdelt.get("cultural_friction", {})
+
+        def _m(c):  return _norm(_mil,   c, 10.0)
+        def _s(c):  return _norm(_sanc,  c, 10.0)
+        def _t(c):  return _norm(_tens,  c, 100.0)
+        def _so(c): return _sf(_soc,     c)
+        def _r(c):  return _norm(_reg,   c, 100.0)
+        def _p(c):  return _norm(_prot,  c, 20.0)
+        def _re(c): return _norm(_relig, c, 100.0)
+        def _cf(c): return _norm(_cult,  c, 2.0)
+        _ws = _d_ws   # 别名，指向外层函数
+        _rb = _d_rb
+
+        # 1. south_china_sea（南海）
+        # 不用 CHN sanction（已被 taiwan_strait 主用），改用 tension 保证正交性
+        _scs_chn = _ws([(_m("CHN"), 0.65), (_t("CHN"), 0.35)])
+        _scs_ext = _ws([(_t("USA"), 0.55), (_t("JPN"), 0.45)])
+        _scs_twn = _t("TWN")
+        _scs_val = None
+        if _scs_chn is not None or _scs_ext is not None:
+            _scs_wmean = _ws([(_scs_chn, 0.55), (_scs_ext, 0.30), (_scs_twn, 0.15)])
+            _scs_maxv  = max(v for v in [_scs_chn, _scs_ext] if v is not None)
+            _scs_val   = round(0.6 * _scs_maxv + 0.4 * (_scs_wmean or 0), 1)
+        _used_scs = [c for c, v in [("CHN", _scs_chn), ("TWN", _scs_twn),
+                                     ("USA", _t("USA")), ("JPN", _t("JPN"))] if v is not None]
+        _derived_dims["south_china_sea"] = {
+            "value": _scs_val, "confidence": round(len(_used_scs) / 7 * 0.50, 2),
+            "missing": ["VNM", "PHL", "IDN"],
+            "note": "CHN maritime+tension (excl sanction for orthogonality) + USA/JPN external response"
+        }
+
+        # 2. korean_peninsula（朝鲜半岛）
+        # PRK 分数来自稀疏媒体报道，尖刺分布，置信度受限；JPN 是最可靠的响应代理
+        _kp_prk = _ws([(_m("PRK"), 0.50), (_t("PRK"), 0.50)])
+        _kp_jpn = _ws([(_t("JPN"), 0.65), (_m("JPN"), 0.35)])
+        _kp_usa = _ws([(_t("USA"), 0.55), (_m("USA"), 0.45)])
+        _kp_val = _rb([_kp_prk, _kp_jpn, _kp_usa], weights=[0.50, 0.30, 0.20])
+        _used_kp = [c for c, v in [("PRK", _kp_prk), ("JPN", _kp_jpn), ("USA", _kp_usa)] if v is not None]
+        _derived_dims["korean_peninsula"] = {
+            "value": _kp_val, "confidence": round(len(_used_kp) / 4 * 0.65, 2),
+            "missing": ["KOR"],
+            "note": "PRK launch activity + JPN regional response + USA forward presence (KOR absent from watch list)"
+        }
+
+        # 3. india_pacific（印太）
+        # 排除 CHN military/sanction（避免与 us_china_strategic 共线），改用 cultural_friction
+        _ip_chn = _ws([(_t("CHN"), 0.55), (_cf("CHN"), 0.45)])
+        _ip_ind = _ws([(_m("IND"), 0.45), (_t("IND"), 0.40), (_s("IND"), 0.15)])
+        _ip_jpn = _ws([(_t("JPN"), 0.70), (_s("JPN"), 0.30)])
+        _ip_pak = _ws([(_m("PAK"), 0.50), (_t("PAK"), 0.35), (_r("PAK"), 0.15)])
+        _ip_main = [v for v in [_ip_chn, _ip_ind, _ip_jpn] if v is not None]
+        _ip_val = None
+        if _ip_main:
+            _ip_wmean = _ws([(_ip_chn, 0.30), (_ip_ind, 0.35), (_ip_jpn, 0.20), (_ip_pak, 0.15)])
+            _ip_val = round(0.6 * max(_ip_main) + 0.4 * (_ip_wmean or 0), 1)
+        _used_ip = [c for c, v in [("CHN", _ip_chn), ("IND", _ip_ind), ("JPN", _ip_jpn), ("PAK", _ip_pak)] if v is not None]
+        _derived_dims["india_pacific"] = {
+            "value": _ip_val, "confidence": round(len(_used_ip) / 6 * 0.70, 2),
+            "missing": ["AUS", "IDN"],
+            "note": "CHN diplomatic/cultural pressure (NOT military, orthogonal to us_china) + IND border + JPN East Sea + PAK South Asia"
+        }
+
+        # 4. global_south（全球南方）
+        # 注意：实际度量的是新兴市场政治不稳定性，不是全球南方外交团结
+        _gs_ind = _ws([(_so("IND"), 0.50), (_r("IND"), 0.30), (_p("IND"), 0.20)])
+        _gs_nga = _ws([(_re("NGA"), 0.40), (_r("NGA"), 0.35), (_so("NGA"), 0.25)])
+        _gs_egy = _ws([(_r("EGY"), 0.45), (_so("EGY"), 0.35), (_p("EGY"), 0.20)])
+        _gs_tur = _ws([(_so("TUR"), 0.40), (_t("TUR"), 0.35), (_r("TUR"), 0.25)])
+        _gs_vals = [v for v in [_gs_ind, _gs_nga, _gs_egy, _gs_tur] if v is not None]
+        _gs_val = round(sum(_gs_vals) / len(_gs_vals), 1) if _gs_vals else None
+        _used_gs = [c for c, v in [("IND", _gs_ind), ("NGA", _gs_nga), ("EGY", _gs_egy), ("TUR", _gs_tur)] if v is not None]
+        _derived_dims["global_south"] = {
+            "value": _gs_val, "confidence": round(len(_used_gs) / 4 * 0.60, 2),
+            "missing": ["BRA", "ZAF", "IDN"],
+            "note": "Emerging market political instability (IND/NGA/EGY/TUR internal stress). NOT Global South diplomatic solidarity."
+        }
+
+        logger.info(
+            "[GRV] 推导维度: scs=%.1f kp=%.1f ip=%.1f gs=%.1f",
+            _derived_dims["south_china_sea"]["value"] or 0,
+            _derived_dims["korean_peninsula"]["value"] or 0,
+            _derived_dims["india_pacific"]["value"] or 0,
+            _derived_dims["global_south"]["value"] or 0,
+        )
+    except Exception as _de:
+        logger.warning(f"[GRV] 推导维度计算失败（非阻断）: {_de}")
+
     grv = {
         "_schema_version":    "1.0",
         "taiwan_strait":      taiwan_strait,
@@ -502,6 +644,14 @@ def compute_grv() -> dict:
         "japan_monetary":     japan_monetary,
         "social_stress":      social_stress_val,      # R09：社会情绪压力（gdelt_scores 聚合均值）
         "cultural_friction":  cultural_friction_val,  # R10：文化摩擦（gdelt_scores 标量）
+        # ── 推导维度（无 GPR 数据源，GDELT 国别分数加权聚合，置信度有限）──
+        "south_china_sea":    _derived_dims.get("south_china_sea", {}).get("value"),
+        "korean_peninsula":   _derived_dims.get("korean_peninsula", {}).get("value"),
+        "india_pacific":      _derived_dims.get("india_pacific", {}).get("value"),
+        "global_south":       _derived_dims.get("global_south", {}).get("value"),
+        # 推导维度元数据（confidence/missing/note）
+        "_derived_meta": {k: {mk: mv for mk, mv in v.items() if mk != "value"}
+                          for k, v in _derived_dims.items()} if _derived_dims else {},
         "updated":            now,
         "gdelt_updated":      gdelt_updated,
         "gpr_twn_raw":        gpr_twn_raw,

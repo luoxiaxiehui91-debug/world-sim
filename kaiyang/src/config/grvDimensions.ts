@@ -29,6 +29,12 @@ export interface GrvDimDef {
    * 其地图呈现改由事件触发式告警柱（grv_latest.json 的 events[]）承担。
    */
   renderBar?: boolean;
+  /**
+   * 是否为推导维度（来自 GDELT 国别分数聚合，无 GPR 校准基线）。
+   * true = 前端显示「推导值」徽章 + 虚线边框 + confidence tooltip。
+   * confidence 在运行时从 grv_latest.json 的 _derived_meta 注入。
+   */
+  isDerived?: boolean;
 }
 
 export const GRV_DIMENSIONS: GrvDimDef[] = [
@@ -49,12 +55,42 @@ export const GRV_DIMENSIONS: GrvDimDef[] = [
   },
   { id: 'climate_risk', label: '气候风险', group: '非传统', kind: 'geographic', lat: 74.0, lng: 10.0, sourceKey: 'climate_risk', note: '锚点：北极圈（气候变化最敏感区）；不画常驻柱，改为事件触发式告警柱', renderBar: false },
   { id: 'disaster_risk', label: '自然灾害', group: '非传统', kind: 'geographic', lat: -2.0, lng: -80.0, sourceKey: 'disaster_risk', note: '锚点：环太平洋地震带；不画常驻柱，改为事件触发式告警柱', renderBar: false },
-  {
-    id: 'global_south',
-    label: '全球南方',
+  { id: 'global_south',
+    label: '全球南方不稳定性',
     group: '综合',
     kind: 'composite',
-    note: '跨区域聚合口径，无单一地理锚点，不投影到地图',
+    isDerived: true,
+    note: '推导值：IND/NGA/EGY/TUR政治不稳定性聚合（confidence≤0.60）。⚠ 不代表全球南方外交团结或战略能力。',
+  },
+  // ── 推导地缘维度（无 GPR 数据源，来自 GDELT 国别分数加权聚合）──────────
+  // 多角色论证（地缘政治/数据科学/怀疑者/工程师）裁定，2026-08-03
+  // 设计原则：正交性优先——刻意选择与实测维度不重叠的 GDELT 字段
+  { id: 'south_china_sea',
+    label: '南海',
+    group: '地缘',
+    kind: 'geographic',
+    lat: 13.0, lng: 114.0,
+    sourceKey: 'south_china_sea',
+    isDerived: true,
+    note: '推导值：CHN maritime(tension,不含sanction) + USA/JPN外部回应。置信度0.50（VNM/PHL/IDN缺失）。',
+  },
+  { id: 'korean_peninsula',
+    label: '朝鲜半岛',
+    group: '地缘',
+    kind: 'geographic',
+    lat: 38.0, lng: 127.5,
+    sourceKey: 'korean_peninsula',
+    isDerived: true,
+    note: '推导值：PRK发射活动(稀疏，EMA平滑) + JPN区域响应 + USA前沿存在代理KOR。置信度0.65（KOR缺失）。',
+  },
+  { id: 'india_pacific',
+    label: '印太',
+    group: '地缘',
+    kind: 'geographic',
+    lat: 5.0, lng: 108.0,
+    sourceKey: 'india_pacific',
+    isDerived: true,
+    note: '推导值：CHN外交/文化摩擦(非军事，与us_china正交) + IND边境 + JPN东海 + PAK南亚。置信度0.70（AUS/IDN缺失）。',
   },
 ];
 
