@@ -162,12 +162,28 @@ export function FlatMapPanel({
       (worldAtlas as any).objects.countries,
     );
 
-    L.geoJSON(landGeo as GeoJSON.GeoJsonObject, {
+    // 修复 antimeridian wrapping：world-atlas 中俄罗斯/美国阿拉斯加等多边形跨越 ±180°，
+    // Leaflet 会画出横穿地图的错误连线。将经度 clip 到 [-180, 180] 消除视觉错误。
+    function clipGeoJSON(geo: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
+      const clampLng = (lng: number) => Math.max(-180, Math.min(180, lng));
+      function clipCoord(c: number[]): number[] { return [clampLng(c[0]), c[1]]; }
+      function clipRing(ring: number[][]): number[][] { return ring.map(clipCoord); }
+      function clipGeom(geom: GeoJSON.Geometry): GeoJSON.Geometry {
+        if (geom.type === 'Polygon') return { ...geom, coordinates: geom.coordinates.map(clipRing) };
+        if (geom.type === 'MultiPolygon') return { ...geom, coordinates: geom.coordinates.map(p => p.map(clipRing)) };
+        return geom;
+      }
+      return { ...geo, features: geo.features.map(f => ({ ...f, geometry: clipGeom(f.geometry) })) };
+    }
+    const landClipped = clipGeoJSON(landGeo as unknown as GeoJSON.FeatureCollection);
+    const countriesClipped = clipGeoJSON(countriesGeo as unknown as GeoJSON.FeatureCollection);
+
+    L.geoJSON(landClipped as GeoJSON.GeoJsonObject, {
       style: { fillColor: '#1a2332', fillOpacity: 1, color: 'transparent', weight: 0 },
       interactive: false,
     }).addTo(map);
 
-    L.geoJSON(countriesGeo as GeoJSON.GeoJsonObject, {
+    L.geoJSON(countriesClipped as GeoJSON.GeoJsonObject, {
       style: { fillColor: 'transparent', fillOpacity: 0, color: '#2a3f5a', weight: 0.5, opacity: 0.7 },
       interactive: false,
     }).addTo(map);
