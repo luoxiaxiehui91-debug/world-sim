@@ -562,22 +562,40 @@ export function FlatMapPanel({
 
     for (const a of arcs) {
       if (isNaN(a.startLat) || isNaN(a.startLng) || isNaN(a.endLat) || isNaN(a.endLng)) continue;
-      // 大圆弧采样，效果与 d3-geo 的 geoInterpolate 等价
       const coords = greatCircleArc(a.startLat, a.startLng, a.endLat, a.endLng);
-      const polyline = L.polyline(coords, {
+
+      // 弧线 antimeridian 处理：相邻点经度差 > 180 时截断为多段，避免横穿地图的错误连线
+      const segments: [number, number][][] = [];
+      let current: [number, number][] = [];
+      for (let i = 0; i < coords.length; i++) {
+        if (i > 0) {
+          const dLng = Math.abs(coords[i][1] - coords[i - 1][1]);
+          if (dLng > 180) {
+            if (current.length >= 2) segments.push(current);
+            current = [];
+          }
+        }
+        current.push(coords[i]);
+      }
+      if (current.length >= 2) segments.push(current);
+
+      const lineOpts = {
         color: a.startColor,
         weight: 0.9 + (a.intensity / 100) * 1.5,
         dashArray: '6 10',
         className: 'leaflet-arc',
         opacity: 0.75,
-        lineCap: 'round',
-      });
+        lineCap: 'round' as const,
+      };
 
-      polyline.bindTooltip(arcTooltipHtml(a), {
-        direction: 'center',
-        className: 'leaflet-tooltip-dark',
-      });
-      polyline.addTo(layer);
+      for (const seg of segments) {
+        const polyline = L.polyline(seg, lineOpts);
+        polyline.bindTooltip(arcTooltipHtml(a), {
+          direction: 'center',
+          className: 'leaflet-tooltip-dark',
+        });
+        polyline.addTo(layer);
+      }
     }
   }, [arcs, mapReady]);
 
