@@ -59,6 +59,10 @@ SYMBOLS = [
     ("^DJI",    "dji",      "道琼斯",      "USD",      "股市"),
     ("^IXIC",   "nasdaq_c", "纳斯达克综合","USD",      "股市"),
     ("^RUT",    "rut",      "罗素2000",    "USD",      "股市"),
+    # 新增：中国股市
+    ("000001.SS", "sse_comp",  "上证综合",  "CNY",      "股市"),
+    ("000300.SS", "csi300",    "沪深300",   "CNY",      "股市"),
+    ("399001.SZ", "szse_comp", "深证成分",  "CNY",      "股市"),
 ]
 _SYMBOL_KEYS = [s[1] for s in SYMBOLS]
 

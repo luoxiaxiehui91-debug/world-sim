@@ -3,6 +3,23 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.8.9 — 2026-08-04 (by Claude Code)
+
+**修改理由**：接入中国三大股市指数（上证综合/沪深300/深证成分），显示在 kaiyang MARKETS 面板 INDEXES 区，补全 A 股数据缺口。
+
+### 修改
+
+- **`核心代码/fetch_commodity_yahoo.py`**：SYMBOLS 列表加三条
+  - `("000001.SS", "sse_comp", "上证综合", "CNY", "股市")`
+  - `("000300.SS", "csi300",  "沪深300",  "CNY", "股市")`
+  - `("399001.SZ", "szse_comp","深证成分", "CNY", "股市")`
+
+- **`核心代码/market_quotes.py`**：indexes 聚合列表补 `sse_comp`/`csi300`/`szse_comp`
+  - `indexes = [_cy(k) for k in ("sp500","dji","nasdaq_c","rut","sse_comp","csi300","szse_comp") if k in commodities]`
+
+- **`VERSION`**：3.8.8 → 3.8.9
+
+
 ## v3.8.8 — 2026-08-04 (by Claude Code)
 
 **修改理由**：用户手机无法打开 ntfy 长文本消息；所有有实质内容的推送改为 .md 文件附件，规避 ntfy 长内容显示问题。同时拆分推送工具到独立模块避免循环导入。
