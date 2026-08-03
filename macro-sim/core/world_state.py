@@ -56,6 +56,10 @@ class MacroWorldState:
     usd_cny: float = 7.1              # 美元/人民币汇率
     ecb_rate: float = 3.0             # 欧央行利率 %
     sp500_change: float = 0.0         # 标普500 6个月涨跌幅 [0,1] 归一（负=下跌）
+    # 慢变量（月频，来自 slow_variables.json，Sprint-2 注入）
+    irp: float = 0.0   # 国际关系压力指数 [0,1]
+    ucri: float = 0.0  # 城市化/集中化风险指数 [0,1]
+    gci: float = 0.0   # 全球冲突强度指数 [0,1]
 
     # ── 仿真元数据 ────────────────────────────────────────
     cycle: int = 0
@@ -590,6 +594,19 @@ def load_from_macro_scan(
     except Exception as e:
         print(f"[world_state] situations.yaml 读取失败：{e}")
 
+    # 读取慢变量（slow_variables.json，月频，Sprint-2 注入）
+    irp = ucri = gci = 0.0
+    slow_var_path = os.path.join(os.path.dirname(fred_path), "slow_variables.json")
+    try:
+        if os.path.exists(slow_var_path):
+            with open(slow_var_path, encoding="utf-8") as f:
+                sv = json.load(f)
+            irp  = float(sv.get("irp",  0.0) or 0.0)
+            ucri = float(sv.get("ucri", 0.0) or 0.0)
+            gci  = float(sv.get("gci",  0.0) or 0.0)
+    except Exception as e:
+        print(f"[world_state] slow_variables.json 读取失败（非阻断）: {e}")
+
     return MacroWorldState(
         vix=float(vix), vix_baseline=float(vix_baseline),
         grv=float(grv_composite), grv_baseline=float(grv_baseline_val),
@@ -613,6 +630,8 @@ def load_from_macro_scan(
         japan_monetary=japan_monetary,
         social_stress=social_stress,
         cultural_friction=cultural_friction,
+        # 慢变量（Sprint-2）
+        irp=irp, ucri=ucri, gci=gci,
         situation_level=situation_level,
         trigger_event=trigger_event,
         recent_news=recent_news,
