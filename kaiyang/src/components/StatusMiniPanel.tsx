@@ -18,7 +18,14 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: stri
 /**
  * 侧栏状态小卡：把顶部状态条的时间戳 / schema 版本 / 缺失告警 / 推演触发做成可嵌入卡片。
  * 与 StatusBar 共用 StatusContext，不重复采集，纯读取展示。
+ *
+ * 告警过滤：以下属于"已知结构性缺失"，暂无数据源，不在此面板显示：
+ *   - market_quotes（无行情接入）
+ *   - nuclear（辐射读数无真实数据源）
+ *   - news_geo（新闻地理化有延迟，空数组属正常）
  */
+const KNOWN_STRUCTURAL_MISSING = new Set(['market_quotes', 'nuclear', 'news_geo']);
+
 export function StatusMiniPanel() {
   const { warnings, timestamps, dataVersions } = useStatus();
   const { data: sim } = useFeed<SimTriggerRaw | null>('simTrigger');
@@ -27,6 +34,10 @@ export function StatusMiniPanel() {
     Object.entries(dataVersions)
       .map(([k, v]) => `${k}:${v ?? '缺失'}`)
       .join(' ') || '—';
+
+  const actionableWarnings = warnings.filter(
+    (w) => !KNOWN_STRUCTURAL_MISSING.has(w.feed)
+  );
 
   return (
     <div className="glass-panel scanlines flex h-full min-h-[200px] flex-col">
@@ -46,9 +57,9 @@ export function StatusMiniPanel() {
 
       <div className="mt-2 flex-1 overflow-y-auto pr-0.5">
         <div className="mb-1 text-[10px] tracking-widest text-white/35">
-          缺失 / 异常告警（{warnings.length}）
+          缺失 / 异常告警（{actionableWarnings.length}）
         </div>
-        {warnings.length === 0 ? (
+        {actionableWarnings.length === 0 ? (
           <div
             className="rounded-lg px-2 py-1 text-[11px]"
             style={{ background: withAlpha(PALETTE.teal, 0.08), color: PALETTE.teal }}
@@ -57,7 +68,7 @@ export function StatusMiniPanel() {
           </div>
         ) : (
           <ul className="space-y-1">
-            {warnings.map((w) => (
+            {actionableWarnings.map((w) => (
               <li
                 key={`${w.feed}:${w.field}`}
                 className="rounded-lg px-2 py-1 text-[11px] leading-snug"
