@@ -163,17 +163,136 @@ export function FlatMapPanel({
     );
 
     // 修复 antimeridian wrapping：world-atlas 中俄罗斯/美国阿拉斯加等多边形跨越 ±180°，
-    // Leaflet 会画出横穿地图的错误连线。将经度 clip 到 [-180, 180] 消除视觉错误。
+    // Leaflet 会画出横穿地图的错误连线。使用 antimeridian splitting 在 ±180 处截断环，
+    // 生成不跨越日期变更线的 MultiPolygon，彻底消除横穿地图的错误连线。
     function clipGeoJSON(geo: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
-      const clampLng = (lng: number) => Math.max(-180, Math.min(180, lng));
-      function clipCoord(c: number[]): number[] { return [clampLng(c[0]), c[1]]; }
-      function clipRing(ring: number[][]): number[][] { return ring.map(clipCoord); }
+      // 在 ±180 处线性插值求交点纬度
+      function interpLat(lng1: number, lat1: number, lng2: number, lat2: number, targetLng: number): number {
+        const t = (targetLng - lng1) / (lng2 - lng1);
+        return lat1 + t * (lat2 - lat1);
+      }
+
+      // 把单个环在 antimeridian 处切割，返回若干闭合环
+      function splitRingAtAntimeridian(ring: number[][]): number[][][] {
+        if (ring.length < 2) return [ring];
+
+        // 先用 normalizeRing 让经度连续，便于检测跨越
+        const normalized: number[][] = [[ring[0][0], ring[0][1]]];
+        for (let i = 1; i < ring.length; i++) {
+          let lng = ring[i][0];
+          const prev = normalized[i - 1][0];
+          while (lng - prev > 180) lng -= 360;
+          while (prev - lng > 180) lng += 360;
+          normalized.push([lng, ring[i][1]]);
+        }
+
+        // 检查是否存在任何跨越（|Δlng| > 180 在原始 ring 中）
+        let hasCross = false;
+        for (let i = 1; i < ring.length; i++) {
+          const dLng = Math.abs(ring[i][0] - ring[i - 1][0]);
+          if (dLng > 180) { hasCross = true; break; }
+        }
+        // 末尾到首点也检查
+        if (!hasCross) {
+          const dLng = Math.abs(ring[0][0] - ring[ring.length - 1][0]);
+          if (dLng > 180) hasCross = true;
+        }
+        if (!hasCross) return [ring];
+
+        // 沿 normalized 坐标序列切割：遇到越过 +180 或 -180 就插入交点并开新环
+        const rings: number[][][] = [];
+        let current: number[][] = [];
+
+        const push = (pt: number[]) => current.push(pt);
+
+        for (let i = 0; i < normalized.length; i++) {
+          const p1 = normalized[i];
+          const p2 = normalized[(i + 1) % normalized.length];
+          push([p1[0], p1[1]]);
+
+          const dLng = p2[0] - p1[0];
+          if (Math.abs(dLng) > 180) {
+            // 确定截断经度方向
+            const crossLng = dLng > 0 ? 180 : -180;
+            const lat = interpLat(p1[0], p1[1], p2[0], p2[1], crossLng);
+            push([crossLng, lat]);
+            // 闭合当前环（首尾相接）
+            if (current.length >= 4) {
+              // 补首点以闭合
+              current.push([current[0][0], current[0][1]]);
+              rings.push(current);
+            }
+            current = [];
+            // 新环从另一侧的截断点开始
+            current.push([-crossLng, lat]);
+          }
+        }
+        // 收尾：把剩余顶点合并到第一个环（如果它是空的就新建）
+        if (current.length > 0) {
+          if (rings.length > 0) {
+            // 把剩余段拼回第一个环的末尾（绕一圈回来的情况）
+            const first = rings[0];
+            // 去掉第一个环的闭合点，追加当前段，再重新闭合
+            first.pop();
+            current.forEach(pt => first.push(pt));
+            first.push([first[0][0], first[0][1]]);
+          } else {
+            if (current.length >= 4) {
+              current.push([current[0][0], current[0][1]]);
+              rings.push(current);
+            } else {
+              // 几乎没有切割，直接返回原始 ring
+              return [ring];
+            }
+          }
+        }
+
+        // 规范化回 [-180, 180]（将 >180 折回）
+        return rings.map(r =>
+          r.map(pt => {
+            let lng = pt[0];
+            // 把超出 ±180 的经度折回标准范围
+            while (lng > 180) lng -= 360;
+            while (lng < -180) lng += 360;
+            return [lng, pt[1]];
+          })
+        );
+      }
+
+      // 处理单个 Polygon 的所有环，返回 Geometry（可能升级为 MultiPolygon）
       function clipGeom(geom: GeoJSON.Geometry): GeoJSON.Geometry {
-        if (geom.type === 'Polygon') return { ...geom, coordinates: geom.coordinates.map(clipRing) };
-        if (geom.type === 'MultiPolygon') return { ...geom, coordinates: geom.coordinates.map(p => p.map(clipRing)) };
+        if (geom.type === 'Polygon') {
+          // 每个环独立切割
+          const splitCoords: number[][][][] = geom.coordinates.map(splitRingAtAntimeridian);
+          // 如果所有环都只有一片（未切割），保持 Polygon
+          const allSingle = splitCoords.every(parts => parts.length === 1);
+          if (allSingle) {
+            return { ...geom, coordinates: splitCoords.map(parts => parts[0]) };
+          }
+          // 有切割：外环切割产生多个 rings，每个 ring 组成独立 Polygon
+          // 简化处理：外环切割结果各自成为独立的 Polygon，孔暂不处理（world-atlas 数据孔极少）
+          const outerParts = splitCoords[0];
+          const polygons = outerParts.map(outerRing => ({ type: 'Polygon' as const, coordinates: [outerRing] }));
+          if (polygons.length === 1) return polygons[0];
+          return { type: 'MultiPolygon', coordinates: polygons.map(p => p.coordinates) };
+        }
+        if (geom.type === 'MultiPolygon') {
+          const newPolygons: number[][][][] = [];
+          for (const poly of geom.coordinates) {
+            const splitOuter = splitRingAtAntimeridian(poly[0]);
+            for (const outerRing of splitOuter) {
+              newPolygons.push([outerRing]);
+            }
+          }
+          return { ...geom, coordinates: newPolygons };
+        }
         return geom;
       }
-      return { ...geo, features: geo.features.map(f => ({ ...f, geometry: clipGeom(f.geometry) })) };
+
+      return {
+        ...geo,
+        features: geo.features.map(f => ({ ...f, geometry: clipGeom(f.geometry) })),
+      };
     }
     const landClipped = clipGeoJSON(landGeo as unknown as GeoJSON.FeatureCollection);
     const countriesClipped = clipGeoJSON(countriesGeo as unknown as GeoJSON.FeatureCollection);
