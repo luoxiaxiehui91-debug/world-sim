@@ -3,6 +3,38 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.8.12 — 2026-08-04 (by Claude Code)
+
+**修改理由**：P2+P3-A——加入 spaCy NLP 支持并实现新闻坐标化，供 kaiyang 地理新闻图层读取。
+
+### 新增
+
+- **`核心代码/news_geo_feed.py`**（新建，P3-A）：新闻坐标提取器
+  - 读取 `data/news_export.json` 的 articles
+  - 用 `zh_core_web_sm` NER 提取 GPE/LOC 地名
+  - 查 `data/gdelt_geo_cache.json` 获取坐标（由 geo_risk_vector.py 顺带写入）
+  - 过滤 lat/lng 为 null 的条目
+  - 写出 `data/news_geo.json`（schema_version 1.0）
+  - spaCy 加载失败时非阻断（geo_cache 仍可用）
+
+### 修改
+
+- **`核心代码/scheduler.py`**：
+  - 注册 `news_geo_feed` 任务，调度时间 07:15（news_export 07:05 之后）
+  - `LOG_FILES` 加 `news_geo_feed` 条目
+
+- **`requirements.txt`**（已在 v3.8.11 期间更新）：
+  - spaCy `>=3.7,<4.0` → `>=3.8,<4.0`（修复 numpy 2.x thinc ABI 不兼容）
+  - 模型从 zh_core_web_sm-3.7.0 → 3.8.0
+
+- **`VERSION`**：3.8.11 → 3.8.12
+
+### NAS 操作
+
+- macro-scan 镜像已重建为 `macro-scan:v3.8.11`（含 spaCy 3.8.14 + zh_core_web_sm）
+- 容器已用 `--force-recreate` 重启并验证 NER 正常
+
+
 ## v3.8.11 — 2026-08-04 (by Claude Code)
 
 **修改理由**：GRV P1-C 修复——GDELT P95 基准从硬编码改为运行时动态计算，解决 arch_review D9（中美/台海归一化差距 15 倍失真）。样本 <100 条时自动 fallback 到硬编码值，满足 grv_datasource_fix.md 要求（≥1000 条后锁定，当前动态更新）。
