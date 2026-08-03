@@ -55,3 +55,8 @@ pydantic>=2.0.0
 
 # PDF 解析（ged_codebook_extract.py 解析 UCDP GED codebook PDF）
 pypdf>=4.0.0
+
+# NLP 实体识别（news_geo_feed.py 地名提取，P3-A）
+# 中文 NER 模型随镜像构建时通过 whl 安装，无需运行时联网
+spacy>=3.7,<4.0
+https://github.com/explosion/spacy-models/releases/download/zh_core_web_sm-3.7.0/zh_core_web_sm-3.7.0-py3-none-any.whl
