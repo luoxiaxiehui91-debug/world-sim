@@ -333,14 +333,26 @@ def run_calibration(
         "calib_steps":   calib_steps,
     }
 
+    # D6 fix: 写校准缓存，下次启动时若 <7 天直接加载跳过50步校准
+    try:
+        cache_path = Path("/app/data/calibration_cache.json")
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_data = {
+            "timestamp": datetime.now().isoformat(),
+            "score": score,
+            "agents": result["agents"],
+        }
+        with open(cache_path, "w", encoding="utf-8") as _cf:
+            json.dump(cache_data, _cf, ensure_ascii=False, indent=2)
+        print(f"[calibrator] 校准缓存已写入 {cache_path}")
+    except Exception as _ce:
+        print(f"[calibrator] 缓存写入失败（非阻断）: {_ce}")
+
     print(f"\n[calibrator] 完成。评分：{score}/100，平均误差：{avg_error:.4f}")
     if score < 60:
         print(f"  ⚠️ 评分低于60，预测可信度有限")
 
     return result
-
-
-import copy
 import json
 import os
 import re
@@ -509,7 +521,38 @@ def run_calibration(
       "error_series": [float × calib_steps],
       "param_changes": [{step, agent, param, old, new, reason}],
     }
+
+    D6 fix：启动时检查校准缓存（/app/data/calibration_cache.json），
+    若时间戳 <7 天则直接加载缓存参数，跳过50步校准。
     """
+    # D6: 尝试加载校准缓存
+    _cache_path = Path("/app/data/calibration_cache.json")
+    try:
+        if _cache_path.exists():
+            with open(_cache_path, encoding="utf-8") as _cf:
+                _cache = json.load(_cf)
+            _ts = datetime.fromisoformat(_cache.get("timestamp", "2000-01-01"))
+            _age_days = (datetime.now() - _ts).total_seconds() / 86400
+            if _age_days < 7:
+                print(f"[calibrator] 命中校准缓存（{_age_days:.1f}天前，score={_cache.get('score')}），跳过50步校准")
+                agents, _ = load_agents(config_path)
+                for aid, p in _cache.get("agents", {}).items():
+                    if aid in agents:
+                        agents[aid].params.sensitivity = p.get("sensitivity", 1.0)
+                        agents[aid].params.threshold   = p.get("threshold", 0.5)
+                        agents[aid].params.magnitude   = p.get("magnitude", 1.0)
+                return {
+                    "score":        _cache.get("score", 50),
+                    "avg_error":    0.0,
+                    "agents":       _cache.get("agents", {}),
+                    "error_series": [],
+                    "param_changes": [],
+                    "calib_steps":  0,
+                    "_from_cache":  True,
+                }
+    except Exception as _ce:
+        print(f"[calibrator] 缓存读取失败，执行完整校准: {_ce}")
+
     print(f"[calibrator] 加载历史数据（最近{calib_steps}个月）...")
     history = load_monthly_history(grv_path, fred_path, months=calib_steps + 6)
 
@@ -613,6 +656,21 @@ def run_calibration(
         "param_changes": param_changes,
         "calib_steps":  calib_steps,
     }
+
+    # D6 fix: 写校准缓存，下次启动时若 <7 天直接加载跳过50步校准
+    try:
+        _cache_path2 = Path("/app/data/calibration_cache.json")
+        _cache_path2.parent.mkdir(parents=True, exist_ok=True)
+        _cache_data2 = {
+            "timestamp": datetime.now().isoformat(),
+            "score": score,
+            "agents": result["agents"],
+        }
+        with open(_cache_path2, "w", encoding="utf-8") as _cf2:
+            json.dump(_cache_data2, _cf2, ensure_ascii=False, indent=2)
+        print(f"[calibrator] 校准缓存已写入 {_cache_path2}")
+    except Exception as _ce2:
+        print(f"[calibrator] 缓存写入失败（非阻断）: {_ce2}")
 
     print(f"\n[calibrator] 完成。评分：{score}/100，平均误差：{avg_error:.4f}")
     if score < 60:

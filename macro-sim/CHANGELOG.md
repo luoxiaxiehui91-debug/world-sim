@@ -3,6 +3,30 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.22 — 2026-08-04 (by Claude Code)
+
+**修改理由**：B+A/NOVEL Sprint-2——A2/A3/A6 soul 文件在位激活；慢变量 irp/ucri/gci 注入 MacroWorldState；D6 校准缓存实现。
+
+### 修改
+
+- **`config/agents.yaml`**（Sprint-2 soul 预位）
+  - A2 加 `soul_file: A2_china.yaml`（注释：B+A/NOVEL 重写后将成为中国主权 Agent）
+  - A3 加 `soul_file: A3_eu.yaml`（注释：B+A/NOVEL 重写后将成为欧盟主权 Agent）
+  - A6 加 `soul_file: A6_russia.yaml`（注释：B+A/NOVEL 重写后将成为俄罗斯主权 Agent）
+  - soul 文件由 load_agents() 加载到 agent.soul 字段，当前 MacroAgent 基类接收但不激活派系决策（只有 SovereignAgent 子类使用）
+
+- **`core/world_state.py`**（慢变量注入）
+  - `MacroWorldState` 新增字段：`irp: float = 0.0` / `ucri: float = 0.0` / `gci: float = 0.0`
+  - `load_from_macro_scan()` 末尾读取 `/app/macro_data/slow_variables.json`，注入 irp/ucri/gci，文件不存在时安全默认 0.0
+
+- **`core/calibrator.py`**（D6 校准缓存）
+  - 两个 `run_calibration()` 函数均加入：
+    - **入口**：读 `/app/data/calibration_cache.json`，时间戳 <7 天时直接加载参数，返回 `_from_cache: True`，跳过50步校准
+    - **出口**：校准完成后写缓存（含 timestamp / score / agents 参数）
+
+- **`VERSION`**：v2.0.21 → v2.0.22
+
+
 
 ## 2026-08-03 [2.0.21] B+A/NOVEL Sprint-1：SovereignAgent 基类 + Board + 3个主权 soul 文件（by Claude Code）
 

@@ -27,6 +27,7 @@ agents:
     name: 商业银行
     role: commercial_bank
     class: financial.CommercialBankAgent
+    soul_file: A2_china.yaml    # Sprint-2 预位：B+A/NOVEL 重写后 A2 将成为中国主权 Agent
     info_delay: 2
     activation_prob: 0.70
     transmission_coefficients:
@@ -41,6 +42,7 @@ agents:
     name: 对冲基金
     role: hedge_fund
     class: financial.HedgeFundAgent
+    soul_file: A3_eu.yaml       # Sprint-2 预位：B+A/NOVEL 重写后 A3 将成为欧盟主权 Agent
     info_delay: 0        # 即时，最灵敏
     activation_prob: 1.00
     transmission_coefficients:
@@ -84,6 +86,7 @@ agents:
     name: 媒体/舆论
     role: media
     class: social.MediaAgent
+    soul_file: A6_russia.yaml   # Sprint-2 预位：B+A/NOVEL 重写后 A6 将成为俄罗斯主权 Agent
     info_delay: 1
     activation_prob: 0.80
     transmission_coefficients:
