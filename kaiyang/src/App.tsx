@@ -14,7 +14,7 @@ import { PANELS } from '@/panels/registry';
 // ---- react-grid-layout 初始化 ----
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
-const STORAGE_KEY = 'kaiyang.v4.panelLayout';
+const STORAGE_KEY = 'kaiyang.v5.panelLayout';
 
 /** 从 panelRegistry 推导初始布局（3 行 × 12 栅格，Bloomberg/Grafana 情报面板范式）。 */
 function buildDefaultLayout(): Layout[] {
@@ -28,6 +28,7 @@ function buildDefaultLayout(): Layout[] {
     'status-mini':    { x: 0,  y: 15 },
     'news':           { x: 3,  y: 15 },
     'nuclear-watch':  { x: 9,  y: 15 },
+    'space-watch':    { x: 0,  y: 20 },
   };
 
   const panels = PANELS.filter((p) => p.visible).sort((a, b) => a.order - b.order);
