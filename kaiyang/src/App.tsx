@@ -29,6 +29,7 @@ function buildDefaultLayout(): Layout[] {
     'news':           { x: 3,  y: 15 },
     'nuclear-watch':  { x: 9,  y: 15 },
     'space-watch':    { x: 0,  y: 20 },
+    'macro-snapshot': { x: 3,  y: 20 },
   };
 
   const panels = PANELS.filter((p) => p.visible).sort((a, b) => a.order - b.order);
