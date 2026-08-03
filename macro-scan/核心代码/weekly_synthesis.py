@@ -250,22 +250,13 @@ def generate() -> str:
 
 
 def push(report: str):
-    """推送到 ntfy。"""
+    """推送到 ntfy（长内容以 .md 附件发送）。"""
     if not NTFY_TOPIC:
         return
     try:
-        import requests as _req
+        from ntfy_utils import push_markdown
         week_str = datetime.now().strftime("第%V周 %m/%d")
-        _req.post(
-            "https://ntfy.sh/",
-            json={
-                "topic":    NTFY_TOPIC,
-                "title":    f"📊 本周世界回顾 {week_str}",
-                "message":  report,
-                "priority": 2,
-            },
-            timeout=30,
-        )
+        push_markdown(f"📊 本周世界回顾 {week_str}", report, "weekly")
         print("[weekly_synthesis] ntfy 推送完成")
     except Exception as e:
         print(f"[weekly_synthesis] 推送失败: {e}")

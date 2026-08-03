@@ -18,6 +18,7 @@ from pathlib import Path
 from datetime import datetime
 
 # ── 本地模块 ──────────────────────────────────────────────────
+from ntfy_utils import push_file, push_text_with_priority, push_markdown
 from optim_config import DATA_DIR
 from situation_tracker import (
     get_context, format_for_ntfy, list_situations,
@@ -61,43 +62,8 @@ def push_text(title: str, message: str):
         logging.warning(f"推送失败: {e}")
 
 
-def push_text_with_priority(title: str, message: str, priority: int = 3):
-    """推送文本消息，支持 ntfy priority 字段（1=min/2=low/3=default/4=high/5=urgent）。"""
-    if not NTFY_REPORT_TOPIC:
-        return
-    try:
-        requests.post(
-            "https://ntfy.sh/",
-            json={"topic": NTFY_REPORT_TOPIC, "title": title, "message": message,
-                  "priority": priority},
-            proxies=_proxies(),
-            timeout=30,
-        )
-    except Exception as e:
-        logging.warning(f"推送失败: {e}")
+# push_file / push_text_with_priority 已移至 ntfy_utils.py（避免循环导入）
 
-def push_file(title: str, filepath: Path):
-    """以 PUT 上传文件附件，Header 需用 latin-1 encode，中文字符先 utf-8→latin-1 转换。"""
-    if not NTFY_REPORT_TOPIC:
-        return
-    try:
-        _title = title.encode("utf-8").decode("latin-1")
-        _fname = filepath.name.encode("utf-8").decode("latin-1")
-        with open(filepath, "rb") as _f:
-            requests.put(
-                f"https://ntfy.sh/{NTFY_REPORT_TOPIC}",
-                data=_f.read(),
-                headers={
-                    "Title": _title,
-                    "Filename": _fname,
-                    "Message": "\u200b".encode("utf-8").decode("latin-1"),
-                    "Content-Type": "text/markdown; charset=utf-8",
-                },
-                proxies=_proxies(),
-                timeout=60,
-            )
-    except Exception as e:
-        logging.warning(f"attachment push failed: {e}")
 
 # ── 指令解析 ──────────────────────────────────────────────────
 def parse_command(message: str):
@@ -336,7 +302,7 @@ def cmd_ask(args: list):
 
             system = "你是宏观世界分析助手，回答基于提供的数据快照，言简意赅，区分已知事实和推断。"
             answer = llm_reason(prompt, system=system, mode="auto", max_tokens=400)
-            push_text(f"💬 {question[:30]}…", answer.strip())
+            push_markdown(f"💬 {question[:30]}…", answer.strip(), "ask")
 
         except Exception as e:
             push_text("⚠️ 问答失败", f"错误：{str(e)[:200]}")
@@ -432,7 +398,7 @@ def cmd_narrative():
             text = generate()
             from datetime import datetime
             today_str = datetime.now().strftime("%m月%d日")
-            push_text(f"📡 今日世界摘要 {today_str}", text)
+            push_markdown(f"📡 今日世界摘要 {today_str}", text, "narrative")
         except Exception as e:
             push_text("⚠️ 摘要生成失败", str(e)[:200])
 
@@ -449,7 +415,7 @@ def cmd_weekly():
             text = generate()
             from datetime import datetime
             week_str = datetime.now().strftime("第%V周")
-            push_text(f"📊 本周世界回顾 {week_str}", text)
+            push_markdown(f"📊 本周世界回顾 {week_str}", text, "weekly")
         except Exception as e:
             push_text("⚠️ 周报生成失败", str(e)[:200])
 

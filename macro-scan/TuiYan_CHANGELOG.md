@@ -3,6 +3,39 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.8.8 — 2026-08-04 (by Claude Code)
+
+**修改理由**：用户手机无法打开 ntfy 长文本消息；所有有实质内容的推送改为 .md 文件附件，规避 ntfy 长内容显示问题。同时拆分推送工具到独立模块避免循环导入。
+
+### 新增
+
+- **`核心代码/ntfy_utils.py`**（新建）：ntfy 推送工具集，无循环依赖
+  - `push_text()` — 短文本推送（从 ntfy_listener 复制）
+  - `push_text_with_priority()` — 带优先级文本推送（从 ntfy_listener 移出）
+  - `push_file()` — 文件附件推送（从 ntfy_listener 移出）
+  - `push_markdown()` — 长内容转临时 .md 文件再用 push_file 推送，失败时降级 push_text 截断500字
+
+### 修改
+
+- **`核心代码/ntfy_listener.py`**
+  - 顶部 `from ntfy_utils import push_file, push_text_with_priority, push_markdown`
+  - 删除 `push_text_with_priority` / `push_file` 函数体（已移至 ntfy_utils）
+  - `cmd_narrative()` 最终推送：`push_text` → `push_markdown(..., "narrative")`
+  - `cmd_weekly()` 最终推送：`push_text` → `push_markdown(..., "weekly")`
+  - `cmd_ask()` 回答推送：`push_text` → `push_markdown(..., "ask")`
+
+- **`核心代码/weekly_synthesis.py`**
+  - `push()` 函数：`requests.post(json=...)` 直推 → `from ntfy_utils import push_markdown` + `push_markdown()`
+
+- **`核心代码/signal_synthesizer.py`**
+  - 两处 `from ntfy_listener import push_text_with_priority` → `from ntfy_utils import push_text_with_priority`（主规则触发 + R08 相关性突变）
+
+- **`核心代码/grv_threshold.py`**
+  - `from ntfy_listener import push_text_with_priority` → `from ntfy_utils import push_text_with_priority`（GRV 告警启动推送）
+
+- **`VERSION`**：3.8.7 → 3.8.8
+
+
 ## v3.8.7 — 2026-08-03 (by Claude Code)
 
 **修改理由**：GRV 数据源 P0 修复——middle_east_energy 接入 WTI 油价、energy_grid_risk 数据源错误修复（UK Carbon Intensity → 天然气期货）。参照 Smith & Pinchetti (2024, Bank of England) Channel B 理论，纯 GDELT 驱动是方法论错误。

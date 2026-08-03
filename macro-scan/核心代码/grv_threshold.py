@@ -187,7 +187,7 @@ def check_and_trigger(new_grv: dict, prev_grv: dict) -> None:
     # ── 异步推演 + macro-sim 触发（daemon=True，主进程可正常退出）────────────
     def _worker():
         try:
-            from ntfy_listener import push_text_with_priority
+            from ntfy_utils import push_text_with_priority
             push_text_with_priority(
                 f"[GRV告警] {trigger_summary[:40]}",
                 f"自动推演已启动，约80秒后推送报告。\n触发：{trigger_summary}",

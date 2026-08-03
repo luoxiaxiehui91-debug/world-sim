@@ -485,7 +485,7 @@ def evaluate_rules(rules_path: str = RULES_PATH,
         llm_ok = ntfy_ok = 0
         try:
             from hypothesis_engine import run_hypothesis_simple
-            from ntfy_listener import push_text_with_priority
+            from ntfy_utils import push_text_with_priority
             run_hypothesis_simple(hypothesis)
             llm_ok = 1
             push_text_with_priority(
@@ -531,7 +531,7 @@ def evaluate_rules(rules_path: str = RULES_PATH,
             else:
                 _write_log(db_path, "R08", scan_ctx_id, r08_ctx)
                 try:
-                    from ntfy_listener import push_text_with_priority
+                    from ntfy_utils import push_text_with_priority
                     push_text_with_priority(
                         "[信号🟡] 跨资产相关性突变",
                         desc + "\n（相关性结构性变化，请结合其他信号判断）",
