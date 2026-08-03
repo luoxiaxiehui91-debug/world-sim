@@ -53,7 +53,7 @@ export function EconomyPanel() {
   const last = active && active.points.length ? active.points[active.points.length - 1] : null;
 
   return (
-    <div className="glass-panel scanlines flex h-full min-h-[340px] flex-col">
+    <div className="glass-panel scanlines flex h-full flex-col">
       <div className="panel-title">📈 经济面板 · FRED 关键序列</div>
       <div className="my-2 flex flex-wrap gap-1.5">
         {series.map((s) => (
@@ -77,7 +77,7 @@ export function EconomyPanel() {
       {!error && !loading && series.length === 0 && (
         <div className="text-xs text-amber-300">无可用序列（manifest 缺失或路径错误）</div>
       )}
-      <EChart option={option} className="min-h-[220px] flex-1" />
+      <EChart option={option} className="flex-1" style={{ minHeight: 0 }} />
     </div>
   );
 }

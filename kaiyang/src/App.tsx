@@ -14,22 +14,20 @@ import { PANELS } from '@/panels/registry';
 // ---- react-grid-layout 初始化 ----
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
-const STORAGE_KEY = 'kaiyang.v2.panelLayout';
+const STORAGE_KEY = 'kaiyang.v3.panelLayout';
 
 /** 从 panelRegistry 推导初始布局（3 行 × 12 栅格，Bloomberg/Grafana 情报面板范式）。 */
 function buildDefaultLayout(): Layout[] {
-  // 行 0：主视图区（风险摘要 | 世界地图 | 信号流），地图是视觉主角
-  // 行 6：数据分析区（GRV维度 | 经济面板）
-  // 行 10：次要信息区（数据状态 | 新闻 | 核监视）
+  // 行 0：主视图区（h=7），行 7：分析区（h=6），行 13：次要区（h=5）
   const positions: Record<string, { x: number; y: number }> = {
     'risk-summary':   { x: 0,  y: 0  },
     'world':          { x: 2,  y: 0  },
     'signal-stream':  { x: 9,  y: 0  },
-    'grv':            { x: 0,  y: 6  },
-    'economy':        { x: 4,  y: 6  },
-    'status-mini':    { x: 0,  y: 10 },
-    'news':           { x: 3,  y: 10 },
-    'nuclear-watch':  { x: 9,  y: 10 },
+    'grv':            { x: 0,  y: 7  },
+    'economy':        { x: 4,  y: 7  },
+    'status-mini':    { x: 0,  y: 13 },
+    'news':           { x: 3,  y: 13 },
+    'nuclear-watch':  { x: 9,  y: 13 },
   };
 
   const panels = PANELS.filter((p) => p.visible).sort((a, b) => a.order - b.order);

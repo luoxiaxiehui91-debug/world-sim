@@ -63,41 +63,41 @@ export const PANELS: PanelRegistration[] = [
   {
     id: 'risk-summary', title: '风险摘要', feed: 'grv', order: 1, visible: true,
     className: 'lg:col-span-2', component: RiskSummaryPanel,
-    defaultLayout: { w: 2, h: 6, minW: 2, minH: 3 },
+    defaultLayout: { w: 2, h: 7, minW: 2, minH: 4 },
   },
   {
     id: 'world', title: '世界视图（3D/平面）', feed: 'grv', order: 2, visible: true,
     className: 'lg:col-span-7', component: WorldPanel,
-    defaultLayout: { w: 7, h: 6, minW: 4, minH: 4 },
+    defaultLayout: { w: 7, h: 7, minW: 4, minH: 5 },
   },
   {
     id: 'signal-stream', title: '最新信号流', feed: 'news', order: 3, visible: true,
     className: 'lg:col-span-3', component: SignalStreamPanel,
-    defaultLayout: { w: 3, h: 6, minW: 2, minH: 3 },
+    defaultLayout: { w: 3, h: 7, minW: 2, minH: 4 },
   },
   {
     id: 'grv', title: 'GRV 维度', feed: 'grv', order: 4, visible: true,
     className: 'lg:col-span-4', component: GrvPanel,
-    defaultLayout: { w: 4, h: 4, minW: 2, minH: 3 },
+    defaultLayout: { w: 4, h: 6, minW: 2, minH: 4 },
   },
   {
     id: 'economy', title: '经济面板', feed: 'fred', order: 5, visible: true,
     className: 'lg:col-span-8', component: EconomyPanel,
-    defaultLayout: { w: 8, h: 4, minW: 3, minH: 3 },
+    defaultLayout: { w: 8, h: 6, minW: 3, minH: 4 },
   },
   {
     id: 'status-mini', title: '数据状态', feed: 'all', order: 6, visible: true,
     className: 'lg:col-span-3', component: StatusMiniPanel,
-    defaultLayout: { w: 3, h: 4, minW: 2, minH: 2 },
+    defaultLayout: { w: 3, h: 5, minW: 2, minH: 3 },
   },
   {
     id: 'news', title: '新闻面板', feed: 'news', order: 7, visible: true,
     className: 'lg:col-span-6', component: NewsPanel,
-    defaultLayout: { w: 6, h: 4, minW: 3, minH: 2 },
+    defaultLayout: { w: 6, h: 5, minW: 3, minH: 3 },
   },
   {
     id: 'nuclear-watch', title: '核设施监视', feed: 'nuclearSites', order: 8, visible: true,
     className: 'lg:col-span-3', component: NuclearWatchPanel,
-    defaultLayout: { w: 3, h: 4, minW: 2, minH: 2 },
+    defaultLayout: { w: 3, h: 5, minW: 2, minH: 3 },
   },
 ];

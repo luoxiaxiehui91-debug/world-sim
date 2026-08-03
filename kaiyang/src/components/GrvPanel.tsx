@@ -133,7 +133,7 @@ export function GrvPanel() {
   }, [dims]);
 
   return (
-    <div className="glass-panel scanlines flex h-full min-h-[440px] flex-col">
+    <div className="glass-panel scanlines flex h-full flex-col">
       <div className="panel-title">📊 GRV 维度风险（含不确定区间）</div>
 
       {model.composite.length > 0 && (
@@ -148,7 +148,7 @@ export function GrvPanel() {
         误差带为 ±不确定区间。Wave1 数据源未提供该字段，按 8% 估算并标记；缺失维度以灰色显示「数据缺失」。
         综合指数无地理位置，单列于上方，不投影到地图。
       </p>
-      <EChart option={option} className="min-h-[300px] flex-1" />
+      <EChart option={option} className="flex-1" style={{ minHeight: 0 }} />
     </div>
   );
 }
