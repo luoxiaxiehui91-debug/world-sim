@@ -727,11 +727,11 @@ def run_scoring() -> dict | None:
         # 只取 due_at 已到期且有 outcome 的记录
         now_str = _dt.utcnow().isoformat()[:19]
         rows = conn.execute("""
-            SELECT predicted_probability, outcome
+            SELECT final_prob AS predicted_probability, outcome_value AS outcome
             FROM predictions
             WHERE due_at <= ?
-              AND outcome IS NOT NULL
-              AND predicted_probability IS NOT NULL
+              AND outcome_value IS NOT NULL
+              AND final_prob IS NOT NULL
         """, (now_str,)).fetchall()
         conn.close()
     except Exception as e:
