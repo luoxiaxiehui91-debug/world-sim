@@ -90,6 +90,14 @@ export const FEEDS: Record<string, FeedConfig> = {
     schemaVersion: '1.0',
     description: '市场报价快照（无面板，仅 fetch 备查；P1+ 再上图）',
   },
+  // ── 1.7.2 追加：Space-Track 卫星统计 + 商品/股市实时快照 ──
+  spacetrack: {
+    name: 'spacetrack',
+    path: 'spacetrack.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: 'Space-Track.org 在轨卫星统计（天枢每日06:15采集）',
+  },
 };
 
 // 仅用于类型推导的占位（避免未使用导入告警）。

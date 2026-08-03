@@ -7,6 +7,7 @@ import { RiskSummaryPanel } from '@/components/RiskSummaryPanel';
 import { SignalStreamPanel } from '@/components/SignalStreamPanel';
 import { StatusMiniPanel } from '@/components/StatusMiniPanel';
 import { NuclearWatchPanel } from '@/components/NuclearWatchPanel';
+import { SpaceWatchPanel } from '@/components/SpaceWatchPanel';
 
 /** 面板注册项（扩展标准 #2）：新增面板只加一项，布局无需改动。 */
 export interface PanelRegistration {
@@ -98,6 +99,11 @@ export const PANELS: PanelRegistration[] = [
   {
     id: 'nuclear-watch', title: '核设施分布', feed: 'nuclearSites', order: 8, visible: true,
     className: 'lg:col-span-3', component: NuclearWatchPanel,
+    defaultLayout: { w: 3, h: 5, minW: 2, minH: 3 },
+  },
+  {
+    id: 'space-watch', title: '宇宙监视', feed: 'spacetrack', order: 9, visible: true,
+    className: 'lg:col-span-3', component: SpaceWatchPanel,
     defaultLayout: { w: 3, h: 5, minW: 2, minH: 3 },
   },
 ];

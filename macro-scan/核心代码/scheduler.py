@@ -87,6 +87,7 @@ JOBS = [
     ("verify_auto", "0915", "1-7", 1,   [PYTHON, "verify_hypothesis.py", "--commit", "--update-weights"]),  # 每月1日
     ("slow_vars",   "0935", "1-7", 1,   [PYTHON, "slow_variables.py"]),              # 天玑 慢变量更新（每月1日）
     ("tianji_verify","0940", "1-7", 1,   [PYTHON, "tianji_verifier.py"]),             # 天玑 月度验证+反哺检查（每月1日）
+    ("spacetrack",  "0615", "1-7", None, [PYTHON, "fetch_spacetrack.py"]),            # Space-Track 卫星统计（日频，06:15）
     ("weight_health","0945", "1-7", 1,   [PYTHON, "weight_matrix.py", "--health"]),  # 玉衡 权重矩阵健康检查（每月1日）
     ("news_prune",  "0920", "1-7", 1,   [PYTHON, "-c",
         "import sys; sys.path.insert(0,'.'); import news_db; "
@@ -140,6 +141,7 @@ LOG_FILES = {
     "tianji_verify":   f"{LOG_DIR}/tianji_verify.log",
     "weight_health":   f"{LOG_DIR}/weight_health.log",
     "health_push":     f"{LOG_DIR}/health_push.log",
+    "spacetrack":      f"{LOG_DIR}/spacetrack.log",
     "compute_probit":  f"{LOG_DIR}/compute_probit.log",
 }
 
