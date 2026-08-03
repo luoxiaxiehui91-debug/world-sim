@@ -33,6 +33,7 @@ GDELT_FILE   = os.path.join(DATA_DIR, "gdelt_scores.json")
 FRED_DIR     = os.path.join(DATA_DIR, "fred_history")
 GRV_OUTPUT   = os.path.join(DATA_DIR, "grv_latest.json")
 GRV_HISTORY  = os.path.join(DATA_DIR, "grv_history.jsonl")
+GED_CSV      = os.path.join(DATA_DIR, "ged", "ged_agg_country_month.csv")
 
 # GPR 系列历史分位数（滚动10年 P10-P95 归一化）
 # p95 代替 p90，避免极端事件（如2026-03关税战峰值331）把天花板压得过低导致长期触顶
@@ -54,6 +55,97 @@ _CONFLICT_FLOOR = {
     "russia_europe": 35.0,
 }
 _CONFLICT_FLOOR_MIN_ARTICLES = 5  # 触发 floor 所需的近30天冲突文章数
+
+
+# GED P95 基准锚点（ged_agg_country_month.csv，1989-2024，地区月度聚合，state+one-sided）
+# 多 agent 辩论结论（地缘政治理论+数据科学+怀疑者，2026-08-04）：
+#   P95 = 3570 死亡/地区/月；log1p(3570) ≈ 8.18
+#   权重：GED×0.30 + GDELT×0.70（保守起步，3个月后校准）
+#   适用维度：russia_europe（Europe）/ middle_east_energy（Middle East）
+#   不适用：taiwan_strait / us_china_strategic（威慑型风险，死亡数无意义）
+_GED_P95_ANCHOR = 3570.0
+_GED_REGION_MAP = {
+    "russia_europe":    "Europe",
+    "middle_east_energy": "Middle East",
+}
+_GED_STALE_MONTHS = 18  # 超过此月数无数据则权重自动降为 0
+
+
+def _load_ged_conflict_signal(dimension: str) -> float | None:
+    """
+    读取 GED v26.1 月度聚合数据，为指定 GRV 维度计算冲突死亡信号（0-100）。
+
+    设计依据（多 agent 辩论，2026-08-04）：
+    - 归一化：log1p(deaths_12m_rolling) / log1p(P95_anchor) × 100，clip [0,100]
+    - P95 anchor = 3570（地区月度聚合，1989-2024 实测）
+    - 只统计 type_of_violence in (1=state-based, 3=one-sided)
+    - GED 冻结到 2024 年末；若最新可用数据 > 18 个月前，返回 None（权重退化为 0）
+    - Richardson (1960) log 量级框架；UCDP/PRIO 理论基础
+    - 非阻断：任何异常返回 None，上层融合自动退化为 GDELT-only
+    """
+    region = _GED_REGION_MAP.get(dimension)
+    if not region:
+        return None
+    if not os.path.exists(GED_CSV):
+        return None
+    try:
+        import csv as _csv
+        import math as _math
+
+        # Schema 断言：必需字段存在
+        _REQUIRED = {"region", "year_month", "type_of_violence", "deaths_best"}
+        cutoff_ym = (
+            datetime.datetime.now() - datetime.timedelta(days=_GED_STALE_MONTHS * 30)
+        ).strftime("%Y-%m")
+        window_start = (
+            datetime.datetime.now() - datetime.timedelta(days=365)
+        ).strftime("%Y-%m")
+
+        total_deaths = 0.0
+        latest_ym = ""
+        row_count = 0
+        with open(GED_CSV, newline="", encoding="utf-8") as f:
+            reader = _csv.DictReader(f)
+            if not _REQUIRED.issubset(set(reader.fieldnames or [])):
+                _get_logger().error("[GED] CSV schema 断言失败，缺少必需字段: %s",
+                                    _REQUIRED - set(reader.fieldnames or []))
+                return None
+            for row in reader:
+                if row.get("region") != region:
+                    continue
+                tov = row.get("type_of_violence", "")
+                if tov not in ("1", "3"):
+                    continue
+                ym = row.get("year_month", "")
+                if ym < window_start:
+                    continue
+                row_count += 1
+                if ym > latest_ym:
+                    latest_ym = ym
+                try:
+                    total_deaths += float(row.get("deaths_best") or 0)
+                except (ValueError, TypeError):
+                    pass
+
+        if not latest_ym or latest_ym < cutoff_ym:
+            _get_logger().warning(
+                "[GED] %s 数据过期（最新=%s 阈值=%s），GED 权重退化为 0",
+                dimension, latest_ym or "无", cutoff_ym,
+            )
+            return None
+
+        if row_count == 0:
+            return None
+
+        score = min(100.0, _math.log1p(total_deaths) / _math.log1p(_GED_P95_ANCHOR) * 100)
+        _get_logger().info(
+            "[GED] %s region=%s deaths_12m=%.0f latest=%s → score=%.1f",
+            dimension, region, total_deaths, latest_ym, score,
+        )
+        return round(score, 1)
+    except Exception as _e:
+        _get_logger().warning("[GED] %s 读取失败（非阻断）: %s", dimension, _e)
+        return None
 
 
 def _get_logger():
@@ -328,8 +420,29 @@ def compute_grv() -> dict:
 
     taiwan_strait      = _blend(gdelt_taiwan_n,  gpr_twn,    0.4, 0.6)
     us_china_strategic = _blend(gdelt_uschina_n, gpr_chn,    0.5, 0.5)
-    russia_europe      = _blend(gdelt_russia_n,  gpr_rus,    0.4, 0.6)
-    middle_east_energy = _blend(gdelt_mideast_n, None,       1.0, 0.0)  # CFG-1: 纯GDELT，无中东专项GPR
+
+    # russia_europe：GDELT×0.7 + GED×0.3（GED 不可用时退化为纯 GDELT+GPR）
+    # 多 agent 辩论结论（2026-08-04）：europe 有 GED 覆盖，GED 为低频校准锚点
+    ged_russia = _load_ged_conflict_signal("russia_europe")
+    if ged_russia is not None:
+        gdelt_russia_blended = (
+            (gdelt_russia_n or 0.0) * 0.70 + ged_russia * 0.30
+            if gdelt_russia_n is not None else ged_russia
+        )
+        russia_europe = _blend(gdelt_russia_blended, gpr_rus, 0.4, 0.6)
+    else:
+        russia_europe  = _blend(gdelt_russia_n,  gpr_rus,    0.4, 0.6)
+
+    # middle_east_energy：先 GDELT×0.7 + GED×0.3 融合，再接 WTI 油价（P0 修复）
+    ged_mideast = _load_ged_conflict_signal("middle_east_energy")
+    if ged_mideast is not None:
+        gdelt_mideast_blended = (
+            (gdelt_mideast_n or 0.0) * 0.70 + ged_mideast * 0.30
+            if gdelt_mideast_n is not None else ged_mideast
+        )
+        middle_east_energy = _blend(gdelt_mideast_blended, None, 1.0, 0.0)
+    else:
+        middle_east_energy = _blend(gdelt_mideast_n, None,       1.0, 0.0)  # CFG-1: 纯GDELT，无中东专项GPR
 
     # ── 接入 WTI 油价补强 middle_east_energy（P0修复，2026-08-03）──
     # 理论依据：Smith & Pinchetti (2024, Bank of England) 证明中东冲突主要通过
