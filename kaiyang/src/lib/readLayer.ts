@@ -18,7 +18,7 @@ export async function fetchText(relativePath: string): Promise<string> {
   if (existing) return existing;
 
   const task = (async (): Promise<string> => {
-    const res = await fetch(url);
+    const res = await fetch(url, { cache: 'no-cache' });
     if (!res.ok) {
       throw new Error(`数据读取失败 ${url} (HTTP ${res.status})`);
     }
