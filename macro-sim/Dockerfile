@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r req
 COPY run.py ./
 COPY core/ ./core/
 COPY config/ ./config/
+COPY souls/ ./souls/
 COPY VERSION ./
 
 # 输出目录
