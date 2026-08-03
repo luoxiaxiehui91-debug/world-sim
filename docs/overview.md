@@ -1,6 +1,6 @@
 # 世界推演系统 · 总览
 
-> macro-scan v3.8.3（天枢）· macro-sim v2.0.15（天璇）· kaiyang v1.7.1（开阳）· 2026-08-03
+> macro-scan v3.8.12（天枢）· macro-sim v2.0.23（天璇）· kaiyang v1.8.0（开阳）· 2026-08-04
 >
 > **当前状态与待部署事项** → 见 [`HANDOVER.md`](../HANDOVER.md)
 
@@ -19,19 +19,19 @@ FRED / GPR / GDELT / 新闻（RSSHub，crucix 退场中）
               │  46个调度任务（I15/I30/日档/月档）
               ▼
         ┌─────────────┐
-        │  macro-scan  │  观测层（天枢）v3.8.3
+        │  macro-scan  │  观测层（天枢）v3.8.7
         │              │  采集 → GRV向量 → LLM分析报告 → ntfy手机
         └──────┬──────┘
                │ GRV告警时写 sim_trigger.json
                ▼
         ┌─────────────┐
-        │  macro-sim  │  仿真层（天璇）v2.0.15
+        │  macro-sim  │  仿真层（天璇）v2.0.21
         │              │  Monte Carlo×100 → 概率路径树 → ntfy手机
         └─────────────┘
                │ 落盘 data/*.json（只读契约文件）
                ▼
         ┌─────────────┐
-        │   kaiyang   │  可视化操作面板（开阳）v1.7.1
+        │   kaiyang   │  可视化操作面板（开阳）v1.7.2
         │              │  3D地球 + 经济面板 + 控制抽屉（:8080）
         └─────────────┘
 ```

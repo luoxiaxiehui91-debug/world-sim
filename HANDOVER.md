@@ -4,19 +4,48 @@
 
 ---
 
-## 当前状态（2026-08-03，by Claude）
+## 当前状态（2026-08-04，by Claude）
 
 | 子系统 | 版本 | 状态 |
 |---|---|---|
-| macro-scan（天枢）| v3.8.7 | ✅ **已部署 NAS，运行中**（:8899/:8900）|
-| macro-sim（天璇）| v2.0.21 | ✅ **已部署 NAS，运行中**（D2/D3/D14/SovereignAgent）|
-| kaiyang（开阳）| v1.7.2 | ✅ **已部署 NAS，:8080 可访问** |
+| macro-scan（天枢）| v3.8.12 | ✅ **已部署 NAS，运行中**（:8899/:8900，Live 模式 STAGING_MODE=0）|
+| macro-sim（天璇）| v2.0.23 | ✅ **已部署 NAS，运行中**（Sprint-2/慢变量/D6/天玑V1）|
+| kaiyang（开阳）| v1.8.0 | ✅ **已部署 NAS，:8080 可访问**（D3 地图，无伪线）|
 
 - 本地路径：`C:\Users\I327394\Desktop\S\world-sim\`
-- Git 分支：`main`，最新 commit：`9296602`（GED ETL + GCI 锚点）
+- Git 分支：`main`，最新 commit：`ad2e975`（天玑V1列名修正）
 - NAS 路径：`/vol2/1000/software/world-sim/`
 
 ---
+
+## 本次维护摘要（2026-08-04，by Claude）
+
+### macro-scan（v3.8.7 → v3.8.12）
+
+| 版本 | 内容 |
+|---|---|
+| v3.8.8 | ntfy_utils.py 拆分（push_markdown），解决循环导入；cmd_narrative/weekly/ask 改推 .md 附件 |
+| v3.8.9 | 中国三大股市指数接入（上证综合/沪深300/深证成分），kaiyang INDEXES 区显示 |
+| v3.8.10 | GED v26.1 接入 russia_europe/middle_east_energy（多 agent 辩论权重 GED×0.30+GDELT×0.70）|
+| v3.8.11 | GDELT P95 改为运行时动态计算（样本<100 fallback 硬编码），修复 D9 归一化失真 |
+| v3.8.12 | spaCy 3.8+zh_core_web_sm 镜像重建；news_geo_feed.py（07:15）NER 地名→坐标→news_geo.json |
+
+- NAS 镜像：`macro-scan:v3.8.11`（含 spaCy 3.8.14）
+- **STAGING_MODE=0**：news.db 时间跨度 53 天，已开启 Live 模式
+
+### macro-sim（v2.0.21 → v2.0.23）
+
+| 版本 | 内容 |
+|---|---|
+| v2.0.22 | Sprint-2：A2/A3/A6 soul_file 预位激活；慢变量 irp/ucri/gci 注入 MacroWorldState；D6 校准缓存（<7天跳过） |
+| v2.0.23 | 天玑 V1 run_scoring() 接线；_send_ntfy_simple；DB 列名修正（final_prob/outcome_value）|
+
+### kaiyang（v1.8.0，无变更）
+
+P0 已完成：scp dist/ 并重启 nginx，:8080 返回 200，D3 地图正常。
+
+---
+
 
 ## 本次维护摘要（2026-08-03，by Claude）
 
@@ -54,14 +83,18 @@
 
 
 
-### kaiyang（v1.7.0 → v1.7.2）
+### kaiyang（v1.7.2 → v1.8.0，by Claude，2026-08-04）
 
 | 文件 | 内容 |
 |---|---|
-| `src/config/controlConfig.ts` | API base URL 指向 :8900；MOCK_ENABLED 默认 false |
-| `src/components/FlatMapPanel.tsx` | 2D平面地图恢复；底图改为 world-atlas GeoJSON 离线 |
-| `src/components/StatusBar.tsx` | Stamp 组件加时效性检测：超 24h 变橙色显示 ⚠ |
-| `src/App.tsx` | 底栏版本号更新为 v1.7.2 |
+| `src/components/FlatMapPanel.tsx` | 完整重写：Leaflet → D3.js + geoNaturalEarth1 + 纯 SVG；球面几何由 D3 内置处理，Russia/Alaska 水平伪线根治 |
+| `src/components/FlatMapPanel.css` | 移除 Leaflet 样式；新增 `.fm-arc`/`.fm-point-pulse`/`.fm-tooltip` |
+| `src/App.tsx` | 底栏版本号更新为 v1.8.0 |
+| `package.json` / `VERSION` | 版本号更新为 1.8.0 |
+
+**技术要点**：点位/星标随 zoom 保持固定视觉尺寸（zoom handler 反向 scale(1/k)）；tooltip 改为 `position:absolute` + `getBoundingClientRect()` 坐标转换，规避 react-grid-layout CSS transform 偏移；弧线跨子午线打断用像素跳跃检测（dx/dy > 200px）。
+
+**2D 地图未解问题（P0，下 session 处理）**：~~Leaflet 无法正确处理球面子午线跨越~~ → ✅ **已解决（v1.8.0）**
 
 ### 其他
 - `docs/arch_review_20260802.md`（新建）：六角色三轮辩论架构裁定，15个设计缺陷
@@ -85,7 +118,7 @@
 | 2 | macro-scan docker-compose.yml 补 8900 端口 + config 挂载 + image 版本 | 非交互式 sed 命令，见提示词文档 |
 | 3 | macro-scan `docker build -t macro-scan:v3.8.6 . && docker compose up -d --force-recreate` | 重建镜像使 entrypoint.sh 生效 |
 | 4 | macro-sim `bash deploy.sh macro-sim` + `docker compose up -d --force-recreate` | D1/D4/D7/D12 修复生效 |
-| 5 | kaiyang `scp dist/ + docker restart kaiyang-nginx-1` | StatusBar 时效性告警、版本号 v1.7.2 |
+| 5 | kaiyang `scp dist/ + docker restart kaiyang-nginx-1` | D3 地图 v1.8.0，无水平伪线 |
 
 
 
@@ -95,16 +128,18 @@
 
 | 优先级 | 问题 | 状态 |
 |---|---|---|
-| P0 | macro-sim inode 断链（sim_trigger.json 0字节，天璇从未自动触发）| 代码已修复 v2.0.14，**容器未重建**，本次部署须 force-recreate |
-| P1 | signal_synthesizer Staging→Live 切换 | **最早 2026-08-09**（STAGING_MODE=0 + news.db ≥30天双重守门）|
+| ~~**P0**~~ | ~~**kaiyang 2D 地图 Leaflet→D3 替换**~~ | ✅ **已完成（v1.8.0，2026-08-04）** D3 geoNaturalEarth1 + SVG，水平伪线根治 |
+| ~~P1~~ | ~~signal_synthesizer Staging→Live 切换~~ | ✅ **已完成（2026-08-04）** news.db 53天 ≥30天，STAGING_MODE=0 已写入 docker-compose.yml |
 | P1 | R11/R12 开启 | 待 NAS 确认 climate_risk 积累情况 |
-| P1 | 慢变量接入 MacroWorldState | world_state.py 加 irp/ucri/gci 三字段，从 slow_variables.json 读取注入 |
-| P1 | **GRV 数据源 P0 修复（约1天）** | commodity_yahoo→middle_east_energy / fetch_fx→world_state.py / energy_grid_risk 数据源错误；详见 `docs/grv_datasource_fix.md` |
-| P1 | **B+A/NOVEL 天璇重写启动条件** | 先读 `macro-sim/docs/agent_taxonomy.md`（18 Agent 设计蓝图）确认边界，再动代码 |
-| P2 | kaiyang 控制 API 端到端验证 | control_server.py 首次部署，部署后在控制面板点「重跑」验证 |
-| P2 | GRV 权重 grv_weights.yaml 无实证基础 | 等 macro-sim 首次产出后 2026-09 月度验证；理论依据已在 `macro-scan/config/causal_assumptions.md` |
-| P2 | D2/D3：校准误差函数与Agent因果链断裂 | 已知缺陷，不阻断部署，B+A/NOVEL 重写时处理 |
-| P2 | D6：校准结果不持久化 | 已知缺陷，每次重跑完整校准，B+A/NOVEL 重写时处理 |
+| ~~P1~~ | ~~慢变量接入 MacroWorldState~~ | ✅ **已完成（v2.0.22）** irp/ucri/gci 字段注入，load_from_macro_scan 读 slow_variables.json |
+| ~~P1~~ | ~~GRV 数据源 P1 修复（BDI→sanctions_risk / GDELT P95校准）~~ | ✅ **已完成** GED接入(v3.8.10) + P95动态(v3.8.11)；BDI→sanctions_risk 待做 |
+| ~~P1~~ | ~~B+A/NOVEL Sprint-2~~ | ✅ **已完成（v2.0.22）** A2/A3/A6 soul_file 预位激活 |
+| P2 | kaiyang 控制 API 端到端验证 | control_server.py 已部署，需在控制面板点「重跑」验证 |
+| P2 | GRV 权重 grv_weights.yaml 无实证基础 | 等 macro-sim 首次产出后 2026-09 月度验证 |
+| P2 | D2/D3：校准误差函数与Agent因果链断裂 | 已知缺陷，B+A/NOVEL 重写时处理 |
+| ~~P2~~ | ~~D6：校准结果不持久化~~ | ✅ **已完成（v2.0.22）** calibration_cache.json，<7天跳过50步校准 |
+| P2 | news_geo_feed：gdelt_geo_cache 需由 geo_risk_vector.py 顺带写入才能生效 | gdelt_geo_cache.json 目前尚未有写入逻辑，新闻坐标功能待数据积累 |
+| P2 | 天玑 V1 Brier 异常值 | predictions.final_prob 可能存储原始概率×100，需核查 _archive_to_tianji 写入值域 |
 
 ---
 
@@ -125,7 +160,7 @@ macro-sim（天璇）→ 轮询 /app/macro_data/sim_trigger.json
     └── core/world_state.py — D4/D7 fix: 13维GRV + 4变量衰减
 
 kaiyang（开阳）→ nginx :8080，控制面板连接 :8900
-    └── MOCK_ENABLED=false（v1.7.2，连接真实 control API）
+    └── MOCK_ENABLED=false（v1.8.0，D3 geoNaturalEarth1 地图，无水平伪线）
 
 天玑（规划中）→ 月度验证层
     └── brier_calc.py — Brier/BSS/锐度计算已备好
