@@ -84,13 +84,11 @@ class CommodityYahooFetcher(FetcherBase):
         return None
 
     # ── 单 symbol 抓取 ─────────────────────────────────────────
-    def _fetch_one(self, symbol, name, unit):
-        """拉取单个 symbol 的 chart。
-
-        返回 {symbol,name,unit,price,as_of,status=ok}；请求失败/404/解析缺失 → None。
-        """
+    def _fetch_one(self, symbol, name, unit, backfill=False):
+        """拉取单个 symbol。backfill=True 时拉 max 历史，否则拉 1y。"""
         url = YAHOO_CHART_URL.format(symbol=symbol)
-        r = self._get(url, params={"range": "1y", "interval": "1d"}, headers=HEADERS)
+        range_ = "max" if backfill else "1y"
+        r = self._get(url, params={"range": range_, "interval": "1d"}, headers=HEADERS)
         if r is None:
             self.logger.warning("[commodity_yahoo] %s 请求失败/404，标记 unavailable", symbol)
             return None
@@ -106,9 +104,11 @@ class CommodityYahooFetcher(FetcherBase):
             result = payload["chart"]["result"]
             if not result:
                 return None
-            meta = result[0]["meta"]
+            meta    = result[0]["meta"]
+            ts_list = result[0].get("timestamp", [])
+            closes  = result[0].get("indicators", {}).get("quote", [{}])[0].get("close", [])
         except (KeyError, IndexError, TypeError):
-            self.logger.warning("[commodity_yahoo] %s chart.result[0].meta 缺失", symbol)
+            self.logger.warning("[commodity_yahoo] %s chart.result[0] 结构异常", symbol)
             return None
         price = meta.get("regularMarketPrice")
         if price is None:
@@ -121,13 +121,47 @@ class CommodityYahooFetcher(FetcherBase):
             datetime.datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         )
         return {
-            "symbol": symbol,
-            "name": name,
-            "unit": unit,
-            "price": float(price),
-            "as_of": as_of,
-            "status": Status.OK,
+            "symbol":    symbol,
+            "name":      name,
+            "unit":      unit,
+            "price":     float(price),
+            "as_of":     as_of,
+            "status":    Status.OK,
+            # 历史序列（供 backfill 使用）
+            "_timestamps": ts_list,
+            "_closes":     closes,
         }
+
+    def _backfill_history(self, key: str, ts_list: list, closes: list):
+        """用 Yahoo 返回的完整历史一次性回填 CSV，已有日期不覆盖。"""
+        hist_dir = os.path.join(DATA_DIR, HIST_DIR_NAME)
+        os.makedirs(hist_dir, exist_ok=True)
+        csv_path = os.path.join(hist_dir, f"{key}.csv")
+
+        existing = {}
+        if os.path.exists(csv_path):
+            try:
+                with open(csv_path, newline="", encoding="utf-8") as f:
+                    for row in csv.DictReader(f):
+                        existing[row["date"]] = row["value"]
+            except Exception:
+                pass
+
+        added = 0
+        for ts, close in zip(ts_list, closes):
+            if close is None:
+                continue
+            date_str = datetime.datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
+            if date_str not in existing:
+                existing[date_str] = str(round(float(close), 4))
+                added += 1
+
+        rows = sorted(existing.items())
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["date", "value"])
+            writer.writerows(rows)
+        return added
 
     def _append_history(self, key: str, date_str: str, price: float):
         """把当日价格追加到历史 CSV（date,value 格式，与 fred_history 兼容）。
@@ -168,17 +202,32 @@ class CommodityYahooFetcher(FetcherBase):
         today = datetime.date.today().isoformat()
 
         for symbol, key, name, unit, _category in SYMBOLS:
-            one = self._fetch_one(symbol, name, unit)
+            hist_dir = os.path.join(DATA_DIR, HIST_DIR_NAME)
+            csv_path = os.path.join(hist_dir, f"{key}.csv")
+            # 首次运行（CSV 不存在或只有今日数据）时拉 max 历史回填
+            needs_backfill = (
+                not os.path.exists(csv_path) or
+                sum(1 for _ in open(csv_path)) <= 3  # header + ≤2 行
+            )
+            one = self._fetch_one(symbol, name, unit, backfill=needs_backfill)
             if one is None:
                 unavailable_symbols.append(symbol)
                 continue
+
+            # 历史回填或每日追加
+            ts_list = one.pop("_timestamps", [])
+            closes  = one.pop("_closes", [])
+            try:
+                if needs_backfill and ts_list:
+                    added = self._backfill_history(key, ts_list, closes)
+                    self.logger.info("[commodity_yahoo] %s 历史回填 %d 条", key, added)
+                else:
+                    self._append_history(key, today, one["price"])
+            except Exception as e:
+                self.logger.warning("[commodity_yahoo] %s 历史写入失败: %s", key, e)
+
             commodities[key] = one
             as_of_list.append(one["as_of"])
-            # 历史追加
-            try:
-                self._append_history(key, today, one["price"])
-            except Exception as e:
-                self.logger.warning("[commodity_yahoo] %s 历史追加失败: %s", key, e)
 
         if not commodities:
             self.logger.warning("[commodity_yahoo] 全部 symbol 拉取失败")
@@ -188,6 +237,11 @@ class CommodityYahooFetcher(FetcherBase):
         overall_as_of = (
             as_of_list[0] if as_of_list else
             datetime.datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        )
+        success_keys = list(commodities.keys())
+        self.logger.info(
+            "[commodity_yahoo] 完成 status=%s，symbols=%s，unavailable=%s",
+            status, success_keys, unavailable_symbols
         )
         return {
             "status": status,
