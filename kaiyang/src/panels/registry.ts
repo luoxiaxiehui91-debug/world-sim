@@ -33,41 +33,57 @@ export interface PanelRegistration {
 }
 
 /**
- * 布局（lg 断点 12 栅格）：
- *   第一行：风险摘要(2) + 世界视图(7) + 信号流(3)    → y=0
- *   第二行：GRV 维度(5) + 经济面板(7)                → y=4
- *   第三行：数据状态(3) + 新闻面板(9)                → y=8
- *   第四行：核设施监视(4)                            → y=12
- * 小屏自动降级为单列（react-grid-layout cols={{ lg: 12, md: 1, sm: 1 }}）。
+ * 布局设计（lg 断点 12 栅格，参照 Bloomberg Terminal / Grafana 情报面板范式）：
  *
- * ⚠ 交错编辑约定（Wave2）：新增面板一律**追加到数组末尾**并使用新的 order，
- * 不重排、不改写既有项的 order/className/defaultLayout，避免与并行改动冲突。
+ *  行 0-5（h=6）：主视图区
+ *   ┌─────────────┬──────────────────────────────────┬──────────────┐
+ *   │ 风险摘要(2) │     世界视图 3D/平面 (7)          │ 信号流 (3)  │
+ *   │             │   （地图是视觉主角，高度最高）    │             │
+ *   └─────────────┴──────────────────────────────────┴──────────────┘
+ *
+ *  行 6-9（h=4）：数据分析区
+ *   ┌─────────────────────┬───────────────────────────────────────┐
+ *   │   GRV 维度 (4)      │        经济面板 (8)                   │
+ *   └─────────────────────┴───────────────────────────────────────┘
+ *
+ *  行 10-13（h=4）：次要信息区
+ *   ┌──────────┬───────────────────────────────┬──────────────────┐
+ *   │ 数据状态 │        新闻面板 (6)            │  核设施监视 (3)  │
+ *   │   (3)    │                               │                  │
+ *   └──────────┴───────────────────────────────┴──────────────────┘
+ *
+ * 设计原则：
+ *  1. 地图面板高度(h=6)远大于其他面板(h=4)，确保视觉主角地位
+ *  2. 第一行三栏：左侧KPI + 中央地图 + 右侧信号流，信息密度均衡
+ *  3. 第二行：GRV雷达图(窄) + 经济时序图(宽)，宽窄互补
+ *  4. 第三行：状态(小) + 新闻(中) + 核监视(小)，次要面板紧凑排列
+ *  5. 总高度约 14 行 × rowHeight，1080p 屏幕基本一屏显示
  */
 export const PANELS: PanelRegistration[] = [
   {
     id: 'risk-summary', title: '风险摘要', feed: 'grv', order: 1, visible: true,
     className: 'lg:col-span-2', component: RiskSummaryPanel,
-    defaultLayout: { w: 2, h: 4, minW: 2, minH: 2 },
+    defaultLayout: { w: 2, h: 6, minW: 2, minH: 3 },
   },
   {
     id: 'world', title: '世界视图（3D/平面）', feed: 'grv', order: 2, visible: true,
     className: 'lg:col-span-7', component: WorldPanel,
-    defaultLayout: { w: 7, h: 5, minW: 2, minH: 2 },
+    defaultLayout: { w: 7, h: 6, minW: 4, minH: 4 },
   },
   {
     id: 'signal-stream', title: '最新信号流', feed: 'news', order: 3, visible: true,
     className: 'lg:col-span-3', component: SignalStreamPanel,
-    defaultLayout: { w: 3, h: 4, minW: 2, minH: 2 },
+    defaultLayout: { w: 3, h: 6, minW: 2, minH: 3 },
   },
   {
     id: 'grv', title: 'GRV 维度', feed: 'grv', order: 4, visible: true,
-    className: 'lg:col-span-5', component: GrvPanel,
-    defaultLayout: { w: 5, h: 4, minW: 2, minH: 2 },
+    className: 'lg:col-span-4', component: GrvPanel,
+    defaultLayout: { w: 4, h: 4, minW: 2, minH: 3 },
   },
   {
     id: 'economy', title: '经济面板', feed: 'fred', order: 5, visible: true,
-    className: 'lg:col-span-7', component: EconomyPanel,
-    defaultLayout: { w: 7, h: 4, minW: 2, minH: 2 },
+    className: 'lg:col-span-8', component: EconomyPanel,
+    defaultLayout: { w: 8, h: 4, minW: 3, minH: 3 },
   },
   {
     id: 'status-mini', title: '数据状态', feed: 'all', order: 6, visible: true,
@@ -76,12 +92,12 @@ export const PANELS: PanelRegistration[] = [
   },
   {
     id: 'news', title: '新闻面板', feed: 'news', order: 7, visible: true,
-    className: 'lg:col-span-9', component: NewsPanel,
-    defaultLayout: { w: 9, h: 4, minW: 2, minH: 2 },
+    className: 'lg:col-span-6', component: NewsPanel,
+    defaultLayout: { w: 6, h: 4, minW: 3, minH: 2 },
   },
   {
     id: 'nuclear-watch', title: '核设施监视', feed: 'nuclearSites', order: 8, visible: true,
-    className: 'lg:col-span-4', component: NuclearWatchPanel,
-    defaultLayout: { w: 4, h: 4, minW: 2, minH: 2 },
+    className: 'lg:col-span-3', component: NuclearWatchPanel,
+    defaultLayout: { w: 3, h: 4, minW: 2, minH: 2 },
   },
 ];
