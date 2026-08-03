@@ -14,20 +14,22 @@ import { PANELS } from '@/panels/registry';
 // ---- react-grid-layout 初始化 ----
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
-const STORAGE_KEY = 'kaiyang.v1.panelLayout';
+const STORAGE_KEY = 'kaiyang.v2.panelLayout';
 
-/** 从 panelRegistry 推导初始布局（4 行 × 12 栅格，与 1.6.0 的 CSS Grid 布局一致）。 */
+/** 从 panelRegistry 推导初始布局（3 行 × 12 栅格，Bloomberg/Grafana 情报面板范式）。 */
 function buildDefaultLayout(): Layout[] {
-  // 每个面板在 lg 断点下的 (x, y) 起始位置（行优先，与 registry 注释一致）
+  // 行 0：主视图区（风险摘要 | 世界地图 | 信号流），地图是视觉主角
+  // 行 6：数据分析区（GRV维度 | 经济面板）
+  // 行 10：次要信息区（数据状态 | 新闻 | 核监视）
   const positions: Record<string, { x: number; y: number }> = {
-    'risk-summary':   { x: 0, y: 0 },
-    'world':          { x: 2, y: 0 },
-    'signal-stream':  { x: 9, y: 0 },
-    'grv':            { x: 0, y: 4 },
-    'economy':        { x: 5, y: 4 },
-    'status-mini':    { x: 0, y: 8 },
-    'news':           { x: 3, y: 8 },
-    'nuclear-watch':  { x: 0, y: 12 },
+    'risk-summary':   { x: 0,  y: 0  },
+    'world':          { x: 2,  y: 0  },
+    'signal-stream':  { x: 9,  y: 0  },
+    'grv':            { x: 0,  y: 6  },
+    'economy':        { x: 4,  y: 6  },
+    'status-mini':    { x: 0,  y: 10 },
+    'news':           { x: 3,  y: 10 },
+    'nuclear-watch':  { x: 9,  y: 10 },
   };
 
   const panels = PANELS.filter((p) => p.visible).sort((a, b) => a.order - b.order);
@@ -97,16 +99,16 @@ export default function App() {
   );
 
   const [layout, setLayout] = useState<Layout[]>(() => loadLayout());
-  const [dynamicRowHeight, setDynamicRowHeight] = useState<number>(80);
+  const [dynamicRowHeight, setDynamicRowHeight] = useState<number>(72);
 
   /** 自动布局：根据视口高度调整 rowHeight，再 compact 面板填满可视区。 */
   const onAutoLayout = useCallback(() => {
     const vh = window.innerHeight;
     // 扣除状态栏 (~56px) + footer (~44px) + 容器 padding/margin (~72px)
     const availH = Math.max(400, vh - 172);
-    // 以默认布局总行数 (~16 行) 为基准计算 rowHeight
-    const totalRows = 16;
-    const rowH = Math.max(68, Math.floor(availH / totalRows));
+    // 14 行覆盖三个区域：主视图(6) + 分析(4) + 次要(4)
+    const totalRows = 14;
+    const rowH = Math.max(60, Math.floor(availH / totalRows));
     setDynamicRowHeight(rowH);
 
     // 清除缓存、恢复默认布局并用 compact 消灭空隙

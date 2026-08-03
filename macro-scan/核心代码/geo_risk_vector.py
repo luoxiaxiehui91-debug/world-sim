@@ -416,11 +416,8 @@ def compute_grv() -> dict:
         logger.warning(f"[GRV] 地震信号读取失败（非阻断）: {_e}")
 
     # ── 接入能源/电网压力（energy_grid_risk）──────────────────
-    # 来源：fetch_commodity_yahoo.py（天然气期货 NG，USD/MMBtu）。
-    # 天然气价格是全球能源基础设施风险的实体信号，优于原 UK Carbon Intensity（仅反映英国电网碳强度）。
-    # 归一化：[2.0, 8.0] USD/MMBtu → [0, 100]；历史正常区间约 2-4，高压区间约 6-8。
-    # 数据源错误修复：原代码读取 UK Carbon Intensity API，与 source_dimension_map.yaml
-    # 声明的 energy_eia 完全无关，2026-08-03 修复。
+    # 优先天然气（NG，USD/MMBtu）；不存在时依次回退 Brent → WTI（USD/bbl）。
+    # Brent/WTI 归一化：[50, 110] → [0, 100]；天然气：[2, 8] → [0, 100]。
     energy_grid_risk = None
     try:
         cy_path = os.path.join(DATA_DIR, "commodity_yahoo.json")
@@ -428,23 +425,24 @@ def compute_grv() -> dict:
             with open(cy_path, encoding="utf-8") as _cy:
                 _cyd = json.load(_cy)
             if _cyd.get("status") in ("ok", "partial"):
-                _ng = _cyd.get("commodities", {}).get("natural_gas") or \
-                      _cyd.get("commodities", {}).get("ng")
-                if _ng and isinstance(_ng.get("price"), (int, float)):
-                    ng_price = float(_ng["price"])
-                    # 归一化到 [0, 100]，超出范围 clip
-                    energy_grid_risk = round(
-                        min(100.0, max(0.0, (ng_price - 2.0) / (8.0 - 2.0) * 100)), 1
-                    )
-                    logger.info("[GRV] energy_grid_risk from NG=%.2f USD/MMBtu → %.1f",
-                                ng_price, energy_grid_risk)
+                commodities = _cyd.get("commodities", {})
+                _energy = (commodities.get("natural_gas") or commodities.get("ng")
+                           or commodities.get("brent") or commodities.get("wti"))
+                if _energy and isinstance(_energy.get("price"), (int, float)):
+                    e_price = float(_energy["price"])
+                    unit    = _energy.get("unit", "USD/bbl")
+                    if "MMBtu" in unit:
+                        energy_grid_risk = round(min(100.0, max(0.0, (e_price - 2.0) / 6.0 * 100)), 1)
+                    else:
+                        energy_grid_risk = round(min(100.0, max(0.0, (e_price - 50.0) / 60.0 * 100)), 1)
+                    logger.info("[GRV] energy_grid_risk from %s=%.2f %s → %.1f",
+                                _energy.get("symbol", "?"), e_price, unit, energy_grid_risk)
                 else:
-                    logger.warning("[GRV] commodity_yahoo 无天然气价格，energy_grid_risk 留空")
+                    logger.warning("[GRV] commodity_yahoo 无可用能源价格，energy_grid_risk 留空")
             else:
                 logger.info("[GRV] commodity_yahoo status=%s，energy_grid_risk 留空",
                             _cyd.get("status"))
         else:
-            # fallback：尝试旧 energy_risk.json（UK Carbon Intensity，仅作降级）
             en_path = os.path.join(DATA_DIR, "energy_risk.json")
             if os.path.exists(en_path):
                 with open(en_path, encoding="utf-8") as _en:
@@ -453,7 +451,7 @@ def compute_grv() -> dict:
                     g = _end.get("grid_carbon_risk")
                     if isinstance(g, (int, float)):
                         energy_grid_risk = round(float(g), 1)
-                        logger.warning("[GRV] energy_grid_risk 降级使用 UK Carbon Intensity（commodity_yahoo 不可用）")
+                        logger.warning("[GRV] energy_grid_risk 降级使用 UK Carbon Intensity")
     except Exception as _e:
         logger.warning(f"[GRV] 能源信号读取失败（非阻断）: {_e}")
 
@@ -482,7 +480,10 @@ def compute_grv() -> dict:
                 social_stress_val = round(float(ss), 1)
             cf = gdelt_scores.get("cultural_friction")
             if cf is not None:
-                cultural_friction_val = round(float(cf), 1)
+                if isinstance(cf, dict) and cf:
+                    cultural_friction_val = round(sum(cf.values()) / len(cf), 1)
+                elif isinstance(cf, (int, float)):
+                    cultural_friction_val = round(float(cf), 1)
     except Exception as _e:
         logger.warning(f"[GRV] social_stress/cultural_friction 读取失败（非阻断）: {_e}")
 
