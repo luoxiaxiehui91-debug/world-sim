@@ -57,13 +57,20 @@ class MacroAgent:
       info_delay = 3  → 3个月延迟（各国央行）
       info_delay = 4  → 4个月延迟（美联储、财政部、欧央行、日央行）
       info_delay = 5  → 5个月延迟（能源国）
+
+    soul 文件（可选）：
+      agent_taxonomy.md 中定义的 soul 文件，通过 agents.yaml 的 soul_file 字段加载。
+      加载后存储在 self.soul（dict），_decide_rules 可读取 doctrine / red_lines /
+      internal_factions / cultural_prior 等字段影响决策。
+      未配置 soul_file 时 self.soul 为 {}，不影响任何现有行为。
     """
     agent_id:                  str
     role:                      str
-    info_delay:                int    # 看到其他 Agent 行动的延迟（步数）
-    activation_prob:           float  # 每步被调度到的概率
+    info_delay:                int
+    activation_prob:           float
     params:                    AgentParams = field(default_factory=AgentParams)
-    transmission_coefficients: dict = field(default_factory=dict)  # {to_AX: float}
+    transmission_coefficients: dict = field(default_factory=dict)
+    soul:                      dict = field(default_factory=dict)   # soul 文件内容，可选
 
     # 运行时状态（不参与构造）
     activation_countdown: int = field(init=False, default=0)

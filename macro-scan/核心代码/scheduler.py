@@ -140,6 +140,7 @@ LOG_FILES = {
     "tianji_verify":   f"{LOG_DIR}/tianji_verify.log",
     "weight_health":   f"{LOG_DIR}/weight_health.log",
     "health_push":     f"{LOG_DIR}/health_push.log",
+    "compute_probit":  f"{LOG_DIR}/compute_probit.log",
 }
 
 def log(msg):

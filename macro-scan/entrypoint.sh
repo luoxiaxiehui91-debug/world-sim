@@ -18,6 +18,10 @@ fi
 cd /app && python3 web_server.py >> /var/log/macro-scan/web.log 2>&1 &
 echo "[entrypoint] web server started (http://0.0.0.0:8899)"
 
+# Start Control API (A3a, port 8900)
+cd /app && python3 control_server.py >> /var/log/macro-scan/control.log 2>&1 &
+echo "[entrypoint] control server started (http://0.0.0.0:8900)"
+
 # Start Python scheduler (replaces cron - seccomp blocks cron fork())
 cd /app && python3 scheduler.py >> /var/log/macro-scan/scheduler.log 2>&1 &
 SCHED_PID=$!

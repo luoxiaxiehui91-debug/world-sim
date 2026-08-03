@@ -105,7 +105,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 ## 维护铁律
 
 1. 改动后必须 bump `VERSION` + 追加 `CHANGELOG.md`
-2. `config/agents.yaml` 是**热挂载文件**，直接编辑生效，**不需要重建镜像**
+2. `config/agents.yaml` 通过 `COPY` 打包进镜像，**修改后需重新部署**（`bash deploy.sh macro-sim`）
 3. FRED 数据读取后需 ×100 转 bp（T10Y2Y / BAA10Y）
 4. 校准期误差计算权重：GRV×0.4 + credit_spread×0.3 + t10y2y×0.2 + dff×0.1（测试后可调整）
 5. 路径概率 <5% 的路径不展开推演
@@ -138,7 +138,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 | `sim_log.db` | `/app/sim_log.db` | 预测记录，volume mount |
 | `config/agents.yaml` | `/app/config/agents.yaml` | Agent 配置 |
 | macro-scan `data/` | `/app/macro_data:ro` | GRV/FRED/news，只读 |
-| macro-scan `data/sim_trigger.json` | `/app/sim_trigger.json` | 触发文件，读写 |
+| macro-scan `data/sim_trigger.json` | `/app/macro_data/sim_trigger.json` | 触发文件，读写（v2.0.14 改目录挂载，解决 inode 断链）|
 | macro-scan `docs/仿真报告/` | `/app/reports` | 报告输出，读写 |
 
 ---
@@ -159,7 +159,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 **macro-scan → macro-sim 数据文件：**
 
 - `grv_history.jsonl`：GRV 快照序列（1985~2026-06 月频，2026-07 起日频），校准循环读取。⚠️ **读基线时应按日期范围（6个月前）查找，不应用行偏移 `lines[-N]`**
-- `grv_latest.json`：当前 GRV，需含 `_schema_version: "1.0"`。v3.6.4 起新增 `sanctions_risk` / `seismic_risk` / `energy_grid_risk` 字段（v3.6.5 全量稳定产出），当前完整 11 维：taiwan_strait / us_china_strategic / russia_europe / middle_east_energy / global_composite / climate_risk / disaster_risk / sanctions_risk / seismic_risk / energy_grid_risk / japan_monetary。macro-sim 只读前 5 维 + japan_monetary，新增字段本次不消费，但需兼容 JSON 有额外键
+- `grv_latest.json`：当前 GRV，需含 `_schema_version: "1.0"`。完整 13 维（v2.0.16-17 D7 fix，全部接入 MacroWorldState）：taiwan_strait / us_china_strategic / russia_europe / middle_east_energy / global_composite / climate_risk / disaster_risk / sanctions_risk / seismic_risk / energy_grid_risk / japan_monetary / social_stress / cultural_friction。social_stress / cultural_friction 由 geo_risk_vector.py 从 gdelt_scores 聚合后写入此文件
 - `fred_history/T10Y2Y.csv` / `BAA10Y.csv` / `DFF.csv`：FRED 日度数据，单位 `%`，读取后 ×100 转 bp
 - `news_export.json`：近7天新闻，需含 `_schema_version: "1.0"`
 - `sim_trigger.json`：触发文件，格式 `{"level":3,"event":"...","triggered_at":"..."}`

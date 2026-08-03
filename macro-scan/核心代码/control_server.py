@@ -40,7 +40,7 @@ except ImportError:
     DATA_DIR = os.path.join(WORKSPACE, "data")
 
 PYTHON     = "python3"
-WORKDIR    = os.path.join(WORKSPACE, "核心代码")
+WORKDIR    = os.path.dirname(os.path.abspath(__file__))  # 容器内 = /app（volume mount 路径）
 LOG_DIR    = "/var/log/macro-scan"
 STATE_FILE = os.path.join(DATA_DIR, "scheduler_state.json")
 PAUSE_FILE = os.path.join(DATA_DIR, "control_pause.json")
@@ -211,6 +211,22 @@ async def rerun_fetchers(request: Request):
 
     op = _make_op("rerun", fetcher_ids, idempotency)
     op_id = op["operation_id"]
+
+    # 白名单：仅允许 scheduler.py JOBS 中已知的 fetcher 名称，防路径遍历
+    _KNOWN_FETCHER_IDS = {
+        "fred_fetch", "compute_fci", "compute_probit", "gpr_fetch", "china_fetch",
+        "world_macro", "fx_fetch", "crypto", "weak_signal", "sanctions", "earthquake",
+        "gdelt_geo", "energy", "crypto_extra", "news", "hdx", "bdi", "fao",
+        "commodity_yahoo", "airtraffic_opensky", "energy_eia", "china_meso",
+        "grv_update", "morning", "us_daily", "china_daily", "verify", "kb_update",
+        "firms", "climate", "daily_narrative", "news_export", "narrative_proc",
+        "defense_rss", "slow_vars", "tianji_verify", "weight_health",
+        "situation_detect", "disaster", "dashboard", "verify_auto", "news_prune",
+        "weekly_synthesis", "health_push",
+    }
+    unknown = [fid for fid in fetcher_ids if fid not in _KNOWN_FETCHER_IDS]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"未知 fetcher_id，拒绝执行: {unknown}")
 
     # 异步后台执行
     import threading

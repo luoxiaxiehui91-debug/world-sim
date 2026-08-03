@@ -4,7 +4,189 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
 
-## 2026-08-03 [2.0.17] D7 完整版：补接 social_stress/cultural_friction（by Claude Code）
+## 2026-08-03 [2.0.21] B+A/NOVEL Sprint-1：SovereignAgent 基类 + Board + 3个主权 soul 文件（by Claude Code）
+
+**修改者**：Claude Code  
+**修改理由**：agent_taxonomy.md 蓝图落地第一步——实现 SovereignAgent 基类和 Board 关系矩阵，让 A4（能源国/OPEC+）成为第一个由 soul 文件驱动决策的真实地缘 Agent。
+
+### 新增文件
+
+- **`core/agents/sovereign.py`**（新建）
+  - `SovereignAgent` 基类：继承 MacroAgent，重写 `_decide_rules`
+  - 派系权重决策：读取 `self.soul.internal_factions`，按触发条件动态调整权重，加权抽样选派系
+  - Red Line 检查：触发时强制返回最高影响行动
+  - `_eval_trigger()`：解析 soul 文件中的条件字符串（支持 `>/<` + `AND/OR`）
+  - `_faction_to_action()`：派系 → 行动映射，优先从 `grv_impact_map` 选择
+  - `get_grv_impact()`：返回行动预期对 GRV 各维度的影响（供 B+A/NOVEL 引擎消费）
+  - `Board` 全局关系矩阵：`board_get/board_set/board_clear()` 三个函数，存储 Actor 间联盟/制裁/冲突关系
+  - `EnergyGovSovereignAgent`：A4 的具体子类，覆盖 VALID_ACTIONS 和派系偏好映射
+
+- **`souls/A2_china.yaml`**（新建，设计文档，未激活）
+  - 中国主权 Agent：doctrine（斗而不破）、4条 red_lines、3个派系（民族主义/务实派/稳定派）、cultural_prior（Hofstede PDI=80）、grv_impact_map
+
+- **`souls/A3_eu.yaml`**（新建，设计文档，未激活）
+  - 欧盟集体主权 Agent：doctrine（规范性权力）、3条 red_lines、3个派系（大西洋派/战略自主/紧缩派）、grv_impact_map（含 ENERGY_INDEPENDENCE 行动）
+
+- **`souls/A6_russia.yaml`**（新建，设计文档，未激活）
+  - 俄罗斯主权 Agent：doctrine（战略纵深）、4条 red_lines、3个派系（强硬派/务实派/寡头）、grv_impact_map（含 NUCLEAR_SIGNAL 行动）
+
+### 修改文件
+
+- **`core/simulation.py`**
+  - A4 GM 规则段扩展：原 `CUT_SUPPLY`/`INCREASE_SUPPLY` 扩展为5个新行动
+    - `CUT_OUTPUT`：能源供给风险↑ + 市场情绪↓
+    - `INCREASE_OUTPUT`：能源供给风险↓ + 市场情绪↑
+    - `EMBARGO_SIGNAL`：能源供给风险大幅↑ + 流动性溢价↑ + 市场情绪↓（强度最高）
+    - `DIPLOMATIC_OUTREACH`：能源供给风险略↓ + 市场情绪略↑
+    - 旧 `CUT_SUPPLY`/`INCREASE_SUPPLY` 保留为别名（向后兼容）
+
+- **`config/agents.yaml`**
+  - A4 `class` 从 `geopolitical.EnergyGovAgent` 改为 `sovereign.EnergyGovSovereignAgent`
+  - A4 `soul_file: A4_gulf_opec.yaml` 已配置
+
+- **`core/agents/base.py`**（上个版本已改）
+  - `MacroAgent` 新增 `soul: dict` 字段
+
+- **`core/simulation.py`**（上个版本已改）
+  - `load_agents()` 新增 soul 文件加载逻辑
+
+- **`VERSION`**：2.0.20 → 2.0.21
+
+### 验证
+
+```bash
+docker exec macro-sim python3 -c "
+from core.simulation import load_agents
+from core.agents.sovereign import SovereignAgent, BOARD, board_set
+agents, cfg = load_agents()
+a4 = agents['A4']
+print('A4 类型:', type(a4).__name__)
+print('A4 soul 派系:', list(a4.soul.get('internal_factions', {}).keys()))
+# 模拟一次决策
+ctx = {'energy_tension': 0.6, 'grv_stress': 0.8, 'middle_east_energy': 72.0}
+action = a4.decide(ctx)
+print('A4 决策:', action)
+print('Board 当前状态:', BOARD)
+"
+```
+
+### 未动（下一 Sprint）
+
+- A2/A3/A6 soul 文件尚未在 agents.yaml 中激活（等 SovereignAgent 基类验证稳定后）
+- Board 目前只有读写 API，尚无自动更新逻辑（行动→Board 状态变更需在 Step 函数中实现）
+- Secretary Agent 验证层尚未实现
+
+
+
+**修改者**：Claude Code  
+**修改理由**：arch_review D2/D3 缺陷——原误差函数测量 grv(0.4)/credit_spread(0.3)/t10y2y(0.2)/dff(0.1) 四个外生变量，但 Agent 行动物理上无法直接改变 GRV，LLM 调参时看到 GRV 偏差就调整无关参数，形成系统性错误的参数调整方向。
+
+### 核心改动（`core/calibrator.py` 完整重写）
+
+**ERROR_WEIGHTS 替换：**
+- 原：`grv×0.4 + credit_spread×0.3 + t10y2y×0.2 + dff×0.1`（全是外生变量）
+- 新：`market_sentiment×0.35 + bank_credit_tightening×0.30 + liquidity_premium×0.20 + em_capital_outflow×0.15`（全是内生变量，直接由 Agent 行动驱动）
+
+**软目标（soft target）机制（新增 `_derive_endogenous_targets()`）：**
+历史数据中没有内生变量真实记录，改为从相邻两月外生变量变化推导期望方向：
+- GRV↑ → market_sentiment 应↓（负相关）
+- credit_spread↑ → bank_credit_tightening 应↑
+- GRV↑ + credit_spread↑ → liquidity_premium 应↑
+- GRV↑ + t10y2y↓ → em_capital_outflow 应↑（避险逃离新兴市场）
+
+**方向惩罚误差（新增）：**
+- 方向相反（仿真值与期望方向异号）时误差 ×1.5 惩罚
+- 鼓励方向正确优先于幅度准确
+
+**Teacher Forcing 修复（D3 同步修复）：**
+- 原：每步结束后注入 grv/credit_spread/t10y2y/dff，同时也覆盖内生变量（行为未定义）
+- 新：Teacher Forcing 只注入 `EXOGENOUS_VARS`（grv/credit_spread/t10y2y/dff/grv_energy/us_china_grv/vix），**不覆盖内生变量**，让内生变量在校准期自由演化
+
+**LLM prompt 更新：**
+- 偏差描述改为"仿真值 vs 期望方向 [✓同向/✗反向]"
+- 明确列出每个内生变量的主要驱动 Agent，引导 LLM 调参方向准确
+
+**`build_history_range()` 简化：**
+- 内生变量无历史真值，统一使用 [-1, 1] 标准范围，不再从数据计算
+
+- **`VERSION`**：2.0.19 → 2.0.20
+
+### 预期效果
+
+校准循环中 LLM 的调参目标从"让仿真 GRV 更接近真实 GRV"变为"让情绪/信贷/流动性等内生变量在正确方向演化"。参数调整方向与实际因果链对齐，校准结果对后续预测有实际参考价值。
+
+
+
+**修改者**：Claude Code  
+**修改理由**：为 B+A/NOVEL 天璇重写铺设最小可运行骨架——soul 文件机制向后兼容（不配置 soul_file 的 Agent 行为完全不变），同时让 A4（能源国/OPEC+）立即获得 doctrine/red_lines/factions 结构。
+
+### 改动
+
+- **`core/agents/base.py`**
+  - `MacroAgent` 新增 `soul: dict = field(default_factory=dict)` 字段
+  - 文档注释补充 soul 文件设计说明（doctrine/red_lines/internal_factions/cultural_prior 字段说明）
+
+- **`core/simulation.py`**
+  - `load_agents()` 新增 soul 文件加载逻辑：
+    - 读取 agents.yaml 中可选的 `soul_file` 字段
+    - 从 `config/../souls/{soul_file}` 路径加载 YAML
+    - 加载失败（文件不存在）时静默跳过，`soul={}` 保持现有行为
+    - 加载成功后通过 `soul=soul` 传入 Agent 构造函数
+
+- **新建 `souls/A4_gulf_opec.yaml`**（立即激活）
+  - 海湾国家/OPEC+ 主权 Agent soul 文件
+  - 包含：doctrine（石油定价+地区外交策略）、red_lines（4条）、resources、cultural_prior（Hofstede UAI/PDI）、internal_factions（财政鹰派/现代化派/安全鹰派）、grv_impact_map（5个行动→GRV影响方向）
+
+- **新建 `souls/A1_usa.yaml`**（设计文档，未激活）
+  - 美国主权 Agent 原型，为 B+A/NOVEL SovereignAgent 基类准备
+  - 当前 agents.yaml 中 A1 仍是美联储，B+A/NOVEL Sprint 创建 SovereignAgent 后激活
+
+- **`config/agents.yaml`**
+  - A4 条目新增 `soul_file: A4_gulf_opec.yaml`
+
+- **`VERSION`**：2.0.18 → 2.0.19
+
+### 验证
+
+```bash
+docker exec macro-sim python3 -c "
+from core.simulation import load_agents
+agents, cfg = load_agents()
+a4 = agents['A4']
+print('A4 soul keys:', list(a4.soul.keys()))
+print('doctrine:', a4.soul.get('doctrine', '')[:50])
+print('red_lines:', len(a4.soul.get('red_lines', [])), '条')
+print('factions:', list(a4.soul.get('internal_factions', {}).keys()))
+"
+# 预期输出：
+# A4 soul keys: ['actor_id', 'actor_type', 'name', 'layer', 'doctrine', ...]
+# red_lines: 4 条
+# factions: ['fiscal_hawks', 'modernization_wing', 'security_hawks']
+```
+
+### 未动
+
+- A4 的 `_decide_rules` 尚未读取 soul 字段，soul 加载后不影响当前仿真输出
+- SovereignAgent 基类尚未创建（B+A/NOVEL Sprint 核心任务）
+
+
+
+**修改者**：Claude Code  
+**修改理由**：arch_review D14 缺陷——`make_world_from_history_row`（校准期历史行构建）中 `ecb_rate` 和 `usd_cny` 硬编码为默认值 3.0/7.1，导致欧央行/中国央行相关 Agent 在整个校准期基于假数据决策。
+
+### 改动
+
+- **`core/world_state.py`**
+  - `load_monthly_history()`：新增 `read_fred_csv("ECBDFR.csv", "ecb_rate")` 和 `read_fred_csv("DEXCHUS.csv", "usd_cny")` 两行
+  - `load_monthly_history()` result 列表：补入 `"ecb_rate"` 和 `"usd_cny"` 字段（fallback 3.0/7.1）
+  - `make_world_from_history_row()`：`dff` 改为 `row.get("dff")` 防 KeyError；补入 `ecb_rate` 和 `usd_cny` 从历史行读取
+- **`VERSION`**：2.0.17 → 2.0.18
+
+### 效果
+
+校准期 50 步中，欧央行（A3 内部派系）和中国央行（A2 内部派系）将使用真实历史汇率/利率数据，而非固定假值。历史数据无 ECBDFR/DEXCHUS 字段时 fallback 不变，向后兼容。
+
+
 
 **修改者**：Claude Code  
 **修改理由**：D7 修复续集——v2.0.16 补了6个来自 grv_latest.json 的维度，但 social_stress/cultural_friction 存在 gdelt_scores.json 而非 grv_latest.json，需由 geo_risk_vector.py 聚合后透传。

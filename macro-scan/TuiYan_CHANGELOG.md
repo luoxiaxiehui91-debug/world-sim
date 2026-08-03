@@ -3,7 +3,36 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## v3.8.6 — 2026-08-03 (by Claude Code)
+## v3.8.7 — 2026-08-03 (by Claude Code)
+
+**修改理由**：GRV 数据源 P0 修复——middle_east_energy 接入 WTI 油价、energy_grid_risk 数据源错误修复（UK Carbon Intensity → 天然气期货）。参照 Smith & Pinchetti (2024, Bank of England) Channel B 理论，纯 GDELT 驱动是方法论错误。
+
+### 改动
+
+- **`核心代码/geo_risk_vector.py`**
+
+  **middle_east_energy WTI 接入（主改动）：**
+  - 原：纯 GDELT（`1.0`），无油价信号
+  - 新：`GDELT × 0.45 + WTI_signal × 0.40 + Channel_B_bonus`
+  - WTI 归一化：`[60, 120] USD/bbl → [0, 100]`
+  - Channel B 激活：WTI > 95 USD/bbl 时额外 +15 分
+  - 数据来源：`commodity_yahoo.json`（`commodities.wti.price`，已采集）
+  - 失败时降级维持纯 GDELT，非阻断
+
+  **energy_grid_risk 数据源错误修复：**
+  - 原：读取 `energy_risk.json`（UK Carbon Intensity API，仅代表英国电网碳强度）
+  - 新：读取 `commodity_yahoo.json` 天然气价格（NG，USD/MMBtu）
+  - NG 归一化：`[2.0, 8.0] USD/MMBtu → [0, 100]`
+  - 降级 fallback：commodity_yahoo 不可用时保留 UK Carbon Intensity（legacy 路径）
+
+- **`VERSION`**：3.8.6 → 3.8.7
+
+### 设计文档
+
+- 理论依据：`macro-scan/config/causal_assumptions.md` 第 4-5 节（middle_east_energy / energy_grid_risk）
+- 数据源修复路线图：`docs/grv_datasource_fix.md`
+
+
 
 **修改理由**：GED v26.1 离线 ETL 首次运行并通过三道质量闸门；生成 GCI 面效度历史锚点，为天玑 V1 校准准备。
 

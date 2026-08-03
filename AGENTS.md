@@ -8,8 +8,8 @@
 
 | 子系统 | 定位 | 容器模式 | 版本 | NAS 运行目录 |
 |:-------|:-----|:---------|:-----|:-------------|
-| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 13维向量 | **热挂载**（改代码即生效，无需 restart） | v3.8.5 | `/vol2/1000/software/macro-scan` |
-| `macro-sim`  | 仿真引擎层：12个 Agent，Monte Carlo×100，月度时间步长 | **COPY 模式**（改代码需 rebuild 镜像） | v2.0.17 | `/vol2/1000/software/macro-sim` |
+| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 13维向量 | **热挂载**（改代码即生效，无需 restart） | v3.8.7 | `/vol2/1000/software/macro-scan` |
+| `macro-sim`  | 仿真引擎层：12个 Agent，Monte Carlo×100，月度时间步长 | **COPY 模式**（改代码需 rebuild 镜像） | v2.0.21 | `/vol2/1000/software/macro-sim` |
 | `kaiyang`    | 可视化操作面板：只读展示天枢数据 + 控制台（:8080，control API :8900） | nginx 静态站（MOCK_ENABLED=false，A3a 已接入） | v1.7.2 | `/vol2/1000/software/kaiyang` |
 
 **数据流**：macro-scan 每日写入 `data/*.json` → macro-sim 只读消费 → kaiyang 只读展示。
@@ -59,7 +59,7 @@ macro-scan 每日按时写入，macro-sim 只读消费，kaiyang 只读展示：
 | `data/sim_trigger.json` | 触发时 | L3+ GRV 告警后写入，触发 macro-sim 仿真 |
 | `data/scheduler_state.json` | 每60s | scheduler 运行状态落盘，control_server（:8900）读取 |
 
-**当前接口兼容版本**：macro-scan v3.8.5+ ↔ macro-sim v2.0.17+（grv v1.0 / news v1.0）
+**当前接口兼容版本**：macro-scan v3.8.7+ ↔ macro-sim v2.0.21+（grv v1.0 / news v1.0）
 
 接口 schema 变更规则：同时改两边 AGENTS.md 的接口契约节 → 两边 CHANGELOG 各追加 → 先升 macro-scan 验证输出 → 再升 macro-sim。
 

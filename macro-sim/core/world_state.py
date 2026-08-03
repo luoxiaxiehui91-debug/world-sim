@@ -303,11 +303,20 @@ def load_monthly_history(
                 ts = d.get("updated", "")[:7]  # "YYYY-MM"
                 if ts and ts not in grv_monthly:
                     grv_monthly[ts] = {
-                        "grv":          d.get("global_composite") or 50.0,
-                        "grv_energy":   d.get("middle_east_energy") or 0.0,
-                        "grv_military": ((d.get("russia_europe") or 0) + (d.get("taiwan_strait") or 0)) / 200,
-                        "grv_trade":    (d.get("us_china_strategic") or 0) / 100,
-                        "us_china_grv": d.get("us_china_strategic") or 50.0,
+                        "grv":              d.get("global_composite") or 50.0,
+                        "grv_energy":       d.get("middle_east_energy") or 0.0,
+                        "grv_military":     ((d.get("russia_europe") or 0) + (d.get("taiwan_strait") or 0)) / 200,
+                        "grv_trade":        (d.get("us_china_strategic") or 0) / 100,
+                        "us_china_grv":     d.get("us_china_strategic") or 50.0,
+                        # D7 扩展维度（校准期与预测期输入空间对齐）
+                        "climate_risk":     float(d.get("climate_risk") or 0.0),
+                        "disaster_risk":    float(d.get("disaster_risk") or 0.0),
+                        "sanctions_risk":   float(d.get("sanctions_risk") or 0.0),
+                        "seismic_risk":     float(d.get("seismic_risk") or 0.0),
+                        "energy_grid_risk": float(d.get("energy_grid_risk") or 0.0),
+                        "japan_monetary":   float(d.get("japan_monetary") or 0.0),
+                        "social_stress":    float(d.get("social_stress") or 0.0),
+                        "cultural_friction":float(d.get("cultural_friction") or 0.0),
                     }
     except Exception as e:
         print(f"[world_state] GRV 历史读取失败：{e}")
@@ -331,6 +340,8 @@ def load_monthly_history(
     read_fred_csv("T10Y2Y.csv", "t10y2y")
     read_fred_csv("BAA10Y.csv", "credit_spread")
     read_fred_csv("DFF.csv",    "dff")
+    read_fred_csv("ECBDFR.csv", "ecb_rate")   # D14 fix: 欧央行存款利率
+    read_fred_csv("DEXCHUS.csv","usd_cny")    # D14 fix: 美元/人民币汇率
 
     # T10Y2Y 和 BAA10Y 单位是 %，转换成 bps（×100）
     for dt in fred_monthly:
@@ -345,7 +356,12 @@ def load_monthly_history(
     valid_dates = [d for d in all_dates if d in grv_monthly][-months:]
 
     # GRV 3个月移动平均平滑（降低月度±30剧烈波动对校准的冲击）
-    _grv_keys = ("grv", "grv_energy", "grv_military", "grv_trade", "us_china_grv")
+    _grv_keys = (
+        "grv", "grv_energy", "grv_military", "grv_trade", "us_china_grv",
+        # D7 扩展维度随主维度一起平滑，保持校准期与预测期输入空间一致
+        "climate_risk", "disaster_risk", "sanctions_risk", "seismic_risk",
+        "energy_grid_risk", "japan_monetary", "social_stress", "cultural_friction",
+    )
     _raw_grv_seq = [grv_monthly[d] for d in valid_dates]
     _smoothed_grv = []
     for i, dt in enumerate(valid_dates):
@@ -361,15 +377,26 @@ def load_monthly_history(
         grv_d  = _smoothed_grv[i]
         fred_d = fred_monthly.get(dt, {})
         result.append({
-            "date":          dt,
-            "grv":           grv_d.get("grv", 50.0),
-            "grv_energy":    grv_d.get("grv_energy", 0.0),
-            "grv_military":  grv_d.get("grv_military", 0.0),
-            "grv_trade":     grv_d.get("grv_trade", 0.0),
-            "us_china_grv":  grv_d.get("us_china_grv", 50.0),
-            "t10y2y":        fred_d.get("t10y2y", -10.0),
-            "credit_spread": fred_d.get("credit_spread", 250.0),
-            "dff":           fred_d.get("dff", 5.0),
+            "date":             dt,
+            "grv":              grv_d.get("grv", 50.0),
+            "grv_energy":       grv_d.get("grv_energy", 0.0),
+            "grv_military":     grv_d.get("grv_military", 0.0),
+            "grv_trade":        grv_d.get("grv_trade", 0.0),
+            "us_china_grv":     grv_d.get("us_china_grv", 50.0),
+            "t10y2y":           fred_d.get("t10y2y", -10.0),
+            "credit_spread":    fred_d.get("credit_spread", 250.0),
+            "dff":              fred_d.get("dff", 5.0),
+            "ecb_rate":         fred_d.get("ecb_rate", 3.0),   # D14 fix
+            "usd_cny":          fred_d.get("usd_cny", 7.1),    # D14 fix
+            # D7 扩展维度（使校准期 MacroWorldState 与预测期输入空间一致）
+            "climate_risk":     grv_d.get("climate_risk", 0.0),
+            "disaster_risk":    grv_d.get("disaster_risk", 0.0),
+            "sanctions_risk":   grv_d.get("sanctions_risk", 0.0),
+            "seismic_risk":     grv_d.get("seismic_risk", 0.0),
+            "energy_grid_risk": grv_d.get("energy_grid_risk", 0.0),
+            "japan_monetary":   grv_d.get("japan_monetary", 0.0),
+            "social_stress":    grv_d.get("social_stress", 0.0),
+            "cultural_friction":grv_d.get("cultural_friction", 0.0),
         })
 
     return result
@@ -399,6 +426,18 @@ def make_world_from_history_row(row: dict, prev_row: dict = None, label: str = "
         t10y2y=_f(row["t10y2y"], -10.0),
         credit_spread=_f(row["credit_spread"], 250.0),
         dff=_f(row["dff"], 5.0),
+        # D14 fix: ecb_rate/usd_cny 从历史行读取，不再硬编码（历史无此字段时 fallback）
+        ecb_rate=_f(row.get("ecb_rate"), 3.0),
+        usd_cny=_f(row.get("usd_cny"), 7.1),
+        # D7 扩展维度（历史行有则用，无则安全默认 0.0）
+        climate_risk=_f(row.get("climate_risk"), 0.0),
+        disaster_risk=_f(row.get("disaster_risk"), 0.0),
+        sanctions_risk=_f(row.get("sanctions_risk"), 0.0),
+        seismic_risk=_f(row.get("seismic_risk"), 0.0),
+        energy_grid_risk=_f(row.get("energy_grid_risk"), 0.0),
+        japan_monetary=_f(row.get("japan_monetary"), 0.0),
+        social_stress=_f(row.get("social_stress"), 0.0),
+        cultural_friction=_f(row.get("cultural_friction"), 0.0),
         situation_level=2,
         step_label=label or row.get("date", ""),
         total_cycles=100,

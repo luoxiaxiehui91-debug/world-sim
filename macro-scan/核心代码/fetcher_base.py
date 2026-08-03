@@ -211,8 +211,15 @@ class FetcherBase:
         """
         return data.get("status") == Status.OK
 
+    # 良值 staleness 上限（秒）。超过此时限的旧值不再用于降级。
+    # 子类可覆写：月频源（fao/china_meso）可设为 35天；I15 事件源可设为 4小时。
+    _MAX_STALE_SECONDS: int = 48 * 3600  # 默认 48 小时
+
     def load_previous_good(self) -> dict | None:
-        """读上次良值（经 _is_good 判定）。无则返回 None。降级时保留旧值。"""
+        """读上次良值（经 _is_good 判定）。无则返回 None。降级时保留旧值。
+        若良值的 updated 字段超过 _MAX_STALE_SECONDS，视为过期，返回 None。
+        """
+        import datetime as _dt
         if not self.output_file:
             return None
         path = os.path.join(self.data_dir, self.output_file)
@@ -223,7 +230,22 @@ class FetcherBase:
                 data = json.load(f)
         except Exception:
             return None
-        return data if self._is_good(data) else None
+        if not self._is_good(data):
+            return None
+        updated_str = data.get("updated", "")
+        if updated_str:
+            try:
+                updated_dt = _dt.datetime.fromisoformat(updated_str.replace("Z", "+00:00"))
+                now = _dt.datetime.now(_dt.timezone.utc)
+                age_s = (now - updated_dt).total_seconds()
+                if age_s > self._MAX_STALE_SECONDS:
+                    self.logger.warning(
+                        f"[{self.name}] 上次良值已过期 {age_s/3600:.1f}h（上限 {self._MAX_STALE_SECONDS/3600:.0f}h），丢弃降级"
+                    )
+                    return None
+            except Exception:
+                pass  # 时间戳格式异常时不拦截，保持旧行为
+        return data
 
     # ── 采集（子类实现） ─────────────────────────────────────
     def collect(self):

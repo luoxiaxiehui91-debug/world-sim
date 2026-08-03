@@ -95,6 +95,10 @@
 
 | 优先级 | 方向 | 说明 |
 |--------|------|------|
+| **P0** | **GRV 数据源修复（middle_east_energy + energy_grid_risk + fetch_fx）** | 详见 `docs/grv_datasource_fix.md` 第6节 P0 清单；commodity_yahoo→middle_east_energy 接入是最高价值单个修复（约2小时），fetch_fx→world_state.py 修复汇率硬编码 |
+| **P1** | **B+A/NOVEL 天璇重写** | 设计蓝图见 `macro-sim/docs/agent_taxonomy.md`；18个 Agent（A类8+B类4+C类6）；必须先读 `docs/archive/17_天璇Agent交互协议_v1.0.md` 确认世界模型边界，再动代码 |
+| **P1** | **GRV GDELT P95 基准校准** | 扩大基准窗口至12个月（当前仅7周211条），消除中美/台海维度归一化差距15倍扭曲；详见 `docs/grv_datasource_fix.md` 第4节 |
+| P2 | **causal_assumptions.md 理论升级落地** | 已有文档骨架（`macro-scan/config/causal_assumptions.md`）；下一步：接入 FSI 凝聚力维度、cultural_friction 接入 Hofstede CSV、引入 WUI 作为第三信号 |
 | P2 | **置信度衰减机制** | 假说置信度应随时间衰减（无新信号支撑则降低），当前为静态累积 |
 | P2 | **多路径交叉干扰** | 多条推演路径共享部分中间态时，路径间干扰未建模，可能导致概率分布失真 |
 | P3 | **非洲/南亚传导路径** | 当前 GRV 维度对非洲次大陆和南亚次区域的传导路径覆盖不足 |

@@ -1,5 +1,5 @@
 # agents.yaml — 12个宏观Agent配置
-# 修改此文件不需要重建镜像（热挂载）
+# 修改此文件需重新部署（bash deploy.sh macro-sim）；当前未热挂载（COPY 进镜像）
 # 新增角色只需添加一条，代码无需改动（预留接口）
 
 global:
@@ -55,7 +55,8 @@ agents:
   - id: A4
     name: 能源国(OPEC+)
     role: energy_gov
-    class: geopolitical.EnergyGovAgent
+    class: sovereign.EnergyGovSovereignAgent   # B+A/NOVEL: SovereignAgent 版本（有 soul 时派系决策）
+    soul_file: A4_gulf_opec.yaml
     info_delay: 5        # 最慢，决策周期长
     activation_prob: 0.20
     transmission_coefficients:
