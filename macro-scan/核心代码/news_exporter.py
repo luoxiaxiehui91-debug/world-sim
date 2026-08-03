@@ -29,7 +29,7 @@ DAYS_BACK = 7
 _PLACEHOLDERS = ",".join("?" * len(CATEGORY_MAP))
 # 不用 SQLite datetime 过滤（旧格式行无法比较），多取后 Python 侧按日期过滤
 SQL = (
-    "SELECT a.title, ac.category, a.published_at "
+    "SELECT a.title, a.url, a.source, ac.category, a.published_at "
     "FROM articles a "
     "JOIN article_categories ac ON a.id = ac.article_id "
     "WHERE ac.category IN ({ph}) "
@@ -74,6 +74,8 @@ def export_news_for_sim():
         if d and d >= cutoff:
             articles.append({
                 "title":    row["title"],
+                "url":      row["url"] or None,
+                "source":   row["source"] or None,
                 "category": CATEGORY_MAP[row["category"]],
                 "date":     d,
             })
