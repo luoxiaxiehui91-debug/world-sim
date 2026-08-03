@@ -58,9 +58,28 @@ def build_market_quotes():
     cy = _load_json(os.path.join(DATA_DIR, "commodity_yahoo.json")) or {}
     commodities = cy.get("commodities", {})
 
+    def _spark5(key: str):
+        """读 commodity_history/{key}.csv 最近5条价格，返回列表或 None。"""
+        path = os.path.join(DATA_DIR, "commodity_history", f"{key}.csv")
+        try:
+            with open(path, newline="", encoding="utf-8") as f:
+                rows = [r for r in csv.DictReader(f) if r.get("value")]
+            rows = rows[-5:]
+            if len(rows) < 2:
+                return None
+            prices = []
+            for r in rows:
+                try:
+                    prices.append(float(r["value"]))
+                except (ValueError, TypeError):
+                    pass
+            return prices if len(prices) >= 2 else None
+        except Exception:
+            return None
+
     def _cy(key):
         c = commodities.get(key, {})
-        return {
+        q = {
             "key":        key,
             "name":       c.get("name", key),
             "price":      c.get("price"),
@@ -68,6 +87,10 @@ def build_market_quotes():
             "unit":       c.get("unit", ""),
             "as_of":      c.get("as_of"),
         }
+        spark = _spark5(key)
+        if spark:
+            q["spark5"] = spark
+        return q
 
     indexes = [_cy(k) for k in ("sp500", "dji", "nasdaq_c", "rut") if k in commodities]
     energy  = [_cy(k) for k in ("wti", "brent", "nat_gas") if k in commodities]

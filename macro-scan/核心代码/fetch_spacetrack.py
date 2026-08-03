@@ -147,6 +147,7 @@ class SpaceTrackFetcher(FetcherBase):
 
         result = {
             "status":          Status.OK,
+            "_schema_version": "1.0",
             "updated":         now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "total_active":    total_active,
             "by_type": {
