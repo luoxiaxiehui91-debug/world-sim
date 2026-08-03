@@ -86,6 +86,19 @@ def run_full_simulation(
     # ── 天玑存档钩子 ──────────────────────────────────────
     _archive_to_tianji(world, paths, calib_result, event, level, report_path)
 
+    # ── 天玑 V1 评分 ──────────────────────────────────────
+    try:
+        _scoring_result = run_scoring()
+        if _scoring_result is None:
+            _send_ntfy_simple("天玑 V1", "等待首次仿真数据，暂无评分")
+        else:
+            _send_ntfy_simple(
+                "天玑月度评分",
+                f"Brier={_scoring_result['brier']:.3f} BSS={_scoring_result['bss']:.3f} n={_scoring_result['n']}",
+            )
+    except Exception as _te:
+        print(f"[天玑] 评分失败（不阻断主流程）: {_te}")
+
     # ── ntfy 推送 ─────────────────────────────────────────
     _send_ntfy(world, calib_result, paths, report_path)
 
@@ -120,6 +133,19 @@ def run_predict_only(
     calib_result = {"score": 0, "avg_error": 0, "param_changes": [], "error_series": []}
     report_path = _write_report(world, calib_result, paths, level, event)
     _archive_to_tianji(world, paths, calib_result, event, level, report_path)
+
+    try:
+        _scoring_result = run_scoring()
+        if _scoring_result is None:
+            _send_ntfy_simple("天玑 V1", "等待首次仿真数据，暂无评分")
+        else:
+            _send_ntfy_simple(
+                "天玑月度评分",
+                f"Brier={_scoring_result['brier']:.3f} BSS={_scoring_result['bss']:.3f} n={_scoring_result['n']}",
+            )
+    except Exception as _te:
+        print(f"[天玑] 评分失败（不阻断主流程）: {_te}")
+
     _send_ntfy(world, calib_result, paths, report_path)
 
 
@@ -666,7 +692,105 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
         conn.close()
 
 
+# ── 天玑 V1 评分 ──────────────────────────────────────────
+
+def _write_json(path: Path, data: dict):
+    """原子写 JSON 文件。"""
+    tmp = str(path) + ".tmp"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, str(path))
+
+
+def run_scoring() -> dict | None:
+    """
+    天玑 V1：从 forecast_tracker.db 读取到期预测，计算 Brier / BSS / 锐度。
+
+    返回：
+      None — predictions 表为空（等待首次仿真数据）
+      dict — {"brier": float, "bss": float, "sharpness": float,
+               "n": int, "calibration_error": float, "scored_at": str}
+
+    副作用：将结果写入 /app/data/brier_latest.json。
+    """
+    import sqlite3
+    from datetime import datetime as _dt
+
+    if not _TIANJI_DB_PATH.exists():
+        return None
+
+    try:
+        conn = sqlite3.connect(str(_TIANJI_DB_PATH), timeout=10)
+        conn.row_factory = sqlite3.Row
+
+        # 只取 due_at 已到期且有 outcome 的记录
+        now_str = _dt.utcnow().isoformat()[:19]
+        rows = conn.execute("""
+            SELECT predicted_probability, outcome
+            FROM predictions
+            WHERE due_at <= ?
+              AND outcome IS NOT NULL
+              AND predicted_probability IS NOT NULL
+        """, (now_str,)).fetchall()
+        conn.close()
+    except Exception as e:
+        print(f"[天玑] DB 读取失败: {e}")
+        return None
+
+    if not rows:
+        return None
+
+    records = [{"prob": float(r["predicted_probability"]), "outcome": int(r["outcome"])}
+               for r in rows]
+
+    # 内联 Brier 计算（避免依赖 macro-scan 的 brier_calc.py）
+    bs_list   = [(r["prob"] - r["outcome"]) ** 2 for r in records]
+    prob_list = [r["prob"] for r in records]
+    outcomes  = [r["outcome"] for r in records]
+
+    mean_bs    = sum(bs_list) / len(bs_list)
+    clim_bs    = 0.5 ** 2  # climatology p=0.5
+    bss        = 1.0 - mean_bs / clim_bs if clim_bs > 0 else 0.0
+    sharpness  = sum(1 for p in prob_list if p < 0.3 or p > 0.7) / len(prob_list)
+    mean_pred  = sum(prob_list) / len(prob_list)
+    actual_rate = sum(outcomes) / len(outcomes)
+    calib_err  = abs(mean_pred - actual_rate)
+
+    result = {
+        "brier":             round(mean_bs, 4),
+        "bss":               round(bss, 4),
+        "sharpness":         round(sharpness, 4),
+        "n":                 len(records),
+        "calibration_error": round(calib_err, 4),
+        "scored_at":         _dt.utcnow().isoformat()[:19],
+    }
+
+    try:
+        _write_json(Path("/app/data/brier_latest.json"), result)
+        print(f"[天玑] 评分完成：Brier={result['brier']:.3f} BSS={result['bss']:.3f} n={result['n']}")
+    except Exception as e:
+        print(f"[天玑] brier_latest.json 写入失败: {e}")
+
+    return result
+
+
 # ── ntfy 推送 ─────────────────────────────────────────────
+
+def _send_ntfy_simple(title: str, message: str):
+    """轻量 ntfy 推送（天玑评分等单行通知用）。"""
+    try:
+        req = urllib.request.Request(
+            NTFY_URL,
+            data=json.dumps({"title": title, "message": message}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5):
+            pass
+    except Exception as e:
+        print(f"[天玑] ntfy 推送失败: {e}")
+
 
 def _send_ntfy(world, calib_result: dict, paths: list, report_path=None):
     score = calib_result.get("score", 0)
