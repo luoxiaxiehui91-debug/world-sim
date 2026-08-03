@@ -3,6 +3,37 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.8.10 — 2026-08-04 (by Claude Code)
+
+**修改理由**：GRV P1 修复——接入 GED v26.1 冲突死亡数据，替换 russia_europe / middle_east_energy 维度中纯 GDELT 粗估部分，引入有实证基础的死亡数锚点。权重由多 agent 辩论（地缘政治理论+数据科学+怀疑者）推导。
+
+### 修改
+
+- **`核心代码/geo_risk_vector.py`**
+  - 新增常量：`GED_CSV` 路径、`_GED_P95_ANCHOR = 3570`、`_GED_REGION_MAP`、`_GED_STALE_MONTHS = 18`
+  - 新增函数 `_load_ged_conflict_signal(dimension)`：
+    - 读取 `data/ged/ged_agg_country_month.csv`
+    - 过滤 type_of_violence in (1=state-based, 3=one-sided)
+    - 按 region 过滤，统计近 12 个月累计死亡数
+    - 归一化：`log1p(deaths_12m) / log1p(3570) × 100`，clip [0,100]
+    - GED 数据 >18 个月无记录返回 None（上层自动退化为 GDELT-only）
+    - Schema 断言失败硬报错（不静默降级为零）
+  - `russia_europe` 融合逻辑：`GDELT_sub = GDELT×0.70 + GED×0.30`，再与 GPR 混合
+  - `middle_east_energy` 融合逻辑：同上，GED 不可用时保持原纯 GDELT 逻辑
+
+- **`config/causal_assumptions.md`**：第 4/5 节补充 GED 接入权重来源记录（多 agent 辩论结论）
+
+- **`VERSION`**：3.8.9 → 3.8.10
+
+### 设计依据
+
+- Richardson (1960) log 量级框架（Statistics of Deadly Quarrels）
+- UCDP/PRIO Armed Conflict Dataset 理论基础
+- P95 anchor = 3570 死亡/地区/月（GED 1989-2024 实测，见 data/ged/ged_etl_report.json）
+- 权重 GED×0.30 保守起步，目标 3 个月后用 Brier Score 校准
+- 不接入 taiwan_strait / us_china_strategic（威慑型风险，Fearon 1995：安静≠安全）
+
+
 ## v3.8.9 — 2026-08-04 (by Claude Code)
 
 **修改理由**：接入中国三大股市指数（上证综合/沪深300/深证成分），显示在 kaiyang MARKETS 面板 INDEXES 区，补全 A 股数据缺口。

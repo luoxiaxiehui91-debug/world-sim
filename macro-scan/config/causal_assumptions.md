@@ -86,6 +86,7 @@ Organski & Kugler (1980) 权力转移理论：当挑战国 GDP 接近主导国�
 BIS Working Paper 1348（2025）"Geopolitical risk in the euro area"：俄乌冲突对欧元区传导路径验证为 Channel B（能源供应中断）为主，而非 Channel A（需求收缩）。Mueller (1973) 战时公众厌战效应导致 GPR 系统性低估，conflict_floor 是媒体疲劳的系统性校正。ACLED Conflict Severity Index Geographic Diffusion 维度表明俄乌冲突地理扩散已稳定（低 Fragmentation），长期风险不会降到"和平"水平。
 
 **当前权重：** `GDELT × 0.4 + GPRC_RUS × 0.6`；持续冲突 floor = 35.0（触发条件：news.db 近 30 天冲突文章 ≥5 篇）[经验假设，2026 拍定]  
+**GED 接入（v3.8.10，2026-08-04）：** GDELT 子信号先与 GED 融合：`GDELT_sub = GDELT×0.70 + GED_europe×0.30`，再按原公式与 GPR 混合。多 agent 辩论（地缘政治理论+数据科学+怀疑者）结论：GED 0.30 保守起步，3 个月后校准。P95_anchor=3570（1989-2024 地区月度 P95）。GED >18 个月无数据时权重自动退化为 0。  
 **Floor 理论建议（待实现）：** 改为基于 ACLED 地理扩散半径动态校准，而非硬编码 35.0。
 
 **上升触发事件：** 冲突线扩大到新州/地区、北约成员国军事直接介入、核威胁信号（GPRC_RUS 核子类激活）  
@@ -104,6 +105,7 @@ BIS Working Paper 1348（2025）"Geopolitical risk in the euro area"：俄乌冲
 Smith & Pinchetti（2024，Bank of England）：中东冲突主要通过 Channel B（能源供应中断→油价→通胀）传导，而非 Channel A（需求收缩）。这意味着 middle_east_energy 必须有实际油价信号作为输入，**纯 GDELT 驱动是方法论错误**。Hamilton (1983)："Oil and the macroeconomy since World War II"：供给中断幅度与宏观冲击幅度不成比例，支持非线性 Channel B 激活设计。
 
 **当前权重：** `GDELT × 1.0`（纯 GDELT，设计决策 CFG-1——防止与 global_composite 相关性虚高）[已知缺陷]  
+**GED 接入（v3.8.10，2026-08-04）：** GDELT 子信号先与 GED 融合：`GDELT_sub = GDELT×0.70 + GED_mideast×0.30`，再接入 WTI Channel B。同 russia_europe：GED >18 个月无数据时自动退化。  
 **目标权重（待实现）：** `GDELT × 0.35 + WTI_oil_price_signal × 0.40 + 霍尔木兹_Channel_B_激活 × 0.25`
 
 油价信号归一化：WTI 60-120 USD/bbl 映射到 0-100，超过 120 触发 Channel B 激活乘数（参照 BIS 1348 阈值研究）。数据来源：commodity_yahoo（已采集，未接入）。
@@ -379,4 +381,4 @@ grv_weights.yaml（情景评分权重矩阵，与上述混合权重独立）
 
 *初版由 Claude Code 根据 arch_review_20260802.md 天权裁定创建（2026-08-02）*  
 *v2 更新：补充文献引用、玉衡禁止调整清单、双层衰减架构、social_stress/cultural_friction 参数化方案（2026-08-03）*  
-*下次必须更新时机：geo_risk_vector.py 混合权重变更 / grv_weights.yaml 版本升级 / 新增 GRV 维度*
+*v3 更新：GED v26.1 接入 russia_europe / middle_east_energy（多 agent 辩论结论，2026-08-04）*  
