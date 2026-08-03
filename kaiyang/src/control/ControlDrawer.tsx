@@ -82,19 +82,21 @@ export function ControlDrawer() {
       </div>
       <ToastContainer />
 
-      {/* 关闭按钮 — 点击 StatusBar 的 🔧 按钮（toggleDrawer 的最可靠触发方式） */}
+      {/* 关闭按钮 — 悬浮显示，简洁不抢眼 */}
       <button
         type="button"
         onClick={() => {
           const sb = document.querySelector('button[title*="关闭控制台"], button[title*="控制台"]');
           if (sb instanceof HTMLElement) sb.click();
         }}
-        className="absolute top-3 right-3 flex h-9 w-9 items-center justify-center rounded-md border border-rose-400/40 bg-rose-500/15 text-rose-200 hover:border-rose-400/70 hover:bg-rose-500/30 hover:text-rose-100 transition-colors"
+        className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/30 hover:border-white/30 hover:bg-white/10 hover:text-white/70 transition-all"
         style={{ zIndex: 9999 }}
         title="关闭控制台"
         aria-label="关闭控制台"
       >
-        <span style={{ fontSize: 18, fontWeight: 'bold' }}>✕</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
       </button>
     </aside>
     </>
