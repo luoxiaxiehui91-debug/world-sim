@@ -46,15 +46,19 @@ HEADERS = {
 
 # (symbol, 逻辑键, 中文名, 单位, 类别)
 SYMBOLS = [
-    ("CL=F",    "wti",      "WTI原油",     "USD/bbl", "能源"),
-    ("BZ=F",    "brent",    "Brent原油",   "USD/bbl", "能源"),
+    ("CL=F",    "wti",      "WTI原油",     "USD/bbl",  "能源"),
+    ("BZ=F",    "brent",    "Brent原油",   "USD/bbl",  "能源"),
     ("NG=F",    "nat_gas",  "天然气",      "USD/MMBtu","能源"),
-    ("HG=F",    "copper",   "铜",          "USD/lb",  "金属"),
-    ("GC=F",    "gold",     "黄金",        "USD/oz",  "贵金属"),
-    ("SI=F",    "silver",   "白银",        "USD/oz",  "贵金属"),
-    ("SPY",     "sp500",    "标普500 ETF", "USD",     "股市"),
-    ("QQQ",     "nasdaq",   "纳斯达克100", "USD",     "股市"),
-    ("^HSI",    "hsi",      "恒生指数",    "HKD",     "股市"),
+    ("HG=F",    "copper",   "铜",          "USD/lb",   "金属"),
+    ("GC=F",    "gold",     "黄金",        "USD/oz",   "贵金属"),
+    ("SI=F",    "silver",   "白银",        "USD/oz",   "贵金属"),
+    ("SPY",     "sp500",    "标普500 ETF", "USD",      "股市"),
+    ("QQQ",     "nasdaq",   "纳斯达克100", "USD",      "股市"),
+    ("^HSI",    "hsi",      "恒生指数",    "HKD",      "股市"),
+    # 新增：道琼斯/纳斯达克综合/罗素2000
+    ("^DJI",    "dji",      "道琼斯",      "USD",      "股市"),
+    ("^IXIC",   "nasdaq_c", "纳斯达克综合","USD",      "股市"),
+    ("^RUT",    "rut",      "罗素2000",    "USD",      "股市"),
 ]
 _SYMBOL_KEYS = [s[1] for s in SYMBOLS]
 
@@ -114,6 +118,15 @@ class CommodityYahooFetcher(FetcherBase):
         if price is None:
             self.logger.warning("[commodity_yahoo] %s regularMarketPrice 缺失", symbol)
             return None
+        # change_pct：用最近两条收盘价计算，比 chartPreviousClose 更准确
+        change_pct = None
+        if closes and len(closes) >= 2:
+            valid_closes = [c for c in closes if c is not None]
+            if len(valid_closes) >= 2:
+                prev = valid_closes[-2]
+                curr = valid_closes[-1]
+                if prev and prev != 0:
+                    change_pct = round((curr - prev) / prev * 100, 2)
         rmt = meta.get("regularMarketTime")
         as_of = (
             datetime.datetime.fromtimestamp(rmt, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -121,12 +134,13 @@ class CommodityYahooFetcher(FetcherBase):
             datetime.datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         )
         return {
-            "symbol":    symbol,
-            "name":      name,
-            "unit":      unit,
-            "price":     float(price),
-            "as_of":     as_of,
-            "status":    Status.OK,
+            "symbol":     symbol,
+            "name":       name,
+            "unit":       unit,
+            "price":      float(price),
+            "change_pct": change_pct,
+            "as_of":      as_of,
+            "status":     Status.OK,
             # 历史序列（供 backfill 使用）
             "_timestamps": ts_list,
             "_closes":     closes,

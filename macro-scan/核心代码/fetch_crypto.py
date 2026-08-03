@@ -68,6 +68,8 @@ class CryptoFetcher(FetcherBase):
                 coins.append({
                     "id": c.get("id"),
                     "symbol": c.get("symbol"),
+                    "name": c.get("name"),
+                    "price": c.get("current_price"),
                     "market_cap": c.get("market_cap"),
                     "market_cap_rank": c.get("market_cap_rank"),
                     "total_volume": c.get("total_volume"),
