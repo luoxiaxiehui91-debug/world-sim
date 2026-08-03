@@ -82,20 +82,20 @@ export function ControlDrawer() {
       </div>
       <ToastContainer />
 
-      {/* 关闭按钮 — 悬浮显示，简洁不抢眼 */}
+      {/* 关闭箭头 — 抽屉左侧垂直居中，点击收起 */}
       <button
         type="button"
         onClick={() => {
           const sb = document.querySelector('button[title*="关闭控制台"], button[title*="控制台"]');
           if (sb instanceof HTMLElement) sb.click();
         }}
-        className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/30 hover:border-white/30 hover:bg-white/10 hover:text-white/70 transition-all"
+        className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 flex h-10 w-5 items-center justify-center rounded-l-md border border-r-0 border-white/10 bg-black/40 text-white/30 hover:border-white/25 hover:bg-black/60 hover:text-white/70 transition-all"
         style={{ zIndex: 9999 }}
         title="关闭控制台"
         aria-label="关闭控制台"
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-          <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        <svg width="8" height="14" viewBox="0 0 8 14" fill="none" aria-hidden="true">
+          <path d="M2 2l4 5-4 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
     </aside>
