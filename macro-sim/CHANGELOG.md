@@ -3,6 +3,23 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.23 — 2026-08-04 (by Claude Code)
+
+**修改理由**：P4——天玑 V1 评分接线，run.py 中 prediction 写入 tianji_db 后立即触发 Brier 评分，推 ntfy。
+
+### 修改
+
+- **`run.py`**
+  - 新增 `run_scoring()` 函数：从 `forecast_tracker.db` 读取 due_at 已到期且有 outcome 的预测，计算 Brier/BSS/锐度，写 `/app/data/brier_latest.json`；predictions 表为空时返回 None
+  - 新增 `_write_json()` 辅助函数：原子写 JSON
+  - 新增 `_send_ntfy_simple()` 辅助函数：轻量 ntfy 单行推送（天玑评分用）
+  - `run_simulation()` 中 `_archive_to_tianji` 之后调用 `run_scoring()`：有结果时推 Brier/BSS，空表时推"等待首次仿真数据"
+  - `run_predict_only()` 同上接入
+  - Brier 计算内联（不依赖 macro-scan 的 brier_calc.py，避免容器间依赖）
+
+- **`VERSION`**：v2.0.22 → v2.0.23
+
+
 ## v2.0.22 — 2026-08-04 (by Claude Code)
 
 **修改理由**：B+A/NOVEL Sprint-2——A2/A3/A6 soul 文件在位激活；慢变量 irp/ucri/gci 注入 MacroWorldState；D6 校准缓存实现。
