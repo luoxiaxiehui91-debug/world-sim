@@ -303,6 +303,37 @@ def compute_grv() -> dict:
     russia_europe      = _blend(gdelt_russia_n,  gpr_rus,    0.4, 0.6)
     middle_east_energy = _blend(gdelt_mideast_n, None,       1.0, 0.0)  # CFG-1: 纯GDELT，无中东专项GPR
 
+    # ── 接入 WTI 油价补强 middle_east_energy（P0修复，2026-08-03）──
+    # 理论依据：Smith & Pinchetti (2024, Bank of England) 证明中东冲突主要通过
+    # Channel B（能源供应中断→油价→通胀）传导，纯 GDELT 驱动是方法论错误。
+    # 目标权重：GDELT×0.45 + WTI_signal×0.40 + Channel_B_激活×0.15
+    # 油价归一化：[60, 120] USD/bbl → [0, 100]
+    try:
+        cy_path = os.path.join(DATA_DIR, "commodity_yahoo.json")
+        if os.path.exists(cy_path):
+            with open(cy_path, encoding="utf-8") as _cy2:
+                _cy2d = json.load(_cy2)
+            if _cy2d.get("status") in ("ok", "partial"):
+                _wti = _cy2d.get("commodities", {}).get("wti")
+                if _wti and isinstance(_wti.get("price"), (int, float)):
+                    wti_price = float(_wti["price"])
+                    wti_signal = min(100.0, max(0.0, (wti_price - 60.0) / (120.0 - 60.0) * 100))
+                    # Channel B 激活：WTI > 95 USD/bbl 时额外加权
+                    channel_b_bonus = 15.0 if wti_price > 95.0 else 0.0
+                    if middle_east_energy is not None:
+                        middle_east_energy = round(
+                            middle_east_energy * 0.45 + wti_signal * 0.40 + channel_b_bonus,
+                            1
+                        )
+                    else:
+                        middle_east_energy = round(wti_signal * 0.40 + channel_b_bonus, 1)
+                    logger.info(
+                        "[GRV] middle_east_energy + WTI=%.1f → wti_signal=%.1f channel_b=%s → %.1f",
+                        wti_price, wti_signal, "ON" if wti_price > 95 else "off", middle_east_energy
+                    )
+    except Exception as _mee:
+        logger.warning(f"[GRV] WTI 接入 middle_east_energy 失败（非阻断，维持纯GDELT）: {_mee}")
+
     # ── 持续冲突 floor（防媒体疲劳导致维度虚低）────────────────
     russia_europe = _apply_conflict_floor(russia_europe, "russia_europe")
 
@@ -385,22 +416,44 @@ def compute_grv() -> dict:
         logger.warning(f"[GRV] 地震信号读取失败（非阻断）: {_e}")
 
     # ── 接入能源/电网压力（energy_grid_risk）──────────────────
-    # 来源：fetch_energy.py（UK Carbon Intensity API → grid_carbon_risk，0–100）。
-    # 高值 = 电网更脏（化石占比高）/ 能源外生压力更大，喂 GRV 的 energy/grid 维度。
+    # 来源：fetch_commodity_yahoo.py（天然气期货 NG，USD/MMBtu）。
+    # 天然气价格是全球能源基础设施风险的实体信号，优于原 UK Carbon Intensity（仅反映英国电网碳强度）。
+    # 归一化：[2.0, 8.0] USD/MMBtu → [0, 100]；历史正常区间约 2-4，高压区间约 6-8。
+    # 数据源错误修复：原代码读取 UK Carbon Intensity API，与 source_dimension_map.yaml
+    # 声明的 energy_eia 完全无关，2026-08-03 修复。
     energy_grid_risk = None
     try:
-        en_path = os.path.join(DATA_DIR, "energy_risk.json")
-        if os.path.exists(en_path):
-            with open(en_path, encoding="utf-8") as _en:
-                _end = json.load(_en)
-            if _end.get("status") in ("ok", "partial"):
-                g = _end.get("grid_carbon_risk")
-                if isinstance(g, (int, float)):
-                    energy_grid_risk = round(float(g), 1)
+        cy_path = os.path.join(DATA_DIR, "commodity_yahoo.json")
+        if os.path.exists(cy_path):
+            with open(cy_path, encoding="utf-8") as _cy:
+                _cyd = json.load(_cy)
+            if _cyd.get("status") in ("ok", "partial"):
+                _ng = _cyd.get("commodities", {}).get("natural_gas") or \
+                      _cyd.get("commodities", {}).get("ng")
+                if _ng and isinstance(_ng.get("price"), (int, float)):
+                    ng_price = float(_ng["price"])
+                    # 归一化到 [0, 100]，超出范围 clip
+                    energy_grid_risk = round(
+                        min(100.0, max(0.0, (ng_price - 2.0) / (8.0 - 2.0) * 100)), 1
+                    )
+                    logger.info("[GRV] energy_grid_risk from NG=%.2f USD/MMBtu → %.1f",
+                                ng_price, energy_grid_risk)
                 else:
-                    logger.warning("[GRV] grid_carbon_risk 缺失/类型异常，留空")
+                    logger.warning("[GRV] commodity_yahoo 无天然气价格，energy_grid_risk 留空")
             else:
-                logger.info("[GRV] 能源数据 status=%s，energy_grid_risk 留空", _end.get("status"))
+                logger.info("[GRV] commodity_yahoo status=%s，energy_grid_risk 留空",
+                            _cyd.get("status"))
+        else:
+            # fallback：尝试旧 energy_risk.json（UK Carbon Intensity，仅作降级）
+            en_path = os.path.join(DATA_DIR, "energy_risk.json")
+            if os.path.exists(en_path):
+                with open(en_path, encoding="utf-8") as _en:
+                    _end = json.load(_en)
+                if _end.get("status") in ("ok", "partial"):
+                    g = _end.get("grid_carbon_risk")
+                    if isinstance(g, (int, float)):
+                        energy_grid_risk = round(float(g), 1)
+                        logger.warning("[GRV] energy_grid_risk 降级使用 UK Carbon Intensity（commodity_yahoo 不可用）")
     except Exception as _e:
         logger.warning(f"[GRV] 能源信号读取失败（非阻断）: {_e}")
 

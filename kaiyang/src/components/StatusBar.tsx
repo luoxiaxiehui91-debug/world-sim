@@ -14,10 +14,14 @@ import { fmtNum, fmtStamp } from '@/lib/format';
 import type { GrvRaw, NewsItem, SimTriggerRaw } from '@/types/contracts';
 
 function Stamp({ label, t }: { label: string; t: string | null | undefined }) {
+  const isStale = t ? Date.now() - new Date(t).getTime() > 24 * 3600 * 1000 : false;
   return (
-    <span className="chip" title={`${label} 数据时间：${t ?? '未知'}`}>
-      <span className="text-white/40">{label}</span>
-      <span className="text-white/70">{fmtStamp(t)}</span>
+    <span
+      className={`chip ${isStale ? 'border-amber-400/60 text-amber-300' : ''}`}
+      title={`${label} 数据时间：${t ?? '未知'}${isStale ? '（⚠ 超过24h未更新）' : ''}`}
+    >
+      <span className={isStale ? 'text-amber-400/70' : 'text-white/40'}>{label}</span>
+      <span className={isStale ? 'text-amber-300' : 'text-white/70'}>{fmtStamp(t)}{isStale ? ' ⚠' : ''}</span>
     </span>
   );
 }

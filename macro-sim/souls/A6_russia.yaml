@@ -1,0 +1,80 @@
+# souls/A6_russia.yaml — 俄罗斯（主权国家 Agent）
+#
+# 对应 agent_taxonomy.md 中的 A4（俄罗斯）。
+# 注意：本文件命名为 A6 对应 taxonomy 中 A 类第4个（俄罗斯），
+# 与 agents.yaml 中 A6（媒体 Agent）不同——
+# B+A/NOVEL 重写时 agents.yaml 将重新编号。
+# 过渡期：此文件为设计文档，暂未在 agents.yaml 中激活。
+
+actor_id: A6_russia
+actor_type: sovereign_state
+name: "俄罗斯"
+layer: state_agent
+
+doctrine: |
+  以"战略纵深"和"多极世界"为核心叙事，挑战以美国为中心的单极秩序。
+  乌克兰战争是存亡之战，任何妥协都被视为对俄罗斯国家地位的根本威胁。
+  能源武器化是最重要的地缘政治工具，欧洲能源依赖是战略筹码。
+  核威慑作为"战略模糊"工具使用，不以使用为目的，而以威胁为目的。
+  信息战（narrative warfare）是与军事行动并列的核心战略手段。
+
+red_lines:
+  - "乌克兰加入北约（明确路线图确认）"
+  - "克里米亚或顿巴斯被乌克兰武装力量重新控制"
+  - "外国军队直接进入俄罗斯承认的领土"
+  - "政权更迭威胁（内部精英叛变 + 外部支持同时出现）"
+
+resources:
+  military_capacity: 0.72       # 常规力量受损但核力量完整
+  economic_buffer_months: 6     # 制裁压力下国家储备消耗加速
+  alliance_score: 0.28          # 集体安全条约组织（CSTO）但成员国可靠性存疑
+  energy_export_capacity: 0.12  # 欧洲市场大幅萎缩后的剩余出口能力
+
+cultural_prior:
+  conservatism_index: 0.88
+  nationalism_intensity: 0.90
+  religious_influence_coeff: 0.70   # 东正教对国家叙事有深度塑造作用
+  uncertainty_avoidance: 95         # Hofstede UAI（极高：偏好确定性和控制）
+  power_distance: 93                # Hofstede PDI（极高：集权决策）
+  opinion_epsilon: 0.18             # 极低 epsilon：信息管控下极化快，反弹时非线性
+
+internal_factions:
+  hardliners:
+    weight: 0.50
+    trigger: "russia_europe > 55 OR domestic_political_pressure > 0.4"
+    bias: "倾向军事升级、核威慑信号、能源武器化"
+  pragmatists:
+    weight: 0.35
+    trigger: "global_composite > 70 AND economic_buffer_months < 8"
+    bias: "倾向有限停火谈判、能源出口维系收入、避免经济崩溃"
+  oligarchs:
+    weight: 0.15
+    trigger: "sanctions_risk > 60 AND economic_buffer_months < 6"
+    bias: "优先个人资产保护，对极端升级持保留态度"
+
+grv_impact_map:
+  MILITARY_DEPLOYMENT:
+    russia_europe: +20
+    global_composite: +12
+    energy_grid_risk: +8
+  NUCLEAR_SIGNAL:
+    russia_europe: +25
+    global_composite: +20
+    market_sentiment_proxy: -20    # 非直接GRV字段，供叙事生成参考
+  ENERGY_CUTOFF:
+    russia_europe: +12
+    energy_grid_risk: +20
+    global_composite: +8
+  CEASEFIRE_SIGNAL:
+    russia_europe: -15
+    global_composite: -8
+  DIPLOMATIC_ENGAGE:
+    russia_europe: -8
+    sanctions_risk: -5
+
+internal_state:
+  domestic_political_pressure: 0.0
+  economic_buffer_months: 6
+  active_commitments:
+    - "顿涅茨克/卢甘斯克/扎波罗热/赫尔松并入俄联邦声明"
+    - "CSTO 集体安全条约"

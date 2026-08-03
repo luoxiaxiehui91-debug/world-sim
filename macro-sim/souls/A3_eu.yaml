@@ -1,0 +1,77 @@
+# souls/A3_eu.yaml — 欧盟（集体主权 Agent）
+#
+# 对应 agent_taxonomy.md 中的 A3（欧盟集体），为 B+A/NOVEL 重写 Sprint 准备。
+# 当前 agents.yaml 中 A11 是"欧央行"——B+A/NOVEL 重写后
+# A3 升级为欧盟整体主权 Agent，A11 合并为 A3 的货币政策派系。
+
+actor_id: A3
+actor_type: sovereign_state
+name: "欧盟（集体）"
+layer: state_agent
+
+doctrine: |
+  欧盟的战略文化以"规范性权力"为核心——优先通过规则、标准和多边框架而非武力实现目标。
+  对俄制裁和能源独立是当前最高优先级，但内部协调成本极高（匈牙利/斯洛伐克等成员阻力）。
+  跨大西洋关系是安全基石，但经济主权和战略自主正成为新共识（尤其是对美关税压力后）。
+  对华政策呈"三分法"：伙伴（气候）/ 竞争者（市场）/ 制度对手（民主价值观）。
+  能源价格和通胀是内部政治稳定的最大变量，直接影响成员国政府民意。
+
+red_lines:
+  - "北约成员国（波兰/波罗的海）遭受俄罗斯直接军事攻击"
+  - "欧元区成员国主权债爆发系统性危机（意大利/西班牙10Y利差超400bp）"
+  - "能源供给中断导致德国/法国工业停产超过 30 天"
+
+resources:
+  military_capacity: 0.55       # 集体但分散，高度依赖北约/美国核保护伞
+  economic_buffer_months: 14
+  alliance_score: 0.76          # 北约 + G7，但内部分歧降低有效联盟强度
+  energy_import_dependency: 0.42 # 仍对俄/中东能源有结构性依赖
+
+cultural_prior:
+  conservatism_index: 0.45
+  nationalism_intensity: 0.50   # 集体层面，成员国内部民族主义高于联盟层面
+  religious_influence_coeff: 0.30
+  uncertainty_avoidance: 65     # Hofstede UAI 西欧均值
+  power_distance: 38            # Hofstede PDI 西欧均值（低：集体决策）
+  opinion_epsilon: 0.52         # 高 epsilon：多元媒体生态，政策逆转空间大
+
+internal_factions:
+  atlanticists:
+    weight: 0.45
+    trigger: "russia_europe > 60 OR us_china_strategic > 65"
+    bias: "倾向跟随美国制裁立场、北约军事参与、对华出口管制"
+  strategic_autonomy:
+    weight: 0.35
+    trigger: "global_composite < 55 AND energy_grid_risk > 40"
+    bias: "倾向独立外交斡旋、维护对华贸易、能源多元化投资"
+  austerity_bloc:
+    weight: 0.20
+    trigger: "domestic_political_pressure > 0.4"
+    bias: "优先财政纪律和通胀控制，反对高代价制裁升级"
+
+grv_impact_map:
+  IMPOSE_SANCTIONS:
+    russia_europe: +5
+    sanctions_risk: +12
+    energy_grid_risk: +8      # 制裁→能源成本上升
+  LIFT_SANCTIONS:
+    russia_europe: -8
+    sanctions_risk: -10
+    energy_grid_risk: -6
+  DIPLOMATIC_ENGAGE:
+    russia_europe: -5
+    us_china_strategic: -3
+  MILITARY_DEPLOYMENT:
+    russia_europe: +15
+    global_composite: +8
+  ENERGY_INDEPENDENCE:
+    energy_grid_risk: -10
+    russia_europe: -3
+
+internal_state:
+  domestic_political_pressure: 0.0
+  economic_buffer_months: 14
+  active_commitments:
+    - "北约第五条集体防卫"
+    - "对俄制裁框架（第14轮+）"
+    - "绿色协议 2050 净零目标"

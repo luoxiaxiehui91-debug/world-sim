@@ -184,7 +184,7 @@ export default function App() {
             </main>
 
             <footer className="relative z-[60] flex items-center justify-between px-4 pb-4 text-[11px] text-white/30">
-              <span>世界推演系统 · 开阳 Wave 2 v1.7.0 · 操作面板</span>
+              <span>世界推演系统 · 开阳 Wave 2 v1.7.2 · 操作面板</span>
               <div className="flex gap-3">
                 <button
                   type="button"

@@ -49,6 +49,22 @@ def load_agents(config_path: str = "/app/config/agents.yaml") -> tuple[dict[str,
         cls = getattr(mod, class_name)
 
         params = AgentParams.from_dict(entry.get("params", {}))
+
+        # soul 文件加载（可选）：agents.yaml 中配置 soul_file 路径时加载
+        soul = {}
+        soul_file = entry.get("soul_file")
+        if soul_file:
+            import os
+            souls_dir = os.path.join(os.path.dirname(config_path), "..", "souls")
+            soul_path = os.path.join(souls_dir, soul_file)
+            if not os.path.isabs(soul_file):
+                soul_path = os.path.normpath(soul_path)
+            try:
+                with open(soul_path) as sf:
+                    soul = yaml.safe_load(sf) or {}
+            except FileNotFoundError:
+                pass  # soul 文件可选，不存在不报错
+
         agent = cls(
             agent_id=agent_id,
             role=entry["role"],
@@ -56,6 +72,7 @@ def load_agents(config_path: str = "/app/config/agents.yaml") -> tuple[dict[str,
             activation_prob=entry["activation_prob"],
             params=params,
             transmission_coefficients=entry.get("transmission_coefficients", {}),
+            soul=soul,
         )
         agents[agent_id] = agent
     return agents, global_cfg
@@ -139,12 +156,29 @@ def gm_resolve_rules(
         add("A3", "market_sentiment",    0.10 * m)
         add("A3", "fund_risk_appetite",  0.10 * m)
 
-    # ── A4 能源国 ─────────────────────────────────────────
+    # ── A4 能源国（SovereignAgent，B+A/NOVEL）────────────────
     a4 = actions.get("A4", "HOLD")
-    if a4 == "CUT_SUPPLY":
-        add("A4", "energy_supply_risk",  0.20 * mag("A4"))
-    elif a4 == "INCREASE_SUPPLY":
-        add("A4", "energy_supply_risk", -0.10 * mag("A4"))
+    if a4 in ("CUT_SUPPLY", "CUT_OUTPUT"):
+        # 减产：能源供给风险↑，市场情绪略↓（通胀压力）
+        m = mag("A4")
+        add("A4", "energy_supply_risk",  0.20 * m)
+        add("A4", "market_sentiment",   -0.05 * m)
+    elif a4 in ("INCREASE_SUPPLY", "INCREASE_OUTPUT"):
+        # 增产：能源供给风险↓，市场情绪略↑
+        m = mag("A4")
+        add("A4", "energy_supply_risk", -0.10 * m)
+        add("A4", "market_sentiment",    0.03 * m)
+    elif a4 == "EMBARGO_SIGNAL":
+        # 禁运信号：能源供给风险急升，流动性溢价上升
+        m = mag("A4")
+        add("A4", "energy_supply_risk",  0.35 * m)
+        add("A4", "liquidity_premium",   0.10 * m)
+        add("A4", "market_sentiment",   -0.12 * m)
+    elif a4 == "DIPLOMATIC_OUTREACH":
+        # 外交接触：能源供给风险略降，市场情绪改善
+        m = mag("A4")
+        add("A4", "energy_supply_risk", -0.05 * m)
+        add("A4", "market_sentiment",    0.04 * m)
 
     # ── A5 机构投资者 ─────────────────────────────────────
     a5 = actions.get("A5", "HOLD")

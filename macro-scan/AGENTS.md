@@ -4,7 +4,7 @@
 
 世界推演系统观测层（天枢）：全球宏观情报自动采集 + LLM分析推演 + 地缘风险向量引擎，运行在 NAS Docker 容器中。
 
-**当前版本**：v3.8.5（2026-08-03）
+**当前版本**：v3.8.6（2026-08-03）
 **主要变更**：startup_checks.py 接入、brier_calc.py 新建、control_server.py（A3a，:8900）上线、GRV 13维全部接入天璇  
 **运维参考**：`世界推演系统_人类说明文档.md`  
 **变更日志**：`TuiYan_CHANGELOG.md`（改前必读，改后必追加）
@@ -198,7 +198,7 @@ pre-commit install   # 在源码区 S:\world-sim\macro-scan\ 执行一次即可
 ## 环境变量（docker-compose.yml，NAS上）
 
 ```
-FRED_API_KEY=REDACTED_FRED_KEY
+FRED_API_KEY=<见 S:\macro-scan\key.txt>
 OUTBOUND_PROXY=http://192.168.31.108:7890    # 仅FRED使用
 NTFY_TOPIC=***REMOVED***
 NTFY_CMD_TOPIC=***REMOVED***

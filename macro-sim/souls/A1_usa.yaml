@@ -1,0 +1,81 @@
+# souls/A1_usa.yaml — 美国（主权国家 Agent 原型）
+#
+# 对应 agent_taxonomy.md 中的 A1（美国），为 B+A/NOVEL 重写 Sprint 准备。
+# 当前 agents.yaml 中 A1 是"美联储"（货币政策），在 B+A/NOVEL 重写后：
+#   - 旧 A1（美联储）→ 重分类为 C1（货币当局 Agent）
+#   - 新 A1（美国主权）→ 使用本文件
+#
+# 本文件现在是只读设计文档，尚未在 agents.yaml 中激活（soul_file 未配置）。
+# 激活条件：B+A/NOVEL Sprint 创建 SovereignAgent 基类后。
+
+actor_id: A1
+actor_type: sovereign_state
+name: "美国"
+layer: state_agent
+
+doctrine: |
+  优先维护美元霸权、全球海上通道安全和盟友安全承诺。
+  对盟友安全承诺（北约第五条、台湾关系法）优先于短期经济成本。
+  避免与核大国直接军事冲突，优先使用经济制裁、代理施压和技术封锁。
+  在大国竞争中保持技术领先，半导体和 AI 出口管制是核心工具。
+  国内政治压力（通胀、就业）对外交决策的约束随选举周期显著变化。
+
+red_lines:
+  - "台湾被武力封锁超过 72 小时"
+  - "北约成员国领土遭受直接军事攻击"
+  - "美元结算系统被规模性绕过（超过 20% 全球贸易份额）"
+  - "盟友核设施遭受攻击"
+
+resources:
+  military_capacity: 0.95
+  economic_buffer_months: 18
+  alliance_score: 0.88          # 北约 + 印太同盟网络
+  reserve_currency_dominance: 0.58  # 美元在全球外汇储备中的占比
+
+cultural_prior:
+  conservatism_index: 0.42
+  nationalism_intensity: 0.55
+  religious_influence_coeff: 0.35
+  uncertainty_avoidance: 46         # Hofstede UAI（低：可接受不确定性）
+  power_distance: 40                # Hofstede PDI（低：去中心化决策）
+  opinion_epsilon: 0.48             # 较高 epsilon：两党政治下政策摇摆大
+
+internal_factions:
+  hawks:
+    weight: 0.40
+    trigger: "russia_europe > 70 OR taiwan_strait > 75 OR us_china_strategic > 80"
+    bias: "倾向军事威慑、制裁升级和盟友部署"
+  doves:
+    weight: 0.35
+    trigger: "global_composite < 40 AND economic_buffer_months > 12"
+    bias: "倾向外交谈判、多边框架和成本控制"
+  domestic_lobby:
+    weight: 0.25
+    trigger: "domestic_political_pressure > 0.5"
+    bias: "优先国内经济指标（通胀/就业），反对高代价军事干预"
+
+# 决策对 GRV 的影响方向（供未来 SovereignAgent._decide_rules 参考）
+grv_impact_map:
+  IMPOSE_SANCTIONS:
+    sanctions_risk: +15
+    us_china_strategic: +8
+  MILITARY_DEPLOYMENT:
+    taiwan_strait: -10      # 威慑降低直接冲突概率
+    global_composite: +5    # 但提升整体紧张度
+  DIPLOMATIC_ENGAGE:
+    us_china_strategic: -8
+    global_composite: -3
+  TECH_RESTRICTION:
+    sanctions_risk: +10
+    us_china_strategic: +12
+  ALLIANCE_REINFORCE:
+    taiwan_strait: -8
+    russia_europe: -5
+
+internal_state:
+  domestic_political_pressure: 0.0
+  economic_buffer_months: 18
+  active_commitments:
+    - "NATO Article 5 obligations"
+    - "Taiwan Relations Act"
+    - "US-Japan Mutual Defense Treaty"

@@ -683,7 +683,7 @@ def _send_ntfy(world, calib_result: dict, paths: list, report_path=None):
     body = (
         f"🌐 宏观演化仿真完成（{score_str}）\n"
         f"起点：GRV={world.grv:.1f}  利差={world.credit_spread:.0f}bp\n"
-        f"预测未来4年（每步=1个月）：\n"
+        f"预测未来2年（每步=1个月）：\n"
         + "\n".join(path_summaries)
         + report_note
     )

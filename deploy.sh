@@ -35,6 +35,7 @@ deploy_sim() {
     --exclude='.git' \
     --exclude='output/' \
     --exclude='sim_log.db' \
+    --exclude='.env' \
     --exclude='__pycache__/' \
     --exclude='*.pyc' \
     "${SCRIPT_DIR}/macro-sim/" "${NAS}:/vol2/1000/software/macro-sim/"
