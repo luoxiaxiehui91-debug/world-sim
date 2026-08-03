@@ -9,6 +9,7 @@ import { StatusMiniPanel } from '@/components/StatusMiniPanel';
 import { NuclearWatchPanel } from '@/components/NuclearWatchPanel';
 import { SpaceWatchPanel } from '@/components/SpaceWatchPanel';
 import { MacroSnapshotPanel } from '@/components/MacroSnapshotPanel';
+import { MarketsPanel } from '@/components/MarketsPanel';
 
 /** 面板注册项（扩展标准 #2）：新增面板只加一项，布局无需改动。 */
 export interface PanelRegistration {
@@ -111,5 +112,10 @@ export const PANELS: PanelRegistration[] = [
     id: 'macro-snapshot', title: '宏观快照', feed: 'fred', order: 10, visible: true,
     className: 'lg:col-span-3', component: MacroSnapshotPanel,
     defaultLayout: { w: 3, h: 5, minW: 2, minH: 3 },
+  },
+  {
+    id: 'markets', title: 'MACRO + MARKETS', feed: 'market_quotes', order: 11, visible: true,
+    className: 'lg:col-span-6', component: MarketsPanel,
+    defaultLayout: { w: 6, h: 7, minW: 4, minH: 5 },
   },
 ];
