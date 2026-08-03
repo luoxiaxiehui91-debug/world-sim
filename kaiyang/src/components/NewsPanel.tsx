@@ -70,7 +70,7 @@ export function NewsPanel() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = data as any;
   const items = useMemo<NewsItem[]>(
-    () => (Array.isArray(raw) ? raw : raw?.items ?? []),
+    () => (Array.isArray(raw) ? raw : raw?.articles ?? raw?.items ?? []),
     [raw],
   );
 

@@ -36,9 +36,9 @@ export function useFeed<T = unknown>(feedName: string): FeedState<T> {
         const data: unknown = cfg.type === 'csv' ? await fetchCsv(cfg.path) : await fetchJson(cfg.path);
         if (cancelled) return;
 
-        const obj = data as { schema_version?: string; updated?: unknown; gdelt_updated?: unknown };
-        // schema_version 校验
-        const sv = obj.schema_version;
+        const obj = data as { schema_version?: string; _schema_version?: string; updated?: unknown; gdelt_updated?: unknown };
+        // schema_version 校验：兼容带下划线前缀（_schema_version）和不带（schema_version）两种写法
+        const sv = obj.schema_version ?? obj._schema_version;
         if (!sv) {
           setDataVersion(cfg.name, '缺失');
           report({

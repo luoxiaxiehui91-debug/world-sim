@@ -39,12 +39,9 @@ export interface GrvDimDef {
 
 export const GRV_DIMENSIONS: GrvDimDef[] = [
   { id: 'taiwan_strait', label: '台海', group: '地缘', kind: 'geographic', lat: 24.5, lng: 120.5, sourceKey: 'taiwan_strait' },
-  { id: 'south_china_sea', label: '南海', group: '地缘', kind: 'geographic', lat: 13.0, lng: 114.0 },
   { id: 'us_china_strategic', label: '美中战略', group: '地缘', kind: 'geographic', lat: 39.0, lng: -98.0, sourceKey: 'us_china_strategic' },
   { id: 'middle_east_energy', label: '中东能源', group: '能源', kind: 'geographic', lat: 26.0, lng: 45.0, sourceKey: 'middle_east_energy' },
   { id: 'russia_europe', label: '俄乌/东欧', group: '地缘', kind: 'geographic', lat: 49.0, lng: 32.0, sourceKey: 'russia_europe' },
-  { id: 'korean_peninsula', label: '朝鲜半岛', group: '地缘', kind: 'geographic', lat: 38.0, lng: 127.0 },
-  { id: 'india_pacific', label: '印太', group: '地缘', kind: 'geographic', lat: 1.3, lng: 103.8 },
   {
     id: 'global_composite',
     label: '全球综合',
@@ -59,6 +56,7 @@ export const GRV_DIMENSIONS: GrvDimDef[] = [
     label: '全球南方不稳定性',
     group: '综合',
     kind: 'composite',
+    sourceKey: 'global_south',
     isDerived: true,
     note: '推导值：IND/NGA/EGY/TUR政治不稳定性聚合（confidence≤0.60）。⚠ 不代表全球南方外交团结或战略能力。',
   },

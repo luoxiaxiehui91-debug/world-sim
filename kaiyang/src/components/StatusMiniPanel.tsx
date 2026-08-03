@@ -24,7 +24,7 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: stri
  *   - nuclear（辐射读数无真实数据源）
  *   - news_geo（新闻地理化有延迟，空数组属正常）
  */
-const KNOWN_STRUCTURAL_MISSING = new Set(['market_quotes', 'nuclear', 'news_geo']);
+const KNOWN_STRUCTURAL_MISSING = new Set(['market_quotes', 'nuclear', 'news_geo', 'simTrigger']);
 
 export function StatusMiniPanel() {
   const { warnings, timestamps, dataVersions } = useStatus();
