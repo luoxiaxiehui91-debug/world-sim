@@ -92,7 +92,7 @@ def build_market_quotes():
             q["spark5"] = spark
         return q
 
-    indexes = [_cy(k) for k in ("sp500", "dji", "nasdaq_c", "rut") if k in commodities]
+    indexes = [_cy(k) for k in ("sp500", "dji", "nasdaq_c", "rut", "sse_comp", "csi300", "szse_comp") if k in commodities]
     energy  = [_cy(k) for k in ("wti", "brent", "nat_gas") if k in commodities]
     metals  = [_cy(k) for k in ("gold", "silver", "copper") if k in commodities]
 
