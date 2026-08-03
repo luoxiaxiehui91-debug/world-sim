@@ -8,8 +8,8 @@
 
 **定位**：macro-scan（天枢）发现信号 → macro-sim（天璇）演化未来（不是推理，是演化）
 
-**当前版本**：v2.0.17（2026-08-03）  
-**主要变更**：D1/D4/D7/D12 P0 bug 修复；GRV 13维全部接入 MacroWorldState（含 social_stress/cultural_friction）
+**当前版本**：v2.0.23（2026-08-04）  
+**主要变更**：D1/D4/D7/D12 P0 bug 修复；GRV 13维全部接入 MacroWorldState；B+A/NOVEL Sprint-1：SovereignAgent 基类+Board+EnergyGovSovereignAgent（A4）；Sprint-2：A2/A3/A6 soul 文件预位激活；慢变量 irp/ucri/gci 注入 MacroWorldState；D6 校准缓存（<7天跳过50步）；天玑 V1 run_scoring() 接线
 
 ---
 
@@ -22,7 +22,8 @@ macro-sim/                ← 本地工作目录（S:\world-sim\macro-sim\，git
 │   │   ├── base.py         # MacroAgent 基类 + AgentParams（三参数接口）
 │   │   ├── financial.py    # A1/A2/A3/A5/A9/A11/A12
 │   │   ├── geopolitical.py # A4/A7/A8
-│   │   └── social.py       # A6/A10
+│   │   ├── social.py       # A6/A10
+│   │   └── sovereign.py    # SovereignAgent 基类 + Board 关系矩阵 + EnergyGovSovereignAgent（A4）
 │   ├── world_state.py      # MacroWorldState + 出血规则 + 月度数据加载
 │   ├── simulation.py       # 主调度器（action_history 队列 + 延迟可见）
 │   ├── calibrator.py       # 前50步校准循环

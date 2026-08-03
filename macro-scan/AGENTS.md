@@ -4,8 +4,8 @@
 
 世界推演系统观测层（天枢）：全球宏观情报自动采集 + LLM分析推演 + 地缘风险向量引擎，运行在 NAS Docker 容器中。
 
-**当前版本**：v3.8.6（2026-08-03）
-**主要变更**：startup_checks.py 接入、brier_calc.py 新建、control_server.py（A3a，:8900）上线、GRV 13维全部接入天璇  
+**当前版本**：v3.8.12（2026-08-04）
+**主要变更**：ntfy_utils.py 拆分（push_markdown）；中国三大股市指数接入；GED v26.1 接入 russia_europe/middle_east_energy；GDELT P95 动态计算；spaCy zh_core_web_sm NER；news_geo_feed.py（07:15）；scheduler news_geo_feed 注册  
 **运维参考**：`世界推演系统_人类说明文档.md`  
 **变更日志**：`TuiYan_CHANGELOG.md`（改前必读，改后必追加）
 
