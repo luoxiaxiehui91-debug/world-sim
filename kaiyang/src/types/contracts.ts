@@ -61,6 +61,8 @@ export interface GrvDimension {
 export interface NewsItem {
   date?: string;
   source?: string;
+  /** 原文 URL，有则标题可点击跳转 */
+  url?: string;
   indicator?: string;
   series_id?: string;
   title?: string;

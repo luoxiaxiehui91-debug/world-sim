@@ -21,8 +21,21 @@ function NewsCard({ item }: { item: NewsItem }) {
   return (
     <div className="panel-card">
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-sm text-white/85">{title}</div>
+        <div className="min-w-0 flex-1">
+          {/* 标题：有 url 时可点击跳转，否则纯文本 */}
+          {item.url ? (
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block truncate text-sm text-white/85 hover:text-accent transition-colors"
+              title={title}
+            >
+              {title} ↗
+            </a>
+          ) : (
+            <div className="truncate text-sm text-white/85" title={title}>{title}</div>
+          )}
           <div className="mt-0.5 text-[11px] text-white/40">
             {item.date ?? '—'} · {item.source ?? '未知来源'}
             {item.indicator ? ` · ${item.indicator}` : ''}
