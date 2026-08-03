@@ -3,6 +3,28 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.8.11 — 2026-08-04 (by Claude Code)
+
+**修改理由**：GRV P1-C 修复——GDELT P95 基准从硬编码改为运行时动态计算，解决 arch_review D9（中美/台海归一化差距 15 倍失真）。样本 <100 条时自动 fallback 到硬编码值，满足 grv_datasource_fix.md 要求（≥1000 条后锁定，当前动态更新）。
+
+### 修改
+
+- **`核心代码/geo_risk_vector.py`**
+  - `_GDELT_P95` 由硬编码字典改为运行时填充的缓存变量（初始为空 dict）
+  - 新增 `_GDELT_P95_FALLBACK`：基于 165 条实测数据的硬编码 P95 fallback
+    - russia_europe: 1.243（RUS+DEU+UKR，vs 旧值 1.42）
+    - taiwan_strait: 0.620（TWN+CHN，vs 旧值 0.65）
+    - us_china:      9.790（USA+CHN，vs 旧值 9.85）
+    - mideast:       2.533（IRN+SAU+ISR，vs 旧值 2.50）
+  - 新增 `_compute_gdelt_p95_dynamic()`：从 `gdelt_history.jsonl` 动态计算各热点组合 P95
+    - 与 `_gdelt_country_score` 保持相同的组合公式（military+sanction 均值）
+    - 样本 <100 条 → fallback；各热点 <50 条 → 对应 key fallback
+    - 防零除：P95 最小值 0.01
+  - `compute_grv()` 开头调用 `_compute_gdelt_p95_dynamic()`，每次运行刷新 P95
+
+- **`VERSION`**：3.8.10 → 3.8.11
+
+
 ## v3.8.10 — 2026-08-04 (by Claude Code)
 
 **修改理由**：GRV P1 修复——接入 GED v26.1 冲突死亡数据，替换 russia_europe / middle_east_energy 维度中纯 GDELT 粗估部分，引入有实证基础的死亡数锚点。权重由多 agent 辩论（地缘政治理论+数据科学+怀疑者）推导。

@@ -42,12 +42,95 @@ _GPR_FALLBACK_RANGE = {"p10": 50, "p95": 220}  # 历史 GPR 大致区间
 # GDELT 原始分归一化基准（gdelt_history.jsonl 实测 p95，2026-05-21~2026-07-08，211条）
 # 公式：score_norm = min(raw / p95_ref * 100, 100)
 # 0 基点保持物理含义（无事件=0），p95 作上限而非 p10-p95 区间，避免负值
-_GDELT_P95 = {
-    "russia_europe": 1.42,   # RUS+DEU+UKR 组合
-    "taiwan_strait": 0.65,   # TWN+CHN 组合
-    "us_china":      9.85,   # USA+CHN 组合
-    "mideast":       2.50,   # IRN+SAU+ISR 组合
+# P1-C（2026-08-04）：改为运行时从 gdelt_history.jsonl 动态计算；
+#   样本 <100 条时 fallback 到此硬编码值（当前基于 165 条实测）
+_GDELT_P95_FALLBACK = {
+    "russia_europe": 1.243,
+    "taiwan_strait": 0.620,
+    "us_china":      9.790,
+    "mideast":       2.533,
 }
+
+# 动态 P95 缓存（每次进程启动时计算一次）
+_GDELT_P95: dict = {}
+
+
+def _compute_gdelt_p95_dynamic() -> dict:
+    """
+    从 gdelt_history.jsonl 动态计算各热点 GDELT 组合分的 P95，写入 _GDELT_P95 缓存。
+
+    热点组合与 _gdelt_country_score 保持一致：
+      russia_europe = avg(military+sanction for RUS/DEU/UKR)
+      taiwan_strait = avg(military+sanction for TWN/CHN)
+      us_china      = avg(military+sanction for USA/CHN)
+      mideast       = avg(military+sanction for IRN/SAU/ISR)
+
+    样本量 <100 条时 fallback 到 _GDELT_P95_FALLBACK（硬编码值）。
+    grv_datasource_fix.md P1：建议 ≥1000 条后锁定，当前 <1000 时动态更新。
+    """
+    global _GDELT_P95
+    history_path = os.path.join(DATA_DIR, "gdelt_history.jsonl")
+    if not os.path.exists(history_path):
+        _GDELT_P95 = dict(_GDELT_P95_FALLBACK)
+        return _GDELT_P95
+
+    try:
+        import json as _json
+        records = []
+        with open(history_path, encoding="utf-8") as f:
+            for ln in f:
+                ln = ln.strip()
+                if ln:
+                    try:
+                        records.append(_json.loads(ln))
+                    except Exception:
+                        pass
+
+        if len(records) < 100:
+            _get_logger().info(
+                "[GRV] gdelt_history 样本不足100条（%d），使用硬编码 P95 fallback", len(records)
+            )
+            _GDELT_P95 = dict(_GDELT_P95_FALLBACK)
+            return _GDELT_P95
+
+        hotspot_countries = {
+            "russia_europe": ["RUS", "DEU", "UKR"],
+            "taiwan_strait": ["TWN", "CHN"],
+            "us_china":      ["USA", "CHN"],
+            "mideast":       ["IRN", "SAU", "ISR"],
+        }
+
+        result = {}
+        for key, countries in hotspot_countries.items():
+            vals = []
+            for r in records:
+                scores = r.get("scores", {})
+                row_vals = []
+                for c in countries:
+                    mil  = float(scores.get("military",  {}).get(c) or 0)
+                    sanc = float(scores.get("sanction",  {}).get(c) or 0)
+                    row_vals.append((mil + sanc) / 2)
+                if row_vals:
+                    vals.append(sum(row_vals) / len(row_vals))
+
+            if len(vals) >= 50:
+                sorted_vals = sorted(vals)
+                p95_idx = int(len(sorted_vals) * 0.95)
+                p95 = sorted_vals[min(p95_idx, len(sorted_vals) - 1)]
+                result[key] = round(max(p95, 0.01), 3)  # 防零除
+            else:
+                result[key] = _GDELT_P95_FALLBACK.get(key, 1.0)
+
+        _GDELT_P95 = result
+        _get_logger().info(
+            "[GRV] gdelt_history P95 动态计算完成（%d条）: %s", len(records), result
+        )
+        return _GDELT_P95
+
+    except Exception as _e:
+        _get_logger().warning("[GRV] P95 动态计算失败，使用 fallback: %s", _e)
+        _GDELT_P95 = dict(_GDELT_P95_FALLBACK)
+        return _GDELT_P95
 
 # 持续冲突 floor：news.db 确认冲突仍在进行时对应维度的 GRV 下限
 # 防止 GPR 指数因媒体疲劳（战争常态化）导致维度虚低
@@ -380,6 +463,8 @@ def compute_grv() -> dict:
         wmean = sum(s * (w / tw) for s, w in pairs)
         return round(0.6 * max(vals) + 0.4 * wmean, 1)
     logger = _get_logger()
+    # P1-C：每次运行前动态更新 GDELT P95 基准（样本 <100 时用硬编码 fallback）
+    _compute_gdelt_p95_dynamic()
     gdelt_scores, gdelt_updated = _load_gdelt()
 
     # ── GDELT 各热点分数 ──────────────────────────────────────
