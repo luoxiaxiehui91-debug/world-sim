@@ -1,35 +1,19 @@
 #!/usr/bin/env python3
 """
-fetch_commodity_yahoo.py — Yahoo Finance v8 chart API 商品实时价
-（CL=F WTI 原油 / BZ=F Brent 原油 / HG=F 铜，单位 USD/bbl、USD/bbl、USD/lb）
+fetch_commodity_yahoo.py — Yahoo Finance v8 chart API 商品/股市/贵金属实时价 + 历史 CSV
 
-通过 query1.finance.yahoo.com/v8/finance/chart/{sym} 拉取日频序列，取
-meta.regularMarketPrice 作实时价，meta.regularMarketTime（Unix 秒）转 ISO UTC+Z 作报价时间。
+扩展（2026-08-03）：
+  - 新增股市指数：SPY(标普500)、QQQ(纳斯达克)、HSI(恒生)
+  - 新增贵金属：GC=F(黄金)、SI=F(白银)
+  - 新增额外能源：NG=F(天然气)
+  - 每日采集时同步追加历史 CSV（data/commodity_history/{key}.csv），
+    供 FRED manifest 注册后在经济面板展示历史趋势
+  - 历史 CSV 格式与 fred_history/*.csv 兼容：date,value
 
-实现要点（详见架构设计 §1.2 / §3.2 / §7）：
-  - 复用 FetcherBase：request/save_json/load_previous_good/load_config_with_fallback。
-  - 每个 symbol 独立请求：单 symbol 404/失败 → 该 symbol status=unavailable 入
-    unavailable_symbols，整体 partial；全失败 → collect() 返回 None。
-  - 直连优先，失败回退代理（fetch_fao._get 模式），因容器内出网可能受限。
-  - 铜单位为「美元/磅」（USD/lb），非吨，下游消费务必注意。
-  - as_of 一律 ISO 8601 UTC + Z。
-
-输出契约：data/commodity_yahoo.json
-  {
-    "status":            "ok" | "partial" | "unavailable",
-    "source":            "Yahoo Finance v8 chart API (query1.finance.yahoo.com/v8/finance/chart)",
-    "as_of":             "2026-07-28T14:30:00Z",
-    "commodities": {
-        "wti":   {"symbol":"CL=F","name":"WTI原油","unit":"USD/bbl","price":79.47,"as_of":...,"status":"ok"},
-        "brent": {"symbol":"BZ=F","name":"Brent原油","unit":"USD/bbl","price":83.12,"as_of":...,"status":"ok"},
-        "copper": {"symbol":"HG=F","name":"铜","unit":"USD/lb","price":4.52,"as_of":...,"status":"ok"}
-    },
-    "unavailable_symbols": ["AH=F"],
-    "notes":  "铝(AH=F) Yahoo 端返回 404，已标记 unavailable；如需铝可经 LME 代理获取（不在本期范围）"
-  }
-
-调度：scheduler.py 06:26（日频，错峰 bdi 0625）。feeds_grv=False，仅落盘供下游消费。
+输出契约：data/commodity_yahoo.json（实时快照，不变）
+历史 CSV：data/commodity_history/{key}.csv（日频追加）
 """
+import csv
 import os
 import json
 import logging
@@ -39,7 +23,6 @@ from datetime import timezone
 import requests
 from fetcher_base import FetcherBase, Status
 
-# ── 配置回退（统一取代重复 ImportError 块）────────────────────
 _cfg = FetcherBase.load_config_with_fallback(
     ["DATA_DIR", "PROXY_URL"],
     {
@@ -51,6 +34,7 @@ DATA_DIR = _cfg["DATA_DIR"]
 PROXY_URL = _cfg["PROXY_URL"]
 
 OUTPUT_FILE = "commodity_yahoo.json"
+HIST_DIR_NAME = "commodity_history"
 YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 HEADERS = {
     "User-Agent": (
@@ -60,14 +44,19 @@ HEADERS = {
     "Accept": "application/json",
 }
 
-# 逻辑名键（与 commodities 的键对应）→ (symbol, 中文名, 单位)
-# 注意：铜单位 USD/lb（美元/磅），并非吨。
+# (symbol, 逻辑键, 中文名, 单位, 类别)
 SYMBOLS = [
-    ("CL=F", "WTI原油", "USD/bbl"),
-    ("BZ=F", "Brent原油", "USD/bbl"),
-    ("HG=F", "铜", "USD/lb"),
+    ("CL=F",    "wti",      "WTI原油",     "USD/bbl", "能源"),
+    ("BZ=F",    "brent",    "Brent原油",   "USD/bbl", "能源"),
+    ("NG=F",    "nat_gas",  "天然气",      "USD/MMBtu","能源"),
+    ("HG=F",    "copper",   "铜",          "USD/lb",  "金属"),
+    ("GC=F",    "gold",     "黄金",        "USD/oz",  "贵金属"),
+    ("SI=F",    "silver",   "白银",        "USD/oz",  "贵金属"),
+    ("SPY",     "sp500",    "标普500 ETF", "USD",     "股市"),
+    ("QQQ",     "nasdaq",   "纳斯达克100", "USD",     "股市"),
+    ("^HSI",    "hsi",      "恒生指数",    "HKD",     "股市"),
 ]
-_SYMBOL_KEYS = ["wti", "brent", "copper"]
+_SYMBOL_KEYS = [s[1] for s in SYMBOLS]
 
 
 class CommodityYahooFetcher(FetcherBase):
@@ -112,14 +101,7 @@ class CommodityYahooFetcher(FetcherBase):
             return None
         return self._parse_chart(payload, symbol, name, unit)
 
-    # ── chart JSON 解析 ───────────────────────────────────────
     def _parse_chart(self, payload, symbol, name, unit):
-        """解析 Yahoo chart JSON → dict（status=ok）或 None（数据缺失）。
-
-        路径（探针实测确认）：
-          chart.result[0].meta.regularMarketPrice  → 实时价
-          chart.result[0].meta.regularMarketTime   → Unix 秒（报价时间）
-        """
         try:
             result = payload["chart"]["result"]
             if not result:
@@ -147,43 +129,82 @@ class CommodityYahooFetcher(FetcherBase):
             "status": Status.OK,
         }
 
-    # ── 采集入口 ──────────────────────────────────────────────
+    def _append_history(self, key: str, date_str: str, price: float):
+        """把当日价格追加到历史 CSV（date,value 格式，与 fred_history 兼容）。
+        幂等：同一日期已存在则跳过。
+        """
+        hist_dir = os.path.join(DATA_DIR, HIST_DIR_NAME)
+        os.makedirs(hist_dir, exist_ok=True)
+        csv_path = os.path.join(hist_dir, f"{key}.csv")
+
+        # 读取已有数据
+        existing_dates = set()
+        rows = []
+        if os.path.exists(csv_path):
+            try:
+                with open(csv_path, newline="", encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        existing_dates.add(row["date"])
+                        rows.append(row)
+            except Exception:
+                pass
+
+        if date_str in existing_dates:
+            return  # 幂等，今天已经追加过
+
+        rows.append({"date": date_str, "value": str(round(price, 4))})
+        rows.sort(key=lambda r: r["date"])
+
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=["date", "value"])
+            writer.writeheader()
+            writer.writerows(rows)
+
     def collect(self):
         commodities = {}
         unavailable_symbols = []
         as_of_list = []
-        for (symbol, name, unit), key in zip(SYMBOLS, _SYMBOL_KEYS):
+        today = datetime.date.today().isoformat()
+
+        for symbol, key, name, unit, _category in SYMBOLS:
             one = self._fetch_one(symbol, name, unit)
             if one is None:
                 unavailable_symbols.append(symbol)
                 continue
             commodities[key] = one
             as_of_list.append(one["as_of"])
+            # 历史追加
+            try:
+                self._append_history(key, today, one["price"])
+            except Exception as e:
+                self.logger.warning("[commodity_yahoo] %s 历史追加失败: %s", key, e)
 
-        # 全失败 → 返回 None（main 保留上次良值 / 首跑写 unavailable）
         if not commodities:
             self.logger.warning("[commodity_yahoo] 全部 symbol 拉取失败")
             return None
 
         status = Status.PARTIAL if unavailable_symbols else Status.OK
         overall_as_of = (
-            as_of_list[0]
-            if as_of_list else
+            as_of_list[0] if as_of_list else
             datetime.datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        )
-        notes = (
-            "铝(AH=F) Yahoo 端返回 404，已标记 unavailable；"
-            "如需铝可经 LME 代理获取（不在本期范围）。"
-            if unavailable_symbols else ""
         )
         return {
             "status": status,
-            "source": "Yahoo Finance v8 chart API (query1.finance.yahoo.com/v8/finance/chart)",
+            "source": "Yahoo Finance v8 chart API",
             "as_of": overall_as_of,
             "commodities": commodities,
             "unavailable_symbols": unavailable_symbols,
-            "notes": notes,
+            "notes": "",
         }
+
+
+if __name__ == "__main__":
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    fetcher = CommodityYahooFetcher(DATA_DIR)
+    fetcher.run()
+
 
     # _is_good 采用基类默认 ok-only；partial 由 main() 显式落盘，无需覆写。
 
