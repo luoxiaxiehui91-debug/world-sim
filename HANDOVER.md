@@ -8,9 +8,9 @@
 
 | 子系统 | 版本 | 状态 |
 |---|---|---|
-| macro-scan（天枢）| v3.8.7 | ✅ 本地代码完整，**待部署 NAS** |
-| macro-sim（天璇）| v2.0.21 | ✅ D2/D3+D14修复 + SovereignAgent骨架 + 4个soul文件，**待 force-recreate** |
-| kaiyang（开阳）| v1.7.2 | ✅ 2D地图恢复+MOCK关闭，**需 npm run build + 部署** |
+| macro-scan（天枢）| v3.8.7 | ✅ **已部署 NAS，运行中**（:8899/:8900）|
+| macro-sim（天璇）| v2.0.21 | ✅ **已部署 NAS，运行中**（D2/D3/D14/SovereignAgent）|
+| kaiyang（开阳）| v1.7.2 | ✅ **已部署 NAS，:8080 可访问** |
 
 - 本地路径：`C:\Users\I327394\Desktop\S\world-sim\`
 - Git 分支：`main`，最新 commit：`9296602`（GED ETL + GCI 锚点）
