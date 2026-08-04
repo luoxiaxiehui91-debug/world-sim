@@ -38,7 +38,8 @@ export function EconomyPanel() {
     // 从末尾取最近 N 个月
     const cutDate = new Date();
     cutDate.setMonth(cutDate.getMonth() - timeRange);
-    const cutStr = cutDate.toISOString().slice(0, 10);
+    // 本地日期拼接（不用 toISOString：UTC 日期会在 UTC+8 早上 8 点前偏移一天）
+    const cutStr = cutDate.getFullYear() + '-' + String(cutDate.getMonth() + 1).padStart(2, '0') + '-' + String(cutDate.getDate()).padStart(2, '0');
     return all.filter((p) => p.date >= cutStr);
   }, [active, timeRange]);
 

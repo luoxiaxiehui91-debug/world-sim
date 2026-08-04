@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useFeed } from '@/hooks/useFeed';
-import { fmtStamp } from '@/lib/format';
+import { fmtStamp, fmtRelative } from '@/lib/format';
 import { PALETTE, withAlpha } from '@/config/theme';
 
 interface SpaceTrackRaw {
@@ -74,7 +74,7 @@ export function SpaceWatchPanel() {
       <div className="panel-title flex items-center justify-between gap-2">
         <span>🛰️ 宇宙监视</span>
         <span className="font-mono text-[10px] font-normal text-white/25">
-          {data?.updated ? fmtStamp(data.updated) : '—'}
+          {data?.updated ? <span title={'更新于 ' + fmtRelative(data.updated)}>{fmtStamp(data.updated)}</span> : '—'}
         </span>
       </div>
 
