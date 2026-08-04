@@ -1,0 +1,61 @@
+services:
+  macro-scan:
+    image: macro-scan:v7
+    restart: unless-stopped
+
+    ports:
+      - "8899:8899"      # Web UI (Phase 3A)
+      - "8900:8900"      # Control API (A3a)
+
+    volumes:
+      - /vol2/1000/software/macro-scan/核心代码:/app
+      - /vol2/1000/software/macro-scan/entrypoint.sh:/entrypoint.sh
+      - /vol2/1000/software/macro-scan/data:/workspace/data
+      - /vol2/1000/software/macro-scan/docs:/workspace/docs
+      - /vol2/1000/software/macro-scan/logs:/var/log/macro-scan
+      - /vol2/1000/software/macro-scan/知识库:/workspace/知识库
+      - /vol2/1000/software/macro-scan/config:/workspace/config
+
+    environment:
+      - OPENCLAW_WORKSPACE=/workspace
+      - FRED_API_KEY=REDACTED_FRED_KEY
+      - TZ=Asia/Shanghai
+      - OUTBOUND_PROXY=http://192.168.31.108:7890
+      - SILICONFLOW_API_KEY=***REMOVED***
+      - SILICONFLOW_MODEL=Qwen/Qwen3.5-27B
+      - OPENAI_COMPAT_URL=https://token-plan-cn.xiaomimimo.com/v1
+      - OPENAI_COMPAT_KEY=tp-c50bnnms6uzq943ww06j2zd1y0z5dromqpb9mqvx21i3hymr
+      - OPENAI_COMPAT_MODEL=mimo-v2.5-pro
+      - MINIMAX_API_KEY=sk-cp-UwhMhT5m8eyNmsMulzsrTC6lbn9-fXfz8Wew8m3tMawAO3h5oUbGqf3Kr_jPQ3emuvMlVndnWIhww4UXNamTPAwNSz2lhVzJsZfrjuzOy4mni3bitv4t2t4
+      - MINIMAX_URL=https://api.minimaxi.com/anthropic
+      - MINIMAX_MODEL=MiniMax-M3
+      - USE_EXTERNAL_LLM=1
+      - NTFY_TOPIC=***REMOVED***
+      - NTFY_CMD_TOPIC=***REMOVED***
+      - NTFY_CMD_SECRET=1900
+      - EIA_API_KEY=0moTFC6n6AsvySNc5Z1UQ5soeoyCxUAceX5KtuPW
+      - RUN_ON_START=true
+      - RSSHUB_URL=http://192.168.31.108:12000
+      - DASHBOARD_OUTPUT=/workspace/docs/macro_dashboard.html
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  kaiyang:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - /vol2/1000/software/kaiyang/dist:/usr/share/nginx/html:ro
+      - /vol2/1000/software/macro-scan/data:/usr/share/nginx/html/data:ro
+    depends_on:
+      - macro-scan
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
