@@ -23,7 +23,9 @@ VERSION=$(cat VERSION 2>/dev/null || echo "unknown")
 
 _sync() {
   echo "=== 全量同步源码区 → 运行区 (v${VERSION}) ==="
-  ssh "$NAS_HOST" "rsync -a --delete \
+  echo "P0-A 修复：已移除 rsync --delete（2026-08-03 曾抹掉未 git add 的 compute_fci.py）。"
+  echo "现在为纯单向同步：只增改、不删除源端不存在文件；删除动作需人工 scp/rm 确认。"
+  ssh "$NAS_HOST" "rsync -a \
     --exclude='.git' \
     --exclude='data/' \
     --exclude='logs/' \
