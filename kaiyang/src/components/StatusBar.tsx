@@ -10,15 +10,17 @@ import {
   type NewsFeedPayload,
 } from '@/components/SignalStreamPanel';
 import { severityColor, withAlpha } from '@/config/theme';
-import { fmtNum, fmtStamp } from '@/lib/format';
+import { fmtNum, fmtStamp, parseTs, fmtRelative } from '@/lib/format';
 import type { GrvRaw, NewsItem, SimTriggerRaw } from '@/types/contracts';
 
 function Stamp({ label, t }: { label: string; t: string | null | undefined }) {
-  const isStale = t ? Date.now() - new Date(t).getTime() > 24 * 3600 * 1000 : false;
+  const parsed = parseTs(t);
+  const isStale = parsed ? Date.now() - parsed.getTime() > 24 * 3600 * 1000 : false;
+  const rel = fmtRelative(t);
   return (
     <span
       className={`chip ${isStale ? 'border-amber-400/60 text-amber-300' : ''}`}
-      title={`${label} 数据时间：${t ?? '未知'}${isStale ? '（⚠ 超过24h未更新）' : ''}`}
+      title={`${label} 数据时间：${t ?? '未知'}${rel !== '—' ? '（' + rel + '）' : ''}${isStale ? ' ⚠ 超过24h未更新' : ''}`}
     >
       <span className={isStale ? 'text-amber-400/70' : 'text-white/40'}>{label}</span>
       <span className={isStale ? 'text-amber-300' : 'text-white/70'}>{fmtStamp(t)}{isStale ? ' ⚠' : ''}</span>

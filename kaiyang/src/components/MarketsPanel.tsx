@@ -1,5 +1,5 @@
 import { useFeed } from '@/hooks/useFeed';
-import { fmtStamp } from '@/lib/format';
+import { fmtStamp, fmtRelative } from '@/lib/format';
 
 interface Quote {
   key: string;
@@ -339,7 +339,7 @@ export function MarketsPanel() {
             letterSpacing: '0.06em',
           }}
         >
-          {data?.updated ? fmtStamp(data.updated) : '—'}
+          {data?.updated ? <span title={'更新于 ' + fmtRelative(data.updated)}>{fmtStamp(data.updated)}</span> : '—'}
         </span>
       </div>
 
