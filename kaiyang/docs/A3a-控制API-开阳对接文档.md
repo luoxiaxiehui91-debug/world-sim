@@ -1,10 +1,37 @@
 # A3a 控制 API — 开阳对接文档
 
-> 天枢（macro-scan）调度器 v2.0 命令接口
+> 天枢（macro-scan）调度器控制接口
 
-## 1. 通信方式
+> **协议状态（2026-08-04 修正）**：本文档原定义「文件投递」协议为当前协议，但经实测核实——
+> **该协议从未落地实现**（scheduler 无 control/in 轮询逻辑、开阳源码零 cmd_id 引用）。
+> **实际当前协议 = HTTP REST 控制 API**（天枢 control_server.py，FastAPI :8900），见 §0。
+> 「文件投递」章节保留作「未采纳设计备选（未实现）」，仅作历史参考，勿按此对接。
 
-**文件投递，零网络依赖**。
+## 0. 实际当前协议：HTTP REST（:8900）
+
+- 端点基础：`http://192.168.31.108:8900/api/v1/control/`（docker-compose 已暴露 8900:8900）
+- 端点清单（FastAPI，详见天枢 control_server.py docstring）：
+  - `GET  /api/v1/control/health` — 健康检查
+  - `GET  /api/v1/control/fetchers` — 采集源列表（含 last_ok 真实健康探测）
+  - `POST /api/v1/control/fetchers/{id}/pause` — 暂停（返回 fetcher_id/updated_at/affected_fetchers）
+  - `POST /api/v1/control/fetchers/{id}/resume` — 恢复（同上）
+  - `PUT  /api/v1/control/fetchers/{id}/schedule` — 调整频率
+  - `GET  /api/v1/control/fetchers/{id}/logs?lines=N` — 日志
+  - `GET  /api/v1/control/operations/{op_id}` — 操作状态轮询
+- 鉴权：Bearer Token（`CONTROL_TOKEN` 环境变量；未设置则跳过鉴权——生产建议设置）
+- CORS：已内置 allow_origins=["*"]（开阳纯静态直连可用；如需收敛可改 allowlist）
+- 开阳侧客户端：`kaiyang/src/lib/controlApi.ts` + `src/config/controlConfig.ts`
+- **与 ntfy 命令通道的关系**：ntfy 命令通道（ntfy_listener.py，远程发令 topic=NTFY_CMD_TOPIC）面向
+  外部设备远程触发（生成报告/verify/ask）；开阳控制 API 面向面板内采集源控制（LIST/PAUSE/RESUME/RERUN/schedule）。
+  两者并存、职责不同、不互斥。
+
+---
+
+## 1. 通信方式（未采纳设计备选——文件投递，未实现）
+
+**以下为历史设计备选，从未落地，勿按此对接。**
+
+**文件投递，零网络依赖**（原设计）。
 
 开阳写命令 JSON 到天枢容器内目录 `/workspace/data/control/in/`，scheduler 每 2 秒轮询处理，
 完成后写响应到 `/workspace/data/control/out/{cmd_id}.json`，原命令归档到 `processed/`。

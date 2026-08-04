@@ -315,7 +315,9 @@ def pause_fetcher(fetcher_id: str, request: Request):
     op = _make_op("pause", [fetcher_id])
     _finish_op(op["operation_id"], True, f"{fetcher_id} 已暂停")
     return {"operation_id": op["operation_id"], "status": "completed",
-            "affected_fetchers": [fetcher_id]}
+            "affected_fetchers": [fetcher_id],
+            "fetcher_id": fetcher_id,
+            "updated_at": datetime.now(timezone.utc).isoformat()[:19]}
 
 
 @app.post("/api/v1/control/fetchers/{fetcher_id}/resume")
@@ -327,7 +329,9 @@ def resume_fetcher(fetcher_id: str, request: Request):
     op = _make_op("resume", [fetcher_id])
     _finish_op(op["operation_id"], True, f"{fetcher_id} 已恢复")
     return {"operation_id": op["operation_id"], "status": "completed",
-            "affected_fetchers": [fetcher_id]}
+            "affected_fetchers": [fetcher_id],
+            "fetcher_id": fetcher_id,
+            "updated_at": datetime.now(timezone.utc).isoformat()[:19]}
 
 
 @app.put("/api/v1/control/fetchers/{fetcher_id}/schedule")
