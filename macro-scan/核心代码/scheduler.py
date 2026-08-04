@@ -45,6 +45,7 @@ JOBS = [
     ("compute_fci", "0535", "1-7", None, [PYTHON, "compute_fci.py"]),  # L1 FCI 双轨（依赖 fred_fetch 刷新 fred_history）
     ("fred_freshness", "0540", "1-7", None, [PYTHON, "fred_freshness.py", "--all"]),  # data-freshness：FRED 新鲜度闸 + stale + FCI 探针（依赖 fred_fetch 0530 + compute_fci 0535）
     ("compute_probit", "0540", "1-7", None, [PYTHON, "compute_probit.py"]),  # L3 probit
+    ("tianji_trigger","0942", "1-7", 1,   [PYTHON, "write_tianji_trigger.py"]),       # 天玑 trigger 写入（T2：watchdog 检触发执行验证）
     ("gpr_fetch",   "0540", "1-7", None, [PYTHON, "fetch_gpr.py"]),
     ("china_fetch", "0545", "1-7", None, [PYTHON, "fetch_china_data.py"]),
     ("world_macro", "0550", "1-7", None, [PYTHON, "fetch_world_macro.py"]),
@@ -97,10 +98,8 @@ JOBS = [
     ]),  # 每日健康摘要推送（三数字：GRV时间戳/降级fetcher数/predictions行数）
     ("verify_auto", "0915", "1-7", 1,   [PYTHON, "verify_hypothesis.py", "--commit", "--update-weights"]),  # 每月1日
     ("slow_vars",   "0935", "1-7", 1,   [PYTHON, "slow_variables.py"]),              # 天玑 慢变量更新（每月1日）
-    ("tianji_verify","0940", "1-7", 1,   [PYTHON, "tianji_verifier.py"]),             # 天玑 月度验证+反哺检查（每月1日）
     ("spacetrack",  "0615", "1-7", None, [PYTHON, "fetch_spacetrack.py"]),            # Space-Track 卫星统计（日频，06:15）
     ("market_quotes","0630","1-7", None, [PYTHON, "market_quotes.py"]),               # 市场行情快照整合（commodity+crypto，06:30）
-    ("weight_health","0945", "1-7", 1,   [PYTHON, "weight_matrix.py", "--health"]),  # 玉衡 权重矩阵健康检查（每月1日）
     ("news_prune",  "0920", "1-7", 1,   [PYTHON, "-c",
         "import sys; sys.path.insert(0,'.'); import news_db; "
         "from optim_config import DATA_DIR; import os; "
@@ -152,12 +151,11 @@ LOG_FILES = {
     "defense_rss":     f"{LOG_DIR}/defense_rss.log",
     "news_geo_feed":   f"{LOG_DIR}/news_geo_feed.log",
     "slow_vars":       f"{LOG_DIR}/slow_vars.log",
-    "tianji_verify":   f"{LOG_DIR}/tianji_verify.log",
-    "weight_health":   f"{LOG_DIR}/weight_health.log",
     "health_push":     f"{LOG_DIR}/health_push.log",
     "spacetrack":      f"{LOG_DIR}/spacetrack.log",
     "market_quotes":   f"{LOG_DIR}/market_quotes.log",
     "compute_probit":  f"{LOG_DIR}/compute_probit.log",
+    "tianji_trigger": f"{LOG_DIR}/tianji_trigger.log",
 }
 
 def log(msg):
