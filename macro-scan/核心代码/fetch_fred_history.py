@@ -38,14 +38,19 @@ BASE_DIR = os.environ.get("OPENCLAW_WORKSPACE",
 HIST_DIR = os.path.join(BASE_DIR, "data", "fred_history")
 
 # 核心历史序列：(series_id, 名称, 最早可用年份说明, 频率)
+# P0-D/data-freshness 修复：恢复 DGS3MO/T10Y3M/T5YIE/NFCI（旧 pyc SERIES 中存在，
+# 08-03 源码被裁导致 DGS3MO 停止更新——这是「DGS3MO 卡 Aug1」的直接根因）。
 SERIES = [
     # 利率 & 货币政策
     ("DFF",          "联邦基金利率",         "1954",   "daily"),
     ("DGS10",        "10年期国债收益率",      "1962",   "daily"),
     ("DGS2",         "2年期国债收益率",       "1976",   "daily"),
+    ("DGS3MO",       "3M 国库券收益率",       "1982",   "daily"),
     ("T10Y2Y",       "收益率曲线(10Y-2Y)",    "1976",   "daily"),
+    ("T10Y3M",       "10Y-3M 期限利差",      "1982",   "daily"),
     # 通胀
     ("CPIAUCSL",     "CPI(城市所有项目)",     "1947",   "monthly"),
+    ("T5YIE",        "5Y 盈亏平衡通胀率",     "2003",   "daily"),
     ("PCEPI",        "核心PCE",              "1959",   "monthly"),
     ("PPIACO",       "PPI(所有商品)",         "1913",   "monthly"),
     # 经济增长 & 就业
@@ -61,6 +66,7 @@ SERIES = [
     # 信用 & 金融压力
     ("BAA10Y",       "BAA-10Y信用利差",       "1986",   "daily"),
     ("BAMLH0A0HYM2", "高收益债利差",          "1996",   "daily"),
+    ("NFCI",         "芝加哥联储金融条件指数", "1971",   "weekly"),
     ("M2SL",         "M2货币供应",            "1959",   "monthly"),
     # 领先指标
     ("UMCSENT",      "消费者信心",            "1952",   "monthly"),
@@ -221,10 +227,20 @@ def main():
     for series_id, name, earliest_note, freq in SERIES:
         print(f"  [{series_id}] {name} ({freq})...", end=" ", flush=True)
         result = fetch_and_save(fred, series_id, name, force=args.force)
+        # data-freshness：失败 symbol 重试 3 次（Spec 3.4 步骤 1）
+        # 仅对真实错误（ERROR/全NaN）重试；"空数据"=已拉齐到源最新，非失败不重试
+        attempt = 1
+        while result["status"] in ("ERROR", "全NaN") and attempt < 3:
+            time.sleep(3)
+            attempt += 1
+            print(f"\n  [{series_id}] 重试 {attempt}/3 ...", end=" ", flush=True)
+            result = fetch_and_save(fred, series_id, name, force=args.force)
         results.append(result)
         status = result["status"]
         if status == "OK":
             print(f"{result['rows']} 行  {result['date_range']}  [{result['fetch']}]")
+        elif status == "空数据":
+            print("空数据（已拉齐到源最新，非失败）")
         else:
             print(f"⚠ {status}")
         time.sleep(1.2)  # FRED API 限速（官方约1 req/s）
@@ -241,6 +257,20 @@ def main():
 
     print("\n最终覆盖情况：")
     show_summary()
+
+    # data-freshness：拉取一致性闸（Spec 3.4 步骤 2）
+    # 任一 freshness symbol 失败/落后超容差 → gate_ok=false → compute_fci 不落库冻结值 + ntfy 告警
+    try:
+        from fred_freshness import run_gate
+        gate_ok, _ = run_gate(alert=True)
+        print(f"\n{'='*60}")
+        print(f"[data-freshness] 拉取一致性闸: {'PASS' if gate_ok else 'FAIL'}"
+              f"（gate 状态: {os.path.join(BASE_DIR, 'data', 'fred_gate_status.json')}）")
+        if not gate_ok:
+            # fail-loud：让调度层感知本次拉取未通过闸（留痕，不静默）
+            sys.exit(2)
+    except ImportError:
+        print("WARN: fred_freshness 模块缺失，跳过拉取一致性闸（请先部署 fred_freshness.py）", file=sys.stderr)
 
 
 if __name__ == "__main__":
