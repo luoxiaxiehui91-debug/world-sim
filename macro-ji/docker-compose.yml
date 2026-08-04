@@ -1,0 +1,29 @@
+# macro-ji — 天玑独立容器（验证评估层，北斗七星第三星）
+# M1 已采纳：独立 compose，不挂在 macro-sim 下。天玑启动/停止/重建独立于天璇。
+services:
+  tianji:
+    image: macro-tianji:latest
+    container_name: macro-scan-tianji-1
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - OPENCLAW_WORKSPACE=/app
+      - TIANJI_DATA_DIR=/app/macro_data
+      - FRED_API_KEY=${FRED_API_KEY:-a3f1dc8fca52b0a45e320ea0383bbac7}
+      - NTFY_URL=${NTFY_URL:-https://ntfy.sh/macro-tsx-9005}
+      - TZ=Asia/Shanghai
+    volumes:
+      # 目录挂载铁律：读天枢 data（forecast_tracker.db / fred_history/ / grv_history.jsonl）
+      # 禁单文件 bind mount（闸二）；与天璇 macro-sim 共用同一挂载源（同卷不同容器）
+      - /vol2/1000/software/macro-scan/data:/app/macro_data:rw
+      # config 目录（grv_weights.yaml / prior.yaml —— weight_matrix 与 tianji_verifier 依赖）
+      - /vol2/1000/software/macro-scan/config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import tianji_verifier, tianji_db, weight_matrix; print(\"ok\")"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # 无端口；触发机制 = T2 共享触发文件（scheduler 写 trigger → watchdog 轮询）

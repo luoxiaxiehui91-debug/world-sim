@@ -86,19 +86,6 @@ def run_full_simulation(
     # ── 天玑存档钩子 ──────────────────────────────────────
     _archive_to_tianji(world, paths, calib_result, event, level, report_path)
 
-    # ── 天玑 V1 评分 ──────────────────────────────────────
-    try:
-        _scoring_result = run_scoring()
-        if _scoring_result is None:
-            _send_ntfy_simple("天玑 V1", "等待首次仿真数据，暂无评分")
-        else:
-            _send_ntfy_simple(
-                "天玑月度评分",
-                f"Brier={_scoring_result['brier']:.3f} BSS={_scoring_result['bss']:.3f} n={_scoring_result['n']}",
-            )
-    except Exception as _te:
-        print(f"[天玑] 评分失败（不阻断主流程）: {_te}")
-
     # ── ntfy 推送 ─────────────────────────────────────────
     _send_ntfy(world, calib_result, paths, report_path)
 
@@ -133,18 +120,6 @@ def run_predict_only(
     calib_result = {"score": 0, "avg_error": 0, "param_changes": [], "error_series": []}
     report_path = _write_report(world, calib_result, paths, level, event)
     _archive_to_tianji(world, paths, calib_result, event, level, report_path)
-
-    try:
-        _scoring_result = run_scoring()
-        if _scoring_result is None:
-            _send_ntfy_simple("天玑 V1", "等待首次仿真数据，暂无评分")
-        else:
-            _send_ntfy_simple(
-                "天玑月度评分",
-                f"Brier={_scoring_result['brier']:.3f} BSS={_scoring_result['bss']:.3f} n={_scoring_result['n']}",
-            )
-    except Exception as _te:
-        print(f"[天玑] 评分失败（不阻断主流程）: {_te}")
 
     _send_ntfy(world, calib_result, paths, report_path)
 
@@ -506,49 +481,7 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
 # DB 路径：macro-scan/data/ 挂载在 /app/macro_data（docker-compose rw）
 _TIANJI_DB_PATH = Path(os.environ.get("TIANJI_DB_PATH", "/app/macro_data/forecast_tracker.db"))
 
-_TIANJI_DDL = """
-CREATE TABLE IF NOT EXISTS predictions (
-    id                     TEXT PRIMARY KEY,
-    created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    due_at                 DATETIME NOT NULL,
-    scenario_id            TEXT,
-    type                   TEXT NOT NULL CHECK(type IN ('quantitative','geopolitical')),
-    prediction_target_type TEXT NOT NULL,
-    content                TEXT NOT NULL,
-    outcome_definition     TEXT NOT NULL,
-    target_metric          TEXT,
-    target_direction       TEXT,
-    target_threshold       REAL,
-    b_prob                 REAL,
-    b_sample_count         INTEGER,
-    b_max_similarity       REAL,
-    llm_adj                REAL,
-    final_prob             REAL,
-    prob_low               REAL,
-    prob_high              REAL,
-    confidence_tier        TEXT CHECK(confidence_tier IN ('HIGH','LOW','VERY_LOW','NOVEL')),
-    time_horizon           TEXT CHECK(time_horizon IN ('weekly','monthly','quarterly','yearly')),
-    status                 TEXT NOT NULL DEFAULT 'pending'
-                               CHECK(status IN ('pending','verified','awaiting_human')),
-    outcome_value          REAL,
-    brier_score            REAL,
-    brier_skill_score      REAL,
-    verified_at            DATETIME,
-    verified_by            TEXT
-);
 
-CREATE TABLE IF NOT EXISTS reasoning_trace (
-    id                INTEGER PRIMARY KEY AUTOINCREMENT,
-    prediction_id     TEXT NOT NULL REFERENCES predictions(id),
-    agent_id          TEXT,
-    input_signals     TEXT,
-    historical_match  TEXT,
-    confidence_basis  TEXT CHECK(confidence_basis IN ('historical_freq','llm_adjusted','llm_primary','novel')),
-    llm_adjustment    REAL,
-    causal_chains     TEXT,
-    reasoning         TEXT
-);
-"""
 
 
 def _tianji_conn():
@@ -557,7 +490,6 @@ def _tianji_conn():
     conn = _sq3.connect(str(_TIANJI_DB_PATH))
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
-    conn.executescript(_TIANJI_DDL)
     conn.commit()
     return conn
 
@@ -703,76 +635,6 @@ def _write_json(path: Path, data: dict):
     os.replace(tmp, str(path))
 
 
-def run_scoring() -> dict | None:
-    """
-    天玑 V1：从 forecast_tracker.db 读取到期预测，计算 Brier / BSS / 锐度。
-
-    返回：
-      None — predictions 表为空（等待首次仿真数据）
-      dict — {"brier": float, "bss": float, "sharpness": float,
-               "n": int, "calibration_error": float, "scored_at": str}
-
-    副作用：将结果写入 /app/data/brier_latest.json。
-    """
-    import sqlite3
-    from datetime import datetime as _dt
-
-    if not _TIANJI_DB_PATH.exists():
-        return None
-
-    try:
-        conn = sqlite3.connect(str(_TIANJI_DB_PATH), timeout=10)
-        conn.row_factory = sqlite3.Row
-
-        # 只取 due_at 已到期且有 outcome 的记录
-        now_str = _dt.utcnow().isoformat()[:19]
-        rows = conn.execute("""
-            SELECT final_prob AS predicted_probability, outcome_value AS outcome
-            FROM predictions
-            WHERE due_at <= ?
-              AND outcome_value IS NOT NULL
-              AND final_prob IS NOT NULL
-        """, (now_str,)).fetchall()
-        conn.close()
-    except Exception as e:
-        print(f"[天玑] DB 读取失败: {e}")
-        return None
-
-    if not rows:
-        return None
-
-    records = [{"prob": float(r["predicted_probability"]), "outcome": int(r["outcome"])}
-               for r in rows]
-
-    # 内联 Brier 计算（避免依赖 macro-scan 的 brier_calc.py）
-    bs_list   = [(r["prob"] - r["outcome"]) ** 2 for r in records]
-    prob_list = [r["prob"] for r in records]
-    outcomes  = [r["outcome"] for r in records]
-
-    mean_bs    = sum(bs_list) / len(bs_list)
-    clim_bs    = 0.5 ** 2  # climatology p=0.5
-    bss        = 1.0 - mean_bs / clim_bs if clim_bs > 0 else 0.0
-    sharpness  = sum(1 for p in prob_list if p < 0.3 or p > 0.7) / len(prob_list)
-    mean_pred  = sum(prob_list) / len(prob_list)
-    actual_rate = sum(outcomes) / len(outcomes)
-    calib_err  = abs(mean_pred - actual_rate)
-
-    result = {
-        "brier":             round(mean_bs, 4),
-        "bss":               round(bss, 4),
-        "sharpness":         round(sharpness, 4),
-        "n":                 len(records),
-        "calibration_error": round(calib_err, 4),
-        "scored_at":         _dt.utcnow().isoformat()[:19],
-    }
-
-    try:
-        _write_json(Path("/app/data/brier_latest.json"), result)
-        print(f"[天玑] 评分完成：Brier={result['brier']:.3f} BSS={result['bss']:.3f} n={result['n']}")
-    except Exception as e:
-        print(f"[天玑] brier_latest.json 写入失败: {e}")
-
-    return result
 
 
 # ── ntfy 推送 ─────────────────────────────────────────────
