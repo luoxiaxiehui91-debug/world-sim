@@ -25,6 +25,15 @@ try:
 except Exception:
     observe = None
 
+# P0-D 修复：状态文件路径常量单点取自 optim_config（跨容器契约 §6.4）
+# 禁止再各自用 dirname(__file__) 推导（会落非持久卷 /data）
+try:
+    from optim_config import DATA_DIR
+except Exception:
+    # fail-loud：无法导入 optim_config 属于部署配置错误，禁止静默 fallback
+    print("FATAL: cannot import optim_config.DATA_DIR (deployment config error)", flush=True)
+    sys.exit(1)
+
 WORKDIR = "/app"
 PYTHON  = "/usr/local/bin/python3"
 LOG_DIR = "/var/log/macro-scan"
@@ -34,6 +43,7 @@ JOBS = [
     ("disaster",    "I30", "1-7", None, [PYTHON, "fetch_disaster_signals.py"]),  # 自然灾害信号（事件档 每30分）
     ("fred_fetch",  "0530", "1-7", None, [PYTHON, "fetch_fred_history.py"]),
     ("compute_fci", "0535", "1-7", None, [PYTHON, "compute_fci.py"]),  # L1 FCI 双轨（依赖 fred_fetch 刷新 fred_history）
+    ("fred_freshness", "0540", "1-7", None, [PYTHON, "fred_freshness.py", "--all"]),  # data-freshness：FRED 新鲜度闸 + stale + FCI 探针（依赖 fred_fetch 0530 + compute_fci 0535）
     ("compute_probit", "0540", "1-7", None, [PYTHON, "compute_probit.py"]),  # L3 probit
     ("gpr_fetch",   "0540", "1-7", None, [PYTHON, "fetch_gpr.py"]),
     ("china_fetch", "0545", "1-7", None, [PYTHON, "fetch_china_data.py"]),
@@ -101,6 +111,7 @@ JOBS = [
 
 LOG_FILES = {
     "fred_fetch":  f"{LOG_DIR}/fred.log",
+    "fred_freshness": f"{LOG_DIR}/fred_freshness.log",
     "compute_fci": f"{LOG_DIR}/compute_fci.log",
     "gpr_fetch":   f"{LOG_DIR}/gpr_fetch.log",
     "china_fetch": f"{LOG_DIR}/china.log",
@@ -206,9 +217,10 @@ def should_run(sched_hhmm, sched_wd, sched_dom=None):
 
 last_run = {}  # (job_name, sched_hhmm) -> last_run_ts
 _last_run_ts = {}   # job_name -> last fired timestamp（供状态落盘）
-_last_run_ok = {}   # job_name -> bool（最近一次是否成功，暂用 True 占位）
-_STATE_PATH  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "scheduler_state.json")
-_PAUSE_PATH  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "control_pause.json")
+_last_run_ok = {}   # job_name -> bool（最近一次是否成功；P0-D 修复：不再默认 True 占位，由真实 spawn 结果驱动）
+# P0-D 修复：状态/暂停文件统一走 DATA_DIR（optim_config 单点），落持久卷 /workspace/data
+_STATE_PATH  = os.path.join(DATA_DIR, "scheduler_state.json")
+_PAUSE_PATH  = os.path.join(DATA_DIR, "control_pause.json")
 _last_state_dump = 0.0   # 上次落盘时间
 
 
@@ -222,7 +234,7 @@ def _load_paused() -> set:
 
 
 def _dump_state():
-    """每 60s 把运行时状态落盘，供 control_server 读取。"""
+    """每 60s 把运行时状态落盘，供 control_server 读取。P0-D：含 heartbeat 供健康探测。"""
     global _last_state_dump
     now = time.time()
     if now - _last_state_dump < 60:
@@ -235,10 +247,11 @@ def _dump_state():
             jobs_meta[job_name] = {
                 "schedule":    sched_hhmm,
                 "last_run_ts": _last_run_ts.get(job_name),
-                "last_ok":     _last_run_ok.get(job_name, True),
+                "last_ok":     _last_run_ok.get(job_name, False),  # P0-D：不再默认 True
             }
         state = {
             "updated": _dt.datetime.now().isoformat()[:19],
+            "heartbeat": now,
             "jobs": list(jobs_meta.keys()),
             **jobs_meta,
         }
@@ -252,6 +265,14 @@ def _dump_state():
 
 def main():
     log("Python scheduler started (seccomp-free)")
+
+    # P0-D 修复：启动断言 DATA_DIR 必须落在持久卷 /workspace/data。
+    # 项目红线：任何兜底必须留痕；此处不做静默 fallback，不满足即 fail-loud 退出。
+    if DATA_DIR != "/workspace/data":
+        log(f"[scheduler] FATAL: DATA_DIR={DATA_DIR} != /workspace/data，状态文件将落非持久卷，拒绝启动")
+        print(f"FATAL: DATA_DIR={DATA_DIR} != /workspace/data", flush=True)
+        sys.exit(1)
+    log(f"[scheduler] DATA_DIR assertion OK: {DATA_DIR}")
 
     # 启动完整性校验（source_dimension_map 遗漏映射会导致 GRV 维度静默接收零数据）
     try:
@@ -318,6 +339,8 @@ def main():
                     )
                     log(f"Job spawned PID={proc.pid}: {job_name}")
                     job_log(job_name, f"Job PID={proc.pid}")
+                    # P0-D：spawn 成功即记 last_ok=True（真实结果，非硬编码 True）
+                    _last_run_ok[job_name] = True
                     # T1-2: 任务触发计数
                     if observe:
                         try:

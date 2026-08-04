@@ -47,6 +47,10 @@ PAUSE_FILE = os.path.join(DATA_DIR, "control_pause.json")
 GRV_WEIGHTS_PATH = os.path.join(WORKSPACE, "config", "grv_weights.yaml")
 CONTROL_TOKEN = os.environ.get("CONTROL_TOKEN", "")
 
+# P0-D：调度器心跳新鲜度阈值（scheduler 每 60s 落盘 + 循环 sleep 30s，正常 <120s）
+# 超阈值视为调度器失联 → 面板 last_ok 全 False（真实健康探测，非硬编码 True）
+SCHEDULER_STALE_SECONDS = 240
+
 # 操作状态缓存（in-memory，进程重启丢失，可接受）
 _operations: dict = {}
 
@@ -69,6 +73,45 @@ def _check_token(request: Request):
 
 
 # ── 工具函数 ──────────────────────────────────────────────────
+def _scheduler_alive() -> bool:
+    """P0-D 真实健康探测：state 文件 mtime/心跳新鲜度 + scheduler 进程存活。
+
+    返回 True 仅当：STATE_FILE 存在、mtime 在 SCHEDULER_STALE_SECONDS 内、
+    state.heartbeat 时间戳新鲜、且 scheduler.py 进程在跑（/proc cmdline 探测）。
+    任一项失守 → False。容器无 ps 命令，故用 /proc 扫描（不可用则退化为心跳判活）。
+    """
+    try:
+        if not os.path.exists(STATE_FILE):
+            return False
+        mtime_age = time.time() - os.path.getmtime(STATE_FILE)
+        if mtime_age > SCHEDULER_STALE_SECONDS:
+            return False
+        state = _load_state()
+        hb = state.get("heartbeat")
+        if hb is None or (time.time() - float(hb)) > SCHEDULER_STALE_SECONDS:
+            return False
+        # scheduler 进程存活探测（容器无 ps，走 /proc/*/cmdline；失败退化为心跳判活）
+        try:
+            import glob
+            alive = False
+            for cmd_path in glob.glob("/proc/[0-9]*/cmdline"):
+                try:
+                    with open(cmd_path, "rb") as f:
+                        cmd = f.read().decode("utf-8", errors="ignore")
+                    if "scheduler.py" in cmd:
+                        alive = True
+                        break
+                except Exception:
+                    continue
+            if not alive:
+                return False
+        except Exception:
+            pass  # /proc 不可用时仅凭心跳判活（留痕：见注释）
+        return True
+    except Exception:
+        return False
+
+
 def _load_state() -> dict:
     """读取 scheduler 落盘的状态快照。"""
     try:
@@ -127,11 +170,17 @@ def _finish_op(op_id: str, success: bool, msg: str = ""):
     op["result"] = {"success": success}
 
 
-def _job_to_fetcher(job_name: str, state: dict, paused: set) -> dict:
-    """把 scheduler JOBS 的一行转成开阳期待的 Fetcher 对象。"""
+def _job_to_fetcher(job_name: str, state: dict, paused: set, scheduler_alive: bool) -> dict:
+    """把 scheduler JOBS 的一行转成开阳期待的 Fetcher 对象。
+
+    P0-D：last_ok 不再读硬编码默认 True，改用真实健康探测——
+    scheduler 失联（state 过期/心跳过期/进程消失）时该 job 一律置 False；
+    scheduler 存活时取 scheduler 落盘的真实 spawn 结果。
+    """
     job_state = state.get(job_name, {})
     last_ts = job_state.get("last_run_ts")
-    last_ok = job_state.get("last_ok", True)
+    # 真实健康探测：scheduler 失联 → 该 job 视为不健康（非硬编码 True）
+    last_ok = scheduler_alive and bool(job_state.get("last_ok", False))
     sched   = job_state.get("schedule", "")
     return {
         "id":          job_name,
@@ -152,12 +201,15 @@ def list_fetchers(request: Request):
     _check_token(request)
     state  = _load_state()
     paused = _load_paused()
+    scheduler_alive = _scheduler_alive()
     jobs   = state.get("jobs", list(state.keys()))
     if not jobs:
         # state 文件尚未生成时返回空列表（不报错）
-        return {"fetchers": [], "total": 0, "generated_at": datetime.now(timezone.utc).isoformat()[:19]}
-    fetchers = [_job_to_fetcher(j, state, paused) for j in jobs]
+        return {"fetchers": [], "total": 0, "scheduler_alive": scheduler_alive,
+                "generated_at": datetime.now(timezone.utc).isoformat()[:19]}
+    fetchers = [_job_to_fetcher(j, state, paused, scheduler_alive) for j in jobs]
     return {"fetchers": fetchers, "total": len(fetchers),
+            "scheduler_alive": scheduler_alive,
             "generated_at": datetime.now(timezone.utc).isoformat()[:19]}
 
 

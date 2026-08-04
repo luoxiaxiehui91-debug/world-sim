@@ -15,6 +15,10 @@ import requests
 
 NTFY_REPORT_TOPIC = os.environ.get("NTFY_TOPIC", "")
 
+# data-freshness（Spec 3.4 步骤 5）：支持自托管 ntfy Base URL 切换
+# 默认 https://ntfy.sh/，可设 NTFY_BASE_URL=http://192.168.31.108:2586 切到 NAS 自托管
+NTFY_BASE_URL = os.environ.get("NTFY_BASE_URL", "https://ntfy.sh/").rstrip("/")
+
 
 def _proxies():
     """ntfy 请求强制直连（CF-2 修复：代理对 ntfy.sh HTTPS 不稳定）。"""
@@ -27,7 +31,7 @@ def push_text(title: str, message: str):
         return
     try:
         requests.post(
-            "https://ntfy.sh/",
+            f"{NTFY_BASE_URL}/",
             json={"topic": NTFY_REPORT_TOPIC, "title": title, "message": message},
             proxies=_proxies(),
             timeout=30,
@@ -42,7 +46,7 @@ def push_text_with_priority(title: str, message: str, priority: int = 3):
         return
     try:
         requests.post(
-            "https://ntfy.sh/",
+            f"{NTFY_BASE_URL}/",
             json={"topic": NTFY_REPORT_TOPIC, "title": title, "message": message,
                   "priority": priority},
             proxies=_proxies(),
@@ -61,7 +65,7 @@ def push_file(title: str, filepath: Path):
         _fname = filepath.name.encode("utf-8").decode("latin-1")
         with open(filepath, "rb") as _f:
             requests.put(
-                f"https://ntfy.sh/{NTFY_REPORT_TOPIC}",
+                f"{NTFY_BASE_URL}/{NTFY_REPORT_TOPIC}",
                 data=_f.read(),
                 headers={
                     "Title": _title,
