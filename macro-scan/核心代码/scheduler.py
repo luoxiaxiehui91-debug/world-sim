@@ -99,7 +99,7 @@ JOBS = [
     ("verify_auto", "0915", "1-7", 1,   [PYTHON, "verify_hypothesis.py", "--commit", "--update-weights"]),  # 每月1日
     ("slow_vars",   "0935", "1-7", 1,   [PYTHON, "slow_variables.py"]),              # 天玑 慢变量更新（每月1日）
     ("spacetrack",  "0615", "1-7", None, [PYTHON, "fetch_spacetrack.py"]),            # Space-Track 卫星统计（日频，06:15）
-    ("market_quotes","0630","1-7", None, [PYTHON, "market_quotes.py"]),               # 市场行情快照整合（commodity+crypto，06:30）
+    ("market_quotes","I15","1-7", None, [PYTHON, "market_quotes.py"]),               # 市场行情快照整合（commodity+crypto，I15 跟 crypto 走——crypto 源已 I15 采集，整合导出提频零外部请求）
     ("news_prune",  "0920", "1-7", 1,   [PYTHON, "-c",
         "import sys; sys.path.insert(0,'.'); import news_db; "
         "from optim_config import DATA_DIR; import os; "
