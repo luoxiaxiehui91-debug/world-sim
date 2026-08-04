@@ -75,8 +75,16 @@ export function useFeed<T = unknown>(feedName: string): FeedState<T> {
     };
 
     void run();
+    // feed.refreshMs > 0 时轮询重拉（本地静态文件，成本极低；仅高频 feed 启用）
+    let timer: ReturnType<typeof setInterval> | undefined;
+    if (cfg.refreshMs && cfg.refreshMs > 0) {
+      timer = setInterval(() => {
+        void run();
+      }, cfg.refreshMs);
+    }
     return () => {
       cancelled = true;
+      if (timer) clearInterval(timer);
     };
   }, [feedName, cfg, report, setTimestamp, setDataVersion]);
 

@@ -35,6 +35,8 @@ export interface FeedConfig {
   /** 期望的 schema 版本（breaking change 须 bump） */
   schemaVersion: string;
   description: string;
+  /** 可选轮询刷新间隔（ms）；缺省 = 仅在挂载时拉取一次；仅高频 feed 启用 */
+  refreshMs?: number;
 }
 
 export const FEEDS: Record<string, FeedConfig> = {
@@ -86,6 +88,7 @@ export const FEEDS: Record<string, FeedConfig> = {
   market_quotes: {
     name: 'market_quotes',
     path: 'market_quotes.json',
+    refreshMs: 60_000,
     type: 'json',
     schemaVersion: '1.0',
     description: '市场报价快照（无面板，仅 fetch 备查；P1+ 再上图）',
