@@ -3,6 +3,47 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.8.13 — 2026-08-04 (by WorkBuddy)
+
+**修改理由**：6 异常全量修复（P0-A/B/C/D + data-freshness + P1），专家团流程四批次实施，详见
+`docs/operations/20260804-world-deduction-6-issues-fixed.md`。
+
+### 新增
+
+- **`核心代码/fred_freshness.py`**（新建）：FRED 数据新鲜度监控 + 拉取一致性闸
+  - 四 symbol（DCOILWTICO/BAMLH0A0HYM2/DGS3MO/ICSA）拉取一致性检查（容差 ≤1 交易日）
+  - 拉取失败不落库冻结值（fail-loud，sys.exit(2)）
+  - stale 告警（>3 交易日）+ critical（连续 2 日）+ FCI data_vintage 冻结探针
+  - ntfy 告警（支持 NTFY_BASE_URL 自托管切换）
+- **`核心代码/write_tianji_trigger.py`**（新建）：天玑 T2 触发文件写入（原子写 tmp→rename，幂等 batch_id）
+- **`macro-ji/`**（新目录）：天玑独立容器（tianji_db/tianji_verifier/weight_matrix + optim_config 精简
+  + verify_watchdog + Dockerfile + 独立 docker-compose，M1 独立第三星）
+
+### 修改
+
+- **`核心代码/scheduler.py`**：`_STATE_PATH`/`_PAUSE_PATH` 改 from optim_config import DATA_DIR
+  （P0-D：落 /workspace/data 持久卷）；启动断言 DATA_DIR==/workspace/data fail-loud；
+  last_ok 不再默认 True（真实 spawn 结果 + heartbeat）；删 tianji_verify/weight_health job（天玑独立后
+  代码不在天枢容器）；新增 tianji_trigger job(0942) + fred_freshness job(0540)
+- **`核心代码/control_server.py`**：`_scheduler_alive()` 真实健康探测（mtime+heartbeat+/proc 三重）；
+  pause/resume 返回补 fetcher_id/updated_at（前端契约对齐，保留 affected_fetchers）
+- **`核心代码/fetch_fred_history.py`**：恢复 DGS3MO/T10Y3M/T5YIE/NFCI symbol（08-03 源码被裁根因）；
+  失败重试 3 次；拉取一致性闸 run_gate
+- **`核心代码/compute_fci.py`**：源码重建（pycdc 反编译 + 反汇编手工补全，行为等价验证通过）
+- **`核心代码/ntfy_utils.py`**：支持 NTFY_BASE_URL 自托管切换
+- **`docker-compose.yml`**：暴露 8900:8900（控制 API）；entrypoint.sh 挂载（镜像旧版 entrypoint
+  无 control_server 启动行）；kaiyang dist 挂载修正
+- **`deploy.sh`**：`_sync()` 移除 rsync --delete（P0-A 根因：曾抹掉未 git add 的 compute_fci.py）
+
+### 修复
+
+- P0-A：compute_fci.py 被 rsync --delete 抹除 → pyc 薄包装恢复 → 源码重建 + deploy.sh 去 --delete
+- P0-B：天玑代码结构性不在天璇 → 独立容器 macro-scan-tianji-1（trigger→watchdog→验证全链路跑通）
+- P0-C：tianji_verifier 读 /app/data 镜像烘焙死数据 → 独立容器挂载卷 /app/macro_data 实时数据
+- P0-D：scheduler_state.json 落非持久卷 /data + last_ok 硬编码 → DATA_DIR 单点 + 真实健康探测
+- data-freshness：FRED 拉取不一致致冻结 → 一致性闸 + stale 告警 + FCI 探针
+- P1：开阳受控发令 :8900 未暴露 → compose 暴露 + 契约对齐 + A3a 文档修正
+
 ## v3.8.12 — 2026-08-04 (by Claude Code)
 
 **修改理由**：P2+P3-A——加入 spaCy NLP 支持并实现新闻坐标化，供 kaiyang 地理新闻图层读取。
