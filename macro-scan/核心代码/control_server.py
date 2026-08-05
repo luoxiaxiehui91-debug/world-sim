@@ -134,13 +134,13 @@ def _save_paused(paused: set):
     """写回暂停状态。"""
     tmp = PAUSE_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump({"paused": sorted(paused), "updated": datetime.now(timezone.utc).isoformat()[:19]}, f)
+        json.dump({"paused": sorted(paused), "updated": datetime.now().astimezone().isoformat(timespec="seconds")}, f)
     os.replace(tmp, PAUSE_FILE)
 
 
 def _make_op(op_type: str, fetcher_ids: list, idempotency_key: str = "") -> dict:
     op_id = f"op_{uuid.uuid4().hex[:8]}"
-    now = datetime.now(timezone.utc).isoformat()[:19]
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
     op = {
         "operation_id": op_id,
         "command_id": f"cmd-{uuid.uuid4().hex[:8]}",
@@ -166,7 +166,7 @@ def _finish_op(op_id: str, success: bool, msg: str = ""):
     op["status"] = "completed" if success else "failed"
     op["progress"] = 100
     op["progress_message"] = msg or ("执行完成" if success else "执行失败")
-    op["completed_at"] = datetime.now(timezone.utc).isoformat()[:19]
+    op["completed_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
     op["result"] = {"success": success}
 
 
@@ -187,7 +187,7 @@ def _job_to_fetcher(job_name: str, state: dict, paused: set, scheduler_alive: bo
         "name":        job_name.replace("_", " ").title(),
         "status":      "paused" if job_name in paused else ("error" if not last_ok else "running"),
         "schedule":    sched,
-        "last_run_at": datetime.fromtimestamp(last_ts, tz=timezone.utc).isoformat() if last_ts else None,
+        "last_run_at": datetime.fromtimestamp(last_ts).astimezone().isoformat() if last_ts else None,
         "last_status": "failed" if not last_ok else "success",
         "next_run_at": None,  # scheduler 不预算下次时间
         "enabled":     job_name not in paused,
@@ -206,11 +206,11 @@ def list_fetchers(request: Request):
     if not jobs:
         # state 文件尚未生成时返回空列表（不报错）
         return {"fetchers": [], "total": 0, "scheduler_alive": scheduler_alive,
-                "generated_at": datetime.now(timezone.utc).isoformat()[:19]}
+                "generated_at": datetime.now().astimezone().isoformat(timespec="seconds")}
     fetchers = [_job_to_fetcher(j, state, paused, scheduler_alive) for j in jobs]
     return {"fetchers": fetchers, "total": len(fetchers),
             "scheduler_alive": scheduler_alive,
-            "generated_at": datetime.now(timezone.utc).isoformat()[:19]}
+            "generated_at": datetime.now().astimezone().isoformat(timespec="seconds")}
 
 
 @app.get("/api/v1/control/fetchers/{fetcher_id}/logs")
@@ -318,7 +318,7 @@ def pause_fetcher(fetcher_id: str, request: Request):
     return {"operation_id": op["operation_id"], "status": "completed",
             "affected_fetchers": [fetcher_id],
             "fetcher_id": fetcher_id,
-            "updated_at": datetime.now(timezone.utc).isoformat()[:19]}
+            "updated_at": datetime.now().astimezone().isoformat(timespec="seconds")}
 
 
 @app.post("/api/v1/control/fetchers/{fetcher_id}/resume")
@@ -332,7 +332,7 @@ def resume_fetcher(fetcher_id: str, request: Request):
     return {"operation_id": op["operation_id"], "status": "completed",
             "affected_fetchers": [fetcher_id],
             "fetcher_id": fetcher_id,
-            "updated_at": datetime.now(timezone.utc).isoformat()[:19]}
+            "updated_at": datetime.now().astimezone().isoformat(timespec="seconds")}
 
 
 @app.put("/api/v1/control/fetchers/{fetcher_id}/schedule")
@@ -350,7 +350,7 @@ async def update_schedule(fetcher_id: str, request: Request):
     except Exception:
         overrides = {}
     overrides.setdefault("schedules", {})[fetcher_id] = new_schedule
-    overrides["updated"] = datetime.now(timezone.utc).isoformat()[:19]
+    overrides["updated"] = datetime.now().astimezone().isoformat(timespec="seconds")
     tmp = overrides_path + ".tmp"
     with open(tmp, "w") as f:
         json.dump(overrides, f, indent=2)
@@ -373,7 +373,7 @@ def get_operation(operation_id: str, request: Request):
 
 @app.get("/api/v1/control/health")
 def health():
-    return {"status": "ok", "time": datetime.now(timezone.utc).isoformat()[:19]}
+    return {"status": "ok", "time": datetime.now().astimezone().isoformat(timespec="seconds")}
 
 
 if __name__ == "__main__":
