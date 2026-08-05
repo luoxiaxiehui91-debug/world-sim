@@ -265,6 +265,8 @@
 >
 > **1.6.0 例外（读取层骨架先行登记）**：开阳 1.6.0 已**先行**在 `src/config/dataSources.ts` 的 `FEEDS` 登记 `news_geo` 并搭建读取层骨架（`src/types/contracts.ts` `NewsGeoEvent` / `NewsGeoRaw` + `src/lib/newsGeoAdapter.ts` + `WorldPanel` 接线 + `LayerTreePanel` 计数合并通道），**图层面板（独立面板或归入既有信号流）未上线**。该预埋与本节「草案」状态并不冲突——天枢首产后只需按实际字段微调 §2.7 契约并摘除「草案」标记，**前端无需重构**即可上图。这是「数据契约权威性 + 读取层就绪节奏解耦」的快进交付决策。
 >
+> **2026-08-05 读取层容错扩展**：`newsGeoAdapter.adaptNewsGeo` 现同时兼容 `articles` 结构（`news_geo_feed.py` P3-A 新闻地理点的 title/url/lat/lng/source/published_at——spaCy NER 未落地前恒为空数组）。该扩展**不改变本契约**（events 仍是 GDELT 专属），仅防 articles 写入时读取层白屏；P3-A 落地后按实际产出回改本节。
+>
 > **能力边界（照录天枢回复，避免空头支票）**：
 > - GDELT 事件表**无 headline 文本** —— 本 feed 的点只能标「地点 + 事件类型 + 强度」（如「德黑兰 — 军事冲突」）。要真标题需关联 GKG / Mentions 表，**不在本期范围**，开阳不得据此规划「新闻标题上图」。
 > - crucix 独有的 **LLM 多源叙事**（Reddit / Bluesky / 36kr / ReliefWeb + LLM 综合简报）天枢不重做——「退场 crucix」为**部分退场**。
