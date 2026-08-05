@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useFeed } from '@/hooks/useFeed';
 import { useSelection } from '@/state/SelectionContext';
 import { categoryColor, categoryLabel } from '@/config/layerCategories';
@@ -21,6 +21,12 @@ export interface Signal {
    * ⚠ 当前 news feed **没有坐标也没有点位 id**，故这里恒为 null —— 见 `pointIdOf` 注释。
    */
   focusId: string | null;
+  /** 点击行内展开的详情字段（完整标题 / 原文链接 / 摘要等）。无则展开区为空。 */
+  fullTitle: string;
+  url: string | null;
+  detail: string | null;
+  riskNote: string | null;
+  triggerTitles: string[] | null;
 }
 
 /** 信号流最多渲染多少条（顶栏 KPI 的「信号」口径与此一致）。 */
@@ -109,6 +115,11 @@ export function toSignal(item: NewsItem, index: number): Signal {
     level: signalLevelOf(item),
     metric: parts.join(' · '),
     focusId: pointIdOf(item),
+    fullTitle: String(item.title ?? item.indicator ?? '（无标题）'),
+    url: typeof item.url === 'string' && item.url ? item.url : null,
+    detail: typeof item.details === 'string' && item.details ? item.details : null,
+    riskNote: typeof item.risk_note === 'string' && item.risk_note ? item.risk_note : null,
+    triggerTitles: Array.isArray(item.trigger_titles) && item.trigger_titles.length > 0 ? item.trigger_titles : null,
   };
 }
 
@@ -126,22 +137,35 @@ export interface SignalRowProps {
   index: number;
   selected: boolean;
   onSelect: (signal: Signal) => void;
+  /** 是否展开行内详情（受控，由父组件维护展开 key，本组件保持纯函数） */
+  expanded?: boolean;
 }
 
 /**
  * 单条信号行（**纯函数组件，无 hook**）。
  * 抽出来是为了能在 node 环境下直接渲染断言（本项目零新依赖，无 jsdom）。
  */
-export function SignalRow({ signal: s, index, selected, onSelect }: SignalRowProps) {
+export function SignalRow({ signal: s, index, selected, onSelect, expanded }: SignalRowProps) {
   // 强度轴：脉冲点 / 等级文字
   const levelTone = LEVEL_COLOR[s.level];
-  const hint = s.focusId ? '点击聚焦地图点位' : '点击选中（该信号无地理坐标，暂不联动地图）';
+  const hint = s.focusId
+    ? '点击聚焦地图点位'
+    : expanded
+      ? '点击收起详情'
+      : '点击展开详情（该信号无地理坐标，暂不联动地图）';
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       aria-pressed={selected}
       onClick={() => onSelect(s)}
-      className={`signal-row flex w-full items-start gap-2 rounded-lg border px-2 py-1.5 text-left transition-colors ${
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(s);
+        }
+      }}
+      className={`signal-row flex w-full cursor-pointer items-start gap-2 rounded-lg border px-2 py-1.5 text-left transition-colors ${
         selected
           ? 'border-accent/60 bg-accent/10'
           : 'border-white/5 bg-black/20 hover:border-white/15'
@@ -165,11 +189,36 @@ export function SignalRow({ signal: s, index, selected, onSelect }: SignalRowPro
           {s.date} · {s.source}
           {s.metric ? ` · ${s.metric}` : ''}
         </div>
+        {expanded && (
+          <div className="mt-1.5 space-y-1 border-t border-white/5 pt-1.5 text-[11px] leading-relaxed text-white/55">
+            <div className="text-white/75">{s.fullTitle}</div>
+            {s.url && (
+              <a
+                href={s.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block truncate text-accent/90 transition-colors hover:text-accent"
+                onClick={(e) => e.stopPropagation()}
+              >
+                原文链接 ↗
+              </a>
+            )}
+            {s.detail && <div>{s.detail}</div>}
+            {s.riskNote && <div className="text-amber-200/80">⚠ {s.riskNote}</div>}
+            {s.triggerTitles?.map((t, i) => (
+              <div
+                key={i}
+                className="border-l-2 border-accent/30 pl-2"
+                dangerouslySetInnerHTML={{ __html: t }}
+              />
+            ))}
+          </div>
+        )}
       </div>
       <span className="shrink-0 text-[10px]" style={{ color: levelTone }}>
         {LEVEL_TEXT[s.level]}
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -193,14 +242,19 @@ export function SignalStreamPanel() {
 
   const alertCount = signals.filter((s) => s.level === 'alert').length;
 
+  // 行内详情展开 key（受控；与选中态独立——点击行=选中+展开，再次点击=取消+收起）
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
   const handleSelect = useCallback(
     (s: Signal) => {
-      // 再次点击已选中行 = 取消选中（同时清掉可能存在的地图聚焦）
+      // 再次点击已选中行 = 取消选中（同时清掉可能存在的地图聚焦）+ 收起详情
       if (s.key === selectedSignalKey) {
         selectSignal(null, null);
+        setExpandedKey(null);
         return;
       }
       selectSignal(s.key, s.focusId);
+      setExpandedKey((prev) => (prev === s.key ? null : s.key));
     },
     [selectedSignalKey, selectSignal],
   );
@@ -240,6 +294,7 @@ export function SignalStreamPanel() {
             index={i}
             selected={s.key === selectedSignalKey}
             onSelect={handleSelect}
+            expanded={s.key === expandedKey}
           />
         ))}
       </div>
