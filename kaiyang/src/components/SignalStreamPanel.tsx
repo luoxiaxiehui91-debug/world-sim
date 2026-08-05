@@ -62,7 +62,10 @@ export type NewsFeedPayload = NewsItem[] | { items?: NewsItem[] | null } | null 
  */
 export function newsItemsOf(raw: NewsFeedPayload): NewsItem[] {
   const list = Array.isArray(raw) ? raw : Array.isArray(raw?.items) ? raw.items : [];
-  return list.filter((it): it is NewsItem => !!it && typeof it === 'object');
+  return list
+    .filter((it): it is NewsItem => !!it && typeof it === 'object')
+    // 按日期倒序（最新前置）：news_export 原序为插入顺序，旧新闻会占据首屏（如 7-31 新闻显示在 8-05 前面）
+    .sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')));
 }
 
 export function signalLevelOf(item: NewsItem): SignalLevel {
