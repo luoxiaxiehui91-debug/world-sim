@@ -51,6 +51,38 @@ export function TianshuTab() {
     [fetchers, searchQuery],
   );
 
+  // 分组定义：按 id 前缀/关键词映射到类别，解决平铺列表太乱的问题
+  const GROUP_DEFS: { key: string; label: string; match: (id: string) => boolean }[] = [
+    { key: 'macro', label: '宏观·FRED', match: (id) => /^(fred|fci|probit|macro|fx|world|gpr|sanctions|us_daily|china_daily)/.test(id) },
+    { key: 'geo', label: '地缘', match: (id) => /^(geo|grv|gdelt)/.test(id) },
+    { key: 'news', label: '新闻', match: (id) => /^(news|rss|defense|sipri)/.test(id) },
+    { key: 'market', label: '市场', match: (id) => /^(crypto|commodity|market|energy|bdi|fao|china_fetch|china_meso)/.test(id) },
+    { key: 'disaster', label: '灾害', match: (id) => /^(disaster|earthquake|climate|firms|hdx)/.test(id) },
+    { key: 'satellite', label: '卫星', match: (id) => /^(space|spacetrack|opensky|airtraffic)/.test(id) },
+    { key: 'sim', label: '推演/验证', match: (id) => /^(compute|verify|tianji|weight|narrative|slow|sim|morning|weekly|kb|health|observability|prune|export)/.test(id) },
+  ];
+  const grouped = useMemo(() => {
+    const groups: { key: string; label: string; items: Fetcher[] }[] = GROUP_DEFS.map((g) => ({ ...g, items: [] }));
+    const other: Fetcher[] = [];
+    for (const f of filtered) {
+      const g = GROUP_DEFS.find((d) => d.match(f.id));
+      if (g) {
+        groups.find((x) => x.key === g.key)?.items.push(f);
+      } else {
+        other.push(f);
+      }
+    }
+    // 组内：异常状态优先，然后按 id 排序
+    const sortItems = (arr: Fetcher[]) => [...arr].sort((a, b) => {
+      const aBad = a.last_status !== 'success' ? 0 : 1;
+      const bBad = b.last_status !== 'success' ? 0 : 1;
+      return aBad - bBad || a.id.localeCompare(b.id);
+    });
+    const visible = groups.map((g) => ({ ...g, items: sortItems(g.items) })).filter((g) => g.items.length > 0);
+    if (other.length > 0) visible.push({ key: 'other', label: '其他', items: sortItems(other) });
+    return visible;
+  }, [filtered]);
+
   // 全选/取消全选
   const allSelected =
     filtered.length > 0 && filtered.every((f) => selectedIds.has(f.id));
@@ -219,18 +251,34 @@ export function TianshuTab() {
         </label>
       )}
 
-      {/* Fetcher 卡片列表 */}
-      <div className="flex flex-col gap-2">
-        {filtered.map((fetcher) => (
-          <FetcherCard
-            key={fetcher.id}
-            fetcher={fetcher}
-            selected={selectedIds.has(fetcher.id)}
-            onToggleSelect={() => toggleSelect(fetcher.id)}
-            onRefresh={refresh}
-          />
-        ))}
-      </div>
+      {/* Fetcher 卡片列表（按类别分组） */}
+      {grouped.map((g) => (
+        <div key={g.key} className="flex flex-col gap-1.5">
+          <div className="mt-1 flex items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan-300/70">
+              {g.label}
+            </span>
+            <span className="rounded bg-white/5 px-1.5 py-px text-[9px] text-white/35">
+              {g.items.length}
+            </span>
+            {g.items.some((f) => f.last_status !== 'success') && (
+              <span className="text-[9px] text-amber-300/80">⚠ 异常</span>
+            )}
+            <div className="h-px flex-1 bg-white/5" />
+          </div>
+          <div className="flex flex-col gap-2">
+            {g.items.map((fetcher) => (
+              <FetcherCard
+                key={fetcher.id}
+                fetcher={fetcher}
+                selected={selectedIds.has(fetcher.id)}
+                onToggleSelect={() => toggleSelect(fetcher.id)}
+                onRefresh={refresh}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
 
       {/* 无搜索结果 */}
       {filtered.length === 0 && searchQuery.trim() && (

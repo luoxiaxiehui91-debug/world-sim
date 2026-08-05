@@ -62,7 +62,14 @@ export function fmtRelative(t: string | null | undefined): string {
 
 export function fmtStamp(t: string | null | undefined): string {
   if (!t) return '—';
-  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(t);
-  if (m) return `${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
+  const parsed = parseTs(t);
+  if (parsed) {
+    // 统一按本地时区显示（带时区后缀串如 control API 的 UTC 也转本地）
+    const mo = String(parsed.getMonth() + 1).padStart(2, '0');
+    const dd = String(parsed.getDate()).padStart(2, '0');
+    const hh = String(parsed.getHours()).padStart(2, '0');
+    const mm = String(parsed.getMinutes()).padStart(2, '0');
+    return `${mo}-${dd} ${hh}:${mm}`;
+  }
   return t;
 }
