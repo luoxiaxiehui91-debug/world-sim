@@ -236,6 +236,9 @@ def _write_sim_trigger(event: str, level: int = 3) -> None:
             "level":        level,
             "event":        event[:200],
             "triggered_at": datetime.now(timezone.utc).isoformat(),
+            # P1 修复（sim-trigger-flag-missing）：contracts.ts:114 定义 triggered 字段，
+            # 缺此字段 StatusBar「推演触发」badge 永不亮
+            "triggered":    True,
         }
         # 原子写入（先写 .tmp，再 rename）
         tmp = trigger_path + ".tmp"
