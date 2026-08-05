@@ -29,6 +29,11 @@ function sig(over: Partial<Signal> = {}): Signal {
     level: 'info',
     metric: '',
     focusId: null,
+    fullTitle: '某条信号',
+    url: null,
+    detail: null,
+    riskNote: null,
+    triggerTitles: null,
     ...over,
   };
 }
