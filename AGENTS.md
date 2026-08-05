@@ -8,11 +8,12 @@
 
 | 子系统 | 定位 | 容器模式 | 版本 | NAS 运行目录 |
 |:-------|:-----|:---------|:-----|:-------------|
-| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 13维向量 | **热挂载**（改代码即生效，无需 restart） | v3.8.7 | `/vol2/1000/software/macro-scan` |
-| `macro-sim`  | 仿真引擎层：12个 Agent，Monte Carlo×100，月度时间步长 | **COPY 模式**（改代码需 rebuild 镜像） | v2.0.21 | `/vol2/1000/software/macro-sim` |
-| `kaiyang`    | 可视化操作面板：只读展示天枢数据 + 控制台（:8080，control API :8900） | nginx 静态站（MOCK_ENABLED=false，A3a 已接入） | v1.7.2 | `/vol2/1000/software/kaiyang` |
+| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 13维向量 | **热挂载**（改代码即生效；scheduler.py 改动需 restart） | v3.8.15 | `/vol2/1000/software/macro-scan` |
+| `macro-sim`  | 仿真引擎层：12个 Agent，Monte Carlo×100，月度时间步长 | **COPY 模式**（改代码需 rebuild 镜像） | v2.0.23 | `/vol2/1000/software/macro-sim` |
+| `macro-ji`   | 验证层（天玑）：读天枢 data 做推演验证/反哺（T2 共享触发文件驱动，2026-08-04 独立容器上线） | **COPY 模式**（macro-ji/ 目录 rebuild） | v1.0.0 | `/vol2/1000/software/world-sim/macro-ji` |
+| `kaiyang`    | 可视化操作面板：只读展示天枢数据 + 控制台（:8080，control API :8900） | nginx 静态站（MOCK_ENABLED=false，A3a 已接入，index.html no-cache） | v1.9.0 | `/vol2/1000/software/kaiyang` |
 
-**数据流**：macro-scan 每日写入 `data/*.json` → macro-sim 只读消费 → kaiyang 只读展示。
+**数据流**：macro-scan 每日写入 `data/*.json` → macro-sim 只读消费 → kaiyang 只读展示；天玑（macro-ji）读天枢 data（forecast_tracker.db 三写者共存 + WAL）做验证闭环。
 
 ---
 
