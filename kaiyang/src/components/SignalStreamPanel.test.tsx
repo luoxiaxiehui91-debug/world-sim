@@ -101,10 +101,11 @@ describe('SignalRow: 序号渲染', () => {
 });
 
 describe('SignalRow: 选中态与点击', () => {
-  it('可点击且是 type=button，带 aria-pressed 无障碍标记', () => {
+  it('可点击且是 div role=button（2026-08-05 d1a1b39 改：button 内不能嵌 a 链接），带 aria-pressed 无障碍标记', () => {
     const el = rowOf({ signal: sig(), index: 0, selected: false, onSelect: noop });
-    expect(el.type).toBe('button');
-    expect(el.props.type).toBe('button');
+    expect(el.type).toBe('div');
+    expect(el.props.role).toBe('button');
+    expect(el.props.tabIndex).toBe(0);
     expect(el.props['aria-pressed']).toBe(false);
   });
 

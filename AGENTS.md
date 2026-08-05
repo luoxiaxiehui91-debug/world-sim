@@ -55,7 +55,7 @@ macro-scan 每日按时写入，macro-sim 只读消费，kaiyang 只读展示：
 |:-----|:---------|:-----|
 | `data/grv_latest.json` | 06:10 | GRV 地缘风险向量（13维，含 social_stress/cultural_friction），schema v1.0 |
 | `data/fred_history/*.csv` | 05:30 | FRED 宏观指标（T10Y2Y / BAA10Y / DFF），值单位 `%`，读取后需 ×100 转 bp |
-| `data/news_export.json` | 07:05 | 近7天新闻摘要（40条，6类），schema v1.0 |
+| `data/news_export.json` | 07:05 | 近7天新闻摘要（40条，6类），schema v1.0；顶层 `updated`（=导出时刻，无后缀=北京）供开阳 useFeed 时间戳——2026-08-05 起写入 |
 | `data/sim_trigger.json` | 触发时 | L3+ GRV 告警后写入，触发 macro-sim 仿真 |
 | `data/scheduler_state.json` | 每60s | scheduler 运行状态落盘，control_server（:8900）读取 |
 
