@@ -85,10 +85,16 @@ export function NewsPanel() {
   // newsItemsOf：兼容裸数组 / {articles} / {items}，按 date 倒序（最新前置）
   const items = useMemo<NewsItem[]>(() => newsItemsOf(data as never), [data]);
 
-  // 时间戳取排序后首条 = 最新新闻日期（修复 StatusBar 曾显示插入序首条 7-31 的架构错误）
+  // P0 修复（news-fake-timestamp）：时间戳优先取顶层 updated/exported_at（含完整时间，
+  // 由 news_exporter 写入）；纯日期 items[0].date 仅作兜底（parseTs 已兼容纯日期防 UTC 午夜）
+  const newsTs = useMemo<string | null>(() => {
+    const raw = data as { updated?: string; exported_at?: string } | null;
+    return raw?.updated ?? raw?.exported_at ?? items[0]?.date ?? null;
+  }, [data, items]);
+
   useEffect(() => {
-    if (items.length > 0) setTimestamp('news', items[0].date ?? null);
-  }, [items, setTimestamp]);
+    if (newsTs) setTimestamp('news', newsTs);
+  }, [newsTs, setTimestamp]);
 
   return (
     <div className="glass-panel scanlines flex h-full min-h-[340px] flex-col">

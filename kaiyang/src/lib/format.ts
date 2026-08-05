@@ -35,6 +35,13 @@ export function truncate(text: string, max = 80): string {
  */
 export function parseTs(t: string | null | undefined): Date | null {
   if (!t) return null;
+  // P0 修复（news-fake-timestamp）：纯日期 YYYY-MM-DD 无时间字段——
+  // 若直接 new Date('2026-08-04') = UTC 午夜 → 北京显示 08:00 假时刻/纽约跨天。
+  // 按「无后缀=北京时间」契约补 T00:00:00+08:00（本地当天零点）。
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    const d = new Date(t + 'T00:00:00+08:00');
+    return isNaN(d.getTime()) ? null : d;
+  }
   const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2})?)/.exec(t);
   const hasTz = /(?:Z|[+-]\d{2}:?\d{2})$/.test(t);
   if (m && !hasTz) {
