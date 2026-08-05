@@ -54,14 +54,20 @@ const LEVEL_TEXT: Record<SignalLevel, string> = {
 const LEVEL_WEIGHT: Record<SignalLevel, number> = { alert: 0, watch: 1, info: 2 };
 
 /** news feed 的两种合法载荷：裸数组，或 `{ items: [...] }` 包装（含 schema_version）。 */
-export type NewsFeedPayload = NewsItem[] | { items?: NewsItem[] | null } | null | undefined;
+export type NewsFeedPayload = NewsItem[] | { articles?: NewsItem[] | null; items?: NewsItem[] | null } | null | undefined;
 
 /**
  * 归一化 news 载荷；任何非法形状一律降级为空数组（K5：不抛错、不白屏）。
  * 数组内的 null / 非对象元素也会被剔除，下游可安全直接读字段。
  */
 export function newsItemsOf(raw: NewsFeedPayload): NewsItem[] {
-  const list = Array.isArray(raw) ? raw : Array.isArray(raw?.items) ? raw.items : [];
+  const list = Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.articles)
+      ? raw.articles
+      : Array.isArray(raw?.items)
+        ? raw.items
+        : [];
   return list
     .filter((it): it is NewsItem => !!it && typeof it === 'object')
     // 按日期倒序（最新前置）：news_export 原序为插入顺序，旧新闻会占据首屏（如 7-31 新闻显示在 8-05 前面）

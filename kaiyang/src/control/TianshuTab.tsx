@@ -262,6 +262,25 @@ export function TianshuTab() {
         </label>
       )}
 
+      {/* 分组工具条：全部展开 / 全部折叠 */}
+      <div className="flex items-center gap-2 px-0.5">
+        <button
+          type="button"
+          onClick={() => setCollapsedGroups(new Set())}
+          className="rounded border border-white/10 px-1.5 py-px text-[10px] text-white/50 transition-colors hover:border-cyan-400/40 hover:text-cyan-300/90"
+        >
+          全部展开
+        </button>
+        <button
+          type="button"
+          onClick={() => setCollapsedGroups(new Set(grouped.map((g) => g.key)))}
+          className="rounded border border-white/10 px-1.5 py-px text-[10px] text-white/50 transition-colors hover:border-cyan-400/40 hover:text-cyan-300/90"
+        >
+          全部折叠
+        </button>
+        <div className="h-px flex-1 bg-white/5" />
+      </div>
+
       {/* Fetcher 卡片列表（按类别分组） */}
       {grouped.map((g) => (
         <div key={g.key} className="flex flex-col gap-1.5">

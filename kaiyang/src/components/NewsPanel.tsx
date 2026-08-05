@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useFeed } from '@/hooks/useFeed';
 import { useStatus } from '@/state/StatusContext';
 import type { NewsItem } from '@/types/contracts';
+import { newsItemsOf } from './SignalStreamPanel';
 
 function NewsCard({ item }: { item: NewsItem }) {
   const [open, setOpen] = useState(false);
@@ -81,12 +82,10 @@ export function NewsPanel() {
   const { setTimestamp } = useStatus();
   // 兼容数组或 { items: [...] } 包装（含 schema_version）
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = data as any;
-  const items = useMemo<NewsItem[]>(
-    () => (Array.isArray(raw) ? raw : raw?.articles ?? raw?.items ?? []),
-    [raw],
-  );
+  // newsItemsOf：兼容裸数组 / {articles} / {items}，按 date 倒序（最新前置）
+  const items = useMemo<NewsItem[]>(() => newsItemsOf(data as never), [data]);
 
+  // 时间戳取排序后首条 = 最新新闻日期（修复 StatusBar 曾显示插入序首条 7-31 的架构错误）
   useEffect(() => {
     if (items.length > 0) setTimestamp('news', items[0].date ?? null);
   }, [items, setTimestamp]);
