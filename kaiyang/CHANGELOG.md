@@ -2,7 +2,58 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
-## [1.7.2] - 2026-08-03 · A3a 控制 API 接入，MOCK 模式关闭（by Claude Code）
+## [1.9.0] - 2026-08-05 · 开阳实时化 + 时间审计全量修复（by WorkBuddy）
+
+**修改理由**：① 用户反馈"MACRO + MARKETS 一天一刷新不合理"→ 数据层 I15 + 前端轮询实时化；
+② 时间戳时区语义审计（用户观察宏观面板 8-3）→ 6 问题全链路修复。详见
+docs/operations/20260805-world-deduction-time-audit-fixed.md。
+
+### 新增
+
+- **实时化**：`useFeed` 支持 `refreshMs` 轮询重拉（market_quotes 配 60s）；scheduler market_quotes 0630→I15
+- **时区确定性**：`format.ts` 新增 `parseTs()`（无后缀 ISO 补 +08:00 / 纯日期补 T00:00:00+08:00）+ `fmtRelative()`（相对时间）
+- **控制台分组**：TianshuTab 48 采集源按类别分组 + 组头折叠（含全部展开/全部折叠）+ 组级 ⚠ 异常标记
+- **信号流**：点击行内展开详情（完整标题/原文链接/risk_note/trigger_titles），div role=button 键盘可访问
+- **nginx 缓存策略**：index.html no-cache + /assets/ immutable（根治浏览器缓存旧 bundle）
+- **StatusBar**：GEO stamp（news_geo 时间戳）
+
+### 修复
+
+- 新闻乱序/假时刻：newsItemsOf 支持 {articles} 结构 + date 倒序；NewsPanel 时间戳改读顶层 updated/exported_at（修 StatusBar 显示插入序首条 7-31 / UTC 午夜假时刻）
+- simTrigger 伪告警：KNOWN_STRUCTURAL_MISSING 过滤（与 StatusMiniPanel 一致）
+- news_geo 契约漂移：adapter 支持 raw.articles 分支（normalizeArticlePoint，value=null 诚实标缺强度）
+- 时间戳 UTC→北京：数据层 market_quotes/control_server 时区修复联动
+
+## [1.8.0] - 2026-08-04 · 2D 平面地图换用 D3 geoNaturalEarth1，根治子午线水平伪线（by Claude Code）
+
+> 版本递进：**1.7.2 → 1.8.0**。将 2D 地图渲染器从 Leaflet 完整替换为 D3.js + SVG，彻底消除 Russia/Alaska 跨 ±180° 子午线时产生的水平横线伪影。
+
+**根本原因**：Leaflet 无法正确处理球面多边形的反子午线（antimeridian）截断；多次补丁（手工 `clipGeoJSON`、弧线分段）均无法根治。
+
+**修改 — FlatMapPanel.tsx**（完整重写）
+- 移除 Leaflet 全部依赖（`L.map`、`L.geoJSON`、`L.circleMarker`、`L.polyline` 等）
+- 改用 `d3-geo` + `geoNaturalEarth1()` 投影 + 纯 SVG 渲染，D3 自动处理球面几何，无需任何 antimeridian 补丁
+- 底图：海洋 Sphere 背景、陆地填充（`objects.land`）、国家边界（`objects.countries`）、经纬格线（`geoGraticule`）
+- 缩放：`d3-zoom` 作用于 SVG `<g>` 容器，`scaleExtent [1, 12]`，双击重置
+- 点位（圆形/菱形）、弧线（大圆分段）、战略要地（★ text）、聚焦光环：全部换为 SVG 元素；视觉参数与旧版完全一致
+- Tooltip：改为 `position: fixed` 的 React state 驱动浮层，取代 Leaflet 内置 tooltip
+- region 切换：改用 `d3-geo.fitExtent()` 重新投影并重置 zoom，取代 Leaflet `flyToBounds`
+- 容器尺寸自适应：`ResizeObserver` 驱动 `fitSize` 重算投影，取代 Leaflet `invalidateSize`
+
+**修改 — FlatMapPanel.css**
+- 移除所有 `.leaflet-*` 选择器
+- 新增 `.fm-arc`（流动虚线动画）、`.fm-point-pulse`（脉冲呼吸）、`.fm-tooltip`（暗色玻璃拟态浮层）
+- 保留 `.leaflet-zoom-indicator`（缩放标签，功能不变）
+
+**新增依赖**
+- `d3-zoom@3.0.0`、`d3-selection@3.0.0`（已内置于 globe.gl，追加为直接依赖）
+- `@types/d3-zoom`、`@types/d3-selection`（devDependencies）
+
+**工程**
+- 测试：297/297 通过（全部已有用例，无新用例；FlatMapPanel 无 JSDOM 单元测试）
+- 构建：`npm run build` 绿（tsc --noEmit + vite build 均通过）
+
+ · A3a 控制 API 接入，MOCK 模式关闭（by Claude Code）
 
 > 版本递进：**1.7.1 → 1.7.2**。天枢 control_server.py（v3.8.5）上线，开阳切换到真实 API。
 

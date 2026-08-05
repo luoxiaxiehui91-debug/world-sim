@@ -1,7 +1,7 @@
 {
   "name": "kaiyang",
   "private": true,
-  "version": "1.7.1",
+  "version": "1.9.0",
   "type": "module",
   "description": "世界推演系统 · 开阳 Wave 2 操作面板（展示 + 控制双职能，只读契约 + 受控指令通道）",
   "scripts": {
@@ -12,9 +12,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@types/d3-selection": "^3.0.11",
+    "@types/d3-zoom": "^3.0.8",
     "@types/leaflet": "^1.9.22",
     "@types/react-grid-layout": "^1.3.6",
     "d3-geo": "^3.1.1",
+    "d3-selection": "^3.0.0",
+    "d3-zoom": "^3.0.0",
     "echarts": "^5.5.1",
     "globe.gl": "^2.46.1",
     "leaflet": "^1.9.4",
