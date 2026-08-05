@@ -112,11 +112,25 @@ def build_manifest(fred=None) -> list:
                     status = "lagging"
             except Exception:
                 status = "unknown"
+        # P2 修复（fred-freshness-status-misleading）：增 fresh/lag_days 分离展示——
+        # status=ok 仅是"本地 vs 源一致性"，不表达新鲜度；fresh 用日历天宽松判定（≈交易日）
+        import datetime as _dt
+        _lag = None
+        _fresh = None
+        if loc:
+            try:
+                _ld = _parse(loc)
+                _lag = (_dt.date.today() - _ld).days
+                _fresh = _lag <= 5
+            except Exception:
+                pass
         manifest.append({
             "symbol": sid,
             "latest_date": loc,
             "source_latest": src,
             "status": status,
+            "fresh": _fresh,
+            "lag_days": _lag,
         })
     return manifest
 

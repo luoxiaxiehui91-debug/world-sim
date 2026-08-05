@@ -258,6 +258,27 @@ def main():
     print("\n最终覆盖情况：")
     show_summary()
 
+    # P0 修复（fred-manifest-orphan）：manifest.json 生成器——
+    # 读现有 manifest（元数据模板）→ 更新 updated（astimezone 带 +08:00）→ 原子写回。
+    # 模板缺失时跳过（不伪造元数据），首次需人工初始化（可 cp 历史 manifest）。
+    try:
+        import datetime as _dt
+        _mp = os.path.join(BASE_DIR, "data", "fred_history", "manifest.json")
+        if os.path.exists(_mp):
+            with open(_mp, encoding="utf-8") as _f:
+                _m = json.load(_f)
+            _m["updated"] = _dt.datetime.now().astimezone().isoformat(timespec="seconds")
+            _m["schema_version"] = _m.get("schema_version", "1.0")
+            _tmp = _mp + ".tmp"
+            with open(_tmp, "w", encoding="utf-8") as _f:
+                json.dump(_m, _f, ensure_ascii=False, indent=2)
+            os.replace(_tmp, _mp)
+            print(f"[fetch_fred_history] manifest updated={_m['updated']}")
+        else:
+            print("WARN: manifest 模板不存在，跳过生成（首次需人工初始化）", file=sys.stderr)
+    except Exception as _e:
+        print(f"WARN: manifest 生成失败: {_e}", file=sys.stderr)
+
     # data-freshness：拉取一致性闸（Spec 3.4 步骤 2）
     # 任一 freshness symbol 失败/落后超容差 → gate_ok=false → compute_fci 不落库冻结值 + ntfy 告警
     try:

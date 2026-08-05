@@ -332,6 +332,20 @@ def main():
 
     print(f'=== L1 FCI  schema={SCHEMA_VERSION}  pit_burnin={args.pit_burnin}')
 
+    # P1 修复（fci-gate-not-consumed）：消费 fred_gate_status.json——
+    # gate_ok=false（上游拉取不一致/落后）→ 冻结不落库 fail-loud（--sanity 跳过）
+    if not args.sanity:
+        _gate_path = os.path.join(DATA_DIR, 'fred_gate_status.json')
+        if os.path.exists(_gate_path):
+            try:
+                with open(_gate_path, encoding='utf-8') as _gf:
+                    _gate = json.load(_gf)
+                if not _gate.get('gate_ok', True):
+                    print(f'ERROR: 拉取一致性闸 FAIL（{_gate_path}）——FCI 冻结不落库', file=sys.stderr)
+                    sys.exit(3)
+            except Exception as _ge:
+                print(f'WARN: gate 读取失败（不阻塞）: {_ge}', file=sys.stderr)
+
     panel, meta, dropped, binding = build_panel(verbose=True)
 
     # G3 覆盖率闸：不满足即退出，不写任何输出

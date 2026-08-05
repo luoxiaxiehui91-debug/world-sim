@@ -85,6 +85,8 @@ def export_news_for_sim():
     payload = {
         "_schema_version": "1.0",
         "exported_at": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        # P0 修复（news-fake-timestamp）：顶层 updated 对齐前端 useFeed.ts:62 读取字段
+        "updated":     datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         "articles":    articles,
     }
 
