@@ -275,6 +275,7 @@ async def rerun_fetchers(request: Request):
         "defense_rss", "slow_vars", "tianji_verify", "weight_health",
         "situation_detect", "disaster", "dashboard", "verify_auto", "news_prune",
         "weekly_synthesis", "health_push",
+        "market_quotes", "news_geo_feed", "fred_freshness", "tianji_trigger",
     }
     unknown = [fid for fid in fetcher_ids if fid not in _KNOWN_FETCHER_IDS]
     if unknown:
