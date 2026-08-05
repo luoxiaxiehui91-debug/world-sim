@@ -128,6 +128,7 @@ export function StatusBar() {
       <Stamp label="GRV" t={timestamps['grv']} />
       <Stamp label="GDELT" t={timestamps['grv_gdelt']} />
       <Stamp label="新闻" t={timestamps['news']} />
+      <Stamp label="GEO" t={timestamps['news_geo']} />
       <span className="chip" title="各 feed 实际 schema 版本">
         <span className="text-white/40">schema</span>
         <span className="text-white/70">{schemaText || '—'}</span>
