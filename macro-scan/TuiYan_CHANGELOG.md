@@ -3,6 +3,29 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.8.15 — 2026-08-05 (by WorkBuddy)
+
+**修改理由**：开阳全链路时间审计（用户观察宏观面板 8-3）——6 问题修复：manifest 孤儿 / news 假时刻 / FCI 闸断裂 / sim_trigger 字段缺失 / news_geo 契约漂移 / freshness status 语义误导。详见 docs/operations/20260805-world-deduction-time-audit-fixed.md。
+
+### 修改
+
+- **`核心代码/fetch_fred_history.py`**：新增 manifest 生成器——读现有 manifest 模板更新 `updated`（astimezone 带 +08:00）原子写回；孤儿文件复活（此前冻 08-03、UTC 无后缀差 8h）
+- **`核心代码/news_exporter.py`**：payload 增顶层 `updated`（前端 useFeed 字段契约对齐）
+- **`核心代码/compute_fci.py`**：main() 消费 fred_gate_status.json——gate_ok=false 冻结不落库 fail-loud（--sanity 跳过）
+- **`核心代码/grv_threshold.py`**：sim_trigger payload 补 `triggered: true`（StatusBar badge 点亮）
+- **`核心代码/fred_freshness.py`**：build_manifest 增 `fresh`/`lag_days` 字段（status=ok 仅是本地vs源一致性；DCOILWTICO 现 fresh=False lag=9 显式暴露源冻结）
+- **`核心代码/news_geo_feed.py`**：输出增顶层 `updated`（useFeed 时间戳拾取）
+- **kaiyang `src/lib/format.ts`**：parseTs 兼容纯日期 YYYY-MM-DD（补 T00:00:00+08:00，防 UTC 午夜假时刻）
+- **kaiyang `src/components/NewsPanel.tsx`**：setTimestamp 优先取顶层 updated/exported_at（含完整时间）
+- **kaiyang `src/components/StatusBar.tsx`**：KNOWN_STRUCTURAL_MISSING 过滤（消 simTrigger 伪告警）+ 新增 GEO stamp
+- **kaiyang `src/lib/newsGeoAdapter.ts`**：adaptNewsGeo 支持 raw.articles 分支（normalizeArticlePoint，value=null 诚实标缺强度）
+
+### 修复
+
+- P0：宏观面板 manifest 冻结 + news 假时刻/24h stale 判定失真
+- P1：FCI 拉取闸断裂 + sim_trigger badge 不亮
+- P2：news_geo 契约漂移 + freshness status 语义误导
+
 ## v3.8.14 — 2026-08-05 (by WorkBuddy)
 
 **修改理由**：开阳展示层滞后（整合导出 job 日频压平高频采集）+ 时间戳时区语义歧义 + 新闻首屏旧闻 + 控制台过乱，四件并行修复（commit ccbda94 / dbdbd48 / a20738e，均已 push）。
