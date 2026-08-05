@@ -3,6 +3,31 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.8.14 — 2026-08-05 (by WorkBuddy)
+
+**修改理由**：开阳展示层滞后（整合导出 job 日频压平高频采集）+ 时间戳时区语义歧义 + 新闻首屏旧闻 + 控制台过乱，四件并行修复（commit ccbda94 / dbdbd48 / a20738e，均已 push）。
+
+### 新增
+
+- **kaiyang `src/lib/format.ts`**：`parseTs()`（无时区后缀 ISO 串显式补 +08:00 按北京时间解析，消除 ES5-UTC/ES2015+-本地 语义漂移）+ `fmtRelative()`（刚刚/X 分钟前/X 小时前/X 天前 相对时间）
+- **kaiyang `useFeed`**：支持 `refreshMs` 轮询重拉（仅高频 feed 启用；market_quotes 配 60s）
+
+### 修改
+
+- **`核心代码/scheduler.py`**：`market_quotes` 0630 日频 → **I15**（crypto 源已 I15 采集，整合导出零外部请求，纯赚提频；commodity 仍日频由上游决定）
+- **kaiyang `StatusBar.tsx`**：isStale（24h 阈值）改用 parseTs，判定不再依赖浏览器时区；时间戳 chip hover 显示相对时间
+- **kaiyang `EconomyPanel.tsx`**：日期裁剪改本地年月日拼接（去 toISOString UTC 偏移——UTC+8 早 8 点前数据窗口少 1 天的边缘 bug）
+- **kaiyang `MarketsPanel/SpaceWatchPanel`**：时间戳 hover「更新于 X」
+- **kaiyang `SignalStreamPanel.tsx`**：`newsItemsOf` 按 date 倒序（news_export 插入序致旧闻占据首屏）
+- **kaiyang `TianshuTab.tsx`**：48 采集源按类别分组（宏观·FRED/地缘/新闻/市场/灾害/卫星/推演验证/其他），组头计数 + 组内异常状态优先 + 组级 ⚠ 标记
+
+### 修复
+
+- 开阳行情数据一天一更 → 15 分钟级（数据层 I15 + 前端 60s 轮询）
+- 时间戳「无后缀串」解析语义漂移（±8h 误判 stale）→ parseTs 确定性解析
+- 新闻面板首屏旧闻（观感停在 7-31）→ 按日期倒序
+- 控制台 48 源平铺难读 → 类别分组
+
 ## v3.8.13 — 2026-08-04 (by WorkBuddy)
 
 **修改理由**：6 异常全量修复（P0-A/B/C/D + data-freshness + P1），专家团流程四批次实施，详见
