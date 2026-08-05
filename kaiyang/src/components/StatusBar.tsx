@@ -74,6 +74,11 @@ export function StatusBar() {
   const simData = sim ?? null;
   const triggered = simData?.triggered === true;
   const warningText = warnings.map((w) => `· ${w.message}`).join('\n');
+  // P2 修复（sim-trigger-flag-missing）：与 StatusMiniPanel:27 一致——结构性缺失
+  // （market_quotes 无面板/nuclear 静态种子/news_geo 延迟/simTrigger 空文件合法静止）
+  // 不进告警计数，消除常驻伪告警
+  const KNOWN_STRUCTURAL_MISSING = new Set(['market_quotes', 'nuclear', 'news_geo', 'simTrigger']);
+  const actionableWarnings = warnings.filter((w) => !KNOWN_STRUCTURAL_MISSING.has(w.feed));
   const schemaText = Object.entries(dataVersions)
     .map(([k, v]) => `${k}:${v ?? '缺失'}`)
     .join('  ');
@@ -134,9 +139,9 @@ export function StatusBar() {
       ) : (
         <span className="chip border-emerald-400/40 text-emerald-300">推演未触发</span>
       )}
-      {warnings.length > 0 ? (
+      {actionableWarnings.length > 0 ? (
         <span className="chip border-amber-400/50 text-amber-300" title={warningText}>
-          ⚠ 缺失告警 {warnings.length}
+          ⚠ 缺失告警 {actionableWarnings.length}
         </span>
       ) : (
         <span className="chip border-emerald-400/40 text-emerald-300">数据完整</span>
