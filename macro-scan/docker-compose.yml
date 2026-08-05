@@ -52,6 +52,7 @@ services:
     volumes:
       - /vol2/1000/software/kaiyang/dist:/usr/share/nginx/html:ro
       - /vol2/1000/software/macro-scan/data:/usr/share/nginx/html/data:ro
+      - /vol2/1000/software/kaiyang/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - macro-scan
     logging:

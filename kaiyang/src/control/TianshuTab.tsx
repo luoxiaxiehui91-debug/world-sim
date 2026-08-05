@@ -46,6 +46,17 @@ export function TianshuTab() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // 过滤后的列表
+  // 分类折叠状态（默认全部展开；点击组头切换）
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = useCallback((key: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
   const filtered = useMemo(
     () => (fetchers ? filterFetchers(fetchers, searchQuery) : []),
     [fetchers, searchQuery],
@@ -254,7 +265,25 @@ export function TianshuTab() {
       {/* Fetcher 卡片列表（按类别分组） */}
       {grouped.map((g) => (
         <div key={g.key} className="flex flex-col gap-1.5">
-          <div className="mt-1 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => toggleGroup(g.key)}
+            className="mt-1 flex w-full cursor-pointer items-center gap-2 text-left"
+            title={collapsedGroups.has(g.key) ? '展开' + g.label : '折叠' + g.label}
+          >
+            <svg
+              className={`h-2.5 w-2.5 shrink-0 transition-transform duration-150 ${
+                collapsedGroups.has(g.key) ? '-rotate-90' : ''
+              }`}
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6 4l4 4-4 4" />
+            </svg>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan-300/70">
               {g.label}
             </span>
@@ -264,8 +293,9 @@ export function TianshuTab() {
             {g.items.some((f) => f.last_status !== 'success') && (
               <span className="text-[9px] text-amber-300/80">⚠ 异常</span>
             )}
-            <div className="h-px flex-1 bg-white/5" />
-          </div>
+              <div className="h-px flex-1 bg-white/5" />
+          </button>
+          {!collapsedGroups.has(g.key) && (
           <div className="flex flex-col gap-2">
             {g.items.map((fetcher) => (
               <FetcherCard
@@ -275,8 +305,9 @@ export function TianshuTab() {
                 onToggleSelect={() => toggleSelect(fetcher.id)}
                 onRefresh={refresh}
               />
-            ))}
+              ))}
           </div>
+          )}
         </div>
       ))}
 
