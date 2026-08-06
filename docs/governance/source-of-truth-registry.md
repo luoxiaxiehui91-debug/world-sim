@@ -1,7 +1,7 @@
 # 真源注册表（Source of Truth Registry）— world-sim
 
 > 文档类别：实录（RECORD）· 注册表（本表每条可验证，非意图声明）
-> 状态：已实施（2026-08-06 14:42 CST，全部验证命令已 SSH 实测跑通）
+> 状态：已实施 v1.1（2026-08-06 14:48 CST；初版 14:42 8/8 实测跑通；v1.1 纳入 C 表补充命令 C2b/C7 至 §2.2-2b/7b，10/10 实测跑通）
 > 依据：四方向治理论证（docs/governance/四方向治理论证.md）· 方向 A「单一真源 + 记忆降级」P0
 > 联动：方向 C Confirmation 验证命令（本表即 C 的验证清单，QA 抽测反作弊）；方向 D 部署通道（docs/governance/deploy-channels.md）；方向 B 文档分治（docs/governance/document-governance.md）；记忆降级（docs/governance/memory-demotion.md）
 > 验证通道：**仅 SSH + docker exec（禁 SMB 读/写参与仲裁，案例 8）**；命令全部从真源可执行，期望值独立于实现。
@@ -34,6 +34,8 @@
 | 6 | tianji_trigger.json（processed 状态） | 数据文件（天枢写 / 天玑消费，同 inode） | `/vol2/1000/software/macro-scan/data/tianji_trigger.json`（天玑 `/app/macro_data`） | jq + stat（§2.2-6） | `processed`=true；`last_result.exit`=0；`date`=当日；inode 双端一致 | schema v1（2026-08-06 修复 6ba35ab） | arch-governance | 2026-08-06 14:42 实测 true / 0 / date=2026-08-06 / inode 3241454 双端一致 ✅ |
 | 7 | FCI 产物（fci_latest.json / fci_daily.csv） | 天枢数据 | `/vol2/1000/software/macro-scan/data/fci_latest.json`、`fci_daily.csv` | stat + jq（§2.2-7） | fci_daily.csv >100KB 且 mtime=当日；fci_latest.json `schema_version`=fci-1.1、`sanity_vs_nfci.status`=PASS、`as_of`=当日 | schema fci-1.1 | arch-governance | 2026-08-06 14:42 实测 109334B / 08-06 05:35 / fci-1.1 / PASS ✅ |
 | 8 | 开阳 dist（index.html / data） | 开阳运行区 | `/vol2/1000/software/kaiyang/dist/` | ls（§2.2-8） | index.html 存在；assets/ 存在；data/ mtime 近期 | — | devops-governance | 2026-08-06 14:42 实测 index.html 846B（08-05 15:22）、assets/（08-05 15:22）、data/（08-06 11:12）✅ |
+| 9 | 内层 macro-scan deploy.sh（rsync 标志，C2b 补充） | 天枢运行区（≡ 仓库 md5 一致，2026-08-06 实测 e997344b...） | `/vol2/1000/software/macro-scan/deploy.sh` | grep 实际调用行（§2.2-2b） | 实际调用仅 L28 `rsync -a`，**无 --delete**（L26 注释提及 --delete 是历史说明，非标志） | 口径 v1（P0-A 修复 2026-08-03） | devops-governance | 2026-08-06 14:47 实测 L28 `rsync -a`，无 --delete ✅ |
+| 10 | scheduler_state.json（调度器存活新鲜度，C7 补充） | 天枢数据 | `/vol2/1000/software/macro-scan/data/scheduler_state.json`（容器 `/workspace/data`） | docker exec python3（§2.2-7b） | `updated`=当日；`heartbeat` 年龄 <300s（调度器存活） | P0-D 契约（DATA_DIR 单点 + 真实健康探测） | devops-governance | 2026-08-06 14:47 实测 updated=2026-08-06T14:47:43 heartbeat_age=33s ✅ |
 
 ---
 
@@ -72,6 +74,18 @@ ssh nas 'grep -c "rsync.*--delete" /vol2/1000/software/world-sim/deploy.sh; grep
 
 - 实测输出：`0` / `2` ✅（deploy_scan L13、deploy_sim L34 均为 `rsync -av`，无 `--delete`）
 - 期望：`--delete` 计数 0；`rsync -av` 计数 2。口径 v1（案例7：CHANGELOG v3.8.13 声称已移除 --delete，commit 18d3962 实修）。
+- **陷阱提示（QA 实证，C 表 §3.6）**：本命令只覆盖 monorepo 根 `world-sim/deploy.sh`。若对**内层** `/vol2/1000/software/macro-scan/deploy.sh` 跑 naive `grep 'rsync.*--delete'` 会**误报 1 命中**——因为 `--delete` 出现在注释 L26（历史说明"已移除 rsync --delete"），不是调用标志。内层文件的正确检查见 §2.2-2b（只匹配实际调用行）。命令文本未改动，C2 哈希 `16a32111c44c` 保持有效。
+
+### 2.2-2b 内层 macro-scan deploy.sh rsync 标志（C2b 补充命令，命令全文与哈希 C2b 绑定）
+
+```bash
+grep -nE '"rsync -a[^"#]*' /vol2/1000/software/macro-scan/deploy.sh
+```
+
+- 实测输出：`28:  ssh "$NAS_HOST" "rsync -a \`（仅 L28 实际调用，无 `--delete`；L26 为注释）✅
+- 期望：实际调用仅 L28 `rsync -a`，无 `--delete`。口径 v1（P0-A 修复 2026-08-03：曾用 --delete 抹掉未 git add 的 compute_fci.py，现为纯单向同步只增不删）。
+- 真相树：天枢运行区 `/vol2/1000/software/macro-scan/deploy.sh`（2026-08-06 实测 md5 `e997344bec497acd06fc37b5a7da8550` ≡ 仓库 `world-sim/macro-scan/deploy.sh`）。
+- 命令哈希：`3198ac18a306`（= C 表 C2b，命令全文唯一真源在本表；C 表引用不重写）。
 
 ### 2.2-3 grv_latest.json（jq，期望独立于实现）
 
@@ -128,6 +142,17 @@ ssh nas 'stat -c "%y %s %n" /vol2/1000/software/macro-scan/data/fci_daily.csv /v
 - 实测输出：`2026-08-06 05:35:19 ... 109334 fci_daily.csv`；`2026-08-06 05:35:19 ... 2782 fci_latest.json`；`fci-1.1 / PASS` ✅
 - 期望：fci_daily.csv >100KB 且 mtime=当日（>24h 视为 FCI 冻结，案例1 复发信号）；fci_latest.json `schema_version`=fci-1.1、`sanity_vs_nfci.status`=PASS、`as_of`=当日。口径 v1（schema fci-1.1）。
 
+### 2.2-7b scheduler_state.json 调度器存活新鲜度（C7 补充命令，命令全文与哈希 C7 绑定）
+
+```bash
+docker exec macro-scan-macro-scan-1 python3 -c "import json,time; d=json.load(open('/workspace/data/scheduler_state.json')); print('updated=%s heartbeat_age_s=%.0f'%(d['updated'],time.time()-d['heartbeat']))"
+```
+
+- 实测输出：`updated=2026-08-06T14:47:43 heartbeat_age_s=33` ✅（<300s，调度器存活）
+- 期望：`updated`=当日；`heartbeat` 年龄 <300s。口径 v1（P0-D 契约：DATA_DIR 单点 + 真实健康探测）。
+- **advisory（QA 实证）**：调度器重启清空 in-memory `_last_run_ts`，job 级 `last_run_ts=None` 属正常（本次 tianji_trigger/grv_update 均 None，因 14:31 重启后未到触发槽）。**本命令只断言调度器存活（updated/heartbeat），不断言单 job 记录**；后续建议把 last_run 落盘持久化，否则无法区分「从未运行」与「重启过」。
+- 命令哈希：`b661deed46e1`（= C 表 C7，命令全文唯一真源在本表；C 表引用不重写）。
+
 ### 2.2-8 开阳 dist（运行区静态产物）
 
 ```bash
@@ -172,8 +197,8 @@ ssh nas 'ls -la /vol2/1000/software/kaiyang/dist/; ls -la /vol2/1000/software/ka
 ## 5. 使用说明
 
 1. **变更后必跑（diff 触发）**：任何真源对象变更（部署、代码改、数据写入）→ 立即跑 §2.2 对应命令，实测 = 期望才允许合入/宣告完成；不一致先按 §3 仲裁，产出「文档过期」或「部署漂移」事件，禁止静默。
-2. **每周巡检（全量）**：每周一全量跑 §2.2 全部 8 条命令；任一失败即 T2 级 stale 标记 + 转缺陷单。
-3. **验证结果记录位置**：本次实测结果已记入本表「上次验证」列（2026-08-06 14:42，8/8 ✅）。后续巡检结果记入 `docs/governance/verification-log.md`（新增，append-only，格式：日期｜对象｜命令｜实测｜判定），或复用现有 operations 流水；记录必须附 as-of 时间戳。
+2. **每周巡检（全量）**：每周一全量跑 §2.2 全部 10 条命令（§2.2-1..8 + 2b + 7b）；任一失败即 T2 级 stale 标记 + 转缺陷单。
+3. **验证结果记录位置**：本次实测结果已记入本表「上次验证」列（2026-08-06 14:42 8/8、14:47 补 C2b/C7 达 10/10 ✅）。后续巡检结果记入 `docs/governance/verification-log.md`（新增，append-only，格式：日期｜对象｜命令｜实测｜判定），或复用现有 operations 流水；记录必须附 as-of 时间戳。
 4. **反作弊**：命令必须从真源可执行、可复制实跑；禁伪命令（2026-08-06 已现虚构 weight_health job 先例）；注册表纳入版本库，QA（qa-governance）随机抽测审计命令真实性；命令与对象版本绑定（口径版本变更 → 命令同步更新，禁静默失败）。
 5. **维护权**：注册表维护 = devops-governance；口径版本变更 = arch-governance 评审；抽测 = qa-governance。
 
@@ -184,3 +209,4 @@ ssh nas 'ls -la /vol2/1000/software/kaiyang/dist/; ls -la /vol2/1000/software/ka
 | 日期 | 变更内容 | 原因 |
 |------|----------|------|
 | 2026-08-06 | 初版：真源注册表（8 真源）+ 仲裁优先级表（8 行）+ 记忆降级速查 + 使用说明；8 条验证命令全部 SSH 实测跑通 | 方向 A P0 落地（四方向治理论证 · 单一真源） |
+| 2026-08-06 | v1.1：纳入 C 表补充命令 C2b/C7 至 §2.2-2b/7b（核心表 +2 真源行）；§2.2-2 补内层 deploy.sh 注释假阳性陷阱说明；命令哈希与 C 表绑定（3198ac18a306 / b661deed46e1） | 方向 C 联动对齐（QA 反馈：A 未覆盖两条命令 + naive grep 假阳性） |
