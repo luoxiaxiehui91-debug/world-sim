@@ -13,8 +13,8 @@
 | macro-ji（天玑）| v1.0.0 | ✅ **独立容器 macro-scan-tianji-1 运行中（healthy）**（2026-08-04 P0-B/C 修复，T2 触发文件驱动）|
 | kaiyang（开阳）| v1.9.0 | ✅ **已部署 NAS，:8080 可访问**（market_quotes I15 + 60s 轮询；nginx no-cache 缓存策略）|
 
-- Git 分支：`main`，最新 commit：`3c00420`（流程补漏：VERSION bump + kaiyang CHANGELOG 1.9.0 + 测试修复）
-- 今日 08-05 变更：market_quotes I15 + 前端轮询（ccbda94）→ 时区确定性 parseTs（dbdbd48）→ 控制台分组/折叠 + 新闻排序（a20738e/60b0882）→ 信号流点击展开（d1a1b39）→ nginx 缓存 + 白名单（fc411a3）→ 时间审计 6 问题三批次（902c439/1b36800/2a3370c）→ 流程补漏（3c00420）
+- Git 分支：`main`，最新 commit：`84c5cad`（docs: 文档对齐现役状态——HANDOVER 08-05 节 + AGENTS 四容器/版本 + ROADMAP 天玑上线 + DATA_CONTRACT 容错说明）
+- 今日 08-05 变更：market_quotes I15 + 前端轮询（ccbda94）→ 时区确定性 parseTs（dbdbd48）→ 控制台分组/折叠 + 新闻排序（a20738e/60b0882）→ 信号流点击展开（d1a1b39）→ nginx 缓存 + 白名单（fc411a3）→ 时间审计 6 问题三批次（902c439/1b36800/2a3370c）→ 流程补漏（3c00420）→ 文档对齐现役状态（84c5cad）
 - 时间审计 6 问题（manifest 孤儿 / news 假时刻 / FCI 闸 / sim_trigger 字段 / news_geo 契约 / freshness 语义）已全流程闭环，详见 docs/operations/20260805-world-deduction-time-audit-fixed.md
 - 遗留：① news_geo 图层空渲染（P3-A spaCy NER 未落地 + GDELT events 未进 news_geo.json，架构工作另行规划）② FRED 上游源停更（DCOILWTICO 卡 07-27，fresh=False 已暴露 + ntfy 告警）③ kaiyang/public 静态 manifest 06-28 待同步
 
@@ -121,7 +121,8 @@ P0 已完成：scp dist/ 并重启 nginx，:8080 返回 200，D3 地图正常。
 
 ## NAS 专属操作清单（下次连上局域网时执行）
 
-> 完整可执行提示词（含每步验证命令和停止条件）：**[`docs/nas-deploy-prompt.md`](docs/nas-deploy-prompt.md)**  
+> 完整可执行提示词（含每步验证命令和停止条件）：**[`docs/archive/nas-deploy-prompt-v3.8.6.md`](docs/archive/nas-deploy-prompt-v3.8.6.md)**  
+> ⚠️ 该清单为历史部署流程（对应 archive v3.8.6 提示词），现役容器/版本以「当前状态 2026-08-05」节为准，仅供参考。
 > SSH 地址：`TSX@192.168.31.108`  
 > 执行顺序：本地 kaiyang build → NAS 预检 → macro-scan 重建 → macro-sim 重建 → kaiyang scp
 
@@ -135,6 +136,16 @@ P0 已完成：scp dist/ 并重启 nginx，:8080 返回 200，D3 地图正常。
 | 3 | macro-scan `docker build -t macro-scan:v3.8.6 . && docker compose up -d --force-recreate` | 重建镜像使 entrypoint.sh 生效 |
 | 4 | macro-sim `bash deploy.sh macro-sim` + `docker compose up -d --force-recreate` | D1/D4/D7/D12 修复生效 |
 | 5 | kaiyang `scp dist/ + docker restart kaiyang-nginx-1` | D3 地图 v1.8.0，无水平伪线 |
+| 6 | macro-ji（天玑）容器 `macro-scan-tianji-1` 启动 | 独立容器，healthy；与天璇共享 `/app/macro_data`（forecast_tracker.db 同一 DB） |
+
+**基础设施依赖（现役，天枢运行时必需）**：
+| 服务 | 端口 | 用途 |
+|---|---|---|
+| RSSHub | :12000 | 新闻源聚合 |
+| ntfy | :2586 | 手机推送 |
+| mihomo | :7890 | 代理（FRED/GDELT 等外源抓取） |
+
+**数据挂载**：天枢 `/workspace/data`；天璇/天玑 `/app/macro_data` ← 宿主 `/vol2/1000/software/macro-scan/data`（两容器共享同一 DB）
 
 
 
@@ -163,9 +174,9 @@ P0 已完成：scp dist/ 并重启 nginx，:8080 返回 200，D3 地图正常。
 
 ```
 macro-scan（天枢）→ 落盘 data/*.json
-    ├── scheduler.py — 46个调度任务，每60s落盘state，读pause标志
+    ├── scheduler.py — 49个调度任务，每60s落盘state，读pause标志
     │   └── startup_checks.run_all_checks() — 启动时校验
-    ├── geo_risk_vector.py — 产出 grv_latest.json（13维 GRV）
+    ├── geo_risk_vector.py — 产出 grv_latest.json（16+1维 GRV，含 global_composite 汇总）
     │   └── social_stress/cultural_friction 从 gdelt_scores 聚合透传
     ├── slow_variables.py — IRP/UCRI/GCI（月频，权重从grv_weights.yaml读取）
     ├── control_server.py — 控制 API :8900（A3a）
@@ -173,13 +184,13 @@ macro-scan（天枢）→ 落盘 data/*.json
 
 macro-sim（天璇）→ 轮询 /app/macro_data/sim_trigger.json
     └── core/simulation.py — D1 fix: per-agent delta 传导
-    └── core/world_state.py — D4/D7 fix: 13维GRV + 4变量衰减
+    └── core/world_state.py — D4/D7 fix: 16+1维GRV + 4变量衰减
 
 kaiyang（开阳）→ nginx :8080，控制面板连接 :8900
     └── MOCK_ENABLED=false（v1.8.0，D3 geoNaturalEarth1 地图，无水平伪线）
 
-天玑（规划中）→ 月度验证层
-    └── brier_calc.py — Brier/BSS/锐度计算已备好
+天玑（运行中）→ 月度验证层（macro-ji v1.0.0，独立容器 macro-scan-tianji-1，healthy）
+    └── brier_calc.py — Brier/BSS/锐度计算已接线（predictions 1 条，Brier 0.4225）
 ```
 
 ---

@@ -12,7 +12,8 @@
 world-sim/
 ├── macro-scan/              宏观信号观测系统（天枢）
 ├── macro-sim/               宏观演化仿真系统（天璇）
-├── kaiyang/                 可视化操作面板（开阳）v1.7.1
+├── kaiyang/                 可视化操作面板（开阳）v1.9.0
+├── macro-ji/                天玑（验证层）macro-ji v1.0.0（独立容器）
 ├── docs/
 │   ├── overview.md          系统总览（功能/架构/运维一页通）
 │   └── tianji-design.md     天玑（验证层）设计文档 v0.2
@@ -27,17 +28,26 @@ world-sim/
 ### macro-scan — 宏观信号观测系统
 - 功能：实时抓取宏观经济指标、新闻、地缘风险信号，进行综合评估和报告生成
 - NAS 运行路径：`/vol2/1000/software/macro-scan`
+- 版本：v3.8.15（镜像 macro-scan:v7）
 - 详见 [macro-scan/README.md](macro-scan/README.md)
 
 ### macro-sim — 宏观演化仿真系统
 - 功能：基于当前宏观状态进行多智能体仿真，压力测试宏观假设路径
 - NAS 运行路径：`/vol2/1000/software/macro-sim`
+- 版本：v2.0.23
 - 详见 [macro-sim/README.md](macro-sim/README.md)
 
 ### kaiyang — 可视化操作面板（开阳）
-- 功能：只读展示天枢产出数据，3D地球 + 经济面板 + 控制抽屉（MOCK_ENABLED=true）
+- 功能：只读展示天枢产出数据，3D地球 + 经济面板 + 控制抽屉（MOCK_ENABLED=false，A3a 控制 API 已接入，HTTP REST :8900）
 - NAS 访问：`http://192.168.31.108:8080`
+- 版本：v1.9.0
 - 详见 [kaiyang/README.md](kaiyang/README.md)
+
+### macro-ji — 天玑（验证层）
+- 功能：对天枢/天璇产出的预测做事后验证与校准（narrative_chunks / predictions / forecasts）
+- NAS 运行路径：`/vol2/1000/software/macro-ji`
+- 版本：macro-ji v1.0.0，独立容器 `macro-scan-tianji-1`（healthy，08-04 22:37 上线，代码 ≡ 仓库）
+- 与天璇共享 `forecast_tracker.db`（两容器共用同一数据目录）
 
 ## 部署
 

@@ -56,6 +56,8 @@ mv /workspace/data/control/in/abc.tmp /workspace/data/control/in/abc.json
 
 ## 2. 命令格式（Command Envelope）
 
+> **⚑ 未采纳标注（2026-08-06）**：本节及 §3-§6 的命令信封 / 响应格式 / 状态枚举 / 幂等规则均属于**文件投递协议（未采纳、未实现）**，**现役协议 = HTTP REST（见 §0）**。本节内容仅作历史设计参考，**勿按此对接**。若需命令语义对照，见 §0 REST 端点清单与天枢 `control_server.py` docstring。
+
 ```jsonc
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",   // UUID v4，唯一标识，响应文件以此命名
@@ -322,4 +324,4 @@ oni, fao_food, giss_temp, sipri
 
 ---
 
-*文档版本：v1.0 · 2026-08-01*
+*文档版本：v1.0 · 2026-08-06（§0 HTTP REST 为现役协议；§1-§6 文件投递协议未采纳，保留作历史参考）*

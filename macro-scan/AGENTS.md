@@ -4,8 +4,11 @@
 
 世界推演系统观测层（天枢）：全球宏观情报自动采集 + LLM分析推演 + 地缘风险向量引擎，运行在 NAS Docker 容器中。
 
-**当前版本**：v3.8.12（2026-08-04）
-**主要变更**：ntfy_utils.py 拆分（push_markdown）；中国三大股市指数接入；GED v26.1 接入 russia_europe/middle_east_energy；GDELT P95 动态计算；spaCy zh_core_web_sm NER；news_geo_feed.py（07:15）；scheduler news_geo_feed 注册  
+**当前版本**：v3.8.15（2026-08-05）
+**主要变更**：
+- v3.8.15（08-05）：开阳全链路时间审计 6 修复（FRED manifest 孤儿复活 / news 假时刻 / FCI 拉取闸 / sim_trigger `triggered` 字段 / news_geo `updated` 契约 / freshness `fresh`+`lag_days` 语义）
+- v3.8.14（08-05）：`market_quotes` 0630 日频 → I15（整合导出提频，零外部请求）；kaiyang 前端 parseTs/fmtRelative 时区语义修复
+- v3.8.13（08-04）：**天玑三内核（tianji_db/tianji_verifier/weight_matrix）迁出 macro-ji 独立容器**（macro-scan-tianji-1，镜像 macro-tianji:latest）；`control_server.py` :8900 上线（A3a HTTP REST）；`fred_freshness.py`/`write_tianji_trigger.py` 新建；scheduler 删 tianji_verify/weight_health job，新增 11 job（compute_fci 0535 / fred_freshness 0540 / compute_probit 0540 / tianji_trigger 0942 / firms 0908 / narrative_proc 0710 / defense_rss 0712 / news_geo_feed 0715 / slow_vars 0935 / spacetrack 0615 / market_quotes I15）；FRED 恢复至 48 CSV + manifest.json；compute_fci.py 源码重建（pycdc 反编译）
 **运维参考**：`世界推演系统_人类说明文档.md`  
 **变更日志**：`TuiYan_CHANGELOG.md`（改前必读，改后必追加）
 
@@ -18,7 +21,8 @@
 | `世界推演系统_人类说明文档.md` | 使用与维护手册 | 需要了解操作流程时 |
 | `docs/FILE_MANIFEST.md` | 各 py 文件职责 + 挂载路径 + 修改影响 | 不确定改哪个文件时 |
 | `docs/采集频率矩阵.md` | 逐源频率决策矩阵（安全水位50%、tier定义） | 涉及调度频率调整时 |
-| `docs/a3a_system_design.md` | A3a 控制 API 系统设计（文件投递方案备选） | 涉及控制API改动时 |
+| `docs/archive/a3a_control_api_design.md` | A3a 控制 API 协议（**现役 HTTP REST :8900**，v0.2：契约/白名单/健康探测） | 涉及控制API改动时 |
+| `docs/a3a_system_design.md` | A3a 系统设计（❌ 未采纳：文件投递替代 HTTP，未实施，仅历史参考） | 参考历史决策时 |
 | `docs/archive/知识库扩展方案.md` | 知识库扩展方案（v1+v2合并版，已实施完成）| 涉及知识库改动时（历史参考）|
 | `docs/archive/社会信号扩展方案.md` | 信号扩展设计（R07/R09/R10，已实施完成）| 涉及弱信号/规则改动时（历史参考）|
 | `docs/archive/假设推演功能设计方案.md` | 假设推演完整设计（H0-H12工作流，已实施完成）| 涉及假设推演改动时（历史参考）|
@@ -186,7 +190,8 @@ pre-commit install   # 在源码区 S:\world-sim\macro-scan\ 执行一次即可
 
 | 服务 | 地址 | 说明 |
 |:-----|:-----|:-----|
-| macro-scan 主容器 | :8899 (Web UI) | Python 3.11-slim；镜像 macro-scan:v7 |
+| macro-scan 主容器 | :8899 (Web UI) / :8900 (Control API) | Python 3.11-slim；镜像 macro-scan:v7；:8900 由 `control_server.py` 提供（A3a HTTP REST，白名单限 fetcher 名防路径遍历） |
+| tianji（macro-ji） | 无端口 | 天玑独立容器 `macro-scan-tianji-1`（镜像 macro-tianji:latest）；tianji_db/tianji_verifier/weight_matrix 已迁出；触发机制 = T2 共享触发文件（scheduler 写 trigger → watchdog 轮询） |
 | mihomo | :7890/:9090 | 出站代理，**仅 FRED 使用**；ntfy/akshare 强制直连 |
 | crucix | :3117 | 英文地缘新闻+多源情报（FIRMS/EIA/GDELT等30源）|
 | rsshub | :12000 | 中文财经 RSS（财新/第一财经/华尔街见闻/东方财富研报）|
@@ -239,7 +244,7 @@ macro-scan 是写入方，macro-sim 是只读消费方。容器内挂载路径�
 
 由 `核心代码/geo_risk_vector.py` 每日 06:10 写入（原子写，先写 `.tmp` 再 `os.replace`）。
 
-⚠️ **v3.6.4 起新增 sanctions_risk / seismic_risk / energy_grid_risk 字段（v3.6.5 全部验证产出）。GRV 现为完整 11 维向量。**
+⚠️ **v3.6.4 起新增 sanctions_risk / seismic_risk / energy_grid_risk，v3.7.0 起 social_stress / cultural_friction，v3.8.x 起 4 个 GDELT 国别推导维度（south_china_sea / korean_peninsula / india_pacific / global_south）。GRV 现为 16 风险维度 + 1 汇总（global_composite）。**
 
 ```json
 {
@@ -266,8 +271,10 @@ macro-scan 是写入方，macro-sim 是只读消费方。容器内挂载路径�
 | 字段 | 类型 | 说明 |
 |:-----|:-----|:-----|
 | `_schema_version` | string | 接口版本号，当前 `"1.0"`。macro-sim 启动时校验此字段，不一致则拒绝启动 |
-| `taiwan_strait` / `us_china_strategic` / `russia_europe` / `middle_east_energy` / `global_composite` | float 0–100 | GRV 五维度，必须字段，null 表示数据源暂缺 |
-| `climate_risk` / `disaster_risk` / `sanctions_risk` / `seismic_risk` / `energy_grid_risk` / `japan_monetary` | float 0–100 \| null | 可选扩展维度。`sanctions_risk`=OpenSanctions 国别暴露聚合；`seismic_risk`=USGS 地震压力；`energy_grid_risk`=UK Carbon Intensity；`japan_monetary`=USD/JPY×0.5+JGB 3M收益率变速×0.5 |
+| `taiwan_strait` / `us_china_strategic` / `russia_europe` / `middle_east_energy` | float 0–100 | GRV 基础四维度，必须字段，null 表示数据源暂缺 |
+| `global_composite` | float 0–100 | **汇总维度**（GPR×0.85 + japan_monetary×0.15），macro-sim 主读字段 |
+| `climate_risk` / `disaster_risk` / `sanctions_risk` / `seismic_risk` / `energy_grid_risk` / `japan_monetary` / `social_stress` / `cultural_friction` | float 0–100 \| null | 扩展维度。`sanctions_risk`=OpenSanctions 国别暴露聚合；`seismic_risk`=USGS 地震压力；`energy_grid_risk`=commodity_yahoo 能源价（NG2-8 / Brent/WTI 50-110）优先，降级 UK Carbon Intensity；`japan_monetary`=USD/JPY×0.5+JGB 3M收益率变速×0.5；`social_stress`/`cultural_friction`=gdelt_scores 聚合（公式见 `config/causal_assumptions.md`）|
+| `south_china_sea` / `korean_peninsula` / `india_pacific` / `global_south` | float 0–100 \| null | 推导维度（无 GPR 数据源，GDELT 国别分数加权聚合，置信度有限）|
 | `updated` | ISO 8601 字符串 | 本次计算时间戳 |
 | `source_quality` | `"gdelt+gpr"` \| `"gdelt_only"` \| `"gpr_only"` \| `"stub"` | 数据来源质量标记 |
 

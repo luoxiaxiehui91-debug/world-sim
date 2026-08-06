@@ -9,7 +9,7 @@
 **定位**：macro-scan（天枢）发现信号 → macro-sim（天璇）演化未来（不是推理，是演化）
 
 **当前版本**：v2.0.23（2026-08-04）  
-**主要变更**：D1/D4/D7/D12 P0 bug 修复；GRV 13维全部接入 MacroWorldState；B+A/NOVEL Sprint-1：SovereignAgent 基类+Board+EnergyGovSovereignAgent（A4）；Sprint-2：A2/A3/A6 soul 文件预位激活；慢变量 irp/ucri/gci 注入 MacroWorldState；D6 校准缓存（<7天跳过50步）；天玑 V1 run_scoring() 接线
+**主要变更**：D1/D4/D7/D12 P0 bug 修复；GRV 16+1维全部接入 MacroWorldState；B+A/NOVEL Sprint-1：SovereignAgent 基类+Board+EnergyGovSovereignAgent（A4）；Sprint-2：A2/A3/A6 soul 文件预位激活；慢变量 irp/ucri/gci 注入 MacroWorldState；D6 校准缓存（<7天跳过50步）；天玑迁出为独立容器 macro-ji v1.0.0（T2 watchdog 接管验证链路）；删除 run_scoring()/_TIANJI_DDL；sim_log.db 修复为文件
 
 ---
 
@@ -91,8 +91,18 @@ python run.py --predict-only --level 2 --event "测试"
 ## 修改工作流
 
 ```bash
-# macro-sim 是 COPY 模式，改代码后需重建镜像，用 deploy.sh 部署
-# 在 world-sim monorepo 根目录执行：
+# macro-sim 是 COPY 模式，改代码后需重建镜像。deploy.sh 依赖 SSH 密码，现已失效，
+# 需在 NAS 上手动重建（下面"手动 docker build"流程）：
+# 1. 本机 rsync 同步代码到 NAS（或用 S:\ 映射直接改 NAS 文件）
+#    rsync -av --exclude='.git' --exclude='output/' --exclude='sim_log.db' \
+#          --exclude='__pycache__/' --exclude='*.pyc' macro-sim/ \
+#          TSX@192.168.31.108:/vol2/1000/software/macro-sim/
+# 2. SSH 登录 NAS 后重建容器（macro-sim 为 COPY 模式镜像，必须重新 docker build）：
+#    ssh nas
+#    cd /vol2/1000/software/macro-sim
+#    docker build -t macro-sim:latest .
+#    docker compose up -d --force-recreate
+# 3. 若 deploy.sh 的 SSH 通道恢复（密码更新），仍可一键执行：
 bash /s/world-sim/deploy.sh macro-sim
 
 # push 到 GitHub（在 S:\world-sim\ 执行）
@@ -106,9 +116,9 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 ## 维护铁律
 
 1. 改动后必须 bump `VERSION` + 追加 `CHANGELOG.md`
-2. `config/agents.yaml` 通过 `COPY` 打包进镜像，**修改后需重新部署**（`bash deploy.sh macro-sim`）
+2. `config/agents.yaml` 通过 `COPY` 打包进镜像，**修改后需重新部署**（NAS 手动 docker build，见"修改工作流"）
 3. FRED 数据读取后需 ×100 转 bp（T10Y2Y / BAA10Y）
-4. 校准期误差计算权重：GRV×0.4 + credit_spread×0.3 + t10y2y×0.2 + dff×0.1（测试后可调整）
+4. 校准期误差计算权重（v2.0.20 起为**内生变量**权重）：market_sentiment×0.35 + bank_credit_tightening×0.30 + liquidity_premium×0.20 + em_capital_outflow×0.15（旧外生权重 grv×0.4+credit_spread×0.3+t10y2y×0.2+dff×0.1 已废弃）
 5. 路径概率 <5% 的路径不展开推演
 
 ### 改代码后必须同步的文档
@@ -138,7 +148,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 | `output/` | `/app/output` | 仿真输出，volume mount |
 | `sim_log.db` | `/app/sim_log.db` | 预测记录，volume mount |
 | `config/agents.yaml` | `/app/config/agents.yaml` | Agent 配置 |
-| macro-scan `data/` | `/app/macro_data:ro` | GRV/FRED/news，只读 |
+| macro-scan `data/` | `/app/macro_data:rw` | GRV/FRED/news，读写（v2.0.20+ 改 rw，sim_trigger 同目录挂载）|
 | macro-scan `data/sim_trigger.json` | `/app/macro_data/sim_trigger.json` | 触发文件，读写（v2.0.14 改目录挂载，解决 inode 断链）|
 | macro-scan `docs/仿真报告/` | `/app/reports` | 报告输出，读写 |
 
@@ -160,7 +170,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 **macro-scan → macro-sim 数据文件：**
 
 - `grv_history.jsonl`：GRV 快照序列（1985~2026-06 月频，2026-07 起日频），校准循环读取。⚠️ **读基线时应按日期范围（6个月前）查找，不应用行偏移 `lines[-N]`**
-- `grv_latest.json`：当前 GRV，需含 `_schema_version: "1.0"`。完整 13 维（v2.0.16-17 D7 fix，全部接入 MacroWorldState）：taiwan_strait / us_china_strategic / russia_europe / middle_east_energy / global_composite / climate_risk / disaster_risk / sanctions_risk / seismic_risk / energy_grid_risk / japan_monetary / social_stress / cultural_friction。social_stress / cultural_friction 由 geo_risk_vector.py 从 gdelt_scores 聚合后写入此文件
+- `grv_latest.json`：当前 GRV，需含 `_schema_version: "1.0"`。完整 16+1 维（16 个风险子维度 + 1 个合成 global_composite；D7 fix 后全部接入 MacroWorldState）：taiwan_strait / us_china_strategic / russia_europe / middle_east_energy / global_composite / climate_risk / disaster_risk / sanctions_risk / seismic_risk / energy_grid_risk / japan_monetary / social_stress / cultural_friction / global_south / india_pacific / korean_peninsula / south_china_sea。social_stress / cultural_friction 由 geo_risk_vector.py 从 gdelt_scores 聚合后写入此文件
 - `fred_history/T10Y2Y.csv` / `BAA10Y.csv` / `DFF.csv`：FRED 日度数据，单位 `%`，读取后 ×100 转 bp
 - `news_export.json`：近7天新闻，需含 `_schema_version: "1.0"`
 - `sim_trigger.json`：触发文件，格式 `{"level":3,"event":"...","triggered_at":"..."}`

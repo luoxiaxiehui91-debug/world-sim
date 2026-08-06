@@ -2,8 +2,8 @@
 
 **路径：** `docs/grv_datasource_fix.md`  
 **关联文件：** `macro-scan/config/source_dimension_map.yaml`、`macro-scan/核心代码/geo_risk_vector.py`  
-**最后更新：** 2026-08-03  
-**状态：** 待执行，优先级按 P0→P3 排序
+**最后更新：** 2026-08-06  
+**状态：** **P0 全落地 ✅（08-06 复核）**；剩余 P1（仅 BDI→sanctions_risk）+ P2/P3 未排期
 
 ---
 
@@ -176,10 +176,13 @@ energy_grid_risk = 100 - normalize_eia_inventory(current_inventory, 5year_avg=50
 
 ## 4. GDELT P95 基准校准
 
-**当前问题：**
+**✅ 已解决（v3.8.11，运行时动态化取代静态基准）：**
+> `_GDELT_P95` 已改为运行时动态计算（样本<100 fallback 硬编码），修复 D9 归一化失真（中美/台海 15 倍差距），无需再手动扩大静态基准窗口。
+
+**原问题（历史记录）：**
 `_GDELT_P95` 字典基于 211 条/7 周实测数据（2026-05-21 至 2026-07-08）。arch_review D9 指出：中美 vs 台海维度归一化后强度差距达 15 倍，说明基准严重失真。
 
-**校准步骤（P1，1天）：**
+**当时校准方案（P1，1天，已被 v3.8.11 动态化取代）：**
 ```python
 # 步骤 1：读取 gdelt_history.jsonl 全部历史数据
 import json, numpy as np
@@ -203,18 +206,18 @@ for dim in ["taiwan_strait", "us_china_strategic", "russia_europe", "middle_east
 
 ## 5. 各维度升级路线图
 
-| 维度 | 当前逻辑 | 理论升级目标 | 优先级 |
+| 维度 | 当前逻辑（08-06） | 理论升级目标 | 优先级 |
 |------|---------|------------|-------|
 | taiwan_strait | GDELT×0.4 + GPR×0.6 | 同上 + 待天玑校准权重 | P1（校准）|
 | us_china_strategic | GDELT×0.5 + GPR×0.5 | 引入 WUI 中国子指数作第三信号 | P2 |
 | russia_europe | GDELT×0.4 + GPR×0.6 + floor 35 | floor 改为 ACLED 地理扩散动态计算 | P2 |
-| middle_east_energy | 纯 GDELT | GDELT×0.35 + WTI×0.40 + Channel B 激活×0.25 | **P0** |
+| middle_east_energy | ✅ GDELT×0.45 + WTI×0.40 + Channel B 激活 | 已接入 WTI（v3.8.10，GED v26.1 多 agent 权重）| **P0 ✅** |
 | global_composite | GPR×0.85 + japan_monetary×0.15 | 引入 WUI 全球指数 | P2 |
 | climate_risk | climate_signals.json 直读 | 保持，待 D7 修复后接入天璇 | P3 |
 | disaster_risk | disaster_signals.json 直读 | + FAO 食品价格月度补充 | P2 |
-| sanctions_risk | sanctions_risk.json 直读 | + BDI 作为制裁生效量化验证 | P1 |
+| sanctions_risk | sanctions_risk.json 直读 | + BDI 作为制裁生效量化验证 | **P1（唯一待做）** |
 | seismic_risk | earthquake_risk.json 直读 | 保持，待 D7 修复后接入天璇 | P3 |
-| energy_grid_risk | UK Carbon Intensity（错误）| 替换为 commodity_yahoo 天然气 | **P0** |
+| energy_grid_risk | ✅ 天然气期货（NG）| 已替换 UK Carbon Intensity（v3.8.10）| **P0 ✅** |
 | japan_monetary | DEXJPUS×0.5 + JGB速度×0.5 | 归一化区间参照 BIS 日本银行干预历史阈值 | P2 |
 | social_stress | gdelt_scores.json 直读 | FSI×0.35 + GPR_30d×0.40 + SIR指数×0.25 | P1 |
 | cultural_friction | gdelt_scores.json 直读 | Hofstede UAI/PDI/IDV + WVS 两轴距离 | P2 |
@@ -223,35 +226,35 @@ for dim in ["taiwan_strait", "us_china_strategic", "russia_europe", "middle_east
 
 ## 6. 优先级执行清单
 
-### P0（约 1 天，立即执行）
+### P0（✅ 全落地，08-06 复核）
 
-1. **接入 fetch_fx → world_state.py**（半天）
+1. ✅ **接入 fetch_fx → world_state.py**（已修复）
    - 文件：`macro-sim/core/world_state.py`
-   - 改动：2 行，读取 fetch_fx 输出替换硬编码 ecb_rate/usd_cny
+   - 改动：2 行，读取 fetch_fx 输出替换硬编码 ecb_rate/usd_cny（D14，v2.0.18）
    - 价值：A 类欧元/人民币相关 Agent 从盲操变真实数据驱动
 
-2. **接入 commodity_yahoo → middle_east_energy**（半天）
+2. ✅ **接入 commodity_yahoo → middle_east_energy**（已落地）
    - 文件：`macro-scan/核心代码/geo_risk_vector.py`
-   - 改动：增加 WTI 信号读取 + 新合成公式
+   - 改动：增加 WTI 信号读取 + 新合成公式（v3.8.10，GED v26.1 接入，GDELT×0.45+WTI×0.40+Channel B）
    - 价值：修复方法论最严重缺陷，同时修复 A5 决策基础
 
-3. **修复 energy_grid_risk 数据源错误**（0.5 小时）
+3. ✅ **修复 energy_grid_risk 数据源错误**（已修复）
    - 文件：`macro-scan/核心代码/geo_risk_vector.py`
-   - 改动：将 UK Carbon Intensity 替换为 commodity_yahoo 天然气价格（NG）
+   - 改动：将 UK Carbon Intensity 替换为 commodity_yahoo 天然气价格（NG，v3.8.10）
    - 价值：消除最明显的数据源错误映射
 
 ### P1（约 2-3 天）
 
-4. **扩大 GDELT P95 基准窗口**（1天）
+4. ✅ **扩大 GDELT P95 基准窗口** → **已被 v3.8.11 运行时动态化取代**（见 §4）
    - 文件：`macro-scan/核心代码/geo_risk_vector.py`（`_GDELT_P95` 字典）
-   - 改动：重新计算四维 P95，改为滚动 12 月动态更新
-   - 价值：修复 D9，消除中美/台海归一化差距 15 倍的扭曲
+   - 改动：运行时动态计算，修复 D9，消除中美/台海归一化差距 15 倍的扭曲
 
-5. **接入 BDI → sanctions_risk**（1天）
+5. ⏳ **接入 BDI → sanctions_risk**（1天，**唯一剩余 P0/P1 项**）
    - 文件：`macro-scan/核心代码/geo_risk_vector.py`
    - 改动：读取 BDI 数据，计算 bdi_risk，加权 sanctions_risk
+   - 状态：数据已采集，仅需改 geo_risk_vector.py
 
-6. **完成 causal_assumptions.md**（已完成，本次写入 `macro-scan/config/`）
+6. ✅ **完成 causal_assumptions.md**（已完成，写入 `macro-scan/config/`）
 
 ### P2（约 3-5 天）
 
@@ -268,12 +271,12 @@ for dim in ["taiwan_strait", "us_china_strategic", "russia_europe", "middle_east
 
 ## 7. 修复后 GRV 向量预期质量提升
 
-| 指标 | 当前状态 | P0 修复后 | P1 修复后 | P2 修复后 |
+| 指标 | 当前状态（08-06） | P0 修复后 | P1 修复后 | P2 修复后 |
 |------|---------|---------|---------|---------| 
-| 有理论文献依据的维度数 | 0/13 | 2/13 | 5/13 | 10/13 |
-| 死重量数据源接入数 | 0/4 | 2/4（fx+commodity）| 3/4（+BDI）| 4/4（+FAO）|
-| 归一化量纲一致性 | 差（15倍差距）| 差 | 良（P95窗口扩大）| 良 |
+| 有理论文献依据的维度数 | 2/13（P0 已落地）| 2/13 | 3/13（+BDI）| 10/13 |
+| 死重量数据源接入数 | 2/4（fx+commodity，P0 已落地）| 2/4 | 3/4（+BDI）| 4/4（+FAO）|
+| 归一化量纲一致性 | 良（P95 已动态化，v3.8.11）| 良 | 良 | 良 |
 | 天璇实际消费维度数 | 5（仅地缘快变量）| 5 | 5 | 待 D7 修复 |
-| A 类 Agent 数据盲区数 | 2（汇率+油价）| 0 | 0 | 0 |
+| A 类 Agent 数据盲区数 | 0（P0 已消除）| 0 | 0 | 0 |
 
-**最高价值的单个修复：** P0 中的 commodity_yahoo → middle_east_energy 接入，同时消除方法论错误和数据浪费，工程成本约 2 小时。
+**最高价值修复已完成：** P0 中的 commodity_yahoo → middle_east_energy 接入，同时消除方法论错误和数据浪费（v3.8.10）。

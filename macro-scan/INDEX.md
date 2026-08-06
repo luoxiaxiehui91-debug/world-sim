@@ -1,6 +1,6 @@
 # 世界推演系统 INDEX
 
-> 生成时间：2026-08-04 | 版本：v3.8.12 | **只读索引，修改请更新 CHANGELOG**
+> 生成时间：2026-08-06 | 版本：v3.8.15 | **只读索引，修改请更新 CHANGELOG**
 
 ---
 
@@ -8,55 +8,68 @@
 
 | 容器 | 镜像 | 端口 | 验证命令 | 备注 |
 |:---|:---|:---|:---|:---|
-| macro-scan-macro-scan-1 | macro-scan:v7 | 8899 (Web UI) | `docker ps --filter name=macro-scan --format '{{.Image}} {{.Status}}'` | 主容器，代码热挂载 S:盘 |
+| macro-scan-macro-scan-1 | macro-scan:v7 | 8899 (Web UI) / 8900 (Control API) | `docker ps --filter name=macro-scan --format '{{.Image}} {{.Status}}'` | 主容器，代码热挂载 S:盘；:8900 = control_server.py（A3a HTTP REST） |
+| macro-scan-tianji-1 | macro-tianji:latest | 无端口 | `docker ps --filter name=tianji --format '{{.Image}} {{.Status}}'` | 天玑独立容器（v3.8.13 起）：tianji_db/tianji_verifier/weight_matrix 已迁出；触发 = T2 共享触发文件 |
 
 ---
 
 ## 定时任务（scheduler.py）
 
-> 来源：`scheduler.py` JOBS 列表。所有时间 = 北京时间 (Asia/Shanghai)。
+> 来源：`scheduler.py` JOBS 列表（共 50 条，唯一任务名 47，weak_signal×4）。所有时间 = 北京时间 (Asia/Shanghai)。
+> 档位说明：**I15/I30 = 事件档**（每 15/30 分钟触发，非每日定点）；其余为定点时间（HH:MM）。v3.8.13 起新增 11 job，`tianji_trigger`/`fao`/`china_meso`/`verify`/`kb_update`/`climate`/`verify_auto`/`slow_vars`/`news_prune` 为每月 1 日。
 
 | 任务 | 时间 | 频率 | 命令 | 状态 |
 |:---|:---|:---|:---|:---|
-| disaster | 05:25 | 每日 | `fetch_disaster_signals.py` | ✅ |
+| disaster | I30 | 事件档·每30分 | `fetch_disaster_signals.py` | ✅ |
 | fred_fetch | 05:30 | 每日 | `fetch_fred_history.py` | ✅ |
+| compute_fci | 05:35 | 每日 | `compute_fci.py` | ✅ |
+| fred_freshness | 05:40 | 每日 | `fred_freshness.py` | ✅ |
+| compute_probit | 05:40 | 每日 | `compute_probit.py` | ✅ |
+| tianji_trigger | 09:42 | 每月1日 | `write_tianji_trigger.py` | ✅ |
 | gpr_fetch | 05:40 | 每日 | `fetch_gpr.py` | ✅ |
 | china_fetch | 05:45 | 每日 | `fetch_china_data.py` | ✅ |
+| world_macro | 05:50 | 每日 | `fetch_world_macro.py` | ✅ |
+| fx_fetch | 05:55 | 每日 | `fetch_fx.py` | ✅ |
+| crypto | I15 | 事件档·每15分 | `fetch_crypto.py` | ✅ |
 | weak_signal | 00:00 | 每日 | `scan_weak_signals.py` | ✅ |
 | weak_signal | 06:00 | 每日 | `scan_weak_signals.py` | ✅ |
 | weak_signal | 12:00 | 每日 | `scan_weak_signals.py` | ✅ |
 | weak_signal | 18:00 | 每日 | `scan_weak_signals.py` | ✅ |
-| grv_update | 06:10 | 每日 | `geo_risk_vector.py` | ✅ |
-| earthquake | 06:06 | 每日(06:06/12:06/18:06/00:06) | `fetch_earthquake.py` | ✅ |
+| sanctions | 06:05 | 每日 | `fetch_sanctions.py` | ✅ |
+| earthquake | I15 | 事件档·每15分 | `fetch_earthquake.py` | ✅ |
+| gdelt_geo | I15 | 事件档·每15分 | `fetch_gdelt_geo.py` | ✅ |
 | energy | 06:08 | 每日 | `fetch_energy.py` | ✅ |
-| crypto_extra | 06:12 | 每日 | `fetch_crypto_extra.py` | ✅ |
+| crypto_extra | I15 | 事件档·每15分 | `fetch_crypto_extra.py` | ✅ |
 | news | 06:16 | 每日 | `fetch_news.py` | ✅ |
 | hdx | 06:20 | 每日 | `fetch_hdx.py` | ✅ |
-| morning | 07:30 | 工作日 | `run_macro_analysis.py` | ✅ |
-| us_daily | 20:00 | 工作日 | `run_macro_analysis.py` | ✅ |
-| china_daily | 20:15 | 工作日 | `run_macro_analysis.py` | ✅ |
-| verify | 09:00 | 每月1日 | `verify_predictions.py` | ✅ |
-| kb_update | 09:05 | 每月1日 | `update_kb_numbers.py` | ✅ |
-| climate | 09:10 | 每月1日 | `fetch_climate_signals.py` | ✅ |
-| world_macro | 05:50 | 每日 | `fetch_world_macro.py` | ✅ |
-| fx_fetch | 05:55 | 每日 | `fetch_fx.py` | ✅ |
-| crypto | 06:00 | 每日 | `fetch_crypto.py` | ✅ |
-| sanctions | 06:05 | 每日 | `fetch_sanctions.py` | ✅ |
 | bdi | 06:25 | 每日 | `fetch_bdi.py` | ✅ |
 | fao | 09:25 | 每月1日 | `fetch_fao.py` | ✅ |
 | commodity_yahoo | 06:26 | 每日 | `fetch_commodity_yahoo.py` | ✅ |
 | airtraffic_opensky | 06:28 | 每日 | `fetch_airtraffic_opensky.py` | ✅ |
 | energy_eia | 06:30 | 每日 | `fetch_energy_eia.py` | ✅ |
 | china_meso | 09:30 | 每月1日 | `fetch_china_meso.py` | ✅ |
+| grv_update | 06:10 | 每日 | `geo_risk_vector.py` | ✅ |
+| morning | 07:30 | 工作日 | `run_macro_analysis.py` | ✅ |
+| us_daily | 20:00 | 工作日 | `run_macro_analysis.py` | ✅ |
+| china_daily | 20:15 | 工作日 | `run_macro_analysis.py` | ✅ |
+| verify | 09:00 | 每月1日 | `verify_predictions.py` | ✅ |
+| kb_update | 09:05 | 每月1日 | `update_kb_numbers.py` | ✅ |
+| firms | 09:08 | 每日 | `fetch_firms.py` | ✅ |
+| climate | 09:10 | 每月1日 | `fetch_climate_signals.py` | ✅ |
 | daily_narrative | 07:00 | 每日 | `daily_narrative.py` | ✅ |
 | news_export | 07:05 | 每日 | `news_exporter.py` | ✅ |
+| narrative_proc | 07:10 | 每日 | `narrative_processor.py` | ✅ |
+| defense_rss | 07:12 | 每日 | `fetch_defense_rss.py` | ✅ |
+| news_geo_feed | 07:15 | 每日 | `news_geo_feed.py` | ✅ |
 | situation_detect | 06:30 | 每日 | `situation_detector.py` | ✅ |
-| gdelt_geo | I15 | 每日每15分 | `fetch_gdelt_geo.py --incremental` | ✅ v3.8.1新增 |
 | weekly_synthesis | 20:00 | 周五 | `weekly_synthesis.py` | ✅ |
 | dashboard | 20:30 | 工作日 | `dashboard.py` | ✅ |
-| health_push | 21:00 | 每日 | `observability.py daily_health_push` | ✅ v3.8.3新增 |
+| health_push | 21:00 | 每日 | `python -c "from observability import daily_health_push; daily_health_push()"` | ✅ |
 | verify_auto | 09:15 | 每月1日 | `verify_hypothesis.py` | ✅ |
-| news_prune | 09:20 | 每月1日 | `python -c "import news_db; news_db.prune_old_articles('/workspace/data/news.db', 90)"` | ✅ |
+| slow_vars | 09:35 | 每月1日 | `slow_variables.py` | ✅ |
+| spacetrack | 06:15 | 每日 | `fetch_spacetrack.py` | ✅ |
+| market_quotes | I15 | 事件档·每15分 | `market_quotes.py` | ✅ |
+| news_prune | 09:20 | 每月1日 | `python -c "import news_db; news_db.prune_old_articles(DATA_DIR/news.db, 90)"` | ✅ |
 
 ---
 
@@ -64,11 +77,11 @@
 
 | 管道 | 输入 | 输出 | 验证命令 | 备注 |
 |:---|:---|:---|:---|:---|
-| FRED | api.stlouisfed.org (36序列) | `data/fred_history/*.csv` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/fred_history/ \| wc -l` | 走 mihomo 代理 |
+| FRED | api.stlouisfed.org (48序列 CSV + manifest.json) | `data/fred_history/*.csv` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/fred_history/ \| wc -l` | 走 mihomo 代理；`fred_freshness.py` 0540 新鲜度闸 |
 | GPR | matteoiacoviello.com (7系列) | `data/fred_history/gpr_*.csv` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/fred_history/ \| grep gpr \| wc -l` | timeout=300s |
 | AkShare（中国） | akshare API | `data/china_history.jsonl` | `docker exec macro-scan-macro-scan-1 wc -l /workspace/data/china_history.jsonl` | 8 指标（含 LPR） |
 | GDELT 弱信号 | api.gdeltproject.org | `data/gdelt_scores.json` + `weak_signal_log.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/gdelt_scores.json')); print(list(d.keys()))"` | 每 6h 更新 |
-| GRV 地缘向量 | GDELT + GPR 聚合 + japan_monetary + sanctions_risk + seismic_risk + energy_grid_risk | `data/grv_latest.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/grv_latest.json')); print({k:round(v,1) for k,v in d.items() if isinstance(v,(int,float))})"` | 11维向量（含 japan_monetary + sanctions_risk + seismic_risk + energy_grid_risk），每日 06:10 原子写入 |
+| GRV 地缘向量 | GDELT + GPR 聚合 + japan_monetary + sanctions_risk + seismic_risk + energy_grid_risk + social_stress + cultural_friction + 4 GDELT 国别推导 | `data/grv_latest.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/grv_latest.json')); print({k:round(v,1) for k,v in d.items() if isinstance(v,(int,float))})"` | 16 风险维度 + 1 汇总（global_composite），每日 06:10 原子写入 |
 | 地震风险 | USGS Earthquake API（直连免key） | `data/earthquake_risk.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/earthquake_risk.json')); print(d)"` | seismic_risk → GRV 非阻断读取 |
 | 能源风险 | UK Carbon Intensity API（直连免key） | `data/energy_risk.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import json; d=json.load(open('/workspace/data/energy_risk.json')); print(d)"` | grid_carbon_risk → GRV 非阻断读取 |
 | 加密交叉验证 | Binance / Kraken API（直连免key） | `data/crypto_extra_*.json` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/ \| grep crypto_extra` | 波动率交叉验证，落盘 |
@@ -108,13 +121,21 @@
 | docker-compose | `docker-compose.yml` | 容器编排 |
 | entrypoint | `entrypoint.sh` | 容器启动脚本（改后需重建镜像） |
 | observability | `核心代码/observability.py` | 可观测性模块：心跳 + 任务计数（T1-2，v3.6.5） |
-| **tianji_db** | `核心代码/tianji_db.py` | **天玑**数据库schema+CRUD（predictions/reasoning_trace/narrative_chunks/weight_update_log）(v3.7.0) |
+| **tianji_db** | `核心代码/tianji_db.py` | **天玑**数据库schema+CRUD（predictions/reasoning_trace/narrative_chunks/weight_update_log）⚠️ **v3.8.13 已迁出 macro-ji 独立容器**（macro-scan-tianji-1），天枢不再运行 |
 | **narrative_processor** | `核心代码/narrative_processor.py` | **叙事预处理**：11维叙事桶、staleness衰减、路径B密度监测 (v3.7.0) |
 | **slow_variables** | `核心代码/slow_variables.py` | **慢变量**计算：IRP/UCRI/GCI三个慢变量（月频）(v3.7.0) |
-| **tianji_verifier** | `核心代码/tianji_verifier.py` | **天玑月度验证**：Brier/BSS/锐度评分+反哺降权建议 (v3.7.0) |
-| **weight_matrix** | `核心代码/weight_matrix.py` | **玉衡权重矩阵**：读写+审批+双层clip约束+月度健康检查 (v3.7.0) |
+| **tianji_verifier** | `核心代码/tianji_verifier.py` | **天玑月度验证**：Brier/BSS/锐度评分+反哺降权建议 ⚠️ **v3.8.13 已迁出 macro-ji 独立容器**（macro-scan-tianji-1），天枢不再运行 |
+| **weight_matrix** | `核心代码/weight_matrix.py` | **玉衡权重矩阵**：读写+审批+双层clip约束+月度健康检查 ⚠️ **v3.8.13 已迁出 macro-ji 独立容器**（macro-scan-tianji-1），天枢不再运行 |
 | **fetch_defense_rss** | `核心代码/fetch_defense_rss.py` | **防务RSS**：Al Jazeera/Defense One/War on the Rocks (v3.7.0) |
 | **fetch_sipri_backdrop** | `核心代码/fetch_sipri_backdrop.py` | **SIPRI军事背景卡片**：年度静态数据，天璇推演时注入 (v3.7.0) |
+| **control_server** | `核心代码/control_server.py` | **A3a 控制面板**：HTTP REST :8900（契约/白名单/健康探测），v3.8.13 上线 |
+| **compute_fci** | `核心代码/compute_fci.py` | **L1 FCI 双轨**：依赖 fred_fetch 刷新 fred_history，05:35 执行 |
+| **fred_freshness** | `核心代码/fred_freshness.py` | **FRED 新鲜度闸**：stale 告警 + FCI data_vintage 探针，05:40 执行（v3.8.13） |
+| **write_tianji_trigger** | `核心代码/write_tianji_trigger.py` | **天玑 T2 触发文件**：scheduler 0942（每月1日）写 trigger → macro-ji watchdog 轮询（v3.8.13） |
+| **news_geo_feed** | `核心代码/news_geo_feed.py` | **P3-A 新闻坐标**：spaCy NER + gdelt_geo_cache，07:15 执行 |
+| **market_quotes** | `核心代码/market_quotes.py` | **市场行情快照整合**：commodity+crypto，I15 事件档 |
+| **fetch_spacetrack** | `核心代码/fetch_spacetrack.py` | **Space-Track 卫星统计**：日频 06:15 |
+| **fetch_firms** | `核心代码/fetch_firms.py` | **NASA FIRMS 火点**：日频 09:08，crucix 退场前置 |
 
 ---
 

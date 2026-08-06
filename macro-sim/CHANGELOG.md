@@ -5,17 +5,16 @@
 
 ## v2.0.23 — 2026-08-04 (by Claude Code)
 
-**修改理由**：P4——天玑 V1 评分接线，run.py 中 prediction 写入 tianji_db 后立即触发 Brier 评分，推 ntfy。
+**修改理由**：P4——天玑 V1 验证链路迁移。评分/建表职责迁出天璇：天玑已独立为容器 macro-ji v1.0.0（T2 watchdog 接管验证链路），天璇不再内嵌 Brier 评分与 tianji 建表；同时标注迁移后残留的孤儿代码。
 
 ### 修改
 
 - **`run.py`**
-  - 新增 `run_scoring()` 函数：从 `forecast_tracker.db` 读取 due_at 已到期且有 outcome 的预测，计算 Brier/BSS/锐度，写 `/app/data/brier_latest.json`；predictions 表为空时返回 None
-  - 新增 `_write_json()` 辅助函数：原子写 JSON
-  - 新增 `_send_ntfy_simple()` 辅助函数：轻量 ntfy 单行推送（天玑评分用）
-  - `run_simulation()` 中 `_archive_to_tianji` 之后调用 `run_scoring()`：有结果时推 Brier/BSS，空表时推"等待首次仿真数据"
-  - `run_predict_only()` 同上接入
-  - Brier 计算内联（不依赖 macro-scan 的 brier_calc.py，避免容器间依赖）
+  - **删除 `run_scoring()`**：原"从 `forecast_tracker.db` 读到期预测、算 Brier/BSS/锐度、写 `brier_latest.json`"的评分逻辑整体移除——天玑已迁出为独立容器 macro-ji v1.0.0（T2 watchdog 接管验证），天璇内不再需要评分入口
+  - **删除 `_TIANJI_DDL`**：幂等建表（predictions + reasoning_trace）移除，`_tianji_conn()` 不再执行 executescript，schema 由天玑侧维护
+  - **保留 `_archive_to_tianji()` 归档链**：仿真完成后仍将可验证预测写入共享 `forecast_tracker.db`（`/app/macro_data`，与天玑共享同一 DB），`run_simulation()`/`run_predict_only()` 中归档调用不变
+  - **`_write_json()` / `_send_ntfy_simple()` 标注为孤儿代码**：原为 run_scoring 服务，现无任何调用方，暂保留待后续清理
+  - `run_simulation()` / `run_predict_only()` 中原 run_scoring 调用点移除
 
 - **`VERSION`**：v2.0.22 → v2.0.23
 

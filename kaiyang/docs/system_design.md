@@ -528,7 +528,7 @@ interface OperationLogEntry {
 #### 8.7 BASE_URL 配置
 
 ```
-控制 API Base URL 默认值：'http://localhost:8900/api/v1/control/'
+控制 API Base URL 默认值：'http://192.168.31.108:8900/api/v1/control/'
 可覆盖：
 - 构建时：VITE_CONTROL_API_BASE_URL env
 - 运行时：localStorage('kaiyang_control_api_base_url')
