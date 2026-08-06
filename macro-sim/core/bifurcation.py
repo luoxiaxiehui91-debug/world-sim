@@ -396,8 +396,12 @@ def run_prediction(
     print(f"  终态分布：sentiment std={sent_std:.3f}，GRV std={grv_std:.2f}")
 
     # 决定聚类数量：用两个维度中分散度更大的
-    primary_vals = final_sent_values if sent_std > 0.05 else final_grv_values
-    primary_std  = sent_std if sent_std > 0.05 else grv_std
+    # 2026-08-06 路径多样性修复：sentiment 主判据阈值 0.05 → 0.15——
+    # sentiment 带 0.995 衰减 + damping 均值回归，std 常态 <0.15（如 0.131），
+    # 强制用 sentiment 聚类导致路径 B 簇 <5% 被 MIN_PATH_PROBABILITY 过滤（坍缩假象）。
+    # GRV 才是"风险路径"语义维度（std=4.8 真实分歧），sentiment std <0.15 时改用 GRV 聚类。
+    primary_vals = final_sent_values if sent_std > 0.15 else final_grv_values
+    primary_std  = sent_std if sent_std > 0.15 else grv_std
 
     if primary_std < 0.05:
         n_clusters = 1
