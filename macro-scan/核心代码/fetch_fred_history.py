@@ -272,6 +272,7 @@ def main():
             _tmp = _mp + ".tmp"
             with open(_tmp, "w", encoding="utf-8") as _f:
                 json.dump(_m, _f, ensure_ascii=False, indent=2)
+            os.chmod(_tmp, 0o644)  # 2026-08-06 P0 修复（fred-manifest-403 防再生）：原写入继承 ACL/umask 致 0660+，nginx(www-data) 403
             os.replace(_tmp, _mp)
             print(f"[fetch_fred_history] manifest updated={_m['updated']}")
         else:

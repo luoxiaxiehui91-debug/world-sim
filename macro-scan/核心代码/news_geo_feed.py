@@ -71,13 +71,13 @@ def _load_geo_cache() -> dict:
 
 
 def _load_spacy_model():
-    """加载 zh_core_web_sm，失败时返回 None（非阻断）。"""
+    """加载 zh_core_web_sm，失败时 raise（红线 #8：禁静默降级；2026-08-06 news-geo-empty 修复）。"""
     try:
         import spacy
         return spacy.load("zh_core_web_sm")
     except Exception as e:
-        _get_logger().warning("[news_geo] spaCy 加载失败（非阻断）: %s", e)
-        return None
+        _get_logger().error("[news_geo] spaCy 加载失败（阻断，需镜像含 spacy+zh_core_web_sm）: %s", e)
+        raise
 
 
 def _extract_geo_entities(nlp, text: str) -> list[str]:
