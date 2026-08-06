@@ -27,3 +27,4 @@ macro-scan/核心代码/NDH6SA~M
 macro-scan/核心代码/qa_result.txt
 .hermes_task.md
 
+*.bak-*
