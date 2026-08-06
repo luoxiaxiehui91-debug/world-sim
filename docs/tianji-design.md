@@ -1,8 +1,10 @@
 # 天玑（Tianji）— 北斗第三星：验证层设计文档
 
+> 文档类别：意图（INTENT）· 设计
 > 状态：**v1.0 现役版**（2026-08-04 独立容器上线 · 2026-08-06 config rw 修复后定稿）
 > 定位：北斗七星第三星，天枢（macro-scan）+ 天璇（macro-sim）之上的**验证评估层**，对推演结果做事后验证、准确率追踪与校准反哺。
 > 历史：旧 DRAFT v0.2（独立 verification.db / accuracy_dashboard 等设想）已废弃，仅存史 → `docs/archive/tianji-design-DRAFT-v0.2.md`
+> **实施实录**（已实施变更的 commit hash + 版本记录，与本文档意图分离）：→ [`macro-ji/CHANGELOG.md`](../macro-ji/CHANGELOG.md)（v1.0.0 独立容器上线 2026-08-04；dom=1 触发笔误修复 6ba35ab 2026-08-06）
 
 ---
 
