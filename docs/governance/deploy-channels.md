@@ -62,13 +62,17 @@
 
 ---
 
-## 4. 天璇双通道收敛（现状 + 待用户选型）
+## 4. 天璇双通道收敛（✅ 已收敛，方案 A 实施完成 2026-08-06）
 
-- **现状（08-06 实测）**：当前实际走**中转模式**——deploy.sh deploy_sim 把仓库 `macro-sim/` rsync 到宿主运行区 `/vol2/1000/software/macro-sim/`，再在运行区 docker build + compose up（deploy.sh L34-42；rsync 无 `--delete`，commit 18d3962 实修）。即「仓库 → 中转运行区 → 构建」双拷贝链路。
-- **建议收敛方向（二选一，待用户选型）**：
-  - **方案 A（推荐）仓库直构，运行区归档**：以仓库为唯一真源，构建/部署全部从仓库出发；宿主运行区降为只读归档，彻底消灭「仓库 vs 运行区」双源漂移面（与方向 A 仲裁表第 4 行「repo/容器赢，宿主运行区为僵尸副本」一致）。
-  - **方案 B 维持中转统一标签**：保留 rsync 中转链路，但统一镜像标签 + 构建脚本唯一化；代价是双份拷贝仍存在漂移面，需依赖 C 巡检持续校验两侧一致。
-- **状态**：⏳ **待用户选型**（本文件不选型、不部署、不重启）。
+- **现状（08-06 实测）**：原走**中转模式**——deploy.sh deploy_sim 把仓库 `macro-sim/` rsync 到宿主运行区 `/vol2/1000/software/macro-sim/`，再在运行区 docker build + compose up（rsync 无 `--delete`，commit 18d3962 实修）。「仓库 → 中转运行区 → 构建」双拷贝链路。
+- **收敛决策（2026-08-06 用户拍板）**：**方案 A（仓库直构，运行区归档）**——以仓库为唯一真源，构建/部署全部从仓库出发；宿主运行区降为只读归档，彻底消灭「仓库 vs 运行区」双源漂移面（与方向 A 仲裁表第 4 行「repo/容器赢，宿主运行区为僵尸副本」一致）。
+- **实施（commit 58d5c19）**：
+  1. deploy.sh deploy_sim 删除 rsync 中转段，改为 `cd /vol2/1000/software/world-sim/macro-sim && docker build -t macro-sim:latest . && docker compose up -d --force-recreate`（仓库 = 唯一构建源）
+  2. 运行区 `/vol2/1000/software/macro-sim/` → `mv` 为 `/vol2/1000/software/macro-sim.archive-20260806`（只读冻结，7 天回滚窗口）
+  3. 统一镜像标签 `macro-sim:latest`
+  4. **验证**：deploy.sh 语法 OK；运行区无任何容器/脚本引用（归档前确认）；当前天璇容器 `Up 9 hours` 未受影响；deploy.sh 剩余 1 处 rsync -av 为 deploy_scan（天枢，保留合理）
+- **状态**：✅ **已收敛（方案 A）**。归档目录确认无引用后（7 天后）可删除。
+- 跟踪：question `20260806-world-deduction-tianxuan-dual-channel-convergence.md`
 
 ---
 
