@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 deploy_scan() {
   echo "==> 部署 macro-scan..."
-  rsync -av --delete \
+  rsync -av \
     --exclude='.git' \
     --exclude='data/' \
     --exclude='logs/' \
@@ -31,7 +31,7 @@ deploy_scan() {
 
 deploy_sim() {
   echo "==> 部署 macro-sim..."
-  rsync -av --delete \
+  rsync -av \
     --exclude='.git' \
     --exclude='output/' \
     --exclude='sim_log.db' \

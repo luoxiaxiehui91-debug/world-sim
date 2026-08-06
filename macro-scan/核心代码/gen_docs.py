@@ -68,8 +68,15 @@ def gen_scheduler_table():
                             cmd_parts = [ast.literal_eval(e) for e in elt.elts[4].elts
                                          if isinstance(e, ast.Constant)]
                             script = next((p for p in cmd_parts if p.endswith(".py")), "")
+                            # 修复(08-06)：内联 -c 脚本（health_push/news_prune 等）无 .py 结尾，
+                            # 原逻辑致命令列空白 → 标 "(内联 -c 脚本)"
+                            if not script and "-c" in cmd_parts:
+                                script = "(内联 -c 脚本)"
                             freq = "每月1日" if dom == 1 else WEEKDAY_MAP.get(weekdays, weekdays)
-                            time_str = f"{hhmm[:2]}:{hhmm[2:]}"
+                            # 修复(08-06)：I<min> 事件档（I15/I30）原样输出，
+                            # 原逻辑被切分成 "I1:5"/"I3:0"；仅固定时刻(4位HHMM)按 HH:MM 格式化
+                            time_str = hhmm if (isinstance(hhmm, str) and hhmm.startswith("I")) \
+                                else f"{hhmm[:2]}:{hhmm[2:]}"
                             jobs.append((name, time_str, freq, script))
 
     header = "| 任务 | 时间 | 频率 | 命令 | 状态 |\n|:---|:---|:---|:---|:---|\n"

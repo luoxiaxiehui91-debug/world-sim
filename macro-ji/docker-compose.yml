@@ -19,7 +19,7 @@ services:
       # 禁单文件 bind mount（闸二）；与天璇 macro-sim 共用同一挂载源（同卷不同容器）
       - /vol2/1000/software/macro-scan/data:/app/macro_data:rw
       # config 目录（grv_weights.yaml / prior.yaml —— weight_matrix 与 tianji_verifier 依赖）
-      - /vol2/1000/software/macro-scan/config:/app/config:ro
+      - /vol2/1000/software/macro-scan/config:/app/config:rw
     healthcheck:
       test: ["CMD", "python3", "-c", "import tianji_verifier, tianji_db, weight_matrix; print(\"ok\")"]
       interval: 30s

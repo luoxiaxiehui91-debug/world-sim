@@ -272,7 +272,7 @@ async def rerun_fetchers(request: Request):
         "commodity_yahoo", "airtraffic_opensky", "energy_eia", "china_meso",
         "grv_update", "morning", "us_daily", "china_daily", "verify", "kb_update",
         "firms", "climate", "daily_narrative", "news_export", "narrative_proc",
-        "defense_rss", "slow_vars", "tianji_verify", "weight_health",
+        "defense_rss", "slow_vars",
         "situation_detect", "disaster", "dashboard", "verify_auto", "news_prune",
         "weekly_synthesis", "health_push",
         "market_quotes", "news_geo_feed", "fred_freshness", "tianji_trigger",
