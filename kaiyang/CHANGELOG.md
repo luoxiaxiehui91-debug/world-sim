@@ -1,5 +1,8 @@
 # Changelog · 开阳（Kaiyang）操作面板
 
+> 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
+> 最后核对时间：2026-08-06（记录类文档随部署持续更新）
+
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
 ## [1.9.0] - 2026-08-05 · 开阳实时化 + 时间审计全量修复（by WorkBuddy）

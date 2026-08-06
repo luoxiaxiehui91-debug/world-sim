@@ -1,5 +1,7 @@
 # macro-ji CHANGELOG — 天玑（验证评估层）
 
+> 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
+> 最后核对时间：2026-08-06（记录类文档随部署持续更新）
 > 版本锚点：无 VERSION 文件，以镜像名（`macro-tianji:latest`）+ 上线时间计版本。
 > 变更历史从 v1.0.0（独立容器上线）起。
 
