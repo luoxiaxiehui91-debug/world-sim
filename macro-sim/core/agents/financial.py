@@ -5,11 +5,18 @@ financial.py — 金融类 Agent（A1/A2/A3/A5/A9/A11/A12）
 - 每个条件先乘以 sensitivity，再和 threshold 比较
 - 每个行动产生的 delta 乘以 magnitude
 - visible_actions 让 Agent 能感知到其他 Agent 的上步行动
+
+2026-08-06 路径多样性修复（question 20260714-low-path-diversity）：
+- 高 GRV 下 A3/A5 规则单调（压力越大越做空/降险）→ 100 次 MC 98% 走压力路径、路径 B 仅 5%
+- 修复：A3 高压分支加 25% 概率 INCREASE_RISK（超卖反弹抄底）、A5 高压降险分支加 20% 概率 HOLD（中性避险再平衡）
+- 用现有动作表达对立行为（零 VALID_ACTIONS 改动、simulation 价格逻辑天然兼容）
+- 概率为类常量，后续如需调参可移至 agents.yaml（from_yaml 预留接口）
 """
 
 from core.agents.base import MacroAgent, AgentParams
 from dataclasses import dataclass, field
 from typing import ClassVar
+import random
 
 
 @dataclass
@@ -84,6 +91,8 @@ class HedgeFundAgent(MacroAgent):
     VALID_ACTIONS: ClassVar[list[str]] = [
         "SHORT_MARKET", "DECREASE_RISK", "HOLD", "INCREASE_RISK"
     ]
+    # 2026-08-06 路径多样性修复：高 GRV 下超卖反弹概率（25%），打破"压力越大越做空"单调性
+    OVERSOLD_BOUNCE_PROB: ClassVar[float] = 0.25
 
     def _decide_rules(self, ctx: dict) -> str:
         p = self.params
@@ -102,8 +111,10 @@ class HedgeFundAgent(MacroAgent):
         # 标普6个月跌幅超10% → 趋势性做空
         if sp500_change < -0.10:
             return "SHORT_MARKET"
-        # 高压信号 → 做空
+        # 高压信号 → 做空；但 25% 概率触发超卖反弹抄底（多空博弈，2026-08-06 路径多样性修复）
         if grv_stress > p.threshold * 0.8 or vix_stress > p.threshold * 0.6 or media_fear:
+            if grv_stress > p.threshold * 0.8 and random.random() < self.OVERSOLD_BOUNCE_PROB:
+                return "INCREASE_RISK"
             return "SHORT_MARKET"
         # 中等压力 → 降险
         if ext_shift > p.threshold * 0.5 or yield_inv or sp500_change < -0.05:
@@ -118,6 +129,8 @@ class HedgeFundAgent(MacroAgent):
 class InstitutionAgent(MacroAgent):
     """A5：机构投资者（养老金/主权基金）— 2个月延迟，保守"""
     VALID_ACTIONS: ClassVar[list[str]] = ["DECREASE_RISK", "HOLD", "INCREASE_RISK"]
+    # 2026-08-06 路径多样性修复：高 GRV 下中性避险概率（20%），避免机构单边追随降险
+    SAFE_HAVEN_PROB: ClassVar[float] = 0.20
 
     def _decide_rules(self, ctx: dict) -> str:
         p = self.params
@@ -133,6 +146,9 @@ class InstitutionAgent(MacroAgent):
         if sp500_change < -0.10:
             return "DECREASE_RISK"
         if grv_stress > p.threshold * 0.9 or vix_stress > p.threshold * 0.8 or yield_inv:
+            # 20% 概率选择中性避险再平衡（不追随单边，2026-08-06 路径多样性修复）
+            if random.random() < self.SAFE_HAVEN_PROB:
+                return "HOLD"
             return "DECREASE_RISK"
         if hf_shorted and grv_stress > p.threshold * 0.5:
             return "DECREASE_RISK"
