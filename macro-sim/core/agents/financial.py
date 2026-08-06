@@ -91,8 +91,9 @@ class HedgeFundAgent(MacroAgent):
     VALID_ACTIONS: ClassVar[list[str]] = [
         "SHORT_MARKET", "DECREASE_RISK", "HOLD", "INCREASE_RISK"
     ]
-    # 2026-08-06 路径多样性修复：高 GRV 下超卖反弹概率（25%），打破"压力越大越做空"单调性
-    OVERSOLD_BOUNCE_PROB: ClassVar[float] = 0.25
+    # 2026-08-06 路径多样性修复：高 GRV 下超卖反弹概率（45%，初版 25% 实测不足以对抗
+    # A2/A4/A6 等持续负向合力，sentiment 终值仍坍缩单路径；45% 接近公平博弈）
+    OVERSOLD_BOUNCE_PROB: ClassVar[float] = 0.45
 
     def _decide_rules(self, ctx: dict) -> str:
         p = self.params
@@ -129,8 +130,8 @@ class HedgeFundAgent(MacroAgent):
 class InstitutionAgent(MacroAgent):
     """A5：机构投资者（养老金/主权基金）— 2个月延迟，保守"""
     VALID_ACTIONS: ClassVar[list[str]] = ["DECREASE_RISK", "HOLD", "INCREASE_RISK"]
-    # 2026-08-06 路径多样性修复：高 GRV 下中性避险概率（20%），避免机构单边追随降险
-    SAFE_HAVEN_PROB: ClassVar[float] = 0.20
+    # 2026-08-06 路径多样性修复：高 GRV 下中性避险概率（35%，初版 20% 实测不足以形成路径分叉）
+    SAFE_HAVEN_PROB: ClassVar[float] = 0.35
 
     def _decide_rules(self, ctx: dict) -> str:
         p = self.params
