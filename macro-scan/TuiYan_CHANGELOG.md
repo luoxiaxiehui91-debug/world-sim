@@ -1,5 +1,8 @@
 # Changelog
 
+> 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
+> 最后核对时间：2026-08-06（记录类文档随部署持续更新）
+
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
