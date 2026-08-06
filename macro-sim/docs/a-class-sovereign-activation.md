@@ -1,10 +1,11 @@
 # A 类主权国家 Agent 激活 — 实施设计（走大路 · 治本方案）
 
 > 文档类别：意图（INTENT）· 设计
-> 状态：**已定稿待实施**（2026-08-06，用户拍板"走大路"）
-> 关联：`agent_taxonomy.md`（18 Agent 蓝图 V2）· `core/agents/sovereign.py`（SovereignAgent 基类 v1.0）
+> 状态：**设计修订中 v2（2026-08-07）**——原"已定稿待实施"因 soul 映射错乱 + 分类学 V3 讨论回炉；本次试点收窄为核心层 5 个
+> 关联：`agent_taxonomy.md`（18 Agent 蓝图 V2 + **v3 修订草案附录**）· `core/agents/sovereign.py`（SovereignAgent 基类 v1.0）
 > 解决：question `20260806-world-deduction-grv-mean-reversion-path-collapse`（路径分叉不可达）
 > 前置完成：SovereignAgent 基类（08-03）+ 5 个 soul 文件（v2.0.19-22）——**激活条件已成熟**
+> v3 修订：①soul 映射修正（俄罗斯→A6_russia.yaml，非海湾）②A6_mideast 移除（以色列/伊朗转情境层，见 taxonomy §11.2）③id 策略澄清（新 id 不与现有 A1-A12 撞车）④gm_resolve 共存细节补充
 
 ---
 
@@ -33,60 +34,71 @@
 
 ## 2. 目标与范围
 
-### 本次（A 类试点，治本第一层）
+### 本次（A 类试点，治本第一层）——v2 修订：核心层 5 个
 
-激活 **5 个已有 soul 的主权国家 Agent**：A1 美国 / A2 中国 / A3 欧盟 / A4 俄罗斯（升级 EnergyGov） / A6 中东轴
+激活 **5 个核心层主权 Agent**（v3 分类学：有持续全球传导 + soul 现成）：
+**A1 美国 / A2 中国 / A3 欧盟 / A4 俄罗斯 / A5 沙特-OPEC**
 → 地缘多方博弈 → Board 传导 → C 类市场 Agent 接收 → sentiment/GRV 演化分叉 → **路径 B ≥ 15%**
+
+**v2 修订要点**（2026-08-07）：
+- ~~A6 中东轴~~ **移除**——无统一对外渠道（taxonomy §11.1 原则）；以色列/伊朗拆分为情境层行为体（§11.2），**暂不激活**
+- **俄罗斯 soul 修正**：`A6_russia.yaml`（原文档错配为海湾 soul）
+- **沙特-OPEC 定位澄清**：`A4_gulf_opec.yaml`，作为 OPEC 产量决策行为体（有统一产量渠道），非中东政治代表
+- 印度/巴西/日韩（核心层）缺 soul → 后续补，不在本次
 
 ### 本次不做（后续阶段，另立项）
 
 - B 类 4 个（跨国组织/宗教网络/武装非国家）
 - C 类完整接收链（C5 媒体 SIR 模型等 taxonomy 4.x 节）
 - Secretary Agent（当前以 `validate_action` 模拟）与 LangGraph 状态机
-- A5 海湾 / A7 日韩 / A8 全球南方（缺 soul 文件，需先补）
+- 核心层补 soul：印度 / 巴西 / 日韩
+- 情境层注册：以色列 / 伊朗 / 乌克兰 / 土耳其 / 阿塞拜疆（taxonomy §11.3 Registry + 触发规则）
 
 ---
 
 ## 3. 设计
 
-### 3.1 agents.yaml 注册（5 行）
+### 3.1 agents.yaml 注册（5 行）——v2 修正：正确 soul 映射 + id 避开现有 A1-A12
 
 ```yaml
-# A 类主权国家 Agent（2026-08-06 激活，治本方案）
-- id: A1_usa
+# A 类核心层主权国家 Agent（v2 修订，2026-08-07）
+# id 策略：S{1..n} 前缀，避开与现有 A1-A12（金融角色）撞车；role 用语义名
+- id: S1_usa
   class: sovereign.SovereignAgent
   role: usa
   info_delay: 3
   activation_prob: 0.20
   soul_file: A1_usa.yaml
-- id: A2_china
+- id: S2_china
   class: sovereign.SovereignAgent
   role: china
   info_delay: 3
   activation_prob: 0.20
   soul_file: A2_china.yaml
-- id: A3_eu
+- id: S3_eu
   class: sovereign.SovereignAgent
   role: eu
   info_delay: 4
   activation_prob: 0.15
   soul_file: A3_eu.yaml
-- id: A6_mideast
-  class: sovereign.SovereignAgent
-  role: mideast_axis
-  info_delay: 2
-  activation_prob: 0.15
-  soul_file: A6_russia.yaml   # A6 中东轴 soul 文件（当前文件名沿用 A6_russia）
-- id: A4_russia
+- id: S4_russia
   class: sovereign.EnergyGovSovereignAgent   # 升级现有 energy_gov 为 soul 驱动
   role: energy_gov
   info_delay: 2
   activation_prob: 0.20
-  soul_file: A4_gulf_opec.yaml
+  soul_file: A6_russia.yaml   # v2 修正：俄罗斯用 A6_russia.yaml（原错配 A4_gulf_opec.yaml）
+- id: S5_saudi
+  class: sovereign.SovereignAgent
+  role: opec_core
+  info_delay: 2
+  activation_prob: 0.20
+  soul_file: A4_gulf_opec.yaml   # 定位 = OPEC 产量决策体（有统一产量渠道），非中东政治代表
 ```
 
 - 激活概率 0.15-0.25：地缘决策低频（不是每月都有军事/制裁行动）
 - info_delay 2-4：决策有观察滞后
+- ~~A6_mideast~~ 已移除（v2：无统一渠道，转情境层，见 taxonomy §11.2）
+- **id 冲突澄清**：现有 agents.yaml 的 A1-A12 = 金融/央行角色（A1=美联储…），taxonomy A 类 = 主权国家——**两套编号体系并存易混**。v2 起新增主权 Agent 一律用 `S{1..n}` 前缀，杜绝 A 编号撞车（如 A4=现有能源国 vs S4_russia）
 
 ### 3.2 gm_resolve_rules 消费 sovereign 行动（~20 行）
 
@@ -111,8 +123,14 @@ for agent_id, action in step_actions.items():
             add(agent_id, "market_sentiment", +0.04 * m)
 ```
 
-- `_DIM_TO_WORLD`：GRV 维度（sanctions_risk/russia_europe/middle_east_energy/taiwan_strait...）→ world_state 对应字段的映射表（新增，~15 行）
+- `_DIM_TO_WORLD`：GRV 维度（sanctions_risk/russia_europe/middle_east_energy/taiwan_strait...）→ world_state 对应字段的映射表（新增，~15 行；**目标字段已实测存在**：world_state.py L311-318 load_from_macro_scan 已在读这些维度）
 - sentiment 通用影响：保守系数（±0.04-0.06），避免国家博弈放大过度波动
+
+**v2 共存细节（缺口④补充）**：现有 `gm_resolve_rules`（simulation.py L83）是**硬编码 A1/A2…按 id 分支**（`actions.get("A1", "HOLD")`），新增 sovereign 用**循环分支**——两者共存规则：
+1. 现有硬编码分支**不动**（A1-A12 金融角色继续走原逻辑）
+2. 循环分支在硬编码分支**之后**执行（`for agent_id in step_actions` + `isinstance(agent, SovereignAgent)` 过滤）——只处理 S1-S5 主权 Agent
+3. `step_actions` 的 key = agent id（S1_usa 等），与现有 A1-A12 天然隔离，无冲突
+4. `add()` 已是 per-agent delta 追踪（D1 fix），sovereign delta 走同一机制，传导自动承接
 
 ### 3.3 Board 初始化（2 行）
 
@@ -165,3 +183,4 @@ A1 美国 IMPOSE_SANCTIONS → Board(A1,A2) conflict↑ → A2 中国反制
 | 日期 | 变更 | 状态 |
 |------|------|------|
 | 2026-08-06 | 定稿：A 类 5 国家 Agent 激活设计（用户拍板"走大路"）| 待实施 |
+| 2026-08-07 | **v2 修订**：soul 映射修正（俄罗斯→A6_russia.yaml）+ A6_mideast 移除（转情境层，taxonomy §11.2）+ id 改 S{1..n} 前缀避开 A1-A12 撞车 + gm_resolve 共存细节补充 + 本次范围收窄核心层 5 个 | 待用户最终确认 |
