@@ -1,0 +1,12 @@
+# 行尾规范化（2026-08-06 新增，约束未来新文件，不批量 renormalize 历史）
+* text=auto
+*.py text eol=lf
+*.sh text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
