@@ -45,7 +45,7 @@ JOBS = [
     ("compute_fci", "0535", "1-7", None, [PYTHON, "compute_fci.py"]),  # L1 FCI 双轨（依赖 fred_fetch 刷新 fred_history）
     ("fred_freshness", "0540", "1-7", None, [PYTHON, "fred_freshness.py", "--all"]),  # data-freshness：FRED 新鲜度闸 + stale + FCI 探针（依赖 fred_fetch 0530 + compute_fci 0535）
     ("compute_probit", "0540", "1-7", None, [PYTHON, "compute_probit.py"]),  # L3 probit
-    ("tianji_trigger","0942", "1-7", 1,   [PYTHON, "write_tianji_trigger.py"]),       # 天玑 trigger 写入（T2：watchdog 检触发执行验证）
+    ("tianji_trigger","0942", "1-7", None, [PYTHON, "write_tianji_trigger.py"]),       # 天玑 trigger 写入（T2：watchdog 检触发执行验证；dom=None 每日触发，08-06 修 dom=1 笔误）
     ("gpr_fetch",   "0540", "1-7", None, [PYTHON, "fetch_gpr.py"]),
     ("china_fetch", "0545", "1-7", None, [PYTHON, "fetch_china_data.py"]),
     ("world_macro", "0550", "1-7", None, [PYTHON, "fetch_world_macro.py"]),
