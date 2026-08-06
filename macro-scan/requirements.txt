@@ -59,4 +59,6 @@ pypdf>=4.0.0
 # NLP 实体识别（news_geo_feed.py 地名提取，P3-A）
 # spaCy 3.8+ 兼容 numpy 2.x（3.7.x 有 thinc ABI 不兼容问题）
 spacy>=3.8,<4.0
-https://github.com/explosion/spacy-models/releases/download/zh_core_web_sm-3.8.0/zh_core_web_sm-3.8.0-py3-none-any.whl
+# zh_core_web_sm 改为名称+版本（2026-08-06）：pip 从 wheels/ 本地 wheel 安装（--find-links），
+# 原 GitHub URL 构建时直连超时（NAS 出口 44KB/s）+ 代理不可用于 buildkit 网络
+zh_core_web_sm==3.8.0
