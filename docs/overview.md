@@ -1,8 +1,9 @@
 # 世界推演系统 · 总览
 
-> macro-scan v3.8.15（天枢）· macro-sim v2.0.23（天璇）· kaiyang v1.9.0（开阳）· macro-ji v1.0.0（天玑）· 2026-08-05
+> macro-scan v3.8.15（天枢）· macro-sim v2.0.23（天璇）· kaiyang v1.9.0（开阳）· macro-ji v1.0.0（天玑）· as-of 2026-08-06
 >
 > **当前状态与待部署事项** → 见 [`HANDOVER.md`](../HANDOVER.md)
+> **权威版本记录** → 各子系统 CHANGELOG（本行仅总览快照，不断言版本；文档分治规范见 `docs/governance/document-governance.md`）
 
 ---
 

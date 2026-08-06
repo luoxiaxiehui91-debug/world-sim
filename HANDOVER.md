@@ -1,6 +1,23 @@
 # 世界推演系统 · 交接文档
 
 > 每次维护后必须更新本文件（规则来自项目规范）。
+> 文档类别：实录（RECORD）· 状态快照（append-only，历史块不删只追加）。各状态块以 as-of 日期为准；版本权威记录在各子系统 CHANGELOG，本文件仅快照。
+
+---
+
+## 当前状态（2026-08-06 晚，by WorkBuddy）— 最新
+
+| 子系统 | 版本（as-of 08-06） | 状态 |
+|---|---|---|
+| macro-scan（天枢）| v3.8.15 | ✅ **已部署 NAS，运行中**（:8899 WebUI / :8900 Control API，Live 模式；scheduler.py 08-06 两改：tianji dom=None + C7 last_run 落盘）|
+| macro-sim（天璇）| v2.0.23 | ✅ **已部署 NAS，运行中**（部署通道 08-06 收敛为方案 A 仓库直构，运行区已归档 .archive-20260806）|
+| macro-ji（天玑）| v1.0.0 | ✅ **独立容器 macro-scan-tianji-1 运行中（healthy）**（trigger 每日触发修复 6ba35ab，验证链路 08-06 起每日可跑）|
+| kaiyang（开阳）| v1.9.0 | ✅ **已部署 NAS，:8080 可访问**（线上为 D3 渲染版，源码已补提交 835bc6f，HEAD=线上一致）|
+
+- Git 分支：`main`，最新 commit：`3dd36f08`（docs: A 注册表 v1.2 PG 映射标注）
+- **今日 08-06 完整变更链（14 commits）**：`24a24cf/18d3962` 文档+代码 P0 → `0927f41` 4 项遗留闭环 → `835bc6f/9c38018` D3 源码补提交+清理 → `0974ff7` 文档漂移修复 → `a63d866` 四方向治理论证 → `02a48f6` 治理核实 → `6ba35ab` 天玑 dom 修复 → `8f6cea1` 四方向治理落地 → `5dab730/8781e3d/a8dee0d` A/C 注册表对齐 → `58d5c19/8bfc807` 天璇收敛 → `d44f903e` C7 落盘 → `e96e77e8` 文档分治第一批 → `3dd36f08` PG 映射标注
+- **治理里程碑**：四方向治理全落地（A 真源注册表 / C 验证命令注册表 / B 文档分治 / D 部署通道收敛 / 记忆降级），ADR-0010 accepted；验证命令见 `docs/governance/verification-commands.md`（10 条 NAS 实跑）
+- 遗留（08-06 晚）：① 文档重分类第二批进行中（README/HANDOVER/overview 本次；ROADMAP/AGENTS/tianji-design 待）② worldsim-pg（backlog P2，后续版本）③ 天璇运行区归档 .archive-20260806 确认无引用后 08-13 后删 ④ FRED DCOILWTICO 上游停更（08-05 遗留）
 
 ---
 
