@@ -30,16 +30,8 @@ deploy_scan() {
 }
 
 deploy_sim() {
-  echo "==> 部署 macro-sim..."
-  rsync -av \
-    --exclude='.git' \
-    --exclude='output/' \
-    --exclude='sim_log.db' \
-    --exclude='.env' \
-    --exclude='__pycache__/' \
-    --exclude='*.pyc' \
-    "${SCRIPT_DIR}/macro-sim/" "${NAS}:/vol2/1000/software/macro-sim/"
-  ssh "${NAS}" "cd /vol2/1000/software/macro-sim && docker build -t macro-sim:latest . && docker compose up -d --force-recreate"
+  echo "==> 部署 macro-sim（方案 A：仓库直构，2026-08-06 天璇双通道收敛）..."
+  ssh "${NAS}" "cd /vol2/1000/software/world-sim/macro-sim && docker build -t macro-sim:latest . && docker compose up -d --force-recreate"
   echo "==> macro-sim 部署完成"
 }
 
