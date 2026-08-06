@@ -14,7 +14,7 @@
 | ✅ | 2026-07-10 | **C线切 Live + R07 启用** | C线由 mock 切换 Live 数据；R07（气候风险）信号 `enabled: true` |
 | ✅ | 2026-07-25（v3.5.61） | **situation_detector 阈值 2.0→1.5** | 降低告警触发门槛，改善中度地缘压力下的信号灵敏度 |
 | ✅ | 2026-07-25（v3.5.62） | **R09/R10 启用** | social_stress / cultural_friction 积累基线后正式 `enabled: true`；v3.5.62 修复相关 bug 后完成 |
-| ⏳ | 待核实（原约2026-08-01已过期） | **R11/R12 开启** | 气候/多域信号积累基线后启用；前置条件：climate_risk 和跨域维度各积累 ≥3 周有效数据；**需 SSH 到 NAS 确认实际积累情况后更新此日期** |
+| ⏳ | 2026-08-25 复评（08-06 已核实） | **R11/R12 开启** | 气候/多域信号积累基线后启用；前置条件：climate_risk 和跨域维度各积累 ≥3 周有效数据。**08-06 SSH 实测（grv_history.jsonl 534 点）**：climate_risk = 36 点/34 天（07-02 起）✅ 达标；跨域维度 social_stress/cultural_friction = 仅 3 点（08-04 起，v3.5.62 新增）⚠️ 不足 3 周；religious_conflict/regime_change = 0 点 ❌ 无数据。**结论：R12 不达标，维持 ⏳；预计 08-25 后跨域达 3 周再复评**（climate 采集为每月 1 号 dom=1 有意设计，非笔误——数据源 ONI 月度，见 fetch_climate_signals.py 头注） |
 | ✅ | 2026-08-04 | **signal_synthesizer Staging→Live 切换** | `docker-compose.yml` 加 `STAGING_MODE=0` + `force-recreate`；切后 R09/R10 真正调 LLM + 推 ntfy；08-04 已落地（news.db 53 天 ≥30 天，两层守门均满足）|
 | ⏳ | 2026-09-10 | **GDELT scale 校准** | 校准 `religious_conflict` / `regime_change` / `social_stress` / `cultural_friction` 的 scale 参数（含 2026-07-25 v3.5.62 新增两个维度，scale=200 为估算值需实测验证）；GDELT 信号量级与 GRV 其他维度对齐 |
 | ✅ | 2026-08-05（08-06 复核） | **天枢叙事摄取跑通** | narrative_chunks 已 181 条（目标≥50 已达成 ✅），scheduler 任务 narrative_proc 实际写入确认；覆盖维度较测试期 3 条基线大幅扩展 |
