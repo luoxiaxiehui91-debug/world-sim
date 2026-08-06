@@ -96,9 +96,33 @@ def _fetch_oni() -> dict:
         return {}
 
 
-# ── FIRMS 火点汇总（从 Crucix 读取）────────────────────────────────────────
+# ── FIRMS 火点汇总（2026-08-06 修复：双路取数 + 字段契约对齐）──
+# 路径1：fetch_firms.py 直连产物 firms_fire.json（crucix 退场后的唯一源，但全球 CSV 下载慢问题待修）
+# 路径2：crucix thermal 兜底（crucix 仍活跃期间可用）——字段契约修正：
+#   crucix thermal 实际字段 = region / det（检测数）/ night / hc（高置信）/ fires[]
+#   原代码读 hotspots/high_confidence 键不存在 → 恒 0（08-01 实证 climate_signals.json firms=0）
 def _fetch_firms_summary() -> dict:
-    """从 Crucix API 读取卫星火点汇总统计。"""
+    """优先读 fetch_firms.py 直连产物；crucix thermal（det/hc）兜底。"""
+    # ── 路径1：firms_fire.json（fetch_firms 直连产物）──
+    try:
+        firms_path = os.path.join(DATA_DIR, "firms_fire.json")
+        if os.path.exists(firms_path):
+            with open(firms_path, encoding="utf-8") as f:
+                d = json.load(f)
+            if d.get("fetched_at") and d.get("total_hotspots", 0) > 0:
+                summary = {
+                    "total_hotspots": d.get("total_hotspots", 0),
+                    "high_confidence": d.get("high_confidence", 0),
+                    "active_fire_regions": d.get("active_fire_regions", []),
+                    "date": d.get("date", datetime.now().strftime("%Y-%m-%d")),
+                }
+                print(f"  [climate] FIRMS(直连): 总热点={summary['total_hotspots']}, 高置信={summary['high_confidence']}")
+                return summary
+            print("  [climate] FIRMS: firms_fire.json 为 0（直连下载未产出，回退 crucix）")
+    except Exception as e:
+        print(f"  [climate] FIRMS: firms_fire.json 读取失败，回退 crucix: {e}")
+
+    # ── 路径2：crucix thermal 兜底（字段 det/hc——2026-08-06 契约修正，原 hotspots/high_confidence 恒 0）──
     if not _REQ_OK:
         return {}
     try:
@@ -110,9 +134,9 @@ def _fetch_firms_summary() -> dict:
         if not thermal:
             return {}
 
-        total_hotspots = sum(t.get("hotspots", 0) for t in thermal)
-        high_frp_count = sum(t.get("high_confidence", 0) for t in thermal)
-        regions = [t.get("region", "unknown") for t in thermal if t.get("hotspots", 0) > 500]
+        total_hotspots = sum(t.get("det", 0) for t in thermal)
+        high_frp_count = sum(t.get("hc", 0) for t in thermal)
+        regions = [t.get("region", "unknown") for t in thermal if t.get("det", 0) > 500]
 
         summary = {
             "total_hotspots": total_hotspots,
@@ -120,7 +144,7 @@ def _fetch_firms_summary() -> dict:
             "active_fire_regions": regions,
             "date": datetime.now().strftime("%Y-%m-%d"),
         }
-        print(f"  [climate] FIRMS: 总热点={total_hotspots}, 高置信={high_frp_count}, 活跃区域={regions}")
+        print(f"  [climate] FIRMS(crucix): 总热点={total_hotspots}, 高置信={high_frp_count}, 活跃区域={regions}")
         return summary
     except Exception as e:
         print(f"  [climate] FIRMS读取失败: {e}")

@@ -32,13 +32,19 @@ except ImportError:
     WORKSPACE = Path(__file__).parent.parent
     DATA_DIR = str(Path(WORKSPACE) / 'data')
 
-FRED_PROXY = os.environ.get('FRED_PROXY', '')
+# 代理配置（2026-08-06 修复：原读 FRED_PROXY（env 不存在）→ 代理回退永久失效；改为 optim_config.PROXY_URL > env OUTBOUND_PROXY）
+try:
+    from optim_config import PROXY_URL
+except ImportError:
+    PROXY_URL = os.environ.get('OUTBOUND_PROXY', '')
+
+PROXY_URL = os.environ.get('OUTBOUND_PROXY', '') or PROXY_URL
 FIRMS_MAP_KEY = os.environ.get('FIRMS_MAP_KEY', 'REDACTED_FIRMS_KEY')
 FIRMS_OUTPUT = os.path.join(DATA_DIR, 'firms_fire.json')
 _PROXIES = {
-    'http': FRED_PROXY,
-    'https': FRED_PROXY,
-} if FRED_PROXY else None
+    'http': PROXY_URL,
+    'https': PROXY_URL,
+} if PROXY_URL else None
 
 REGION_HOTSPOT_THRESHOLD = 500
 DAY_COUNT = 2
@@ -46,21 +52,28 @@ VIIRS_SOURCES = ('VIIRS_SNPP_NRT', 'VIIRS_NOAA20_NRT')
 
 
 def _fetch_source_csv(date_str, source):
-    '''直连单个 VIIRS 源的 area CSV；直连失败回退代理。'''
+    '''直连单个 VIIRS 源的 area CSV；直连失败回退代理。
+    2026-08-06 修复：改 stream 分块下载——一次性 GET 下载全球 2 天 NRT CSV 体量过大、
+    120s 超时拿不到数据（实测 stream 分块可正常拉到稠密火点记录）。
+    timeout=(connect, read)：连接 15s，读 300s 足够下载大数据量。'''
     url = (
         f'https://firms.modaps.eosdis.nasa.gov/api/area/csv/'
         f'{FIRMS_MAP_KEY}/{source}/world/{DAY_COUNT}/{date_str}'
     )
     try:
-        resp = requests.get(url, timeout=120)
+        resp = requests.get(url, timeout=(15, 300), stream=True)
     except Exception:
         if _PROXIES:
-            resp = requests.get(url, timeout=120, proxies=_PROXIES)
+            resp = requests.get(url, timeout=(15, 300), stream=True, proxies=_PROXIES)
         else:
             raise
     if resp.status_code != 200:
         return ''
-    return resp.text
+    chunks = []
+    for chunk in resp.iter_content(chunk_size=65536):
+        if chunk:
+            chunks.append(chunk)
+    return b''.join(chunks).decode('utf-8', errors='ignore')
 
 
 def _aggregate(csv_texts):
