@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
+import * as d3geo from 'd3-geo';
+import * as d3zoom from 'd3-zoom';
+import * as d3sel from 'd3-selection';
 import * as topojson from 'topojson-client';
 import worldAtlas from 'world-atlas/countries-110m.json';
 import { MAP_THEME, withAlpha } from '@/config/theme';
@@ -18,22 +20,12 @@ import {
 } from '@/data/strategicSites';
 import './FlatMapPanel.css';
 
-/**
- * 2D 平面世界地图视图（Leaflet 原生渲染，Wave 2 1.7.0 迁移自 d3-geo + SVG）。
- *
- * 与 3D 地球共用同一份点位/弧线数据与配色（lib/mapData.ts），信息密度更高、一眼看全。
- *
- * ⚠ 渲染器只读约定（K6）：本组件**只直读** `p.color / p.weight / p.shape / p.status`，
- * 不 import `config/layerCategories`。类别 → 色/形/强度的换算全部在构建层完成，
- * 保证与 3D 地球观感严格一致。
- */
-
-/** 脉冲周期区间（秒）：weight 越高越快，对应「强度 = 脉冲速率」这一半双轴。 */
+/** 脉冲周期区间（秒）：weight 越高越快。 */
 const PULSE_SLOW_S = 3.2;
 const PULSE_FAST_S = 1.1;
 
-/** 要地星形符号基准外接半径（像素），再乘 siteScale(importance)。 */
-const SITE_STAR_RADIUS = 4.4;
+/** 战略要地星形基准字体大小（px），再乘 siteScale(importance)。 */
+const SITE_STAR_FONT = 14;
 
 /** 大圆弧采样点数 */
 const ARC_SAMPLES = 56;
@@ -41,48 +33,35 @@ const ARC_SAMPLES = 56;
 export interface FlatMapPanelProps {
   points: RiskPoint[];
   arcs: RiskArc[];
-  /** 战略要地叠加层（独立于类别色轴；上层关掉开关时传空数组） */
   sites?: StrategicSite[];
-  /** 当前是否为可见视图；隐藏时清除 hover 状态（默认 true） */
   active?: boolean;
-  /** 地区取景（R-P1-02）：`world` 用整球 fitBounds，其余按 bbox 矩形 flyToBounds（默认 world） */
   region?: RegionKey;
-  /** 聚焦点位 id（R-P1-03）：命中点加一圈聚焦光环；null = 不聚焦 */
   focusPointId?: string | null;
-  /** 点击点位回调（供上层反向选中；未传则点位不可点击） */
   onPointClick?: (point: RiskPoint) => void;
 }
 
-/**
- * 球面线性插值：在两点之间沿大圆路径采样，生成折线坐标序列。
- * 效果与 d3-geo 的 `geoInterpolate` 等价。
- */
+/** tooltip 定位信息 */
+interface TooltipState {
+  html: string;
+  x: number;
+  y: number;
+}
+
+/** 球面线性插值：沿大圆路径采样 [lng, lat] 坐标序列（d3-geo 约定：x=lng, y=lat）。 */
 function greatCircleArc(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
+  lat1: number, lng1: number,
+  lat2: number, lng2: number,
   samples: number = ARC_SAMPLES,
 ): [number, number][] {
   const toRad = Math.PI / 180;
-  const φ1 = lat1 * toRad;
-  const λ1 = lng1 * toRad;
-  const φ2 = lat2 * toRad;
-  const λ2 = lng2 * toRad;
+  const φ1 = lat1 * toRad, λ1 = lng1 * toRad;
+  const φ2 = lat2 * toRad, λ2 = lng2 * toRad;
 
-  // 球面角距
-  const Δφ = φ2 - φ1;
-  const Δλ = λ2 - λ1;
+  const Δφ = φ2 - φ1, Δλ = λ2 - λ1;
   const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
   const δ = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-  if (δ < 1e-12) {
-    // 两点几乎重合，直接返回直线
-    return [
-      [lat1, lng1],
-      [lat2, lng2],
-    ];
-  }
+  if (δ < 1e-12) return [[lng1, lat1], [lng2, lat2]];
 
   const sinδ = Math.sin(δ);
   const result: [number, number][] = [];
@@ -95,19 +74,44 @@ function greatCircleArc(
     const z = A * Math.sin(φ1) + B * Math.sin(φ2);
     const φ = Math.atan2(z, Math.sqrt(x * x + y * y));
     const λ = Math.atan2(y, x);
-    result.push([φ / toRad, λ / toRad]);
+    result.push([λ / toRad, φ / toRad]);
   }
   return result;
 }
 
 /**
- * 将像素半径转换为地理度数偏移（在指定纬度处）。
- * Web Mercator 投影下 longitude 度/像素 = 360 / (256 * 2^z)，
- * latitude 近似相同（对小符号可忽略 Mercator 纬向拉伸）。
+ * 把 [lng, lat] 数组用投影函数转换，在以下情况打断成多段：
+ * 1. 投影返回 null（超出投影域）
+ * 2. 相邻两点像素跨度超过 maxJump（应对 geoNaturalEarth1 边界点不返回 null 但坐标飞跃的情况）
  */
-function pixelToDeg(pixelRadius: number, zoom: number): number {
-  if (isNaN(zoom) || zoom <= 0) return pixelRadius * (360 / 256);
-  return pixelRadius * (360 / (256 * Math.pow(2, zoom)));
+function projectArc(
+  coords: [number, number][],
+  proj: d3geo.GeoProjection,
+  maxJump = 200,
+): Array<[number, number][]> {
+  const segments: Array<[number, number][]> = [];
+  let cur: [number, number][] = [];
+  for (const [lng, lat] of coords) {
+    const pt = proj([lng, lat]);
+    if (!pt) {
+      if (cur.length >= 2) segments.push(cur);
+      cur = [];
+    } else {
+      const p = pt as [number, number];
+      if (cur.length > 0) {
+        const prev = cur[cur.length - 1];
+        const dx = Math.abs(p[0] - prev[0]);
+        const dy = Math.abs(p[1] - prev[1]);
+        if (dx > maxJump || dy > maxJump) {
+          if (cur.length >= 2) segments.push(cur);
+          cur = [];
+        }
+      }
+      cur.push(p);
+    }
+  }
+  if (cur.length >= 2) segments.push(cur);
+  return segments;
 }
 
 export function FlatMapPanel({
@@ -120,545 +124,442 @@ export function FlatMapPanel({
   onPointClick,
 }: FlatMapPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const pointLayerRef = useRef<L.LayerGroup | null>(null);
-  const arcLayerRef = useRef<L.LayerGroup | null>(null);
-  const siteLayerRef = useRef<L.LayerGroup | null>(null);
-  const focusRingRef = useRef<L.LayerGroup | null>(null);
-  const [zoomLevel, setZoomLevel] = useState<number>(3);
-  const [mapReady, setMapReady] = useState(false);
-  const zoomLevelRef = useRef<number>(3);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const gRef = useRef<SVGGElement | null>(null);           // 变换容器（zoom target）
+  const projRef = useRef<d3geo.GeoProjection | null>(null);
+  const zoomRef = useRef<d3zoom.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
-  /* ── 地图初始化 ──────────────────────────────────────────── */
+  /** 把 MouseEvent 的 clientX/Y 转换为容器内相对坐标（规避 CSS transform 导致 fixed 定位偏移）*/
+  const toContainerPos = useCallback((e: MouseEvent) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return { x: e.clientX, y: e.clientY };
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }, []);
+  const transformRef = useRef<d3zoom.ZoomTransform>(d3zoom.zoomIdentity);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+
+  /* ── 容器尺寸监听 ────────────────────────────────────────── */
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-
-    let mapForCleanup: L.Map | null = null;
-    let ro: ResizeObserver | null = null;
-
-    try {
-    const map = L.map(el, {
-      center: [22, 70],
-      zoom: 3,
-      minZoom: 2,
-      maxZoom: 8,
-      zoomControl: true,
-      attributionControl: false,
-    });
-
-    if (!map) throw new Error('L.map 返回 null');
-    mapForCleanup = map;
-
-    // 离线 GeoJSON 底图（world-atlas Natural Earth 110m，无需外网）
-    // 替代 CARTO tile layer，解决内网环境图块缺失问题
-    const landGeo = topojson.feature(
-      worldAtlas as unknown as Parameters<typeof topojson.feature>[0],
-      (worldAtlas as any).objects.land,
-    );
-    const countriesGeo = topojson.feature(
-      worldAtlas as unknown as Parameters<typeof topojson.feature>[0],
-      (worldAtlas as any).objects.countries,
-    );
-
-    // 修复 antimeridian wrapping：world-atlas 中俄罗斯/美国阿拉斯加等多边形跨越 ±180°，
-    // Leaflet 会画出横穿地图的错误连线。使用 antimeridian splitting 在 ±180 处截断环，
-    // 生成不跨越日期变更线的 MultiPolygon，彻底消除横穿地图的错误连线。
-    function clipGeoJSON(geo: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
-      // 在 ±180 处线性插值求交点纬度
-      function interpLat(lng1: number, lat1: number, lng2: number, lat2: number, targetLng: number): number {
-        const t = (targetLng - lng1) / (lng2 - lng1);
-        return lat1 + t * (lat2 - lat1);
-      }
-
-      // 把单个环在 antimeridian 处切割，返回若干闭合环
-      function splitRingAtAntimeridian(ring: number[][]): number[][][] {
-        if (ring.length < 2) return [ring];
-
-        // 先用 normalizeRing 让经度连续，便于检测跨越
-        const normalized: number[][] = [[ring[0][0], ring[0][1]]];
-        for (let i = 1; i < ring.length; i++) {
-          let lng = ring[i][0];
-          const prev = normalized[i - 1][0];
-          while (lng - prev > 180) lng -= 360;
-          while (prev - lng > 180) lng += 360;
-          normalized.push([lng, ring[i][1]]);
-        }
-
-        // 检查是否存在任何跨越（|Δlng| > 180 在原始 ring 中）
-        let hasCross = false;
-        for (let i = 1; i < ring.length; i++) {
-          const dLng = Math.abs(ring[i][0] - ring[i - 1][0]);
-          if (dLng > 180) { hasCross = true; break; }
-        }
-        // 末尾到首点也检查
-        if (!hasCross) {
-          const dLng = Math.abs(ring[0][0] - ring[ring.length - 1][0]);
-          if (dLng > 180) hasCross = true;
-        }
-        if (!hasCross) return [ring];
-
-        // 沿 normalized 坐标序列切割：遇到越过 +180 或 -180 就插入交点并开新环
-        const rings: number[][][] = [];
-        let current: number[][] = [];
-
-        const push = (pt: number[]) => current.push(pt);
-
-        for (let i = 0; i < normalized.length; i++) {
-          const p1 = normalized[i];
-          const p2 = normalized[(i + 1) % normalized.length];
-          push([p1[0], p1[1]]);
-
-          const dLng = p2[0] - p1[0];
-          if (Math.abs(dLng) > 180) {
-            // 确定截断经度方向
-            const crossLng = dLng > 0 ? 180 : -180;
-            const lat = interpLat(p1[0], p1[1], p2[0], p2[1], crossLng);
-            push([crossLng, lat]);
-            // 闭合当前环（首尾相接）
-            if (current.length >= 4) {
-              // 补首点以闭合
-              current.push([current[0][0], current[0][1]]);
-              rings.push(current);
-            }
-            current = [];
-            // 新环从另一侧的截断点开始
-            current.push([-crossLng, lat]);
-          }
-        }
-        // 收尾：把剩余顶点合并到第一个环（如果它是空的就新建）
-        if (current.length > 0) {
-          if (rings.length > 0) {
-            // 把剩余段拼回第一个环的末尾（绕一圈回来的情况）
-            const first = rings[0];
-            // 去掉第一个环的闭合点，追加当前段，再重新闭合
-            first.pop();
-            current.forEach(pt => first.push(pt));
-            first.push([first[0][0], first[0][1]]);
-          } else {
-            if (current.length >= 4) {
-              current.push([current[0][0], current[0][1]]);
-              rings.push(current);
-            } else {
-              // 几乎没有切割，直接返回原始 ring
-              return [ring];
-            }
-          }
-        }
-
-        // 规范化回 [-180, 180]（将 >180 折回）
-        return rings.map(r =>
-          r.map(pt => {
-            let lng = pt[0];
-            // 把超出 ±180 的经度折回标准范围
-            while (lng > 180) lng -= 360;
-            while (lng < -180) lng += 360;
-            return [lng, pt[1]];
-          })
-        );
-      }
-
-      // 处理单个 Polygon 的所有环，返回 Geometry（可能升级为 MultiPolygon）
-      function clipGeom(geom: GeoJSON.Geometry): GeoJSON.Geometry {
-        if (geom.type === 'Polygon') {
-          // 每个环独立切割
-          const splitCoords: number[][][][] = geom.coordinates.map(splitRingAtAntimeridian);
-          // 如果所有环都只有一片（未切割），保持 Polygon
-          const allSingle = splitCoords.every(parts => parts.length === 1);
-          if (allSingle) {
-            return { ...geom, coordinates: splitCoords.map(parts => parts[0]) };
-          }
-          // 有切割：外环切割产生多个 rings，每个 ring 组成独立 Polygon
-          // 简化处理：外环切割结果各自成为独立的 Polygon，孔暂不处理（world-atlas 数据孔极少）
-          const outerParts = splitCoords[0];
-          const polygons = outerParts.map(outerRing => ({ type: 'Polygon' as const, coordinates: [outerRing] }));
-          if (polygons.length === 1) return polygons[0];
-          return { type: 'MultiPolygon', coordinates: polygons.map(p => p.coordinates) };
-        }
-        if (geom.type === 'MultiPolygon') {
-          const newPolygons: number[][][][] = [];
-          for (const poly of geom.coordinates) {
-            const splitOuter = splitRingAtAntimeridian(poly[0]);
-            for (const outerRing of splitOuter) {
-              newPolygons.push([outerRing]);
-            }
-          }
-          return { ...geom, coordinates: newPolygons };
-        }
-        return geom;
-      }
-
-      return {
-        ...geo,
-        features: geo.features.map(f => ({ ...f, geometry: clipGeom(f.geometry) })),
-      };
-    }
-    const landClipped = clipGeoJSON(landGeo as unknown as GeoJSON.FeatureCollection);
-    const countriesClipped = clipGeoJSON(countriesGeo as unknown as GeoJSON.FeatureCollection);
-
-    L.geoJSON(landClipped as GeoJSON.GeoJsonObject, {
-      style: { fillColor: '#1a2332', fillOpacity: 1, color: 'transparent', weight: 0 },
-      interactive: false,
-    }).addTo(map);
-
-    L.geoJSON(countriesClipped as GeoJSON.GeoJsonObject, {
-      style: { fillColor: 'transparent', fillOpacity: 0, color: '#2a3f5a', weight: 0.5, opacity: 0.7 },
-      interactive: false,
-    }).addTo(map);
-
-    map.doubleClickZoom.disable();
-    map.on('dblclick', () => map.fitBounds([[-90, -180], [90, 180]]));
-    map.on('zoomend', () => {
-      const z = map.getZoom();
-      zoomLevelRef.current = z;
-      setZoomLevel(z);
-    });
-
-    // 创建图层组：自上而下 arc → point → site → focusRing
-    const arcLayer = L.layerGroup().addTo(map);
-    const pointLayer = L.layerGroup().addTo(map);
-    const siteLayer = L.layerGroup().addTo(map);
-    const focusRing = L.layerGroup().addTo(map);
-
-    mapRef.current = map;
-    arcLayerRef.current = arcLayer;
-    pointLayerRef.current = pointLayer;
-    siteLayerRef.current = siteLayer;
-    focusRingRef.current = focusRing;
-    const initZoom = map.getZoom();
-    zoomLevelRef.current = initZoom;
-    setZoomLevel(initZoom);
-    setMapReady(true);
-
-    // ResizeObserver → invalidateSize
-    ro = new ResizeObserver(() => {
-      map.invalidateSize();
+    const ro = new ResizeObserver(() => {
+      setDims({ w: el.clientWidth, h: el.clientHeight });
     });
     ro.observe(el);
-
-    // react-grid-layout 延迟渲染 → 容器可能 0 高度时初始化地图
-    // 用双重 rAF 确保在布局稳定后再 invalidateSize
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        map?.invalidateSize();
-      });
-    });
-
-    } catch (err) {
-      console.error('FlatMapPanel 地图初始化失败', err);
-      setMapReady(false);
-    }
-
-    return () => {
-      ro?.disconnect();
-      mapForCleanup?.remove();
-      mapRef.current = null;
-      arcLayerRef.current = null;
-      pointLayerRef.current = null;
-      siteLayerRef.current = null;
-      focusRingRef.current = null;
-      setMapReady(false);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setDims({ w: el.clientWidth, h: el.clientHeight });
+    return () => ro.disconnect();
   }, []);
-
-  /* ── region prop → flyTo ────────────────────────────────── */
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-
-    // ⛔ react-grid-layout 0 高度时 flyToBounds 会算出 NaN 像素 → 崩
-    const size = map.getSize();
-    if (size.x <= 0 || size.y <= 0) {
-      // 推迟到下次 invalidateSize 完成后再飞
-      setTimeout(() => {
-        if (mapRef.current && mapRef.current.getSize().x > 0) {
-          if (region === 'world') {
-            mapRef.current.flyToBounds([[-90, -180], [90, 180]], { duration: 0.8 });
-          } else {
-            const bbox = regionBbox(region);
-            if (bbox) {
-              const [minLng, minLat, maxLng, maxLat] = bbox;
-              mapRef.current.flyToBounds([[minLat, minLng], [maxLat, maxLng]], { duration: 0.8, padding: [6, 6] });
-            }
-          }
-        }
-      }, 300);
-      return;
-    }
-
-    if (region === 'world') {
-      map.flyToBounds([[-90, -180], [90, 180]], { duration: 0.8 });
-      return;
-    }
-
-    const bbox = regionBbox(region);
-    if (bbox) {
-      const [minLng, minLat, maxLng, maxLat] = bbox;
-      map.flyToBounds(
-        [
-          [minLat, minLng],
-          [maxLat, maxLng],
-        ],
-        { duration: 0.8, padding: [6, 6] },
-      );
-    }
-  }, [region, mapReady]);
 
   /* ── active 显隐控制 ─────────────────────────────────────── */
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    el.style.display = active ? '' : 'none';
-    // ⛔ 切到 2D 视图时 Leaflet 容器尺寸缓存可能仍为 0 → 强制刷新
-    if (active) {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const m = mapRef.current;
-          if (!m) return;
-          m.invalidateSize();
-        });
-      });
-    }
+    el.style.visibility = active ? '' : 'hidden';
   }, [active]);
 
-  /* ── 切走时清除地图 hover（Leaflet 自带 tooltip 会自动消失）──── */
+  /* ── 投影 + 底图初始化（dims 就绪后执行一次）────────────── */
 
-  /* ── RiskPoint → CircleMarker / Polygon ──────────────────── */
+  useEffect(() => {
+    if (!dims || dims.w <= 0 || dims.h <= 0) return;
+    const { w, h } = dims;
 
-  const buildPointLayer = useCallback(() => {
-    const layer = pointLayerRef.current;
-    const map = mapRef.current;
-    if (!layer || !map || !mapReady) return;
+    const proj = d3geo.geoNaturalEarth1().fitSize([w, h], { type: 'Sphere' });
+    projRef.current = proj;
 
-    layer.clearLayers();
-    const zoom = zoomLevelRef.current;
+    const svgEl = svgRef.current;
+    if (!svgEl) return;
+
+    const svg = d3sel.select(svgEl);
+    svg.attr('width', w).attr('height', h);
+
+    // zoom 行为
+    const zoom = d3zoom.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([1, 12])
+      .on('zoom', (event: d3zoom.D3ZoomEvent<SVGSVGElement, unknown>) => {
+        const t = event.transform;
+        transformRef.current = t;
+        d3sel.select(gRef.current).attr('transform', t.toString());
+        const invScale = 1 / t.k;
+        // 星标 + 点位 group 反向缩放，保持视觉尺寸固定
+        d3sel.select(gRef.current).selectAll<SVGTextElement, unknown>('.fm-site-star').each(function() {
+          const el = d3sel.select(this);
+          const base = parseFloat(el.attr('data-fs') || '14');
+          el.attr('font-size', base * invScale);
+        });
+        d3sel.select(gRef.current).selectAll<SVGGElement, unknown>('.fm-point-group').each(function() {
+          const el = d3sel.select(this);
+          const cx = el.attr('data-cx');
+          const cy = el.attr('data-cy');
+          el.attr('transform', `translate(${cx},${cy}) scale(${invScale})`);
+        });
+        d3sel.select(gRef.current).selectAll<SVGGElement, unknown>('.fm-focus-ring').each(function() {
+          const el = d3sel.select(this);
+          const cx = el.attr('data-cx');
+          const cy = el.attr('data-cy');
+          el.attr('transform', `translate(${cx},${cy}) scale(${invScale})`);
+        });
+        setZoomLevel(Math.round(t.k * 10) / 10);
+      });
+    zoomRef.current = zoom;
+    svg.call(zoom);
+    svg.on('dblclick.zoom', () => {
+      svg.call(zoom.transform, d3zoom.zoomIdentity);
+    });
+
+    // 底图：陆地填充
+    const land = topojson.feature(
+      worldAtlas as unknown as Parameters<typeof topojson.feature>[0],
+      (worldAtlas as any).objects.land,
+    );
+    const countries = topojson.feature(
+      worldAtlas as unknown as Parameters<typeof topojson.feature>[0],
+      (worldAtlas as any).objects.countries,
+    );
+    const path = d3geo.geoPath(proj);
+
+    const g = d3sel.select(gRef.current);
+
+    // 海洋背景（Sphere）
+    g.selectAll('.fm-ocean').data([null]).join('path')
+      .attr('class', 'fm-ocean')
+      .attr('d', path({ type: 'Sphere' } as d3geo.GeoPermissibleObjects) ?? '')
+      .attr('fill', (MAP_THEME as any).flatOceanFill ?? '#060b16')
+      .attr('stroke', 'none');
+
+    // 陆地填充
+    g.selectAll('.fm-land').data([null]).join('path')
+      .attr('class', 'fm-land')
+      .attr('d', path(land as d3geo.GeoPermissibleObjects) ?? '')
+      .attr('fill', '#1a2332')
+      .attr('stroke', 'none');
+
+    // 国家边界线
+    g.selectAll('.fm-borders').data([null]).join('path')
+      .attr('class', 'fm-borders')
+      .attr('d', path(countries as d3geo.GeoPermissibleObjects) ?? '')
+      .attr('fill', 'none')
+      .attr('stroke', '#3a5070')
+      .attr('stroke-width', '0.4')
+      .attr('stroke-opacity', '0.6');
+
+    // 经纬网（轻淡格线）
+    const graticule = d3geo.geoGraticule()();
+    g.selectAll('.fm-graticule').data([null]).join('path')
+      .attr('class', 'fm-graticule')
+      .attr('d', path(graticule) ?? '')
+      .attr('fill', 'none')
+      .attr('stroke', '#1e2d42')
+      .attr('stroke-width', '0.3')
+      .attr('stroke-opacity', '0.5');
+
+    // 确保数据层在底图之上
+    const ensureLayer = (cls: string) => {
+      if (!g.select('.' + cls).node()) g.append('g').attr('class', cls);
+    };
+    ensureLayer('fm-arcs-layer');
+    ensureLayer('fm-points-layer');
+    ensureLayer('fm-sites-layer');
+    ensureLayer('fm-focus-layer');
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dims]);
+
+  /* ── region → 重新 fitSize 并重置 zoom ────────────────────── */
+
+  useEffect(() => {
+    if (!dims || dims.w <= 0 || dims.h <= 0) return;
+    const proj = projRef.current;
+    const svg = svgRef.current;
+    const zoom = zoomRef.current;
+    if (!proj || !svg || !zoom) return;
+
+    const { w, h } = dims;
+
+    if (region === 'world') {
+      proj.fitSize([w, h], { type: 'Sphere' });
+    } else {
+      const bbox = regionBbox(region);
+      if (bbox) {
+        const [minLng, minLat, maxLng, maxLat] = bbox;
+        const geoRect: d3geo.GeoPermissibleObjects = {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [minLng, minLat], [maxLng, minLat],
+              [maxLng, maxLat], [minLng, maxLat],
+              [minLng, minLat],
+            ]],
+          },
+          properties: {},
+        };
+        proj.fitExtent([[20, 20], [w - 20, h - 20]], geoRect);
+      }
+    }
+
+    // 重绘底图 path
+    const g = d3sel.select(gRef.current);
+    const path = d3geo.geoPath(proj);
+
+    const land = topojson.feature(
+      worldAtlas as unknown as Parameters<typeof topojson.feature>[0],
+      (worldAtlas as any).objects.land,
+    );
+    const countries = topojson.feature(
+      worldAtlas as unknown as Parameters<typeof topojson.feature>[0],
+      (worldAtlas as any).objects.countries,
+    );
+
+    g.select('.fm-ocean').attr('d', path({ type: 'Sphere' } as d3geo.GeoPermissibleObjects) ?? '');
+    g.select('.fm-land').attr('d', path(land as d3geo.GeoPermissibleObjects) ?? '');
+    g.select('.fm-borders').attr('d', path(countries as d3geo.GeoPermissibleObjects) ?? '');
+    g.select('.fm-graticule').attr('d', path(d3geo.geoGraticule()()) ?? '');
+
+    // 重置 zoom（让数据层跟着更新）
+    d3sel.select(svg).call(zoom.transform, d3zoom.zoomIdentity);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [region, dims]);
+
+  /* ── 弧线层 ─────────────────────────────────────────────── */
+
+  useEffect(() => {
+    const g = d3sel.select(gRef.current);
+    const proj = projRef.current;
+    if (!proj) return;
+
+    const layer = g.select<SVGGElement>('.fm-arcs-layer');
+    if (!layer.node()) return;
+
+    // 每条弧线渲染为 <g> 内若干 <path> 段（投影断点处打断）
+    const groups = layer.selectAll<SVGGElement, RiskArc>('.fm-arc-group')
+      .data(arcs, (d) => d.id ?? `${d.startLat},${d.startLng},${d.endLat},${d.endLng}`);
+
+    groups.exit().remove();
+
+    const enter = groups.enter().append('g').attr('class', 'fm-arc-group');
+
+    const merged = enter.merge(groups);
+
+    merged.each(function(a) {
+      const grp = d3sel.select(this);
+      grp.selectAll('path').remove();
+
+      if (isNaN(a.startLat) || isNaN(a.startLng) || isNaN(a.endLat) || isNaN(a.endLng)) return;
+
+      const coords = greatCircleArc(a.startLat, a.startLng, a.endLat, a.endLng);
+      const segments = projectArc(coords, proj);
+      const strokeW = 0.9 + (a.intensity / 100) * 1.5;
+
+      for (const seg of segments) {
+        if (seg.length < 2) continue;
+        const d = 'M' + seg.map(pt => pt.join(',')).join('L');
+        grp.append('path')
+          .attr('d', d)
+          .attr('fill', 'none')
+          .attr('stroke', a.startColor)
+          .attr('stroke-width', strokeW)
+          .attr('stroke-opacity', 0.75)
+          .attr('stroke-linecap', 'round')
+          .attr('class', 'fm-arc')
+          .on('mouseenter', function(event: MouseEvent) {
+            const pos = toContainerPos(event);
+            setTooltip({ html: arcTooltipHtml(a), x: pos.x, y: pos.y });
+          })
+          .on('mousemove', function(event: MouseEvent) {
+            const pos = toContainerPos(event);
+            setTooltip(prev => prev ? { ...prev, x: pos.x, y: pos.y } : null);
+          })
+          .on('mouseleave', () => setTooltip(null));
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arcs, dims]);
+
+  /* ── 点位层 ─────────────────────────────────────────────── */
+
+  const buildPoints = useCallback(() => {
+    const g = d3sel.select(gRef.current);
+    const proj = projRef.current;
+    if (!proj) return;
+
+    const layer = g.select<SVGGElement>('.fm-points-layer');
+    if (!layer.node()) return;
+
+    layer.selectAll('*').remove();
 
     for (const p of points) {
-      // ⛔ NaN 坐标降级跳过（防止 Invalid LatLng 崩溃）
       if (isNaN(p.lat) || isNaN(p.lng)) continue;
+      const px = proj([p.lng, p.lat]);
+      if (!px) continue;
+      const [cx, cy] = px;
+
       const missing = p.status === 'missing';
       const core = (2.6 + p.weight * 3.4) * (p.isEvent ? 1.25 : 1) * 1.5;
       const halo = core * 3.2;
-      const highlight =
-        !missing && ((p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent === true);
-
+      const highlight = !missing && ((p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent === true);
       const pulseSec = (PULSE_SLOW_S - p.weight * (PULSE_SLOW_S - PULSE_FAST_S)).toFixed(2);
-
       const fillColor = missing ? withAlpha(p.color, 0.18) : p.color;
       const strokeColor = missing ? p.color : withAlpha('#ffffff', 0.5);
-      const strokeWeight = missing ? 1 : 0.6;
+      const strokeW = missing ? 1 : 0.6;
 
-      const className = missing
-        ? 'leaflet-point-missing'
-        : highlight
-          ? 'leaflet-point-pulse'
-          : '';
+      const grp = layer.append('g')
+        .attr('class', 'fm-point-group')
+        .attr('data-cx', cx)
+        .attr('data-cy', cy)
+        .attr('transform', `translate(${cx},${cy})`)
+        .attr('cursor', onPointClick ? 'pointer' : 'default');
 
       if (p.shape === 'diamond') {
-        const diamondR = core * 1.4;
-        const offsetDeg = pixelToDeg(diamondR, zoom);
-        const polygon = L.polygon(
-          [
-            [p.lat + offsetDeg, p.lng],
-            [p.lat, p.lng + offsetDeg],
-            [p.lat - offsetDeg, p.lng],
-            [p.lat, p.lng - offsetDeg],
-          ],
-          {
-            fillColor,
-            color: strokeColor,
-            weight: strokeWeight,
-            fillOpacity: 0.85,
-            className,
-            lineJoin: 'round',
-          },
-        );
+        const r = core * 1.4;
+        // 子元素画在原点
+        const pts = `0,${-r} ${r},0 0,${r} ${-r},0`;
+        const poly = grp.append('polygon')
+          .attr('points', pts)
+          .attr('fill', fillColor)
+          .attr('stroke', strokeColor)
+          .attr('stroke-width', strokeW)
+          .attr('fill-opacity', 0.85);
 
-        if (highlight) {
-          const el = polygon.getElement();
-          if (el) (el as HTMLElement).style.setProperty('--ky-pulse-duration', `${pulseSec}s`);
+        if (missing) {
+          poly.attr('stroke-dasharray', '2.5 2').attr('stroke-opacity', 0.85).attr('fill-opacity', 0.18);
+        } else if (highlight) {
+          poly.attr('class', 'fm-point-pulse').style('--ky-pulse-duration', `${pulseSec}s`);
         }
-
-        polygon.bindTooltip(pointTooltipHtml(p), {
-          direction: 'top',
-          offset: [0, -diamondR * 2],
-          className: 'leaflet-tooltip-dark',
-        });
-        polygon.on('click', () => onPointClick?.(p));
-        polygon.addTo(layer);
       } else {
-        // 光环（非缺失态）
+        // 光环（非缺失）
         if (!missing) {
-          L.circleMarker([p.lat, p.lng], {
-            radius: halo,
-            fillColor: p.color,
-            color: 'transparent',
-            weight: 0,
-            fillOpacity: 0.14,
-            interactive: false,
-          }).addTo(layer);
-
-          L.circleMarker([p.lat, p.lng], {
-            radius: core * 1.8,
-            fillColor: p.color,
-            color: 'transparent',
-            weight: 0,
-            fillOpacity: 0.22,
-            interactive: false,
-          }).addTo(layer);
-        } else {
-          // 缺失点：透明命中区保证可悬停
-          L.circleMarker([p.lat, p.lng], {
-            radius: Math.max(halo, 9),
-            fillColor: 'transparent',
-            color: 'transparent',
-            weight: 0,
-            fillOpacity: 0,
-            interactive: true,
-          }).addTo(layer);
+          grp.append('circle')
+            .attr('cx', 0).attr('cy', 0).attr('r', halo)
+            .attr('fill', p.color).attr('fill-opacity', 0.14)
+            .attr('stroke', 'none').attr('pointer-events', 'none');
+          grp.append('circle')
+            .attr('cx', 0).attr('cy', 0).attr('r', core * 1.8)
+            .attr('fill', p.color).attr('fill-opacity', 0.22)
+            .attr('stroke', 'none').attr('pointer-events', 'none');
         }
 
-        const marker = L.circleMarker([p.lat, p.lng], {
-          radius: core,
-          fillColor,
-          color: strokeColor,
-          weight: strokeWeight,
-          fillOpacity: 0.85,
-          className,
-        });
+        const circle = grp.append('circle')
+          .attr('cx', 0).attr('cy', 0).attr('r', core)
+          .attr('fill', fillColor).attr('stroke', strokeColor).attr('stroke-width', strokeW)
+          .attr('fill-opacity', 0.85);
 
-        if (highlight) {
-          const el = marker.getElement();
-          if (el) (el as HTMLElement).style.setProperty('--ky-pulse-duration', `${pulseSec}s`);
+        if (missing) {
+          circle.attr('stroke-dasharray', '2.5 2').attr('stroke-opacity', 0.85).attr('fill-opacity', 0.18);
+        } else if (highlight) {
+          circle.attr('class', 'fm-point-pulse').style('--ky-pulse-duration', `${pulseSec}s`);
         }
-
-        marker.bindTooltip(pointTooltipHtml(p), {
-          direction: 'top',
-          offset: [0, -core],
-          className: 'leaflet-tooltip-dark',
-        });
-        marker.on('click', () => onPointClick?.(p));
-        marker.addTo(layer);
       }
+
+      grp
+        .on('mouseenter', function(event: MouseEvent) {
+          const pos = toContainerPos(event);
+          setTooltip({ html: pointTooltipHtml(p), x: pos.x, y: pos.y });
+        })
+        .on('mousemove', function(event: MouseEvent) {
+          const pos = toContainerPos(event);
+          setTooltip(prev => prev ? { ...prev, x: pos.x, y: pos.y } : null);
+        })
+        .on('mouseleave', () => setTooltip(null))
+        .on('click', () => onPointClick?.(p));
     }
-  }, [points, mapReady, onPointClick]);
+  }, [points, dims, onPointClick]);
 
   useEffect(() => {
-    buildPointLayer();
-  }, [buildPointLayer]);
+    buildPoints();
+  }, [buildPoints]);
 
-  /* ── RiskArc → Polyline ─────────────────────────────────── */
-
-  useEffect(() => {
-    const layer = arcLayerRef.current;
-    const map = mapRef.current;
-    if (!layer || !map || !mapReady) return;
-
-    layer.clearLayers();
-
-    for (const a of arcs) {
-      if (isNaN(a.startLat) || isNaN(a.startLng) || isNaN(a.endLat) || isNaN(a.endLng)) continue;
-      const coords = greatCircleArc(a.startLat, a.startLng, a.endLat, a.endLng);
-
-      // 弧线 antimeridian 处理：相邻点经度差 > 180 时截断为多段，避免横穿地图的错误连线
-      const segments: [number, number][][] = [];
-      let current: [number, number][] = [];
-      for (let i = 0; i < coords.length; i++) {
-        if (i > 0) {
-          const dLng = Math.abs(coords[i][1] - coords[i - 1][1]);
-          if (dLng > 180) {
-            if (current.length >= 2) segments.push(current);
-            current = [];
-          }
-        }
-        current.push(coords[i]);
-      }
-      if (current.length >= 2) segments.push(current);
-
-      const lineOpts = {
-        color: a.startColor,
-        weight: 0.9 + (a.intensity / 100) * 1.5,
-        dashArray: '6 10',
-        className: 'leaflet-arc',
-        opacity: 0.75,
-        lineCap: 'round' as const,
-      };
-
-      for (const seg of segments) {
-        const polyline = L.polyline(seg, lineOpts);
-        polyline.bindTooltip(arcTooltipHtml(a), {
-          direction: 'center',
-          className: 'leaflet-tooltip-dark',
-        });
-        polyline.addTo(layer);
-      }
-    }
-  }, [arcs, mapReady]);
-
-  /* ── StrategicSite → DivIcon ────────────────────────────── */
+  /* ── 战略要地层 ──────────────────────────────────────────── */
 
   useEffect(() => {
-    const layer = siteLayerRef.current;
-    const map = mapRef.current;
-    if (!layer || !map || !mapReady) return;
+    const g = d3sel.select(gRef.current);
+    const proj = projRef.current;
+    if (!proj) return;
 
-    layer.clearLayers();
+    const layer = g.select<SVGGElement>('.fm-sites-layer');
+    if (!layer.node()) return;
+
+    layer.selectAll('*').remove();
 
     for (const s of sites) {
       if (isNaN(s.lat) || isNaN(s.lng)) continue;
-      const r = SITE_STAR_RADIUS * siteScale(s.importance);
-      const iconSize = Math.round(r * 2);
+      const px = proj([s.lng, s.lat]);
+      if (!px) continue;
+      const [cx, cy] = px;
+      const fontSize = SITE_STAR_FONT * siteScale(s.importance);
 
-      const icon = L.divIcon({
-        html: '★',
-        className: 'leaflet-site-icon',
-        iconSize: [iconSize, iconSize],
-        iconAnchor: [iconSize / 2, iconSize / 2],
-      });
-
-      const marker = L.marker([s.lat, s.lng], { icon });
-      marker.bindTooltip(siteTooltipText(s), {
-        direction: 'top',
-        offset: [0, -iconSize / 2],
-        className: 'leaflet-tooltip-dark',
-      });
-      marker.addTo(layer);
+      layer.append('text')
+        .attr('x', cx).attr('y', cy)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', fontSize)
+        .attr('data-fs', fontSize)
+        .attr('fill', '#fbbf24')
+        .attr('class', 'fm-site-star')
+        .attr('cursor', 'pointer')
+        .text('★')
+        .on('mouseenter', function(event: MouseEvent) {
+          const pos = toContainerPos(event);
+          setTooltip({ html: `<span>${siteTooltipText(s)}</span>`, x: pos.x, y: pos.y });
+        })
+        .on('mousemove', function(event: MouseEvent) {
+          const pos = toContainerPos(event);
+          setTooltip(prev => prev ? { ...prev, x: pos.x, y: pos.y } : null);
+        })
+        .on('mouseleave', () => setTooltip(null));
     }
-  }, [sites, mapReady]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sites, dims]);
 
-  /* ── focusPointId → 聚焦光环 ────────────────────────────── */
+  /* ── 聚焦光环层 ──────────────────────────────────────────── */
 
   useEffect(() => {
-    const layer = focusRingRef.current;
-    if (!layer || !mapReady) return;
+    const g = d3sel.select(gRef.current);
+    const proj = projRef.current;
+    if (!proj) return;
 
-    layer.clearLayers();
+    const layer = g.select<SVGGElement>('.fm-focus-layer');
+    if (!layer.node()) return;
+
+    layer.selectAll('*').remove();
 
     if (focusPointId === null) return;
-
     const target = points.find((p) => p.id === focusPointId);
-    if (!target) return;
-    if (isNaN(target.lat) || isNaN(target.lng)) return;
+    if (!target || isNaN(target.lat) || isNaN(target.lng)) return;
+
+    const px = proj([target.lng, target.lat]);
+    if (!px) return;
+    const [cx, cy] = px;
 
     const core = (2.6 + target.weight * 3.4) * (target.isEvent ? 1.25 : 1) * 1.5;
     const halo = core * 3.2;
     const focusR = Math.max(halo * 1.35, 12);
 
-    L.circleMarker([target.lat, target.lng], {
-      radius: focusR,
-      fillColor: 'transparent',
-      color: withAlpha(target.color, 0.9),
-      weight: 1.2,
-      dashArray: '3 3',
-      fillOpacity: 0,
-      interactive: false,
-      className: 'animate-pulseSoft',
-    }).addTo(layer);
-  }, [focusPointId, points, mapReady]);
+    layer.append('g')
+      .attr('class', 'fm-focus-ring')
+      .attr('data-cx', cx)
+      .attr('data-cy', cy)
+      .attr('transform', `translate(${cx},${cy})`)
+      .append('circle')
+        .attr('cx', 0).attr('cy', 0).attr('r', focusR)
+        .attr('fill', 'none')
+        .attr('stroke', withAlpha(target.color, 0.9))
+        .attr('stroke-width', 1.2)
+        .attr('stroke-dasharray', '3 3')
+        .attr('pointer-events', 'none')
+        .attr('class', 'animate-pulseSoft');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusPointId, points, dims]);
+
+  /* ── active=false 时清 tooltip ───────────────────────────── */
+
+  useEffect(() => {
+    if (!active) setTooltip(null);
+  }, [active]);
 
   /* ── 渲染 ──────────────────────────────────────────────── */
 
@@ -668,8 +569,21 @@ export function FlatMapPanel({
       className="flat-map-container"
       style={{ background: MAP_THEME.flatOceanFill }}
     >
-      {/* 缩放级别指示器（P1-1） */}
+      <svg ref={svgRef} className="fm-svg" style={{ width: '100%', height: '100%', display: 'block' }}>
+        <g ref={gRef} className="fm-root" />
+      </svg>
+
+      {/* 缩放级别指示器 */}
       <div className="leaflet-zoom-indicator">z={zoomLevel}</div>
+
+      {/* tooltip */}
+      {tooltip && (
+        <div
+          className="fm-tooltip"
+          style={{ left: tooltip.x, top: tooltip.y }}
+          dangerouslySetInnerHTML={{ __html: tooltip.html }}
+        />
+      )}
     </div>
   );
 }
