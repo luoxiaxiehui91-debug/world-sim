@@ -16,7 +16,7 @@ world-sim/
 ├── macro-ji/                天玑（验证层）macro-ji v1.0.0（独立容器）
 ├── docs/
 │   ├── overview.md          系统总览（功能/架构/运维一页通）
-│   └── tianji-design.md     天玑（验证层）设计文档 v0.2
+│   └── tianji-design.md     天玑（验证层）设计文档 v1.0
 ├── deploy.sh                统一部署脚本
 ├── ROADMAP.md               项目内权威 todo（时间门控任务 + 天玑路线图）
 ├── AGENTS.md                AI 工作入口
@@ -45,7 +45,7 @@ world-sim/
 
 ### macro-ji — 天玑（验证层）
 - 功能：对天枢/天璇产出的预测做事后验证与校准（narrative_chunks / predictions / forecasts）
-- NAS 运行路径：`/vol2/1000/software/macro-ji`
+- NAS 运行路径：`/vol2/1000/software/world-sim/macro-ji`（源码仓库，构建源；容器 = macro-tianji:latest 镜像 COPY，无独立运行区）
 - 版本：macro-ji v1.0.0，独立容器 `macro-scan-tianji-1`（healthy，08-04 22:37 上线，代码 ≡ 仓库）
 - 与天璇共享 `forecast_tracker.db`（两容器共用同一数据目录）
 

@@ -13,7 +13,8 @@
 | macro-ji（天玑）| v1.0.0 | ✅ **独立容器 macro-scan-tianji-1 运行中（healthy）**（2026-08-04 P0-B/C 修复，T2 触发文件驱动）|
 | kaiyang（开阳）| v1.9.0 | ✅ **已部署 NAS，:8080 可访问**（market_quotes I15 + 60s 轮询；nginx no-cache 缓存策略）|
 
-- Git 分支：`main`，最新 commit：`84c5cad`（docs: 文档对齐现役状态——HANDOVER 08-05 节 + AGENTS 四容器/版本 + ROADMAP 天玑上线 + DATA_CONTRACT 容错说明）
+- Git 分支：`main`，最新 commit：`9c38018`（chore: 清理历史遗留——删过时部署 prompt 2 份 + pyc 去跟踪 + .gitignore；08-06 另含 835bc6f D3 源码补提交 / 0927f41 4 项遗留修复）
+- 今日 08-06 变更：文档漂移修复（18d3962/24a24cf）→ 4 项遗留闭环（0927f41）→ D3 迁移源码补提交 + 清理（835bc6f/9c38018）
 - 今日 08-05 变更：market_quotes I15 + 前端轮询（ccbda94）→ 时区确定性 parseTs（dbdbd48）→ 控制台分组/折叠 + 新闻排序（a20738e/60b0882）→ 信号流点击展开（d1a1b39）→ nginx 缓存 + 白名单（fc411a3）→ 时间审计 6 问题三批次（902c439/1b36800/2a3370c）→ 流程补漏（3c00420）→ 文档对齐现役状态（84c5cad）
 - 时间审计 6 问题（manifest 孤儿 / news 假时刻 / FCI 闸 / sim_trigger 字段 / news_geo 契约 / freshness 语义）已全流程闭环，详见 docs/operations/20260805-world-deduction-time-audit-fixed.md
 - 遗留：① news_geo 图层空渲染（P3-A spaCy NER 未落地 + GDELT events 未进 news_geo.json，架构工作另行规划）② FRED 上游源停更（DCOILWTICO 卡 07-27，fresh=False 已暴露 + ntfy 告警）③ kaiyang/public 静态 manifest 06-28 待同步
