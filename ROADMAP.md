@@ -1,6 +1,7 @@
 # 世界推演系统 — ROADMAP
 
 > **此文件是项目内权威 todo 文件，随源代码同行。**  
+> 文档类别：意图（INTENT）· 状态标记（未实施/进行中/已实施）。**✅ 行 = 已实施，其实录（commit hash + 验证命令）见各子系统 CHANGELOG**，本文件仅声明意图与状态，不断言细节。  
 > 跨项目视角的补充积压见：`S:\docs\backlog\world-deduction.md`  
 > 运维 SOP 与部署规范见：`S:\world-sim\AGENTS.md`
 
