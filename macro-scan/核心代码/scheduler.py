@@ -261,8 +261,33 @@ def _dump_state():
     except Exception as e:
         log(f"[scheduler] 状态落盘失败（非阻断）: {e}")
 
+
+def _load_last_run():
+    """C7 修复：启动时从 scheduler_state.json 恢复 last_run_ts，避免重启后丢失（无法区分从未运行 vs 重启过）。
+
+    持久化语义：job 级 last_run_ts 写入 state 文件（_dump_state 每 60s 落盘），
+    重启后从这里恢复内存表；若文件不存在（首次部署）则保持空 dict。
+    与未来 worldsim-pg 方案的映射：此恢复逻辑未来切 PG 时改为读状态表。
+    """
+    global last_run, _last_run_ts
+    try:
+        with open(_STATE_PATH, encoding="utf-8") as f:
+            st = json.load(f)
+        recovered = 0
+        for job_name, meta in st.items():
+            if isinstance(meta, dict) and "last_run_ts" in meta:
+                lr = meta.get("last_run_ts")
+                if lr is not None:
+                    _last_run_ts[job_name] = lr
+                    recovered += 1
+        log(f"[scheduler] C7 恢复 last_run_ts: {recovered} 个 job 从状态文件恢复")
+    except Exception as e:
+        log(f"[scheduler] C7 恢复失败（首次部署或无状态文件，非阻断）: {e}")
+
+
 def main():
     log("Python scheduler started (seccomp-free)")
+    _load_last_run()
 
     # P0-D 修复：启动断言 DATA_DIR 必须落在持久卷 /workspace/data。
     # 项目红线：任何兜底必须留痕；此处不做静默 fallback，不满足即 fail-loud 退出。
