@@ -4,10 +4,11 @@
 
 ## 当前状态快照
 
-**版本**：v1.7.2（2026-08-03）  
-**主要变更**：2D 平面地图恢复（GeoJSON 离线底图，替代 CARTO tiles）；A3a 控制 API 接入（MOCK_ENABLED=false，control_server.py :8900）  
-**待处理**：`docs/DECISION_MATRIX.md` 有 4 条待拍板决策；kaiyang 控制面板 A3a 首次部署后需验证端到端  
-**下一里程碑**：v1.8.0 — Leaflet 体验优化 + 可拖拽布局（见 `docs/ARCH_1.8.0.md`）
+**版本**：v1.9.0（2026-08-06）  
+**主要变更**：实时化收尾——market_quotes 行情面板 60s 轮询、news_geo GDELT geo feed 上线上图、控制面走真实 HTTP REST :8900（MOCK=false）  
+**已完成**：2D 地图 D3 geoNaturalEarth1 重写（1.8.0，Leaflet 方案废弃）+ react-grid-layout 可拖拽布局（1.8.0，非规划）；A3a 控制 API 接入（1.7.2）  
+**待处理**：`docs/DECISION_MATRIX.md` 决策矩阵 D2-D5 已文档化（D5 已改 D3 方案定案）  
+**下一里程碑**：实时化已收尾，后续为 P2 图层逐类接入（等天枢 feed）
 
 ---
 
@@ -28,7 +29,7 @@
    - 加类别 → `src/config/layerCategories.ts` + `theme.ts`
    - 控制面 → `docs/A3a-控制API-开阳对接文档.md`
    - 深层架构 → `docs/DESIGN.md`
-   - 待拍板事项 → `docs/DECISION_MATRIX.md`
+   - 决策记录 → `docs/DECISION_MATRIX.md`
 
 ---
 
@@ -38,12 +39,12 @@
 |:-----|:-----|
 | **铁律三条** | ① 永不自行调第三方数据源/爬虫 ② 严禁硬编码 NAS/SMB 绝对路径 ③ 数据缺失一律降级不白屏 |
 | **three 版本钉死** | `three: 0.185.1`（精确，不加 `^`）；降版 → `Matrix4.determinantAffine()` 缺失 → 地球空白 |
-| **开发端口** | `:5174`（vite dev），`localhost` 测试 |
+| **开发端口** | `:5173`（vite dev），`localhost` 测试 |
 | **React StrictMode** | 开发态 reducer 跑两遍，别误以为 bug |
 | **useFeed 不缓存** | 两个组件调 `useFeed('grv')` 会发两次请求，共享数据走 props 下传 |
 | **改后必做** | bump `VERSION` + `package.json` → 追加 `CHANGELOG.md` → `npm run build` 绿 + `npm test` 全过 |
 | **dist/ 不进 git** | 构建产物在 .gitignore，NAS 部署需手动 `npm run build` + scp |
-| **MOCK_ENABLED** | 默认 `false`（v1.7.2+），调试时用 `VITE_CONTROL_MOCK=true` 恢复 mock |
+| **MOCK_ENABLED** | 默认 `false`（v1.7.2+），连接真实控制 API（HTTP REST :8900）；调试时用 `VITE_CONTROL_MOCK=true` 恢复 mock |
 
 ---
 
@@ -55,7 +56,7 @@
 | 样式 | Tailwind CSS（玻璃拟态 + 青绿主色 + 扫描线） |
 | 3D 地球 | globe.gl（MIT，three 0.185.1） |
 | 图表 | ECharts（Apache-2.0） |
-| 2D 地图 | Leaflet + world-atlas GeoJSON（离线，无外网依赖） |
+| 2D 地图 | D3.js + geoNaturalEarth1 + SVG（world-atlas TopoJSON，离线，v1.8.0 换用）|
 | 测试 | Vitest |
 | 语言 | 全中文 UI，无 i18n |
 
@@ -76,12 +77,12 @@
 | 文件 | 内容 | 何时读 |
 |:-----|:-----|:-------|
 | `docs/DATA_CONTRACT.md` | 数据契约权威标准（字段/路径/schema_version） | 消费新数据源时 |
-| `docs/A3a-控制API-开阳对接文档.md` | 控制 API 对接规范（文件投递/命令格式） | 改控制面逻辑时 |
+| `docs/A3a-控制API-开阳对接文档.md` | 控制 API 对接规范（HTTP REST :8900 / 命令格式） | 改控制面逻辑时 |
 | `docs/DESIGN.md` | 设计总纲（定位/边界/技术栈/Wave规划） | 做架构决策时 |
-| `docs/ARCH_1.8.0.md` | v1.8.0 架构计划（Leaflet体验优化/可拖拽布局） | 规划下个版本时 |
+| `docs/ARCH_1.8.0.md` | v1.8.0 架构计划（**ARCHIVED**：Leaflet 迁移方案未实施，实际用 D3 geoNaturalEarth1 重写；react-grid-layout 已实现） | 规划下个版本时（先看 ARCHIVED 标注，勿按 Leaflet 方案执行） |
 | `docs/CRUCIX_UPGRADE_DESIGN.md` | P0 主设计：对标 crucix 升级系统设计 | 做 crucix 相关工作时 |
 | `docs/system_design.md` | 控制面 Tab 系统设计（状态机/Token鉴权） | 改控制面架构时 |
-| `docs/DECISION_MATRIX.md` | **4 条待拍板决策**（D2-D5） | 遇到相关技术决策点时 |
+| `docs/DECISION_MATRIX.md` | **决策矩阵**（D2-D5 已文档化；D5 已改 D3 方案定案） | 遇到相关技术决策点时 |
 
 ---
 
@@ -91,7 +92,7 @@
 kaiyang/
 ├── AGENTS.md               ← 本文件（唯一 AI 工作入口）
 ├── CLAUDE.md               ← Claude Code 兼容层（指向本文件）
-├── VERSION                 ← 当前版本号（1.7.2）
+├── VERSION                 ← 当前版本号（1.9.0）
 ├── CHANGELOG.md            ← 变更记录
 ├── src/
 │   ├── config/             ← dataSources / layerCategories / theme / regions / controlConfig

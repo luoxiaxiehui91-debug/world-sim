@@ -2,17 +2,19 @@
 
 > 本文件是 `docs/` 的总导航。所有文档已统一收归 `docs/` 目录（项目根不再散落）。
 > 文档间以**裸文件名**互相引用（归档区 `docs/archive/` 除外），请勿随意改名或移入其他子文件夹，以免断链。
-> 最后整理：2026-08-02（VERSION 1.7.0——BugFix NaN崩溃 + ErrorBoundary + 2D平面地图移除；新增控制面板 control/ + NuclearWatchPanel）。
+> 最后整理：2026-08-06（VERSION 1.9.0——实时化收尾：market_quotes 行情面板 60s 轮询 + news_geo GDELT geo feed 上线 + 控制面真实 REST；1.8.0 2D 地图 D3 geoNaturalEarth1 重写 + react-grid-layout 可拖拽布局）。
 
 ---
 
-## 一、设计权威（先读这两份，其余文档都引用它们）
+## 一、设计权威（先读这几份，其余文档都引用它们）
 
 | 文件 | 一句话 | 状态 |
 |------|--------|------|
-| `DESIGN.md` | 开阳设计总纲：定位/边界/技术栈/Wave 规划/扩展标准/部署/状态/目录，含 §2.1 crucix 复刻进度 + Wave2 双线表 | 持续维护 |
-| `DATA_CONTRACT.md` | 数据契约权威标准：feed 文件名/路径/字段/`schema_version`/部署/扩展，含 §2.5 `nuclear_sites.json` + §2.6 后端 feed 状态（已回填转正）+ §2.7 `news_geo.json` 草案 | 持续维护 |
-| `DECISION_MATRIX.md` | D2-D5 四条悬而未决决策的对比分析 + 主理人推荐倾向（1.6.0 产出） | 待用户拍板 |
+| `DESIGN.md` | 开阳设计总纲：定位/边界/技术栈/Wave 规划/扩展标准/部署/状态/目录，含 §2.1 crucix 复刻进度 + Wave2 双线表 | 持续维护（v1.9.0 对齐） |
+| `DATA_CONTRACT.md` | 数据契约权威标准：feed 文件名/路径/字段/`schema_version`/部署/扩展，含 §1 注册表（8 feed）+ §2.6 后端 feed 状态 + §2.7 `news_geo.json` 定稿 | 持续维护（news_geo/market_quotes/spacetrack 已上线） |
+| `DECISION_MATRIX.md` | D2-D5 决策矩阵 + 主理人推荐倾向；D3/D4/D5 已定案（D5 改 D3 geoNaturalEarth1） | 已文档化（主要决策已定案） |
+| `ARCH_1.8.0.md` | v1.8.0 架构计划（**ARCHIVED**：Leaflet 迁移未实施，实际 D3 geoNaturalEarth1 重写；react-grid-layout 已实现） | **ARCHIVED** |
+| `PRD_1.8.0.md` | v1.8.0 交互升级 PRD（**ARCHIVED**：同 ARCH_1.8.0） | **ARCHIVED** |
 
 ## 二、控制面线（Wave2 右侧抽屉 + 天枢运维 Tab）
 
@@ -20,8 +22,9 @@
 |------|--------|------|
 | `PRD_CONTROL_PANEL.md` | 控制面 PRD：需求池 / 范围 / 12 接口形状 / P0·P1·P2 分级 | 已交付（P0=T01-T03 已复盘 0 缺陷） |
 | `system_design.md` | 控制面架构设计 + 任务分解 T01-T05（零新依赖） | 已交付 |
-| `开阳控制面-后端接口需求询问.md` | 发后端的 20 题询问单（确认天枢/天璇等接口形态） | 已发出 |
-| `开阳控制面-后端接口需求-回复.md` | 后端回复：天枢 A3a 就绪，天璇/天玑/玉衡延后占位 | 已回填 |
+| `A3a-控制API-开阳对接文档.md` | A3a 控制 API 对接：**§0 HTTP REST :8900 = 现役协议**；§1-§6 文件投递协议未采纳 | 已更新（v1.0，REST 为现役） |
+| `archive/开阳控制面-后端接口需求询问.md` | 发后端的 20 题询问单（确认天枢/天璇等接口形态） | 已发出（已归档） |
+| `archive/开阳控制面-后端接口需求-回复.md` | 后端回复：天枢 A3a 就绪，天璇/天玑/玉衡延后占位 | 已回填（已归档） |
 
 ## 三、crucix 复刻线（对标 CRUCIX MONITOR 多图层大屏）
 
@@ -37,8 +40,8 @@
 
 | 文件 | 一句话 | 状态 |
 |------|--------|------|
-| `天枢-fetcher×crucix-映射表-询问.md` | 发天枢（macro-scan）的 13 项 feed 三选一勾选表 + crucix 源→天枢 fetcher 反推映射 + 一页纸回填表 | 已发出（2026-08-01） |
-| `天枢-fetcher×crucix-映射表-回复.md` | **天枢实查回填**：13 项逐项结论 + 新闻端规划 + P2 排期建议 | **已回填（2026-08-01）** |
+| `archive/天枢-fetcher×crucix-映射表-询问.md` | 发天枢（macro-scan）的 13 项 feed 三选一勾选表 + crucix 源→天枢 fetcher 反推映射 + 一页纸回填表 | 已发出（2026-08-01，已归档） |
+| `archive/天枢-fetcher×crucix-映射表-回复.md` | **天枢实查回填**：13 项逐项结论 + 新闻端规划 + P2 排期建议 | **已回填（2026-08-01，已归档）** |
 
 ## 五、接手 / 会话衔接
 

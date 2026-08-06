@@ -1,5 +1,8 @@
 # A3a 控制 API — 系统设计文档
 
+> ## ❌ 未采纳方案（历史存档）
+> **本文件描述的"文件投递通道"方案（v1.0）未实施**——实际采用 HTTP REST 方案。现役实现 = **HTTP REST :8900（v0.2）**，协议见 [`archive/a3a_control_api_design.md`](archive/a3a_control_api_design.md)。本文件仅作历史决策参考，**不要按本文档实施或引用其作为现役协议**。
+
 > **文档分工**：本文档 = 系统级视图（架构、模块、时序）；协议细节见 [`a3a_control_api_design.md`](a3a_control_api_design.md)（写侧协议 v0.2，含开阳需求对齐修订）。
 
 > 版本：v1.0（基于 PRD v1.0 — 文件投递通道方案）

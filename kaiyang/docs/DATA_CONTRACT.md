@@ -6,7 +6,7 @@
 >   - **天璇推演层**：触发 macro-sim 推演、切换 / 加载推演场景、调参后提交推演、确认 / 驳回 `sim_trigger`；
 >   - **天枢观测层**：重跑某个 fetcher、暂停 / 恢复采集源、调整采集频率等观测层运维操作；
 >   - **天玑校验层 / 玉衡审批层**：提交校验任务、转交 / 接收审批结论等。
->   - 写侧**协议（端点 / 文件流向 / 鉴权 / 权限分级）暂缓设计**，待后端闭环搭起后再定；但**控制范围现已钉定**（见上），以防范围蔓延。
+>   - 写侧**协议（端点 / 文件流向 / 鉴权 / 权限分级）**：现役 = 天枢 **HTTP REST 控制 API（:8900）**（见 [`A3a-控制API-开阳对接文档.md`](./A3a-控制API-开阳对接文档.md) §0）；文件投递协议未采纳。天璇 / 玉衡等后端闭环搭起后再定各自协议；**控制范围现已钉定**（见上），以防范围蔓延。
 > - **隔离铁律（精确版）**：开阳**永不自行**调用任何第三方数据源 / 爬虫 / 外部 API 做采集（FRED、GDELT、RSS 等被明确排除）；但开阳**可以**向自家后端下发操作指令、由后端执行。二者性质不同——「不爬第三方数据源」≠「不能和自家后端通信」。
 > - 开阳只「读契约 + 发指令」，绝不「自行实现业务逻辑 / 自行采集数据」。数据缺失一律降级渲染（占位 + 状态条告警）。
 >
@@ -32,11 +32,14 @@
 
 | feed 名 | 文件（相对 DATA_BASE_URL） | 类型 | schema_version | 说明 |
 | --- | --- | --- | --- | --- |
-| `grv` | `grv_latest.json` | json | `1.0` | GRV 11 维风险状态 |
+| `grv` | `grv_latest.json` | json | `1.0` | GRV 风险状态（**天枢产出 16+1 维**=16 风险维度+`global_composite`；开阳 `grvDimensions.ts` 展示 **11 维子集**，缺 6 维不展示但保留在数据中） |
 | `news` | `news_export.json` | json | `1.0` | 新闻 / 叙事导出 |
 | `simTrigger` | `sim_trigger.json` | json | `1.0` | 推演触发状态（**可选**；亦为开阳写侧指令通道候选载体） |
 | `fred` | `fred_history/manifest.json` | json | `1.0` | FRED 序列清单（再按 manifest 取各 CSV） |
 | `nuclearSites` | `nuclear_sites.json` | json | `1.0` | 核设施站点与辐射读数（**可选**；缺失时回落前端静态种子，见 2.5） |
+| `news_geo` | `news_geo.json` | json | `1.0` | GDELT 地理新闻事件（**已上线**，见 §2.7） |
+| `market_quotes` | `market_quotes.json` | json | `1.0` | 底部行情报价（**已上线**，前端 60s 轮询） |
+| `spacetrack` | `spacetrack.json` | json | `1.0` | 太空活动 / 空间目标（**已注册上线**） |
 
 > 新增 feed：仅在 `src/config/dataSources.ts` 的 `FEEDS` 登记一项，读取层（`useFeed` / `readLayer`）**无需改动**。
 
@@ -68,12 +71,14 @@
 
 > 自 1.0.3 起，`climate_risk` / `disaster_risk` 两维度**不再画常驻地图柱**（`renderBar:false`，标量值仍在 GRV 面板展示），其地图呈现改由 `events[]` 事件触发式告警柱承担。
 
-**11 维内部锚点**（见 `src/config/grvDimensions.ts`，上游无坐标时使用）：
+**开阳展示的 11 维子集内部锚点**（`src/config/grvDimensions.ts`，上游无坐标时使用）：
 台海、南海、美中战略、中东能源、俄乌/东欧、朝鲜半岛、印太、全球综合、气候风险、自然灾害、全球南方。
+（天枢实际产出 **16+1 维**，见 §2.6；开阳 `grvDimensions.ts` 只配置其中 11 维用于展示，其余 6 维——`sanctions_risk / seismic_risk / energy_grid_risk / japan_monetary / social_stress / cultural_friction`——存在于数据中但不在开阳默认展示集。）
 
-> ⚠ **Wave1 实际偏差**：上游 `grv_latest.json` 仅含 `taiwan_strait / us_china_strategic / russia_europe / middle_east_energy / global_composite / disaster_risk` 等键，且**无 lat/lng、无不确定区间字段**。适配层（`src/lib/grvAdapter.ts`）会：
+> ⚠ **坐标偏差说明**：上游 `grv_latest.json` **含全部 16+1 维键，但无 lat/lng、无不确定区间字段**。开阳适配层（`src/lib/grvAdapter.ts`）会：
 > - 缺失维度 → `status:'missing'`，地球点位显示灰色、GRV 面板显示「数据缺失」、状态条记录告警；
 > - 不确定区间 → 按数值 8% 估算并标记 `uncertaintyEstimated:true`（后续上游提供该字段后自动采用真实值）。
+> - 实测（08-06）：`/workspace/data/grv_latest.json` = 24 顶层键（17 业务维度 + `_schema_version/_derived_meta/updated/gdelt_updated/gpr_twn_raw/gpr_twn_date/source_quality`），`global_composite=60.3`。
 
 ### 2.2 `news_export.json`（对象，含数组）
 | 字段 | 类型 | 必填 | 说明 |
@@ -159,10 +164,10 @@
 
 > **状态：已回填。** 天枢（macro-scan）已于 2026-08-01 完成 NAS 实查逐项核查并回填《现有 fetcher × crucix 源》映射表。本小节据此由原「预览」升级为**正式状态清单 + 字段级转正 / 缺口清单**：逐项标注天枢现状（① 已有 / ② 部分 / ③ 没有）与开阳侧动作，并在末尾给出「可排期 / 暂不排期」分栏。
 >
-> - 回填原件（13 项逐项结论 + 新闻端规划 + 排期建议）：[`天枢-fetcher×crucix-映射表-回复.md`](./天枢-fetcher×crucix-映射表-回复.md)
-> - 原问询件（三选一回填表）：[`天枢-fetcher×crucix-映射表-询问.md`](./天枢-fetcher×crucix-映射表-询问.md)
+> - 回填原件（13 项逐项结论 + 新闻端规划 + 排期建议）：[`archive/天枢-fetcher×crucix-映射表-回复.md`](./archive/天枢-fetcher×crucix-映射表-回复.md)
+> - 原问询件（三选一回填表）：[`archive/天枢-fetcher×crucix-映射表-询问.md`](./archive/天枢-fetcher×crucix-映射表-询问.md)
 > - 需求出处（逐项显示需求与缺口分析）：[`CRUCIX_LAYER_REQUIREMENTS.md`](./CRUCIX_LAYER_REQUIREMENTS.md) §7
-> - **转正规则不变**：任何一项要被当作既定契约去实现，必须先在本文档补出字段级定义。当前已完成字段级定稿 / 草案的只有两项——第 1 项 `nuclear_sites.json`（§2.5，1.2.0 定稿）与第 10 项 `news_geo.json`（§2.7，1.0 草案）。其余各项仍**只有名称 / 数据源 / 优先级 / 现状**，不得据此开工。
+> - **转正规则不变**：任何一项要被当作既定契约去实现，必须先在本文档补出字段级定义。当前已完成字段级定稿的：第 1 项 `nuclear_sites.json`（§2.5，1.2.0 定稿）、第 10 项 `news_geo.json`（§2.7，**已上线**）、第 13 项 `market_quotes.json`（§1 注册表，**已上线**）。其余各项仍**只有名称 / 数据源 / 优先级 / 现状**，不得据此开工。
 
 #### 2.6.0 回填总览
 
@@ -172,7 +177,7 @@
 | 天枢比开阳假设**更完整**的 4 项 | ④ `air_activity` / ⑤ `thermal_spikes` / ⑪ `fred_history` / ⑬ `market_quotes`——均判「② 部分」，采集底座已在运行，缺的是字段整形与序列补齐，不是从零对接 |
 | 天枢**完全空白**的 9 项 | ① ② ③ ⑥ ⑦ ⑧ ⑨ ⑩ ⑫——均判「③ 没有」（其中 ⑧ 为合规否决、⑨ 为双方同意搁置） |
 | Item 10 前提**被推翻** | `news_export.json` 实际仅 40 条 RSS 文章，字段只有 `title` / `category` / `date`，`source=None`，**0 条带 `lat` / `lng`**；`source:"Crucix新闻"` 实际出现在 `weak_signal_log.json`，是对 crucix API 新闻做的**关键词频率告警**（`indicator` / `current` / `baseline` / `ratio` / `level`），**不是可定位的地理文章**。天枢当前产出 **0 条带坐标新闻** |
-| 地理新闻上图**真解** | **新建 GDELT geo feed（方法 B：GDELT Actor Geo）**。天枢已在每 15 分钟下载 GDELT v2 export，事件级 `ActionGeo_Lat` / `ActionGeo_Long` / `FullName` / `CountryCode` 在原始行中已存在，只是被国别聚合（`gdelt_scores.json`）丢弃——「数据下全了，只差导出」。字段草案见 §2.7 |
+| 地理新闻上图**真解** | **新建 GDELT geo feed（方法 B：GDELT Actor Geo）**。天枢已在每 15 分钟下载 GDELT v2 export，事件级 `ActionGeo_Lat` / `ActionGeo_Long` / `FullName` / `CountryCode` 在原始行中已存在，只是被国别聚合（`gdelt_scores.json`）丢弃——「数据下全了，只差导出」。字段契约见 §2.7（**已上线**） |
 | 新闻端**诚实边界** | GDELT 事件表**无 headline 文本**，地图点只能标「地点 + 事件类型 + 强度」（如「德黑兰 — 军事冲突」）；真标题需关联 GKG / Mentions 表，不在本期范围。crucix 独有的 **LLM 多源叙事**天枢不重做——「退场 crucix」= **部分退场**（geo + RSS 覆盖，LLM 叙事不覆盖）。RSS 新闻仍为纯文本无 geo，只进新闻面板、不上图 |
 
 #### 2.6.1 新建 feed（9 项）
@@ -206,8 +211,8 @@
 
 | # | 对应展示元素 | 改动 | 数据源 | 优先级 | 天枢现状（实查） | 开阳侧动作 / 待办 |
 |:--:|---|---|---|:--:|:--:|---|
-| 10 | 新闻地理化上图 | ~~既有 `news_export.json` 的 Crucix 条目补 `lat` / `lng`~~ → **新建 `news_geo.json`**（GDELT Actor Geo）：天枢新建 `fetch_gdelt_geo.py`，复用现有 GDELT 下载，提取 `ActionGeo` `lat` / `lng` + 事件类型 + 强度，按关注国家 / 高提及过滤，**I15 调度（每 15 分钟）** | GDELT v2 export（天枢已在下载） | **P1**（后端已有 GDELT 基础，性价比最高） | ③ 原「补 `lat` / `lng`」路径**未支持**（`news_export.json` 0 条带坐标）→ 转为**新建 GDELT geo feed**，天枢列为可排期 | **字段级草案已给出：§2.7 `news_geo.json`（1.0 草案）**，作为正式契约雏形；待天枢首产后回改定稿并在 `src/config/dataSources.ts` 的 `FEEDS` 登记 `newsGeo`。`news_export.json` **保持现状**（纯文本 RSS，只进新闻面板不上图），不做任何字段改造 |
-| 11 | 底部风险仪表 | 既有 `fred_history/manifest.json` 的 `series[]` **增 3 条序列**：VIX / 高收益债利差 / 供应链压力 GSCPI。经济面板无需改动 | FRED + EIA + 纽约联储 | P2 | ② 部分：`VIXCLS.csv` ✅ 与 `BAMLH0A0HYM2.csv` ✅ **已存在**；**GSCPI ❌**（属纽约联储非 FRED 原生，天枢待补）；且 `fred_history` **当前无 `manifest.json`**（天枢待补） | **可排期**：开阳 `useFRED` 已容错——`manifest` 为 `null`（文件缺失 / 路径错误）时降级为空序列并在状态条 / 面板告警（「无可用序列」），不白屏。天枢补齐 `manifest.json` 后，VIX 与高收益利差两格**零改动立即有数**；GSCPI 格在天枢取到前保持留空 |
+| 10 | 新闻地理化上图 | ~~既有 `news_export.json` 的 Crucix 条目补 `lat` / `lng`~~ → **新建 `news_geo.json`**（GDELT Actor Geo）：天枢新建 `fetch_gdelt_geo.py`，复用现有 GDELT 下载，提取 `ActionGeo` `lat` / `lng` + 事件类型 + 强度，按关注国家 / 高提及过滤，**I15 调度（每 15 分钟）** | GDELT v2 export（天枢已在下载） | **P1**（后端已有 GDELT 基础，性价比最高） | ✅ **已上线（1.9.0）**：`news_geo_feed.py` + scheduler 注册 | **字段级契约已定稿：§2.7**，前端已上线上图。`news_export.json` **保持现状**（纯文本 RSS，只进新闻面板不上图），不做任何字段改造 |
+| 11 | 底部风险仪表 | 既有 `fred_history/manifest.json` 的 `series[]` **增 3 条序列**：VIX / 高收益债利差 / 供应链压力 GSCPI。经济面板无需改动 | FRED + EIA + 纽约联储 | P2 | ✅ **manifest 已上线**（VIX `VIXCLS.csv` 与高收益利差 `BAMLH0A0HYM2.csv` 已存在）；**GSCPI ❌**（属纽约联储非 FRED 原生，天枢待补） | **已兑现大部分**：开阳 `useFRED` 已容错——`manifest` 为 `null` 时降级为空序列并在状态条 / 面板告警，不白屏。VIX 与高收益利差两格**零改动有数**；GSCPI 格在天枢取到前保持留空 |
 | 12 | 信号流 sweep delta | 既有 feed 条目增 `delta` 字段（`new`/`escalated`/`deescalated`/`unchanged`），或新建 `signal_delta.json` | 后端 sweep 比对 | P2 | ③ 没有<br>（天枢采集全为覆盖写 / 聚合，无「上轮 vs 本轮」比对机制） | **暂不排期**：开阳**不实现**比对逻辑（铁律，不沉淀后端业务逻辑）；信号流继续按静态快照展示 |
 
 > 第 10 项原独立需求文档 [`archive/开阳Crucix新闻地理坐标需求-给后端.md`](./archive/开阳Crucix新闻地理坐标需求-给后端.md) 的前提（「Crucix 新闻条目只差补 `lat` / `lng`」）经实查**不成立，该文档已作废**，不再作为需求依据；其中的坐标定法 A / B / C 之争亦已收敛为**方法 B（引擎直出，从 GDELT 提取 Actor Geo）**。
@@ -217,7 +222,7 @@
 
 | # | 对应展示元素 | 建议 feed 名 | 说明 | 优先级 | 天枢现状（实查） | 开阳侧动作 / 待办 |
 |:--:|---|---|---|:--:|:--:|---|
-| 13 | 底部市场行情带 | `market_quotes.json` | crucix 原型用 Yahoo Finance。⚠ **开阳禁自连 Yahoo 等任何第三方行情接口**，必须由后端代取落盘，否则该展示位永久留空 | P2 | ② 部分：`SP500.csv`（FRED）✅、`commodity_yahoo.json`（黄金 / 原油）✅、`crypto_history`（BTC）✅、`fx_history` ✅ **均已存在**；**缺 Nasdaq 专门序列**（天枢待补） | **可排期**：行情带 5 格中 4 格已有底数。待天枢把上述分散产物统一落成 `market_quotes.json`（建议字段 `symbol` / `name` / `price` / `change` / `change_pct` / `updated`）后再转正字段契约；Nasdaq 格在补齐前**留空**（不用其他指数顶替） |
+| 13 | 底部市场行情带 | `market_quotes.json` | crucix 原型用 Yahoo Finance。⚠ **开阳禁自连 Yahoo 等任何第三方行情接口**，必须由后端代取落盘，否则该展示位永久留空 | P2 | ✅ **已上线（1.9.0）**：`market_quotes.json` 已注册 + 行情面板 60s 轮询 | **已兑现**：行情带面板已上线，Nasdaq 序列是否补齐以实际数据为准 |
 
 #### 2.6.4 对所有新 feed 的统一要求（无例外）
 
@@ -234,7 +239,7 @@
 > **文件粒度口径（D3）**：倾向**每类一个文件**，与天枢 fetcher 一一对应——单类采集失败只影响单个图层，不拖垮整张图。
 > **路径口径**：一律使用相对 data 根的相对路径，**禁止任何 NAS / SMB 绝对路径**；开阳侧靠只读挂载 + `DATA_BASE_URL` 指向（见 §0 与 §4）。
 
-#### 2.6.5 排期分栏（据天枢 2026-08-01 回填结论）
+#### 2.6.5 排期分栏（据天枢 2026-08-01 回填结论；⑩⑬⑪ 已于 1.9.0 兑现）
 
 **可排期（天枢侧有基础、风险可控）**
 
@@ -242,9 +247,9 @@
 |:--:|---|---|---|
 | ④ | `air_activity.json` | 在既有 OpenSky 采集上补逐机 `lat` / `lng`、按战区（theater）分组 | 拿到逐机坐标后补 §2.x 字段契约；在此之前只做计数型展示 |
 | ⑤ | `thermal_spikes.json` | 由 10° 带聚合改为网格 `count` / `confidence_avg`（满足开阳预聚合请求） | 天枢定下网格粒度后补 §2.x 字段契约 |
-| ⑩ | **新建** `news_geo.json` | 新建 `fetch_gdelt_geo.py`，提取 GDELT `ActionGeo` 坐标，I15 调度 | **1.6.0 读取层骨架已就绪**（FEEDS 登记 + 适配器 + WorldPanel 接线 + 28 测试），待字段草案（**§2.7**）首产后回改定稿即可上图 |
-| ⑪ | `fred_history` 增强 | 补 `manifest.json`、补 GSCPI 序列 | manifest 到位即零改动生效（§2.4 契约不变） |
-| ⑬ | `market_quotes.json` | 补 Nasdaq 序列，统一落成单文件行情 feed | **1.6.0 读取层预埋已就绪**（FEEDS 登记 + 类型定义 + WorldPanel fetch 备查），待天枢定下文件形态后补 §2.x 字段契约再上图 |
+| ⑩ | **新建** `news_geo.json` | 新建 `fetch_gdelt_geo.py`，提取 GDELT `ActionGeo` 坐标，I15 调度 | ✅ **已兑现（1.9.0）**：`news_geo_feed.py` 上线 + scheduler 注册；§2.7 契约定稿；前端已上线上图 |
+| ⑪ | `fred_history` 增强 | 补 `manifest.json`、补 GSCPI 序列 | ✅ **manifest 已到位**（§2.4 契约不变）；GSCPI 序列待天枢补 |
+| ⑬ | `market_quotes.json` | 补 Nasdaq 序列，统一落成单文件行情 feed | ✅ **已兑现（1.9.0）**：`market_quotes.json` 已注册 + 行情面板 60s 轮询上线 |
 
 **暂不排期（天枢无基础 / 已否决 / 需另行决策）**
 
@@ -259,13 +264,13 @@
 | ⑨ | `sdr_coverage.json` | 无 KiwiSDR fetcher，双方一致否决 | 搁置，不做删除动作 |
 | ⑫ | delta / `signal_delta.json` | 天枢全为覆盖写，无上轮 / 本轮比对 | 开阳不实现比对逻辑（铁律） |
 
-### 2.7 `news_geo.json`（GDELT 地理事件，**1.0 草案**）
+### 2.7 `news_geo.json`（GDELT 地理事件，**已定稿上线**）
 
-> **状态：草案（draft），非定稿契约。** 本小节是 §2.6 第 10 项的**字段级转正雏形**，供天枢 `fetch_gdelt_geo.py` 实现时对照；**天枢首次产出后按实际字段回改本节并摘除「草案」标记**，届时图层面板即可上线。
+> **状态：已上线（1.9.0）。** 天枢 `news_geo_feed.py` 已产出，scheduler 已注册；开阳读取层已接线上图。本小节字段即正式契约。
 >
-> **1.6.0 例外（读取层骨架先行登记）**：开阳 1.6.0 已**先行**在 `src/config/dataSources.ts` 的 `FEEDS` 登记 `news_geo` 并搭建读取层骨架（`src/types/contracts.ts` `NewsGeoEvent` / `NewsGeoRaw` + `src/lib/newsGeoAdapter.ts` + `WorldPanel` 接线 + `LayerTreePanel` 计数合并通道），**图层面板（独立面板或归入既有信号流）未上线**。该预埋与本节「草案」状态并不冲突——天枢首产后只需按实际字段微调 §2.7 契约并摘除「草案」标记，**前端无需重构**即可上图。这是「数据契约权威性 + 读取层就绪节奏解耦」的快进交付决策。
+> **历史**：本小节原为 §2.6 第 10 项的**字段级转正雏形**（1.0 草案）；天枢首产后已按实际字段定稿并摘除「草案」标记。
 >
-> **2026-08-05 读取层容错扩展**：`newsGeoAdapter.adaptNewsGeo` 现同时兼容 `articles` 结构（`news_geo_feed.py` P3-A 新闻地理点的 title/url/lat/lng/source/published_at——spaCy NER 未落地前恒为空数组）。该扩展**不改变本契约**（events 仍是 GDELT 专属），仅防 articles 写入时读取层白屏；P3-A 落地后按实际产出回改本节。
+> **结构兼容**：`newsGeoAdapter.adaptNewsGeo` 同时兼容 `events[]` 结构（GDELT 专属）与 `articles[]` 结构（`news_geo_feed.py` P3-A 新闻地理点的 title/url/lat/lng/source/published_at——spaCy NER 未落地前恒为空数组）。adapter 对两结构均容错，空数组不抛异常、不白屏。
 >
 > **能力边界（照录天枢回复，避免空头支票）**：
 > - GDELT 事件表**无 headline 文本** —— 本 feed 的点只能标「地点 + 事件类型 + 强度」（如「德黑兰 — 军事冲突」）。要真标题需关联 GKG / Mentions 表，**不在本期范围**，开阳不得据此规划「新闻标题上图」。

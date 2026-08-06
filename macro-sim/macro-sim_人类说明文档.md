@@ -16,7 +16,7 @@ macro-scan 负责"测量现实"，macro-sim 负责"模拟未来"。两者通过 
 
 ### 数据来源
 
-macro-sim 从以下路径读取数据（容器内挂载为 `/app/data/`，对应 NAS 路径 `/vol2/1000/software/macro-scan/data/`）：
+macro-sim 从以下路径读取数据（容器内挂载为 `/app/macro_data/`，对应 NAS 路径 `/vol2/1000/software/macro-scan/data/`，读写挂载）：
 
 - **触发文件**：`sim_trigger.json`——触发仿真的信号，由 macro-scan 在 GRV 告警时写入
 - **月度历史数据**：macro-scan 历史写入的月度指标文件，供校准循环使用（`load_monthly_history()` 加载）
@@ -28,8 +28,8 @@ macro-sim 从以下路径读取数据（容器内挂载为 `/app/data/`，对应
 
 1. 读取该月历史真值（grv / t10y2y / credit_spread / dff）
 2. 用当前 Agent 参数仿真一步
-3. 计算加权误差：`GRV×0.4 + credit_spread×0.3 + t10y2y×0.2 + dff×0.1`
-4. 误差 > 0.15 时，调用 LLM（GLM-Z1-9B）自动调整 Agent 参数
+3. 计算加权误差（v2.0.20 起改为**内生变量**权重，与 Agent 行动直接相关）：`market_sentiment×0.35 + bank_credit_tightening×0.30 + liquidity_premium×0.20 + em_capital_outflow×0.15`
+4. 误差 > 0.20 时，调用 LLM（GLM-Z1-9B）自动调整 Agent 参数（方向相反时误差 ×1.5 惩罚，鼓励方向正确优先于幅度）
 5. 调参记录写入 `calibration_log.jsonl`
 
 50步结束后输出校准评分（0~100）。评分 < 60 时，报告会标注"预测可信度低"。
@@ -144,13 +144,25 @@ log.show_recent(10)
 
 ### 重建部署
 
-代码采用 COPY 模式打包进镜像，修改代码后必须重建镜像。在本机执行：
+代码采用 COPY 模式打包进镜像，修改代码后必须重建镜像。
+
+> ⚠️ deploy.sh 依赖 SSH 密码自动部署，现密码已失效，需改为 **NAS 上手动 docker build**：
 
 ```bash
-bash /s/world-sim/deploy.sh macro-sim
+# 1. 本机同步代码到 NAS
+rsync -av --exclude='.git' --exclude='output/' --exclude='sim_log.db' \
+      --exclude='__pycache__/' --exclude='*.pyc' \
+      /s/world-sim/macro-sim/ \
+      TSX@192.168.31.108:/vol2/1000/software/macro-sim/
+
+# 2. SSH 登录 NAS 后重建容器
+ssh nas
+cd /vol2/1000/software/macro-sim
+docker build -t macro-sim:latest .
+docker compose up -d --force-recreate
 ```
 
-该脚本会完成：构建新镜像 → 停止旧容器 → 启动新容器。
+（若 deploy.sh 的 SSH 通道恢复，也可在本机执行 `bash /s/world-sim/deploy.sh macro-sim`，脚本会完成：构建新镜像 → 停止旧容器 → 启动新容器。）
 
 注意：`config/agents.yaml` 通过 Dockerfile `COPY config/` 打包进镜像，修改参数后同样需要重建镜像（见第七节）。
 
@@ -194,9 +206,10 @@ python run.py --predict-only --level 2 --event "快速测试"
 
 当前校准评分约 70/100。主要原因是 GRV 历史数据在 2022–2026 期间月度波动剧烈（±30），仿真难以追随。
 
-改进方向（尚未实施）：
-- 对 GRV 历史做3个月移动平均平滑，降低噪声
-- 给 LLM 提供最近5步误差趋势，避免参数反复横跳
+已实施的改进（v2.0.10 起）：
+- GRV 历史做 3 个月移动平均平滑，降低噪声
+- LLM 调参附带最近 5 步误差趋势，减少参数反复横跳
+- v2.0.20 起误差目标改为内生变量（市场情绪/信贷紧缩/流动性溢价/资本外流），调参方向与实际因果链对齐
 
 **2. 路径多样性低（优先级：低，当前可接受）**
 
@@ -212,11 +225,7 @@ python run.py --predict-only --level 2 --event "快速测试"
 
 ### agents.yaml 修改说明
 
-`config/agents.yaml` 通过 Dockerfile 的 `COPY config/ ./config/` 打包进镜像，**修改参数后必须重建镜像**：
-
-```bash
-bash /s/world-sim/deploy.sh macro-sim
-```
+`config/agents.yaml` 通过 Dockerfile 的 `COPY config/ ./config/` 打包进镜像，**修改参数后必须重建镜像**（NAS 手动 docker build，流程见"五、运维操作 → 重建部署"）：
 
 可修改的内容：
 - 各 Agent 的 `sensitivity` / `threshold` / `magnitude` 默认参数
@@ -266,8 +275,9 @@ macro-sim 消费的数据由 macro-scan 产出，当前使用的世界状态外�
 
 **中优先级：**
 
-- [ ] 对 GRV 历史数据做3个月移动平均平滑，改善校准质量（目标：评分从70提升至80+）
-- [ ] 给 LLM 调参时附带最近5步误差趋势，减少参数振荡
+- [x] ~~对 GRV 历史数据做3个月移动平均平滑，改善校准质量~~（v2.0.10 已实施）
+- [x] ~~给 LLM 调参时附带最近5步误差趋势，减少参数振荡~~（v2.0.10 已实施）
+- [x] ~~校准误差权重改为内生变量~~（v2.0.20 已实施）
 
 **低优先级：**
 

@@ -1,6 +1,6 @@
 # 世界推演系统 · 总览
 
-> macro-scan v3.8.12（天枢）· macro-sim v2.0.23（天璇）· kaiyang v1.8.0（开阳）· 2026-08-04
+> macro-scan v3.8.15（天枢）· macro-sim v2.0.23（天璇）· kaiyang v1.9.0（开阳）· macro-ji v1.0.0（天玑）· 2026-08-05
 >
 > **当前状态与待部署事项** → 见 [`HANDOVER.md`](../HANDOVER.md)
 
@@ -15,11 +15,11 @@
 ## 二、系统架构
 
 ```
-FRED / GPR / GDELT / 新闻（RSSHub，crucix 退场中）
-              │  46个调度任务（I15/I30/日档/月档）
+FRED / GPR / GDELT / 新闻（RSSHub :12000，crucix 独立项目·活跃运行 30/30 sources OK）
+              │  49个调度任务（I15/I30/日档/月档）
               ▼
         ┌─────────────┐
-        │  macro-scan  │  观测层（天枢）v3.8.12
+        │  macro-scan  │  观测层（天枢）v3.8.15
         │              │  采集 → GRV向量 → LLM分析报告 → ntfy手机
         └──────┬──────┘
                │ GRV告警时写 sim_trigger.json
@@ -31,8 +31,14 @@ FRED / GPR / GDELT / 新闻（RSSHub，crucix 退场中）
                │ 落盘 data/*.json（只读契约文件）
                ▼
         ┌─────────────┐
-        │   kaiyang   │  可视化操作面板（开阳）v1.8.0
+        │   kaiyang   │  可视化操作面板（开阳）v1.9.0
         │              │  3D地球 + 经济面板 + 控制抽屉（:8080）
+        └─────────────┘
+               │ 落盘 data/*.json（只读契约文件）
+               ▼
+        ┌─────────────┐
+        │  macro-ji   │  验证层（天玑）v1.0.0
+        │             │  预测事后验证与校准（独立容器）
         └─────────────┘
 ```
 
@@ -41,7 +47,7 @@ FRED / GPR / GDELT / 新闻（RSSHub，crucix 退场中）
 | macro-scan | 天枢 | 观测层 | 热挂载（改代码即生效） | :8899 | `macro-scan/AGENTS.md` |
 | macro-sim | 天璇 | 仿真层 | COPY模式（改代码需重建镜像） | — | `macro-sim/AGENTS.md` |
 | kaiyang | 开阳 | 可视化面板 | nginx静态站 | :8080 | `kaiyang/AGENTS.md` |
-| macro-ji（规划中） | 天玑 | 验证层 DRAFT | — | — | `docs/tianji-design.md` |
+| macro-ji | 天玑 | 验证层 | 独立容器 `macro-scan-tianji-1`（healthy） | — | `docs/tianji-design.md` |
 
 ---
 

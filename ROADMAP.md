@@ -14,10 +14,10 @@
 | ✅ | 2026-07-25（v3.5.61） | **situation_detector 阈值 2.0→1.5** | 降低告警触发门槛，改善中度地缘压力下的信号灵敏度 |
 | ✅ | 2026-07-25（v3.5.62） | **R09/R10 启用** | social_stress / cultural_friction 积累基线后正式 `enabled: true`；v3.5.62 修复相关 bug 后完成 |
 | ⏳ | 待核实（原约2026-08-01已过期） | **R11/R12 开启** | 气候/多域信号积累基线后启用；前置条件：climate_risk 和跨域维度各积累 ≥3 周有效数据；**需 SSH 到 NAS 确认实际积累情况后更新此日期** |
-| ⏳ | 2026-08-09 | **signal_synthesizer Staging→Live 切换** | `docker-compose.yml` 加 `STAGING_MODE=0` + `force-recreate`；切后 R09/R10 真正调 LLM + 推 ntfy；前置：signal_synthesizer 上线满 30 天（2026-07-10 起算，08-09 满足）；**注意：代码内有独立数据成熟度守门（news.db ≥30天），两层均需满足** |
+| ✅ | 2026-08-04 | **signal_synthesizer Staging→Live 切换** | `docker-compose.yml` 加 `STAGING_MODE=0` + `force-recreate`；切后 R09/R10 真正调 LLM + 推 ntfy；08-04 已落地（news.db 53 天 ≥30 天，两层守门均满足）|
 | ⏳ | 2026-09-10 | **GDELT scale 校准** | 校准 `religious_conflict` / `regime_change` / `social_stress` / `cultural_friction` 的 scale 参数（含 2026-07-25 v3.5.62 新增两个维度，scale=200 为估算值需实测验证）；GDELT 信号量级与 GRV 其他维度对齐 |
-| ⏳ | 约 2026-08-10 前 | **天枢叙事摄取真正跑通** | narrative_chunks 当前只有 3 行（3 个测试维度）；scheduler 任务 narrative_proc 调度是否实际写入需验证；目标：每日稳定产出 ≥50 条叙事块覆盖 ≥6 个维度 |
-| ⏳ | 约 2026-08-10 前 | **慢变量 slow_variables.json 首次产出** | slow_variables.py 代码在容器，但 slow_variables.json 不存在（月度 cron 08-01 首次触发）；UCRI/GCI 需手工评估分数才能完整计算，需在 08-01 前准备 manual_scores |
+| ✅ | 2026-08-05（08-06 复核） | **天枢叙事摄取跑通** | narrative_chunks 已 181 条（目标≥50 已达成 ✅），scheduler 任务 narrative_proc 实际写入确认；覆盖维度较测试期 3 条基线大幅扩展 |
+| ✅ | 2026-08-05（v2.0.22） | **慢变量 slow_variables.json 产出** | 慢变量接入 MacroWorldState 已落地（v2.0.22）：irp/ucri/gci 字段注入，load_from_macro_scan 读 slow_variables.json |
 | ✅ | 2026-08-04（基础设施） | **天玑验证层上线** | P0-B 修复：天玑独立容器 macro-scan-tianji-1（macro-ji/）上线，trigger→watchdog→tianji_verifier 全链路跑通；V1 数据录入（prediction_ledger.db + 首批预测评分）待 2026-09-30 首批预测到期 |
 | ⏳ | 2026-11-19 | **N2 新闻库第二阶段** | news.db 架构第二阶段；扩展信号采集覆盖范围，配套 synthesis_log 验证 |
 | ⏳ | 2027-05-23 | **N3 信号月度校验** | 月度信号校验闭环全面激活；解锁天玑 V4 校准闭环 |
@@ -33,7 +33,7 @@
 | 模块 | 声称状态 | 实测状态 | 关键缺口 |
 |------|---------|---------|---------|
 | 天枢调度（GRV/FRED/GDELT/新闻） | Live | ✅ 真实运行，今日22 job 正常触发 | — |
-| narrative_chunks 叙事摄取 | 骨架已接入 | ⚠️ 只有 3 行，未稳定产出 | scheduler 任务是否真正写入待验证 |
+| narrative_chunks 叙事摄取 | 骨架已接入 | ⚠️ 只有 3 行，未稳定产出 | scheduler 任务是否真正写入待验证（注：08-06 复核已 181 条，见「时间门控任务」表） |
 | slow_variables（IRP/UCRI/GCI） | IRP 已上线 | ❌ slow_variables.json 不存在 | 月度 cron 08-01 首触发；UCRI/GCI 手工评估节点未准备 |
 | predictions / reasoning_trace | 天玑独立容器已上线（08-04） | ⚠️ predictions=1（测试数据） | 验证链路已跑通（trigger→watchdog→verifier exit=0）；V1 数据录入待首批预测到期 |
 | weight_update_log | — | ❌ 0 行 | 玉衡未运转 |
@@ -95,9 +95,9 @@
 
 | 优先级 | 方向 | 说明 |
 |--------|------|------|
-| **P0** | **GRV 数据源修复（middle_east_energy + energy_grid_risk + fetch_fx）** | 详见 `docs/grv_datasource_fix.md` 第6节 P0 清单；commodity_yahoo→middle_east_energy 接入是最高价值单个修复（约2小时），fetch_fx→world_state.py 修复汇率硬编码 |
+| **P0** | **GRV 数据源修复（仅剩 BDI→sanctions_risk）** | 详见 `docs/grv_datasource_fix.md`；middle_east_energy（GED v26.1+WTI）、energy_grid_risk（天然气期货 NG）、fetch_fx→world_state.py 均已落地（08-06 复核 ✅）；仅剩 BDI→sanctions_risk 待做 |
 | **P1** | **B+A/NOVEL 天璇重写** | 设计蓝图见 `macro-sim/docs/agent_taxonomy.md`；18个 Agent（A类8+B类4+C类6）；必须先读 `docs/archive/17_天璇Agent交互协议_v1.0.md` 确认世界模型边界，再动代码 |
-| **P1** | **GRV GDELT P95 基准校准** | 扩大基准窗口至12个月（当前仅7周211条），消除中美/台海维度归一化差距15倍扭曲；详见 `docs/grv_datasource_fix.md` 第4节 |
+| ✅ | ~~**GRV GDELT P95 基准校准**~~ | **已由 v3.8.11 运行时动态化取代**：GDELT P95 改为运行时动态计算（样本<100 fallback 硬编码），消除中美/台海维度归一化差距；见 `docs/grv_datasource_fix.md` §4 |
 | P2 | **causal_assumptions.md 理论升级落地** | 已有文档骨架（`macro-scan/config/causal_assumptions.md`）；下一步：接入 FSI 凝聚力维度、cultural_friction 接入 Hofstede CSV、引入 WUI 作为第三信号 |
 | P2 | **置信度衰减机制** | 假说置信度应随时间衰减（无新信号支撑则降低），当前为静态累积 |
 | P2 | **多路径交叉干扰** | 多条推演路径共享部分中间态时，路径间干扰未建模，可能导致概率分布失真 |
@@ -109,9 +109,9 @@
 | P2 | **仿真引入历史 VAR 基准轨道** | Agent 轨道（定性方向）+ VAR 轨道（历史统计量级）并行，Agent 只提供相对基准的偏离量；适合 B+A/NOVEL 重写 Sprint 一并处理 |
 | P2 | **天枢 MC 与天璇 Agent 仿真协同** | 目前两套完全独立：天枢统计 MC 出"衰退概率35%"、天璇 Agent 出"情绪崩溃路径"，无法互相校准。改进方向：天璇启动时从天枢 mc_engine 结果读取基准轨道（GDP/通胀/利率的统计期望路径），Agent 冲击叠加在此基准上而非凭空生成绝对数值；两套输出进入同一个 predictions 表对比 |
 | P2 | **清理 mc_engine.py 废代码** | `mc_engine.run_monte_carlo()` 原版函数已无调用方（全部切到 monte_carlo_v2），保留只会误导维护者；清理后 mc_engine 职责变为：中国路径封装 + 压力测试 + 情景比较，定位清晰 |
-| P1 | **hypothesis_engine / signal_synthesizer 从 Staging 切 Live** | 两层独立守门均需满足：①docker-compose.yml 加 STAGING_MODE=0；②news.db 数据成熟度 ≥30天（_check_data_maturity）；按2026-07-10起算，**最早 2026-08-09 执行**；切换前确认 NAS 容器内 news.db 实际积累天数 |
+| P1 | **hypothesis_engine 从 Staging 切 Live** | signal_synthesizer 已 08-04 切 Live（STAGING_MODE=0 + news.db ≥30天）；hypothesis_engine 尚待同样条件满足后切换，确认 NAS 容器内 news.db 实际积累天数 |
 | P2 | **GM 规则量级实证校准** | 用 FRED+历史事件数据做事件研究，对每条 GM 规则（如 CUT_50BP→sentiment+0.35）验证量级合理性，写回 agents.yaml 的 magnitude |
-| P1 | **慢变量接入 MacroWorldState** | world_state.py 加 irp/ucri/gci 三字段，load_from_macro_scan() 读取 slow_variables.json 注入；Agent _decide_rules() 据此调整阈值；"转型期置信区间扩宽1.5倍"真正落地 |
+| ✅ | ~~**慢变量接入 MacroWorldState**~~ | **已完成（v2.0.22）**：world_state.py 已加 irp/ucri/gci 三字段，load_from_macro_scan() 读取 slow_variables.json 注入；Agent _decide_rules() 据此调整阈值 |
 
 ---
 

@@ -1,15 +1,15 @@
 # agent_taxonomy.md — 天璇 Agent 分类体系 V2
 
 **路径：** `macro-sim/docs/agent_taxonomy.md`  
-**适用版本：** macro-sim v2.1.0（当前 v2.0.17 的升级目标）  
-**最后更新：** 2026-08-03  
-**状态：** 设计草稿，尚未在代码中落地
+**适用版本：** macro-sim v2.1.0（当前 v2.0.23 的升级目标）  
+**最后更新：** 2026-08-06  
+**状态：** 设计蓝图，**部分落地**。v2.0.19-22 已落地：soul 文件机制 + SovereignAgent 基类 + Board 关系矩阵 + EnergyGovSovereignAgent（A4 激活、A2/A3/A6 预位）。18 Agent 重构成 A/B/C 三类、Secretary Agent、LangGraph 状态机仍为设计（待实现）。
 
 ---
 
 ## 0. 设计原则
 
-**问题：** 当前 v2.0.17 的 12 个 Agent（A1-A12）全是金融角色，缺少军事/外交/宗教/媒体行为者，无法模拟地缘冲突→经济的完整传导路径。
+**问题：** 当前 v2.0.23 的 12 个 Agent（A1-A12）全是金融角色，缺少军事/外交/宗教/媒体行为者，无法模拟地缘冲突→经济的完整传导路径。
 
 **设计参照：**
 - **WarAgent**（agiresearch/WarAgent，Hua et al. 2023）：Country Agent + Secretary Agent 双层架构，Apache 2.0

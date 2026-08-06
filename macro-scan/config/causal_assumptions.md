@@ -3,7 +3,7 @@
 **路径：** `macro-scan/config/causal_assumptions.md`  
 **维护者：** 天权（玉衡 V2 反馈入口）  
 **创建：** 2026-08-02（arch_review 铁律第5条）  
-**最后更新：** 2026-08-03（补充理论文献、玉衡约束、双层衰减架构）  
+**最后更新：** 2026-08-06（energy_grid_risk 数据源修复复核）  
 **状态：** 初稿，尚未经天玑校准  
 
 > **维护规则：** 每次 `geo_risk_vector.py` 混合权重或 `grv_weights.yaml` 发生变更时，必须同步更新本文档对应维度的"当前权重"节。天玑启动后，所有权重调整必须在此留下修改记录。
@@ -38,7 +38,7 @@
 | | disaster_risk | disaster_signals.json | [已实现，天璇不读] |
 | | sanctions_risk | sanctions_risk.json | [已实现，天璇不读] |
 | | seismic_risk | earthquake_risk.json | [已实现，天璇不读] |
-| | energy_grid_risk | UK Carbon Intensity API | [已实现，数据源错误，见第10节] |
+| | energy_grid_risk | commodity_yahoo 能源价（NG/Brent/WTI）优先，降级 UK Carbon Intensity | [已修复（08-06 复核），见第9节] |
 | | japan_monetary | DEXJPUS + IRLTLT01JPM156N | [已实现] |
 | **文化层（慢变量）** | social_stress | gdelt_scores.json 直读 | [已实现，公式未文献化] |
 | | cultural_friction | gdelt_scores.json 直读 | [已实现，公式未文献化] |
@@ -161,11 +161,11 @@ Hufbauer, Schott & Elliott (1990) 经济制裁全球数据库（GSC）：制裁�
 
 ## 9. energy_grid_risk
 
-**当前状态：** [已实现，数据源严重错误]
+**当前状态：** [已修复，2026-08-06 复核]
 
-**问题：** `source_dimension_map.yaml` 声明数据源为 `energy_eia`，但代码实际读取 UK Carbon Intensity API（英国电网碳强度）——代表英国电网碳强度，不反映全球能源基础设施风险。
+**实现（`geo_risk_vector.py` ~L650）：** 优先读取 `commodity_yahoo.json` 的天然气价格（NG，USD/MMBtu），公式 `energy_grid_risk = normalize_linear(ng_price, low=2.0, high=8.0)`（[2,8] → [0,100]）；无 NG 时依次回退 Brent → WTI（USD/bbl），`[50,110] → [0,100]`；两者皆无时才降级 UK Carbon Intensity（`energy_risk.json` 的 grid_carbon_risk），并记 WARNING 日志。
 
-**修复目标（待实现，P0）：** 接入 commodity_yahoo 的天然气期货价格（NG），公式：`energy_grid_risk = normalize_linear(ng_price, low=2.0, high=8.0)`（USD/MMBtu）。
+**修复历程：** 此前 `source_dimension_map.yaml` 声明数据源为 `energy_eia`，但代码实际读取 UK Carbon Intensity API（英国电网碳强度）——代表英国电网碳强度，不反映全球能源基础设施风险。已改为 commodity_yahoo 能源价优先，修复完成。
 
 ---
 
@@ -382,3 +382,4 @@ grv_weights.yaml（情景评分权重矩阵，与上述混合权重独立）
 *初版由 Claude Code 根据 arch_review_20260802.md 天权裁定创建（2026-08-02）*  
 *v2 更新：补充文献引用、玉衡禁止调整清单、双层衰减架构、social_stress/cultural_friction 参数化方案（2026-08-03）*  
 *v3 更新：GED v26.1 接入 russia_europe / middle_east_energy（多 agent 辩论结论，2026-08-04）*  
+*v4 更新：energy_grid_risk 数据源修复复核——commodity_yahoo 能源价优先（NG2-8 / Brent·WTI 50-110），降级 UK Carbon Intensity（2026-08-06）*  

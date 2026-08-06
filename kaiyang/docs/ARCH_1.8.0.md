@@ -1,10 +1,12 @@
-# 开阳 1.7.0 系统设计与任务分解
+# 开阳 1.8.0 系统设计与任务分解
 
-> **状态：已规划，尚未实现。** 实际 1.7.0 为 BugFix 批次（NaN 崩溃修复 + ErrorBoundary + 2D 平面地图移除 + 控制面板 control/ 组件）。本文档描述的 Leaflet 迁移和 react-grid-layout 可拖拽布局计划延后至 **1.8.0** 实现。接手者请勿误判 Leaflet 迁移已完成。
+> **⚑ ARCHIVED 标注（2026-08-06）**：本文档描述的 **Leaflet 迁移方案未实施**——实际 2D 地图采用 **D3 `geoNaturalEarth1` + 纯 SVG 重写**并已上线（1.8.0），彻底根治 Leaflet/瓦片子午线水平伪线与第三方瓦片覆盖不全问题。**B 线 `react-grid-layout` 可拖拽布局已实现**（非规划）。本文档保留作历史计划参考，**勿按 Leaflet 方案执行**。
 
-> 版本：ARCH_1.7.0 ｜ 作者：高见远（架构师） ｜ 日期：2026-08-04
-> 关联文档：`PRD_1.7.0.md` / `system_design.md`（Wave 2 系统设计）
-> 当前版本：1.6.0（297 测试通过）
+> **状态：已归档。** 实际 1.7.0 为 BugFix 批次（NaN 崩溃修复 + ErrorBoundary + 2D 平面地图移除 + 控制面板 control/ 组件）；1.8.0 实际交付为 **D3 geoNaturalEarth1 2D 地图重写 + react-grid-layout 可拖拽布局**。接手者请勿误判 Leaflet 迁移已完成。
+
+> 版本：ARCH_1.8.0 ｜ 作者：高见远（架构师） ｜ 日期：2026-08-04
+> 关联文档：`PRD_1.8.0.md` / `system_design.md`（Wave 2 系统设计）
+> 当前版本：1.8.0（测试基线以当前代码为准，`src/` 下 13 个测试文件）
 
 ---
 
@@ -97,7 +99,7 @@
 | `src/config/layerCategories.ts` | 类别体系不变 |
 | `src/data/strategicSites.ts` | 要地数据不变 |
 | `src/config/regions.ts` | 地区 bbox 不变（仅注释中 fitExtent 引用变为 fitBounds） |
-| 所有 `*.test.ts` / `*.test.tsx` | 297 测试不退化 |
+| 所有 `*.test.ts` / `*.test.tsx` | 测试不退化（基线以当前代码为准） |
 
 ### 4. 数据结构和接口
 
@@ -555,7 +557,7 @@ sequenceDiagram
 2. 删除 `public/assets/countries-110m.json`
 3. `src/index.css` 完成清理（已在 T01 标记）
 4. `src/config/regions.ts` 的 `regionPolygon` 和 `BboxPolygon` 标记 `@deprecated Since 1.7.0 — Leaflet 迁移后不再需要 d3-geo fitExtent；保留以兼容旧测试但不建议新代码使用`
-5. 运行全量测试：`npm test`（297 测试应全部通过）
+5. 运行全量测试：`npm test`（基线以当前代码为准，`src/` 下 13 个测试文件应全部通过）
 6. 检查 TypeScript 编译：`npx tsc --noEmit`
 7. 检查 Vite 构建：`npm run build`
 
