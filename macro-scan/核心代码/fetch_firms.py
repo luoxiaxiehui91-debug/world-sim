@@ -134,9 +134,23 @@ def fetch_and_save(date_str=None):
 
     if not csvs:
         print('[fetch_firms] 所有源均无数据，跳过写入')
+        # 2026-08-07 fail-loud（红线 #8）：全源失败必须告警，禁止静默跳过（下游读旧文件误以为数据新鲜）
+        try:
+            from ntfy_utils import push_text
+            push_text("⚠️ FIRMS 数据源异常", f"fetch_firms 全源失败（{VIIRS_SOURCES}），未更新 {FIRMS_OUTPUT}，date={date_str}")
+        except Exception as e:
+            print(f'[fetch_firms] fail-loud 告警失败: {e}')
         return {}
 
     total, high_conf, regions = _aggregate(csvs)
+
+    # 2026-08-07 fail-loud（红线 #8）：全球 2 天 NRT 双源火点常态 7 万+，双零 = 异常信号（API 返回空/解析丢失），必须告警
+    if total == 0 and high_conf == 0:
+        try:
+            from ntfy_utils import push_text
+            push_text("⚠️ FIRMS 返回 0 火点", f"fetch_firms 聚合为 0（date={date_str}），疑似 NASA API 异常；下游 climate/R11 将失去火点输入")
+        except Exception as e:
+            print(f'[fetch_firms] fail-loud 告警失败: {e}')
 
     result = {
         'fetched_at': datetime.now().isoformat(timespec='seconds')[:19],
