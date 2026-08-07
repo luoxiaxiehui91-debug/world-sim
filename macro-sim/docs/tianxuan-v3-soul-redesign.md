@@ -222,12 +222,34 @@ def decide(ctx) -> ActionDecision:
 | `_eval_trigger` 扩展 | 保持数值表达式；**另加 `visible(...)` 语法** 或保留在 bias/trigger 前由管线注入布尔变量 `flag_media_fear`/`flag_hf_short` 等（见 §7.2） | 现有 eval 不支持字符串比较；用布尔注入最小改动 |
 | **flag_* 来源（v1.2 P2-1）** | **必须从 `visible_actions` 派生**（`_build_visible_actions` 已按 info_delay 延迟），禁止从当前步 ctx 直接注入——A1（delay=4）不得看到当前步对冲基金行动，信息分层与 v2 一致 | 防信息分层破坏（QClaw P2-1） |
 | **decision_temperature（v1.2 P1-1）** | soul 级可配置（默认 1.0=标准抽样）；**0=argmax 确定性**（取权重最高派系，同输入同输出）；校准回归期统一 temperature=0 与 v2 公平对比 | 解决概率化 vs 确定性断裂（QClaw P1-1）；校准可比性 |
-| **missing_strategy（v1.2 P0-2）** | soul YAML 可配 `missing_strategy: conservative/optimistic/neutral`（默认 conservative）；`_eval_trigger` 对 ctx 缺失变量：conservative=归 0 且 fail-loud 提示，optimistic=归中性值；未知变量名仍启动 fail-loud（§7.4） | 关键信号缺失不静默无反应（QClaw P0-2） |
+| **missing_strategy（v1.2 P0-2 / v1.3 R-P1 语义修正）** | soul YAML 可配 `missing_strategy`（默认 conservative）；`_eval_trigger` 对 ctx 缺失变量：**conservative=按最坏情况求值**（`x > t` 中 x 缺失 → True 触发防御；`x < t` 缺失 → True），**optimistic=归 0**（假设信号正常不触发），**neutral=归中性值**；未知变量名仍启动 fail-loud（§7.4） | 关键信号缺失不静默无反应；v1.3 修正：原 conservative=归 0 对 `>` 阈值恒不触发=乐观，语义反了（QClaw R-P1） |
 
 ### 3.5 可追溯性对照（需求 ①②③）
 
-- ① 每个决策必含 `reason + evidence`，evidence 含触发信号值、命中 trigger、派系权重、alternative；
-- ③ 决策管线唯一化：新增 Agent 只需提供 soul YAML，无需写 if-else。
+### 3.6 状态依赖权重 regime_modifiers（v1.3 R-P0，QClaw 两轮 P0-1 闭环）
+
+> 第一轮 P0-1 只落地了数据源缺口（§5.6 CPI）；本轮补**权重动态化机制**——即使 CPI 落地、hawk trigger 切 `inflation>2.5`，权重仍静态（通胀期 hawk=0.20、衰退期也 0.20），需要权重随宏观状态切换。
+
+**设计**：soul YAML 新增可选字段：
+
+```yaml
+regime_modifiers:
+  regimes:            # 宏观状态分类器（用 ctx 信号判定当前 regime）
+    inflation:  "inflation > 2.5 AND market_sentiment > -0.1"
+    recession:  "credit_spread > 300 OR market_sentiment < -0.3"
+    normal:     ""                                  # 兜底
+  overrides:          # 每 regime 的派系权重覆盖（不覆盖则用基线权重）
+    inflation:
+      hawks: 0.35      # 通胀期鹰派权重上调
+      doves: 0.15
+    recession:
+      doves: 0.45      # 衰退期鸽派权重上调
+      hawks: 0.10
+```
+
+**决策管线**：`decide()` 先判 regime（多个命中取第一个）→ 用 overrides 覆盖派系权重 → 再走正常抽样（temperature 生效）。
+
+**标注**：regime_modifiers 为**阶段 3 后可选增强**（防过度设计）——§5.5 校准拟合本身会隐式吸收状态响应（历史数据含不同 regime 时段），regime_modifiers 是把状态响应显式化的增强；若校准后行为已验证良好可跳过。
 
 ---
 
@@ -480,7 +502,7 @@ references:
 | Schelling-1966 | Schelling (1966), *Arms and Influence*, Yale UP | S 类威慑/边缘政策 | 威胁可信度；升级作为信号 |
 | DFR-2010 | Dosi, Fagiolo & Roventini (2010), *Schumpeter Meeting Keynes*, JEDC 34 | 整体 ABM 方法论 | 内生波动；复现 14 个 OECD 周期特征 |
 
-**调研说明**：以上 29 条为本次 WebSearch 核实的真实文献（作者/年份/期刊/可提取参数均已从权威来源验证，如 Fed Reserve 文档、REPEC、ECB WP、原论文 PDF）。其中 25 条用于 12 金融 soul 行为锚定，3 条（A-1971/Kahn/Schelling）支撑 S 类主权框架（现状已落地），1 条（DFR-2010）支撑整体 ABM 方法论。
+**调研说明**：以上 31 条为本次 WebSearch 核实的真实文献（v1.2 新增 TT-2013/QT-2022，v1.3 修正计数）（作者/年份/期刊/可提取参数均已从权威来源验证，如 Fed Reserve 文档、REPEC、ECB WP、原论文 PDF）。其中 25 条用于 12 金融 soul 行为锚定，3 条（A-1971/Kahn/Schelling）支撑 S 类主权框架（现状已落地），1 条（DFR-2010）支撑整体 ABM 方法论。
 
 ### 5.3 参数区间表（文献 → soul 参数映射）
 
@@ -545,7 +567,7 @@ references:
 | **通胀（CPI）** | ctx 无 inflation；fred_history 无 CPIAUCSL | **天枢补采集**（fetch_fred_history 加 CPIAUCSL → fred_history/CPIAUCSL.csv → world_state 加 inflation 字段 → ctx 透传） | A1/A11（hawk 触发）、A8（通胀应对） |
 | **产出缺口** | 无 GDP 缺口数据 | 中期可选（FRED GDPPOT/NGDPPOT 派生）；短期用 credit_spread/market_sentiment 代理 | A1 |
 
-**落地前策略**：hawk 触发保留 market_sentiment 代理并标注【代理】；CPI 落地后切换为 `inflation > 阈值`（阈值由 T-1993 通胀缺口反应系数反推）。此缺口列入 backlog，随天枢采集扩展解决。
+**落地前策略**：hawk 触发保留 market_sentiment 代理并标注【代理】；CPI 落地后切换为 `inflation > 阈值`（阈值由 T-1993 通胀缺口反应系数反推）。**此缺口列为天枢 v3.8.x backlog 阻塞项**（v1.3 R-O1）——阻塞 A1/A11 hawk 真实触发，随天枢 CPI 采集扩展解决。
 
 ---
 
@@ -621,7 +643,10 @@ references:
 1. **事实约束**：所有数字必须来自 trace（evidence.signals / world_subset），LLM 不得编造信号值；叙事文本里数字若出现必须在 trace 中存在。
 2. **结构强制**：输出分 4 段——【触发】第 1-3 个月谁先动、为什么 →【传导】逐月连锁（引用 agent/action/reason）→【拐点】路径分叉步的决策分歧 →【稳态】末 3 个月格局。
 3. **因果只引用 trace 内**：传导链描述必须形如"对冲基金做空（grv_stress 0.52）→ 媒体放大恐慌（A6 fear 命中）→ 散户 PANIC_SELL"，禁止外推 trace 之外的因果。
-3b. **引擎因果骨架（v1.2 P1-2）**：叙事生成前，引擎从 trace 的 `evidence.trigger_hit` + `visible_actions` 构建**因果图骨架**（A→B 触发链，节点=agent/action，边=trigger 命中），LLM 只对骨架做语言润色、禁止增删节点/边；骨架无法覆盖的月份输出结构化占位——LLM 不做因果推断，因果由引擎给定（时序相邻≠因果的幻觉从根上消除）。
+3b. **引擎因果骨架（v1.2 P1-2 / v1.3 R-P2 构建规则）**：叙事生成前，引擎从 trace 构建因果图骨架，LLM 只对骨架做语言润色、禁止增删节点/边。**构建规则（v1.3 明确）**：
+   - **硬因果（画边 A→B）**：`flag_*` 布尔命中且指向 `visible_actions` 中的具体行动（如 `flag_hf_short` 命中 → 边 A3:SHORT_MARKET → 本 Agent）——触发链可溯源，画边；
+   - **软因果（不画边，只标注时序+信号值）**：世界状态变量触发（如 `market_sentiment < -0.3` 命中）——状态是全局场，非 Agent 间直接触发，仅标注"该步该信号值 X"；
+   - 骨架无法覆盖的月份输出结构化占位。LLM 不做因果推断，因果由引擎给定。
 4. **长度**：每路径 400-600 字；多路径间不得复读相同措辞。
 5. **反幻觉校验**：生成后脚本级校验——抽取叙事中的关键数值，与 trace 比对，不一致则标注「叙事数字存疑」并回退到结构化表述。
 
@@ -712,7 +737,7 @@ elif a11 == "QE_TIGHTEN":
 |------|------|--------|---------|
 | **阶段 1**：统一框架 | base.py 新增 ActionDecision + soul 管线 `decide()→ActionDecision`；现有 `_decide_rules` 包一层 fallback；trace 落盘骨架 | 决策管线 v0、ActionDecision schema、trace JSONL 空实现 | 回归测试：**无 soul 时每个 Agent 输出与 v2 逐行动一致**（`decide()` 返回 action 字符串不变的兼容层） |
 | **阶段 2**：试点 3 个 soul | A1 Fed、A3 对冲基金、A6 媒体（行为最核心、覆盖 dove/hawk、risk-off/on、fear/optimism 三类结构） | 3 个 soul YAML + 派系触发/权重 + 校准扩展（权重纳入 LLM 调参空间，§5.5 A 路） | 试点 Agent 校准评分 ≥ v2 同 Agent 评分 × 0.95；死行动检测跑通；trace 理由可读；**历史事件回放方向校验（§5.5 C 路：2022 加息→Fed hawk 主导 / 2023 SVB→商行 risk_off / 2024 套息→BOJ extreme）通过** |
-| **阶段 3**：剩余 9 个 + 死行动清理 | A2/A5/A7/A8/A9/A10/A11/A12 全部 soul 化；QE_TIGHTEN 复活 + gm_resolve 新分支；CUT_LPR 复活 | 12 个金融 soul 全量、gm_resolve 变更 | 全量校准评分回归对比；死行动双清零；`_ACTION_VERB` S 类补全；**拟合后权重回填 §5.3（【待校准】→校准值+日期+数据窗口）** |
+| **阶段 3**：剩余 9 个 + 死行动清理 | A2/A5/A7/A8/A9/A10/A11/A12 全部 soul 化；QE_TIGHTEN 复活 + gm_resolve 新分支；CUT_LPR 复活 | 12 个金融 soul 全量、gm_resolve 变更 | 全量校准评分回归对比；死行动双清零；`_ACTION_VERB` S 类补全；**拟合后权重回填 §5.3**。**v1.3 R-O2 拆两步验收**：3a（QE_TIGHTEN 对称系数先验跑通 + 回归对比）→ 3b（非对称上调独立校准回归，见 §7.3） |
 
 ### 8.2 关键风险与缓解
 
@@ -766,6 +791,7 @@ elif a11 == "QE_TIGHTEN":
 | 2026-08-07 | v1.0 初稿：统一决策框架、12 金融 soul 设计表、论文锚点体系（30 条文献）、结果层 v3、校验闭环、三阶段迁移 | 用户需求①②③④ + 代码盘点 + 联网文献调研 |
 | 2026-08-07 | v1.1：新增 §5.5 参数校准策略（文献区间约束 + 历史数据拟合三路：校准扩展 A / 参数扫描 B / 历史事件回放 C + 本质限制）；§8.1 阶段 2/3 验收补 C 路与权重回填；§9.2 补第 8 条验收标准 | 用户拍板"能用以前的数据训练拟合权重"（15:38） |
 | 2026-08-07 | v1.2（QClaw 评审 7 条核实 5 成立）：§5.6 新增通胀数据源缺口（Taylor 锚点缺 CPI，依赖天枢补采集）；§3.4 加 temperature/missing_strategy/flag 走 visible_actions；§4.1 hawk 代理标注；§5.2 补 QE 退出文献（TT-2013/QT-2022）；§6.4 引擎因果骨架；§7.3 QE 退出不对称；§8.2 R6 增强 soul_manifest_hash；§5.1 schema 强化；§2.1 A4 退役候选定位 | QClaw tianxuan-v3-soul-review（15:46）+ WorkBuddy 核实（16:00） |
+| 2026-08-07 | v1.3（QClaw 第二轮 6 条全成立）：新增 §3.6 regime_modifiers 状态依赖权重（阶段 3 后可选）；§3.4 missing_strategy conservative 语义修正（归 0=乐观反了→按最坏情况求值）；§6.4 3b 因果骨架构建规则（硬因果画边/软因果标时序）；§5.2 文献计数 29→31；§5.6 标注天枢 v3.8.x 阻塞项；§8.1 阶段 3 拆 3a/3b 两步验收 | QClaw 第二轮（16:20）+ WorkBuddy 核实（16:30） |
 | 待定 | （阶段实施后回填） | — |
 
 ---
