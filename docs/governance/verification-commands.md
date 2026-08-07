@@ -25,6 +25,7 @@
 | C7 | scheduler_state.json 新鲜度 | A§2.2-7b（arch 已纳入 A；updated + heartbeat 年龄） | updated=**当日**；heartbeat_age **<300s**（调度器存活） | P0-D 契约（DATA_DIR 单点 + 真实健康探测） | `b661deed46e1` | 核心代码/scheduler.py **L220**；control_server.py **L183** | devops / QA | 14:44（updated=2026-08-06T14:42:43 heartbeat_age=27s） | ✅* |
 | C8 | control_server.py last_ok 逻辑 | A§2.2-5（grep 天枢运行区） | L183 真实健康探测存在（`last_ok = scheduler_alive and bool(...)`）；硬编码 `last_ok = True` 计数 **0** | 口径 v1（案例4 P0-D 修复） | `f0489e2d4acf` | 核心代码/control_server.py **L183** | devops / QA | 14:42 | ✅ |
 | C9 | 开阳 kaiyang dist | A§2.2-8（ls 运行区静态产物） | index.html 存在；assets/ 存在；data/ mtime 近期（当日或近 2 日） | 开阳运行区 dist | `403424e9b700` | /vol2/1000/software/kaiyang/dist/ | devops / QA | 14:42（data/ 08-06 11:12） | ✅ |
+| C10 | calibrator 校准逻辑生效（D2/D3 fix 防覆盖，ADR-0011） | ADR-0011 Confirmation（命令全文见 §2） | 容器内 import 自检通过 + `ERROR_WEIGHTS` 含 4 内生变量且不含 grv + `def run_calibration` 计数=1 | ADR-0011（calibrator.py `_self_check` 模块加载断言） | 待实测 | /app/core/calibrator.py | devops / QA | 2026-08-07 13:35 | ✅ |
 
 > *C7 advisory：调度器重启清空 in-memory `_last_run_ts`，job 级 last_run_ts=None 属正常（本次 tianji_trigger/grv_update 均 None，因 14:31 重启后未到触发槽）。**本命令只断言调度器存活（updated/heartbeat），不断言单 job 记录**；建议后续把 last_run 落盘持久化，否则无法区分"从未运行"与"重启过"。
 >
@@ -48,6 +49,15 @@
 - C7 → A§2.2-7b（哈希 `b661deed46e1`）
 - C8 → A§2.2-5（哈希 `f0489e2d4acf`）
 - C9 → A§2.2-8（哈希 `403424e9b700`）
+- C10 → ADR-0011 Confirmation（calibrator 自检，2026-08-07 新增；权威源 = `decisions/world-deduction/0011-calibrator-single-source-selfcheck.md`）：
+  ```bash
+  # 正常态（期望 OK）：
+  docker exec macro-sim python3 -c "import sys; sys.path.insert(0,'/app'); import core.calibrator as c; assert 'market_sentiment' in c.ERROR_WEIGHTS; print('OK')"
+  # 故障态对照（期望 assert 失败/加载即抛）：
+  docker exec macro-sim python3 -c "import sys; sys.path.insert(0,'/app'); import core.calibrator as c; assert 'grv' not in c.ERROR_WEIGHTS; print('OK')"
+  # 重复定义检测（期望 1；≥2 = 旧版残留）：
+  docker exec macro-sim sh -c "grep -c 'def run_calibration' /app/core/calibrator.py"
+  ```
 
 > 哈希口径：`sha256(命令文本)` 前 12 位，命令文本 = A §2.2 代码块内容，去尾换行。**哈希必须从 A 表规范路径经 SSH 提取计算，禁从记忆/草稿重建**（见 §3-9，C1 初版哈希失配教训）。
 
@@ -125,3 +135,4 @@
 | v1 | 2026-08-06 14:45 | 初版：10 条命令注册表（8 核心 + C2b/C7 补充），命令全文自含，全部 NAS 实跑 | 方向 C P0 落地 |
 | v2 | 2026-08-06 14:55 | 命令列改为引用 A 表 §2.2；GRV 口径对齐 A（17 维度分数键）；C2b/C7 补充命令保留全文于 §2 | A 表产出后防双命令漂移 |
 | v3 | 2026-08-06 15:05 | **C1 哈希更正** `71c93c603035` → `70798b0050ae`；§2 删除 C2b/C7 重复全文改为引用 A§2.2-2b/7b（arch 已纳入）；§3 新增第 9 条"哈希必须从规范路径 SSH 提取计算" | arch-governance 对账发现 C1 哈希失配（A 表 v1.1 逐字节核对 9/10 匹配、唯 C1 不匹配）；QA 独立复算确认正确值为 70798b0050ae；按本表自定"命令唯一真源"原则删重复全文 |
+| v4 | 2026-08-07 13:35 | 新增 **C10**（calibrator 校准逻辑生效）：命令全文入 §2，权威源 = ADR-0011 Confirmation | calibrator D2/D3 fix 被旧版覆盖静默失效（20260807 question 闭环）→ ADR-0011 落地，防再发生 |
