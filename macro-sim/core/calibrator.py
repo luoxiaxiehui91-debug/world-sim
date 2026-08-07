@@ -55,6 +55,15 @@ EXOGENOUS_VARS = {"grv", "credit_spread", "t10y2y", "dff",
 ERROR_THRESHOLD = 0.20   # 内生变量误差阈值（比外生变量稍宽松，因目标是方向而非精确值）
 CALIB_LOG_PATH  = Path("/app/output/calibration_log.jsonl")
 
+# v2.0.24 修复：校准 prompt 显式标注 17 个 Agent 名称映射，防 LLM 幻觉
+# （实测 LLM 曾把 A5=机构投资者误认为"沙特"——S5_saudi 混淆；A4 已挂起不应被调参）
+AGENT_NAME_HINT = (
+    "Agent 名称映射（调参时严格按此识别，勿凭编号猜测）：\n"
+    "  A1=美联储  A2=商业银行  A3=对冲基金  A4=能源国(已挂起，勿调)  A5=机构投资者(养老金/主权基金，非沙特)\n"
+    "  A6=媒体  A7=新兴市场央行  A8=中国央行/财政  A9=美国财政部  A10=散户  A11=欧央行  A12=日央行\n"
+    "  S1=美国(主权)  S2=中国(主权)  S3=欧盟(主权)  S4=俄罗斯(主权)  S5=沙特-OPEC(主权)\n"
+)
+
 
 def _derive_endogenous_targets(prev_row: dict, curr_row: dict) -> dict:
     """
@@ -185,6 +194,7 @@ def _call_llm_for_adjustment(
             f"注意：误差标准是方向一致性，✗反向比幅度偏差更严重。\n"
             f"{history_str}\n"
             f"当前Agent参数：\n{params_str}\n\n"
+            f"{AGENT_NAME_HINT}\n"
             f"请分析：哪些Agent的参数导致内生变量方向错误？给出1-3条具体调整指令。\n"
             f"market_sentiment 主要由 A3(对冲基金)/A6(媒体)/A10(散户) 驱动。\n"
             f"bank_credit_tightening 主要由 A1(美联储)/A2(商业银行) 驱动。\n"
