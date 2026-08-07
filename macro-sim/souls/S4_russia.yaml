@@ -55,7 +55,7 @@ internal_factions:
     bias_actions: ["CEASEFIRE_SIGNAL", "DIPLOMATIC_ENGAGE", "INCREASE_OUTPUT"]  # v2.2 A2
   oligarchs:
     weight: 0.15
-    trigger: "sanctions_risk > 60 AND economic_buffer_months < 6"
+    trigger: "sanctions_risk > 60 AND economic_buffer_months <= 6"
     bias: "优先个人资产保护，对极端升级持保留态度"
     bias_actions: ["HOLD", "DIPLOMATIC_ENGAGE"]                                # v2.2 A2
 

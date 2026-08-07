@@ -329,15 +329,16 @@ def gm_resolve_rules(
                 # per-agent delta 记录（供传导矩阵/快照展示，不写 world 属性）
                 add(agent_id, f"grv_dim.{dim}", val * m)
         # 4. sentiment 通用影响（v2.2 B3 试点系数，验证后回调 ±0.04-0.06）
-        # 08-07 首轮验证 sentiment std=0.149 距 0.15 阈值差 0.001 → 取试点上沿 0.20/0.15
+        # 08-07 迭代：std 0.149→0.158(GRV60) 但 GRV80 高压一致鹰派 std 反降 0.090 →
+        # 提系数至 0.25/0.20 + activation 0.40 + 国内压力动态（结构性多空）
         if action in ("IMPOSE_SANCTIONS", "MILITARY_DEPLOYMENT", "CUT_OUTPUT",
                       "EMBARGO_SIGNAL", "NUCLEAR_SIGNAL", "ENERGY_CUTOFF",
                       "TECH_RESTRICTION", "ALLIANCE_REINFORCE"):
-            add(agent_id, "market_sentiment", -0.20 * m)
+            add(agent_id, "market_sentiment", -0.25 * m)
             _board_delta = 0.02   # 冲突行动 → Board 全关系对 push +偏离
         elif action in ("DIPLOMATIC_ENGAGE", "LIFT_SANCTIONS", "INCREASE_OUTPUT",
                         "CEASEFIRE_SIGNAL", "DIPLOMATIC_OUTREACH"):
-            add(agent_id, "market_sentiment", 0.15 * m)
+            add(agent_id, "market_sentiment", 0.20 * m)
             _board_delta = -0.02  # 缓和行动 → 回落
         else:
             _board_delta = 0.0
