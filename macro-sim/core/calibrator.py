@@ -392,3 +392,32 @@ def run_calibration(
         print(f"  ⚠️ 评分低于60，预测可信度有限")
 
     return result
+
+
+# ── 运行时自检（ADR-0011 accepted，2026-08-07）──────────────────
+# 防 D2/D3 式静默降级：旧版副本残留（同名函数后定义覆盖）或 ERROR_WEIGHTS 被
+# 覆盖为外生版时，模块加载即抛异常——「声称已修」不再可能从未生效。
+def _self_check():
+    import sys as _sys
+    import inspect as _insp
+
+    # 1. ERROR_WEIGHTS 必须是内生版签名（含内生变量，不含外生变量）
+    _required = {"market_sentiment", "bank_credit_tightening",
+                 "liquidity_premium", "em_capital_outflow"}
+    _missing = _required - set(ERROR_WEIGHTS)
+    if _missing:
+        raise RuntimeError(
+            f"calibrator 自检失败：ERROR_WEIGHTS 缺内生变量 {sorted(_missing)}（可能被旧版覆盖）")
+    if "grv" in ERROR_WEIGHTS:
+        raise RuntimeError("calibrator 自检失败：ERROR_WEIGHTS 含外生变量 grv（旧版覆盖）")
+
+    # 2. 关键函数定义唯一性（防重复代码残留，D2/D3 教训）
+    _mod_src = _insp.getsource(_sys.modules[__name__])
+    for _fn in ("run_calibration", "compute_error", "build_history_range"):
+        _cnt = _mod_src.count(f"def {_fn}")
+        if _cnt != 1:
+            raise RuntimeError(
+                f"calibrator 自检失败：{_fn} 定义 {_cnt} 次（期望 1，存在重复代码残留）")
+
+
+_self_check()
