@@ -20,7 +20,7 @@ import random
 from dataclasses import dataclass, field
 from typing import ClassVar
 
-from core.agents.base import MacroAgent, AgentParams
+from core.agents.base import MacroAgent, AgentParams, ActionDecision, _eval_trigger
 
 
 # ── Board：全局关系矩阵（单例）─────────────────────────────────
@@ -83,15 +83,9 @@ class SovereignAgent(MacroAgent):
     """
     主权国家/集团 Agent 基类。
 
-    相比 MacroAgent 新增：
-    - 基于 soul.internal_factions 的动态派系权重决策
-    - soul.red_lines 触发强制行动
-    - soul.grv_impact_map 定义行动对 GRV 的预期影响方向（供仿真引擎参考）
-    - Board 读写（联盟/制裁/冲突关系）
-
-    子类可覆盖：
-    - VALID_ACTIONS：合法行动列表
-    - _get_faction_actions()：各派系对应的行动偏好
+    v3 阶段 1：soul 决策逻辑已上移至 MacroAgent._decide_soul()（base.py），
+    本类 _decide_rules 仅作为"无 soul 时"的 fallback（HOLD）。
+    Board 读写（联盟/制裁/冲突关系）保留。
     """
 
     # 默认行动空间（子类按 soul 中 action_space 字段覆盖或扩展）
@@ -115,59 +109,11 @@ class SovereignAgent(MacroAgent):
 
     def _decide_rules(self, ctx: dict) -> str:
         """
-        基于 soul 文件的规则决策：
-        1. 检查 red_lines → 触发时返回强制升级行动
-        2. 计算各派系当前权重（受世界状态影响）
-        3. 按加权抽样选择派系，再从该派系偏好行动中选择
-        4. 无 soul 时回退到 HOLD
+        v3 阶段 1：soul 决策已由 MacroAgent.decide_with_decision() → _decide_soul()
+        统一处理（red_line → 派系权重 → 抽样 → bias_actions）。
+        本方法仅在"无 soul"时被调用（fallback）——主权 Agent 无 soul 一律 HOLD。
         """
-        if not self.soul:
-            return "HOLD"
-
-        # ── Step 1: Red Lines 检查（v2.2 D2 修复）──────────────
-        # red_line_triggers = 数值表达式列表（可被 _eval_trigger 判定，如 "russia_europe > 75"）；
-        # red_lines = 中文自然语言描述，仅作叙事/文档用途，不再参与 eval 判定
-        # （旧版对中文 red_lines 直接 eval → 正则只匹配 ASCII → SyntaxError → 恒 False，红线全哑）。
-        for rl in self.soul.get("red_line_triggers", []):
-            if _eval_trigger(rl, ctx):
-                # red_line 触发：返回最强烈的可用行动
-                escalation = self._escalation_action(ctx)
-                return escalation
-
-        # ── Step 2: 计算派系当前权重 ─────────────────────────
-        factions = self.soul.get("internal_factions", {})
-        if not factions:
-            return "HOLD"
-
-        weighted = {}
-        total_weight = 0.0
-        for fname, fdata in factions.items():
-            base_weight = float(fdata.get("weight", 0.33))
-            trigger = fdata.get("trigger", "")
-            # 如果触发条件满足，该派系权重 ×1.3（v2.2 验证迭代：1.5→1.3，
-            # 高压下鹰派不再压倒性倾斜，给约束派/鸽派留分歧空间 → 路径分叉）
-            boost = 1.3 if _eval_trigger(trigger, ctx) else 1.0
-            # sensitivity 参数影响派系响应强度
-            effective = base_weight * boost * self.params.sensitivity
-            weighted[fname] = effective
-            total_weight += effective
-
-        if total_weight == 0:
-            return "HOLD"
-
-        # ── Step 3: 加权随机抽样选择派系 ──────────────────────
-        r = random.random() * total_weight
-        cumulative = 0.0
-        chosen_faction = list(factions.keys())[0]
-        for fname, w in weighted.items():
-            cumulative += w
-            if r <= cumulative:
-                chosen_faction = fname
-                break
-
-        # ── Step 4: 从派系偏好行动中选择 ──────────────────────
-        action = self._faction_to_action(chosen_faction, ctx)
-        return action if action in self.VALID_ACTIONS else "HOLD"
+        return "HOLD"
 
     def _faction_to_action(self, faction_name: str, ctx: dict) -> str:
         """
@@ -288,12 +234,11 @@ class EnergyGovSovereignAgent(SovereignAgent):
 
     def _decide_rules(self, ctx: dict) -> str:
         """
-        有 soul 时走 SovereignAgent 派系权重决策。
-        无 soul 时退化：能源紧张→减产，否则 HOLD。
+        v3 阶段 1：有 soul 时走 MacroAgent.decide_with_decision() → _decide_soul()
+        （base 统一管线，不经过本方法）；本方法仅为"无 soul"fallback：
+        能源紧张→减产，否则 HOLD（向后兼容 A4 挂起态）。
         """
-        if self.soul:
-            return super()._decide_rules(ctx)
-        # 无 soul 的简单规则（向后兼容）
+        # 无 soul 的简单规则（向后兼容；A4 挂起 activation=0 实际不调用）
         energy_tension = ctx.get("energy_tension", 0) * self.params.sensitivity
         if energy_tension > self.params.threshold * 0.8:
             return "CUT_OUTPUT"

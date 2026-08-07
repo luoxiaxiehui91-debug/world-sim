@@ -425,6 +425,8 @@ class MacroSimModel:
         else:
             self.agents, self.global_cfg = load_agents(config_path)
         self.history: list[dict] = []
+        # v3 阶段 1：每步 ActionDecision trace（decisions 骨架；落盘由结果层 v3 启用）
+        self.decision_trace: list[dict] = []
 
         # action_history：用双端队列保存最近 max_delay 步的行动记录
         max_delay = max(a.info_delay for a in self.agents.values()) + 1
@@ -457,15 +459,19 @@ class MacroSimModel:
         执行一步仿真。
         inject_world: 校准循环传入当月真实外生变量，覆盖仿真结果（用于保持历史轨迹真实）
         """
-        # Phase 1: 每个 Agent 决策
+        # Phase 1: 每个 Agent 决策（v3 阶段 1：decide_with_decision 收集 trace，
+        # 行为与 v2 的 decide() 完全一致——decide() 即取 .action）
         step_actions: dict[str, str] = {}
+        step_decisions: dict[str, dict] = {}
         for agent_id, agent in self.agents.items():
             if agent.forced_activate:
                 agent.forced_activate = False
                 ctx = self.world.get_agent_context(agent.role, soul=getattr(agent, "soul", None))
                 ctx["visible_actions"] = self._build_visible_actions(agent)
                 self._inject_board_ctx(ctx, agent)
-                step_actions[agent_id] = agent.decide(ctx, self.use_llm)
+                decision = agent.decide_with_decision(ctx, self.use_llm)
+                step_actions[agent_id] = decision.action
+                step_decisions[agent_id] = decision.to_dict()
             elif agent.activation_countdown > 0:
                 agent.activation_countdown -= 1
                 step_actions[agent_id] = "NO_ACTION"
@@ -473,7 +479,9 @@ class MacroSimModel:
                 ctx = self.world.get_agent_context(agent.role, soul=getattr(agent, "soul", None))
                 ctx["visible_actions"] = self._build_visible_actions(agent)
                 self._inject_board_ctx(ctx, agent)
-                step_actions[agent_id] = agent.decide(ctx, self.use_llm)
+                decision = agent.decide_with_decision(ctx, self.use_llm)
+                step_actions[agent_id] = decision.action
+                step_decisions[agent_id] = decision.to_dict()
                 agent.activation_countdown = agent.info_delay  # 行动后冷却
             else:
                 step_actions[agent_id] = "NO_ACTION"
@@ -502,6 +510,7 @@ class MacroSimModel:
 
         # 记录本步
         self.action_history.append(dict(step_actions))
+        self.decision_trace.append(step_decisions)   # v3 阶段 1：trace 骨架（结果层 v3 落盘）
         snapshot = {
             **self.world.to_dict(),
             "actions": {aid: act for aid, act in step_actions.items() if act != "NO_ACTION"},
