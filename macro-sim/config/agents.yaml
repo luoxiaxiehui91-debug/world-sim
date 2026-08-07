@@ -27,7 +27,6 @@ agents:
     name: 商业银行
     role: commercial_bank
     class: financial.CommercialBankAgent
-    soul_file: A2_china.yaml    # Sprint-2 预位：B+A/NOVEL 重写后 A2 将成为中国主权 Agent
     info_delay: 2
     activation_prob: 0.70
     transmission_coefficients:
@@ -42,7 +41,6 @@ agents:
     name: 对冲基金
     role: hedge_fund
     class: financial.HedgeFundAgent
-    soul_file: A3_eu.yaml       # Sprint-2 预位：B+A/NOVEL 重写后 A3 将成为欧盟主权 Agent
     info_delay: 0        # 即时，最灵敏
     activation_prob: 1.00
     transmission_coefficients:
@@ -55,12 +53,14 @@ agents:
       magnitude: 1.0
 
   - id: A4
-    name: 能源国(OPEC+)
+    name: 能源国(OPEC+)  [已由 S5_saudi 接管，activation=0 挂起]
     role: energy_gov
-    class: sovereign.EnergyGovSovereignAgent   # B+A/NOVEL: SovereignAgent 版本（有 soul 时派系决策）
-    soul_file: A4_gulf_opec.yaml
+    class: sovereign.EnergyGovSovereignAgent
+    # v2.2 C2：A4 处理采用方案②（保留条目 + activation=0 + 移除 soul_file）——回归最小
+    # （删条目会让 report/forecast/narrative 引用 A4 的代码炸）；能源维度由 S5_saudi
+    # 的 sovereign 分支承接；gm_resolve 硬编码分支保留但 A4 恒 HOLD 不产生 delta
     info_delay: 5        # 最慢，决策周期长
-    activation_prob: 0.20
+    activation_prob: 0   # 挂起：S5_saudi 接管能源维度
     transmission_coefficients:
       to_A8: 0.35   # 能源供给变化对中国经济的传导
       to_A7: 0.40   # 能源价格对新兴市场的冲击
@@ -86,7 +86,8 @@ agents:
     name: 媒体/舆论
     role: media
     class: social.MediaAgent
-    soul_file: A6_russia.yaml   # Sprint-2 预位：B+A/NOVEL 重写后 A6 将成为俄罗斯主权 Agent
+    # v2.2 D4：移除 soul_file: A6_russia.yaml——MediaAgent 不消费 soul，
+    # 俄罗斯主权 soul 已由 S4_russia（SovereignAgent）独立承载
     info_delay: 1
     activation_prob: 0.80
     transmission_coefficients:
@@ -184,3 +185,89 @@ agents:
       sensitivity: 1.0
       threshold: 0.5
       magnitude: 1.5  # BOJ行动幅度大（YCC放弃是非线性事件）
+
+  # ── A 类主权国家 Agent（v2.2 激活，核心层 5 个）────────────────
+  # id 策略：S{1..n} 前缀，避开现有 A1-A12 撞车；role 用语义名
+  # 试点参数（v2.2 B3）：info_delay=0（去冷却，确保 12 步内多次行动）+ activation_prob 0.30
+  # transmission_coefficients（v2.2 C3）：显式配置向金融 Agent 的传导（缺失则无第二跳）
+  # soul_file 指向重命名版（S4_russia/S5_saudi，见 souls/ 目录）
+
+  - id: S1_usa
+    name: 美国（主权）
+    role: usa
+    class: sovereign.SovereignAgent
+    soul_file: A1_usa.yaml
+    info_delay: 0        # 试点：去冷却
+    activation_prob: 0.30
+    transmission_coefficients:
+      to_A3: 0.30   # 制裁/军事行动 → 对冲基金风险感知
+      to_A10: 0.20  # 地缘紧张 → 散户情绪
+      to_A1: 0.25   # 财政/军事支出 → 美联储决策环境
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: S2_china
+    name: 中国（主权）
+    role: china
+    class: sovereign.SovereignAgent
+    soul_file: A2_china.yaml
+    info_delay: 0        # 试点：去冷却
+    activation_prob: 0.30
+    transmission_coefficients:
+      to_A7: 0.25   # 中国地缘行动 → 新兴市场
+      to_A3: 0.28   # 台海紧张 → 对冲基金
+      to_A8: 0.30   # 主权决策 → 中国央行/财政联动
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: S3_eu
+    name: 欧盟（主权）
+    role: eu
+    class: sovereign.SovereignAgent
+    soul_file: A3_eu.yaml
+    info_delay: 0        # 试点：去冷却
+    activation_prob: 0.30
+    transmission_coefficients:
+      to_A2: 0.25   # 欧盟制裁/能源政策 → 商业银行
+      to_A3: 0.30   # 欧盟行动 → 对冲基金
+      to_A11: 0.25  # 财政协调 → 欧央行
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: S4_russia
+    name: 俄罗斯（主权）
+    role: russia
+    class: sovereign.SovereignAgent   # v2.1 P1-3：复合行为体（军事/能源/信息战）→ 基类
+    soul_file: S4_russia.yaml
+    info_delay: 0        # 试点：去冷却
+    activation_prob: 0.30
+    transmission_coefficients:
+      to_A4: 0.35   # 俄能源行动 → 能源国（A4 挂起，作为传导接收端存在）
+      to_A6: 0.30   # 信息战 → 媒体
+      to_A3: 0.25   # 欧洲方向行动 → 对冲基金
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: S5_saudi
+    name: 沙特-OPEC（主权）
+    role: opec_core
+    class: sovereign.EnergyGovSovereignAgent   # v2.1 P1-3：纯 OPEC 产量行为体 → 能源特化类
+    soul_file: S5_saudi.yaml
+    info_delay: 0        # 试点：去冷却
+    activation_prob: 0.30
+    transmission_coefficients:
+      to_A4: 0.30   # 产量决策 → 能源国感知（A4 挂起，作为传导接收端存在）
+      to_A7: 0.25   # 油价冲击 → 新兴市场
+      to_A8: 0.20   # 油价 → 中国经济
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0

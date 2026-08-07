@@ -347,6 +347,15 @@ def run_prediction(
     """
     print(f"\n[bifurcation] 预测循环：{n_runs}次 × {predict_steps}步")
 
+    # v2.2 A5：Board 基线预置（GRV 派生，/100 归一化；跨仿真的每日基线）
+    try:
+        from core.board_baseline import derive_board_baseline
+        _grv_dim = getattr(initial_world, "grv_dimensions", None) or {}
+        derive_board_baseline(_grv_dim or {})
+        print(f"[bifurcation] Board 基线已预置（{len(_grv_dim)} 个 GRV 维度）")
+    except Exception as e:
+        print(f"[bifurcation] Board 基线预置跳过：{e}")
+
     # 加载 Agent 并应用校准后的参数
     agents_template, _global_cfg = load_agents(config_path)
     for agent_id, params_dict in calibrated_agent_params.items():

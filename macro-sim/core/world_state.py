@@ -39,6 +39,11 @@ class MacroWorldState:
     social_stress: float = 0.0      # 社会情绪压力 [0,100]，来自 gdelt_scores（R09，v3.8.3）
     cultural_friction: float = 0.0  # 文化摩擦 [0,100]，来自 gdelt_scores（R10，v3.8.3）
 
+    # A 类激活（v2.2，D1）：GRV 全维度原始 0-100 值（grv_latest.json 透传），
+    # 供 S 类主权 Agent 的 soul trigger 直接引用（russia_europe/taiwan_strait/global_composite 等）
+    # 也作为 sovereign 行动 delta 的写入目标（0-100 量纲直写，绕过 _apply_delta clamp(0,1) 截断）
+    grv_dimensions: dict = field(default_factory=dict)
+
     # ── 内生变量（仿真中演化）────────────────────────────
     fed_rate_change: float = 0.0
     bank_credit_tightening: float = 0.0
@@ -70,10 +75,13 @@ class MacroWorldState:
     sim_id: str = ""
     trigger_date: str = ""
 
-    def get_agent_context(self, agent_role: str) -> dict:
+    def get_agent_context(self, agent_role: str, soul: dict = None) -> dict:
         """
         包含相对 delta + 绝对压力信号。
         所有角色都能看到基础字段，角色专属字段另外追加。
+        soul 参数（v2.2，D1）：S 类主权 Agent 传入 soul 文件内容，
+        用于把 internal_state/resources 字段（economic_buffer_months 等）注入 ctx，
+        使 soul 内的派系 trigger / red_line_triggers 能读到。
         """
         vix_shift    = (self.vix - self.vix_baseline) / max(self.vix_baseline, 1)
         grv_shift    = (self.grv - self.grv_baseline) / 100.0
@@ -157,6 +165,31 @@ class MacroWorldState:
         if agent_role == "retail":
             ctx["retail_panic"] = round(self.retail_panic, 3)
 
+        # ── S 类主权 Agent 专属（v2.2，D1/B1/C1 修复）────────────
+        # 从 grv_dimensions 透传 GRV 维度（0-100 原生量纲，与 soul trigger 语义一致），
+        # 从 soul internal_state/resources 注入经济缓冲/国内压力等字段，
+        # ctx["board"] 由 simulation.step() 注入（避免 world_state ↔ sovereign 循环 import）。
+        if agent_role in ("usa", "china", "eu", "russia", "opec_core"):
+            gd = self.grv_dimensions
+            # GRV 维度（缺失时安全默认；us_china_strategic/global_composite 默认 50 = 中性）
+            ctx["russia_europe"]       = float(gd.get("russia_europe", 0.0))
+            ctx["taiwan_strait"]       = float(gd.get("taiwan_strait", 0.0))
+            ctx["us_china_strategic"]  = float(gd.get("us_china_strategic", 50.0))
+            ctx["global_composite"]    = float(gd.get("global_composite", 50.0))
+            ctx["middle_east_energy"]  = float(gd.get("middle_east_energy", 0.0))
+            ctx["sanctions_risk"]      = float(gd.get("sanctions_risk", 0.0))
+            ctx["energy_grid_risk"]    = float(gd.get("energy_grid_risk", 0.0))
+            ctx["climate_risk"]        = float(gd.get("climate_risk", 0.0))
+            ctx["social_stress"]       = float(gd.get("social_stress", 0.0))
+            # soul 内部状态（economic_buffer_months 在 internal_state 或 resources 二选一）
+            st = (soul or {}).get("internal_state", {}) or {}
+            rs = (soul or {}).get("resources", {}) or {}
+            ctx["domestic_political_pressure"] = float(st.get("domestic_political_pressure", 0.0))
+            ctx["economic_buffer_months"] = float(
+                st.get("economic_buffer_months", rs.get("economic_buffer_months", 0.0))
+            )
+            ctx["wti_price"] = float(st.get("wti_price_ref", 80.0))
+
         return ctx
 
     def to_dict(self) -> dict:
@@ -192,6 +225,8 @@ class MacroWorldState:
             "japan_monetary":   round(self.japan_monetary, 1),
             "social_stress":    round(self.social_stress, 1),
             "cultural_friction": round(self.cultural_friction, 1),
+            # v2.2 D1：GRV 全维度（sovereign 行动 delta 直写后的最新值，供报告/天玑）
+            "grv_dimensions":   {k: round(float(v), 1) for k, v in self.grv_dimensions.items()},
         }
 
     def get_observable_values(self) -> dict:
@@ -442,6 +477,18 @@ def make_world_from_history_row(row: dict, prev_row: dict = None, label: str = "
         japan_monetary=_f(row.get("japan_monetary"), 0.0),
         social_stress=_f(row.get("social_stress"), 0.0),
         cultural_friction=_f(row.get("cultural_friction"), 0.0),
+        # v2.2 D1：历史模式下能对齐的 GRV 维度（russia_europe/taiwan_strait 无法从聚合分离，留 0）
+        grv_dimensions={
+            "global_composite":     _f(row["grv"], 50.0),
+            "middle_east_energy":   _f(row.get("grv_energy"), 0.0),
+            "us_china_strategic":   _f(row.get("us_china_grv"), 50.0),
+            "sanctions_risk":       _f(row.get("sanctions_risk"), 0.0),
+            "energy_grid_risk":     _f(row.get("energy_grid_risk"), 0.0),
+            "climate_risk":         _f(row.get("climate_risk"), 0.0),
+            "disaster_risk":        _f(row.get("disaster_risk"), 0.0),
+            "social_stress":        _f(row.get("social_stress"), 0.0),
+            "cultural_friction":    _f(row.get("cultural_friction"), 0.0),
+        },
         situation_level=2,
         step_label=label or row.get("date", ""),
         total_cycles=100,
@@ -621,6 +668,11 @@ def load_from_macro_scan(
         usd_cny=float(usd_cny),
         ecb_rate=float(ecb_rate),
         sp500_change=float(sp500_change),
+        # v2.2 D1：GRV 全维度原始 0-100 值（soul trigger 直接引用）
+        grv_dimensions={
+            k: float(v) for k, v in grv.items()
+            if isinstance(v, (int, float)) and k != "_schema_version"
+        },
         # D7: 6个新GRV维度
         climate_risk=climate_risk,
         disaster_risk=disaster_risk,

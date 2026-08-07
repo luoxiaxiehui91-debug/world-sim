@@ -21,6 +21,11 @@ red_lines:
   - "欧元区成员国主权债爆发系统性危机（意大利/西班牙10Y利差超400bp）"
   - "能源供给中断导致德国/法国工业停产超过 30 天"
 
+# v2.2 D2：数值表达式版红线（S 类 ctx，GRV 维度 0-100 原生量纲）
+red_line_triggers:
+  - "russia_europe > 85"
+  - "energy_grid_risk > 75"
+
 resources:
   military_capacity: 0.55       # 集体但分散，高度依赖北约/美国核保护伞
   economic_buffer_months: 14
@@ -40,14 +45,17 @@ internal_factions:
     weight: 0.45
     trigger: "russia_europe > 60 OR us_china_strategic > 65"
     bias: "倾向跟随美国制裁立场、北约军事参与、对华出口管制"
+    bias_actions: ["IMPOSE_SANCTIONS", "MILITARY_DEPLOYMENT", "ALLIANCE_REINFORCE"]   # v2.2 A2
   strategic_autonomy:
     weight: 0.35
     trigger: "global_composite < 55 AND energy_grid_risk > 40"
     bias: "倾向独立外交斡旋、维护对华贸易、能源多元化投资"
+    bias_actions: ["DIPLOMATIC_ENGAGE", "IMPOSE_SANCTIONS"]                           # v2.2 A2
   austerity_bloc:
     weight: 0.20
     trigger: "domestic_political_pressure > 0.4"
     bias: "优先财政纪律和通胀控制，反对高代价制裁升级"
+    bias_actions: ["HOLD"]                                                             # v2.2 A2
 
 grv_impact_map:
   IMPOSE_SANCTIONS:

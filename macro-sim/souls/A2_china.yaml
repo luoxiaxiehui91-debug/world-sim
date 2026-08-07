@@ -22,6 +22,12 @@ red_lines:
   - "香港大规模武装骚乱威胁驻港部队"
   - "南海军事基地遭受直接攻击"
 
+# v2.2 D2：数值表达式版红线（S 类 ctx，GRV 维度 0-100 原生量纲）
+red_line_triggers:
+  - "taiwan_strait > 85"
+  - "sanctions_risk > 75 AND us_china_strategic > 70"
+  - "taiwan_strait > 80"
+
 resources:
   military_capacity: 0.82
   economic_buffer_months: 12    # 外汇储备约 3 万亿美元，但房地产压力持续
@@ -41,14 +47,17 @@ internal_factions:
     weight: 0.40
     trigger: "taiwan_strait > 65 OR us_china_strategic > 75"
     bias: "倾向强硬表态、军事演习、经济反制措施"
+    bias_actions: ["MILITARY_DEPLOYMENT", "IMPOSE_SANCTIONS", "TECH_RESTRICTION"]   # v2.2 A2
   pragmatists:
     weight: 0.40
     trigger: "global_composite < 50 AND economic_buffer_months > 8"
     bias: "倾向维持贸易关系、谈判降温、货币政策刺激"
+    bias_actions: ["DIPLOMATIC_ENGAGE", "HOLD"]                                      # v2.2 A2
   stability_faction:
     weight: 0.20
     trigger: "market_sentiment < -0.3 OR domestic_political_pressure > 0.6"
     bias: "优先国内稳定，反对激进对外行动，支持财政刺激"
+    bias_actions: ["HOLD", "DIPLOMATIC_ENGAGE"]                                      # v2.2 A2
 
 grv_impact_map:
   IMPOSE_SANCTIONS:
