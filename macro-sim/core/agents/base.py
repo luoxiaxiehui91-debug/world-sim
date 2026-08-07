@@ -477,8 +477,12 @@ class MacroAgent:
             fdata = factions.get(fname)
             if isinstance(fdata, dict):
                 fdata["weight"] = max(0.01, min(0.9, float(new_value)))
-            else:
+            elif self.soul:
                 raise ValueError(f"soul 无派系 {fname}（{self.agent_id}）")
+            else:
+                # v3 阶段 2 防御：无 soul Agent 收到派系权重指令 → fail-loud 打印但跳过，
+                # 不抛异常终止整个校准（校准 LLM 可能幻觉派系名/误判可调参数，如对照组的"看涨派系"）
+                print(f"[calibrator] ⚠️ {self.agent_id} 无 soul，忽略派系权重指令 {param}（LLM 幻觉或误判，跳过）")
         else:
             raise ValueError(f"不支持的参数路径：{param}")
 
