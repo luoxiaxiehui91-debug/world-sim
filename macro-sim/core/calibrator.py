@@ -65,6 +65,19 @@ AGENT_NAME_HINT = (
 )
 
 
+def _soul_hint(soul_agents: dict[str, list[str]] | None) -> str:
+    """
+    动态生成"可调派系权重的 Agent 及派系名"提示（v3 §5.5 A 路）。
+    仅列出实际挂 soul 的 Agent，防 LLM 对无 soul Agent 发派系权重指令（幻觉派系名崩溃）。
+    """
+    if not soul_agents:
+        return "当前无 Agent 可调派系权重（均无 soul），只调三参数"
+    parts = []
+    for aid, factions in soul_agents.items():
+        parts.append(f"{aid}({','.join(factions)})")
+    return "仅限挂 soul 的 Agent: " + " / ".join(parts)
+
+
 def _derive_endogenous_targets(prev_row: dict, curr_row: dict) -> dict:
     """
     从相邻两月外生变量变化推导内生变量的"期望方向目标"。
@@ -141,10 +154,13 @@ def _call_llm_for_adjustment(
     targets: dict,
     error: float,
     error_history: list[dict] | None = None,
+    soul_agents: dict[str, list[str]] | None = None,
 ) -> list[dict]:
     """
     调用 GLM-Z1-9B 分析误差，返回参数调整指令列表。
     每条指令：{"agent": "A2", "param": "threshold", "old": 0.5, "new": 0.35, "reason": "..."}
+    soul_agents: {agent_id: [派系名, ...]} —— 仅这些 Agent 可调派系权重（v3 §5.5 A 路，
+    动态生成提示防 LLM 对无 soul Agent 发派系权重指令——08-07 对照组实测 LLM 幻觉"看涨派系"崩溃）
     """
     try:
         from core.llm_client import call_llm
@@ -203,7 +219,7 @@ def _call_llm_for_adjustment(
             f"每条指令格式（严格JSON数组）：\n"
             f'[{{"agent":"A2","param":"threshold","new":0.35,"reason":"信贷收紧触发太迟"}}]\n'
             f"只输出JSON数组。param可以是 sensitivity/threshold/magnitude 之一，\n"
-            f"或派系权重路径 internal_factions.<派系名>.weight（仅限挂 soul 的 Agent，如 A1/A3/A6；\n"
+            f"或派系权重路径 internal_factions.<派系名>.weight（{_soul_hint(soul_agents)}；\n"
             f"权重区间 0.01~0.9，且同 Agent 各派系权重之和应≈1.0，调整时尽量保持总权重不变）。"
         )
 
@@ -342,9 +358,15 @@ def run_calibration(
         if error > error_threshold:
             print(f" ← 超阈值({error_threshold})，调参中...", end="")
             params_summary = {aid: agent.params.to_dict() for aid, agent in agents.items()}
+            # v3 §5.5 A 路：动态传挂 soul 的 Agent（agent_id → 派系名列表），防 LLM 对无 soul Agent 幻觉派系名
+            soul_agents = {
+                aid: list((a.soul or {}).get("internal_factions", {}).keys())
+                for aid, a in agents.items() if a.soul
+            }
             instructions = _call_llm_for_adjustment(
                 params_summary, step_label, simulated_values, endogenous_targets, error,
                 error_history=list(error_history),
+                soul_agents=soul_agents,
             )
             for inst in instructions:
                 agent_id = inst["agent"]
