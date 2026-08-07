@@ -67,51 +67,65 @@
   class: sovereign.SovereignAgent
   role: usa
   info_delay: 3
-  activation_prob: 0.20
+  activation_prob: 0.30   # 试点值（v2.1，QClaw P2-5），验证后回调 0.20
   soul_file: A1_usa.yaml
 - id: S2_china
   class: sovereign.SovereignAgent
   role: china
   info_delay: 3
-  activation_prob: 0.20
+  activation_prob: 0.30   # 试点值
   soul_file: A2_china.yaml
 - id: S3_eu
   class: sovereign.SovereignAgent
   role: eu
   info_delay: 4
-  activation_prob: 0.15
+  activation_prob: 0.30   # 试点值
   soul_file: A3_eu.yaml
 - id: S4_russia
-  class: sovereign.EnergyGovSovereignAgent   # 升级现有 energy_gov 为 soul 驱动
-  role: energy_gov
+  class: sovereign.SovereignAgent            # v2.1 修正（QClaw P1-3）：俄罗斯 = 军事/能源/信息战复合行为体 → 基类（A6_russia.yaml doctrine 含乌克兰/核威慑/信息战）；非纯能源
+  role: russia
   info_delay: 2
-  activation_prob: 0.20
-  soul_file: A6_russia.yaml   # v2 修正：俄罗斯用 A6_russia.yaml（原错配 A4_gulf_opec.yaml）
+  activation_prob: 0.30
+  soul_file: A6_russia.yaml   # v2 修正：俄罗斯用 A6_russia.yaml（原错配 A4_gulf_opec.yaml）；soul 文件名历史命名，实施时重命名为 S4_russia.yaml
 - id: S5_saudi
-  class: sovereign.SovereignAgent
+  class: sovereign.EnergyGovSovereignAgent  # v2.1 修正（QClaw P1-3）：沙特 = 纯 OPEC 产量行为体 → 能源特化类
   role: opec_core
   info_delay: 2
-  activation_prob: 0.20
-  soul_file: A4_gulf_opec.yaml   # 定位 = OPEC 产量决策体（有统一产量渠道），非中东政治代表
+  activation_prob: 0.30
+  soul_file: A4_gulf_opec.yaml   # 定位 = OPEC 产量决策体（有统一产量渠道），非中东政治代表；实施时重命名 S5_saudi.yaml
 ```
 
-- 激活概率 0.15-0.25：地缘决策低频（不是每月都有军事/制裁行动）
+- **激活概率 0.30-0.35（v2.1 试点值，QClaw P2-5）**：试点期提高确保路径分叉机制跑通（100 次 MC 大部分 run 有 sovereign 行动）；**验证通过后回调 0.15-0.25**（地缘决策低频常态值）
 - info_delay 2-4：决策有观察滞后
 - ~~A6_mideast~~ 已移除（v2：无统一渠道，转情境层，见 taxonomy §11.2）
 - **id 冲突澄清**：现有 agents.yaml 的 A1-A12 = 金融/央行角色（A1=美联储…），taxonomy A 类 = 主权国家——**两套编号体系并存易混**。v2 起新增主权 Agent 一律用 `S{1..n}` 前缀，杜绝 A 编号撞车（如 A4=现有能源国 vs S4_russia）
+- **现有 A4（energy_gov）重叠处理（v2.1，QClaw P1-4）**：现有 A4 在 gm_resolve 有硬编码能源 delta，S5_saudi 的 sovereign 循环分支也会产生能源 delta——**同轮叠加风险**。处理：S5_saudi 激活后，**现有 A4 改 NO_ACTION**（不再输出行动，其能源维度由 S5 承接）；实施时在 gm_resolve 硬编码分支加一行 `if agents.get("A4") 被 S5 取代: skip`，并对比激活前后 A4/S5 能源 delta 总和验证无双计
 
-### 3.2 gm_resolve_rules 消费 sovereign 行动（~20 行）
+### 3.2 gm_resolve_rules 消费 sovereign 行动（~30 行，含最小验证）
 
 **核心设计：不硬编码映射，读 `soul.grv_impact_map` 动态生成 delta**
 
 ```python
 # 在 gm_resolve_rules 中新增 sovereign 行动分支：
+# 前置：最小验证（v2.1，QClaw P2-6）——无 Secretary Agent 时防脏数据灌入 Board/GRV
+_SOVEREIGN_ACTIONS = {"IMPOSE_SANCTIONS","MILITARY_DEPLOYMENT","DIPLOMATIC_ENGAGE",
+                      "CUT_OUTPUT","INCREASE_OUTPUT","EMBARGO_SIGNAL","LIFT_SANCTIONS",
+                      "NO_ACTION","HOLD"}
+def _valid_sovereign_action(agent, action) -> bool:
+    if action not in _SOVEREIGN_ACTIONS:        # 1. 行动白名单
+        return False
+    if agent.soul and action not in agent.soul.get("grv_impact_map", {}):
+        return False                            # 2. 行动必须定义于 soul（防幻觉 action）
+    return True
+
 for agent_id, action in step_actions.items():
     agent = agents.get(agent_id)
     if action == "NO_ACTION" or agent is None:
         continue
     # 主权国家 Agent：从 soul.grv_impact_map 取行动 → GRV 维度 delta
     if isinstance(agent, SovereignAgent) and agent.soul:
+        if not _valid_sovereign_action(agent, action):   # 验证失败 → 记日志跳过（fail-loud）
+            continue
         impacts = agent.get_grv_impact(action)   # {"sanctions_risk": +15, ...}
         for dim, val in impacts.items():
             if dim in _DIM_TO_WORLD:             # GRV 维度名 → world_state 字段映射
@@ -132,9 +146,33 @@ for agent_id, action in step_actions.items():
 3. `step_actions` 的 key = agent id（S1_usa 等），与现有 A1-A12 天然隔离，无冲突
 4. `add()` 已是 per-agent delta 追踪（D1 fix），sovereign delta 走同一机制，传导自动承接
 
-### 3.3 Board 初始化（2 行）
+### 3.3 Board 初始化（v2.1 重写：GRV 派生基线 + 仿真内偏离衰减，QClaw P1-2 + 用户"动态/不确定数值"两点）
 
-`run_prediction` 开头（`simulation.py` 或 `bifurcation.py`）调用 `board_clear()`，每轮仿真重置全局关系矩阵；可预置初始关系（如 A1-A2 台海紧张、A1-A4 制裁中）供第一轮决策参考。
+**设计原则**：
+1. **Board 是动态场，不是静态表**——基线每天随 GRV 变（跨仿真），行动偏离随步衰减回基线（仿真内）
+2. **初始值不拍脑袋**——强度 = 当日 GRV 维度分数映射（天枢已采集的真实地缘数据）；无 GRV 直接维度处用常量+语义锚点
+3. **语义锚点**（不依赖精确值）：`<30 正常/合作 | 30-60 紧张 | 60-80 对抗 | >80 冲突边缘`
+
+```python
+# board_baseline.py（新增，~30 行）：从 grv_latest.json 派生 5×5 初始矩阵
+GRV_ALIAS = {"S1":"usa","S2":"china","S3":"eu","S4":"russia","S5":"saudi"}
+def derive_board_baseline(grv: dict) -> dict:
+    """Board 基线 = GRV 维度分数映射（每日刷新）"""
+    return {
+        ("S1","S2"): {"rel":"strategic_rivalry", "intensity": grv.get("us_china_strategic", 50)},
+        ("S1","S4"): {"rel":"sanctions_conflict", "intensity": grv.get("sanctions_risk", 50)},
+        ("S3","S4"): {"rel":"energy_standoff",    "intensity": grv.get("russia_europe", 50)},
+        ("S5","S4"): {"rel":"opec_cooperation",   "intensity": 50 + (grv.get("middle_east_energy",50)-50)/2},
+        ("S1","S5"): {"rel":"security_pact",      "intensity": 60},   # 常量（美沙安保契约，GRV 无直接维度）
+        ("S2","S5"): {"rel":"energy_imports",     "intensity": 45},   # 中沙石油贸易
+    }
+
+# 仿真内演化（每步，world_state 或 simulation）：
+# board_cur[a][b] = baseline[a][b] + (board_cur[a][b] - baseline[a][b]) * 0.95   # 偏离向基线衰减
+# sovereign 行动（如 IMPOSE_SANCTIONS）→ board_set(a, b, "conflict", +偏离)       # 行动 push 偏离
+```
+
+**调用**：`run_prediction` 开头 `board_clear()` + `board_baseline = derive_board_baseline(grv_latest)` 预置初始矩阵；每步仿真结束更新 board_cur（行动 push + 衰减）。Board 与 GRV 的双向耦合：GRV 决定基线 → Board 决策 → sovereign 行动 → GRV delta（3.2）→ 次日基线再变。
 
 ### 3.4 传导链（taxonomy 影响路径落地）
 
@@ -153,17 +191,20 @@ A1 美国 IMPOSE_SANCTIONS → Board(A1,A2) conflict↑ → A2 中国反制
 |--------|----------|----------|
 | 路径分叉 | GRV=80 × 100 MC（复用 verify_path_diversity 脚本）| sentiment std > 0.15 **且** 路径 B ≥ 15% |
 | 校准不回退 | `run_calibration` 评分对比修复前 | 评分 ≥ 修复前（60+）|
-| 国家博弈生效 | 检查 A 类决策分布（IMPOSE_SANCTIONS/MILITARY 出现次数）| 每轮仿真 A 类行动非零 |
+| 国家博弈生效 | 检查 S 类决策分布（IMPOSE_SANCTIONS/MILITARY 出现次数）| 每轮仿真 S 类行动非零 |
 | GRV 维度联动 | 仿真后 grv_latest 相关维度（sanctions_risk 等）有变化 | 非恒值 |
+| **回归检查（v2.1，QClaw P2-7）** | 激活前后对比：A1-A12 决策分布 + forecasts/predictions 表 | 现有金融 Agent 行为无异常偏移（决策分布变化 <20%）|
+| **A4/S5 双计检查（v2.1，QClaw P1-4）** | 对比激活前后能源 delta 总和（A4 vs S5）| 无双计（总和 ≈ 单主体）|
 
 ## 5. 风险与缓解
 
 | 风险 | 缓解 |
 |------|------|
-| sovereign 行动 delta 映射错 → GRV 异常漂移 | impact_map 保守系数 + 校准评分监控 + 单维度上限 clip |
+| sovereign 行动 delta 映射错 → GRV 异常漂移 | impact_map 保守系数 + 校准评分监控 + 单维度上限 clip + 最小验证函数（§3.2）|
 | 国家博弈放大波动 → 报告失真 | sentiment 通用影响用 ±0.04-0.06 保守值；验证观察路径 B 占比 >40% 即回调 |
-| A 类行动过多 → 仿真时间膨胀 | activation_prob 低频（0.15-0.25）+ info_delay 冷却 |
+| A 类行动过多 → 仿真时间膨胀 | 试点期 0.30-0.35 验证后回调 0.15-0.25 + info_delay 冷却 |
 | soul 触发条件变量不在 ctx | `_eval_trigger` 已做缺失安全（ctx.get(var, 0)）；缺失变量触发条件静默不满足 |
+| Board 基线 GRV 维度缺失 | `grv.get(dim, 50)` 默认值 + 常量关系对（美沙/中沙）|
 
 ## 6. 实施步骤（待用户确认后执行）
 
@@ -184,3 +225,4 @@ A1 美国 IMPOSE_SANCTIONS → Board(A1,A2) conflict↑ → A2 中国反制
 |------|------|------|
 | 2026-08-06 | 定稿：A 类 5 国家 Agent 激活设计（用户拍板"走大路"）| 待实施 |
 | 2026-08-07 | **v2 修订**：soul 映射修正（俄罗斯→A6_russia.yaml）+ A6_mideast 移除（转情境层，taxonomy §11.2）+ id 改 S{1..n} 前缀避开 A1-A12 撞车 + gm_resolve 共存细节补充 + 本次范围收窄核心层 5 个 | 待用户最终确认 |
+| 2026-08-07 | **v2.1 修订（QClaw 评审 9 条 + Board 动态化讨论）**：①S4 俄罗斯改基类/S5 沙特改 EnergyGov（P1-3）②A4 重叠处理：S5 激活后 A4 改 NO_ACTION（P1-4）③Board 重写为"GRV 派生基线 + 仿真内偏离衰减"（P1-2 + 用户两点）④最小验证函数（P2-6）⑤试点 activation_prob 0.30-0.35（P2-5）⑥验证加回归检查（P2-7）| 待用户最终确认 |
