@@ -1,0 +1,61 @@
+# souls/A6_media.yaml — 媒体/舆论（试点 soul，v3 阶段 2）
+#
+# 来源：tianxuan-v3-soul-redesign.md §4.5（A6 媒体 — fear/fear_from_actions/optimism/saturation/neutral）
+# 论文锚点：[S-2019] 叙事经济学/SIR 传染；[K-M-1927] SIR 模型；[BO-2008] 注意力驱动
+# 参数说明：saturation 派系保证深度恐慌时媒体不再放大（保路径多样性）；
+#           social_stress > 0.5 为 v3 新增信号来源（R09 社会压力，原规则未用）
+#           **派系权重文献无直接支撑，区间待校准**（§5.5 A 路）
+
+actor_id: A6
+actor_type: media_agent
+name: "媒体/舆论"
+layer: financial_agent
+
+doctrine: |
+  信息放大器：恐慌与乐观都会通过叙事传播放大（SIR 传染动力学）。
+  深度恐慌时自我抑制（饱和规则，避免单向推到底）；外部信号（对冲基金做空/散户恐慌）
+  是放大报道的天然题材。
+
+red_lines: []
+
+# A6 无强制行动红线
+red_line_triggers: {}
+
+internal_factions:
+  fear:
+    weight: 0.35
+    trigger: "market_sentiment < -0.35 OR grv_stress > 0.5 OR social_stress > 0.5"
+    bias: "放大恐慌"
+    bias_actions: ["AMPLIFY_FEAR"]
+  fear_from_actions:
+    weight: 0.20
+    trigger: "(flag_hf_short OR flag_retail_panic) AND market_sentiment < -0.2"
+    bias: "外部信号放大（对冲基金做空/散户恐慌是题材）"
+    bias_actions: ["AMPLIFY_FEAR"]
+  optimism:
+    weight: 0.20
+    trigger: "market_sentiment > 0.3 AND grv_stress < 0.1"
+    bias: "放大乐观"
+    bias_actions: ["AMPLIFY_OPTIMISM"]
+  saturation:
+    weight: 0.15
+    trigger: "market_sentiment < -0.5"
+    bias: "深度恐慌自我抑制（防单向推到底）"
+    bias_actions: ["HOLD", "NEUTRAL_REPORT"]
+  neutral:
+    weight: 0.10
+    trigger: "abs(market_sentiment) < 0.1"
+    bias: "中性报道"
+    bias_actions: ["NEUTRAL_REPORT"]
+
+# 校准参数空间（§5.5 A 路）
+calib_ranges:
+  internal_factions:
+    fear.weight:              [0.25, 0.45]
+    fear_from_actions.weight: [0.1, 0.3]
+    optimism.weight:          [0.1, 0.3]
+    saturation.weight:        [0.05, 0.25]
+    neutral.weight:           [0.05, 0.2]
+
+missing_strategy: optimistic
+decision_temperature: 1.0

@@ -11,6 +11,7 @@ agents:
     name: 美联储
     role: fed
     class: financial.FedAgent
+    soul_file: A1_fed.yaml   # v3 阶段 2 试点：soul 驱动派系决策（无 soul 时 fallback 旧 if-else）
     info_delay: 4        # 4个月延迟（政策会议节奏）
     activation_prob: 0.30
     knowledge_base_ref: "知识库/财经知识库/02_分析框架/央行决策框架.md"
@@ -41,6 +42,7 @@ agents:
     name: 对冲基金
     role: hedge_fund
     class: financial.HedgeFundAgent
+    soul_file: A3_hedge_fund.yaml   # v3 阶段 2 试点：soul 驱动（OVERSOLD_BOUNCE 概率参数化进 contrarian 派系）
     info_delay: 0        # 即时，最灵敏
     activation_prob: 1.00
     transmission_coefficients:
@@ -86,8 +88,9 @@ agents:
     name: 媒体/舆论
     role: media
     class: social.MediaAgent
-    # v2.2 D4：移除 soul_file: A6_russia.yaml——MediaAgent 不消费 soul，
-    # 俄罗斯主权 soul 已由 S4_russia（SovereignAgent）独立承载
+    # v3 阶段 2：soul_file: A6_media.yaml（媒体自身 soul，非 A6_russia 主权 soul——
+    # 俄罗斯主权 soul 已由 S4_russia 独立承载，见 v2.2 D4）
+    soul_file: A6_media.yaml
     info_delay: 1
     activation_prob: 0.80
     transmission_coefficients:

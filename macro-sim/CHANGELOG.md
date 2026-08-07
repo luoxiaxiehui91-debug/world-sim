@@ -6,6 +6,34 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.26 — 2026-08-07 (by WorkBuddy)
+
+**修改理由**：天璇 v3 soul 化重构 **阶段 2**（试点 3 soul + 校准扩展）——设计文档 §4.1/4.3/4.5 + §5.5 A 路；历史事件回放方向校验通过。
+
+### 修改
+
+- **`souls/A1_fed.yaml`（新增）**：A1 美联储试点 soul——dove_emergency/dove/neutral/hawk 4 派系（设计 §4.1，[T-1993] Taylor Rule 锚点）；red_line_triggers 用 **dict 格式**（`market_sentiment < -0.6 → CUT_50BP`，金融 soul 指定强制行动）；hawk trigger 保留 market_sentiment 代理通胀【代理】（v1.2 P0-1，天枢 CPI 落地后切换）
+- **`souls/A3_hedge_fund.yaml`（新增）**：A3 对冲基金试点 soul——risk_off/risk_reduce/contrarian/risk_on/neutral 5 派系（设计 §4.3，[DT-1985] 过度反应/[S-2016] VIX）；**旧 OVERSOLD_BOUNCE_PROB=0.45 → contrarian 派系权重承接**（概率参数化进 soul）
+- **`souls/A6_media.yaml`（新增）**：A6 媒体试点 soul——fear/fear_from_actions/optimism/saturation/neutral 5 派系（设计 §4.5，[S-2019] 叙事经济学）；saturation 派系防单向推到底
+- **`config/agents.yaml`**：A1/A3/A6 挂 soul_file（无 soul 时自动 fallback 旧 if-else）
+- **`core/agents/base.py`**：
+  - `_eval_trigger` 支持 **dict 格式 red_line_triggers**（{trigger: action}，金融 soul 指定强制行动）
+  - 新增 `_derive_soul_flags()`：flag_* 布尔从 visible_actions 派生（v1.2 P2-1，走 info_delay 分层）
+  - **修复 `_eval_trigger` 内置函数 bug**：abs() 等函数名被当作 ctx 变量替换 → `0.0(market_sentiment)` SyntaxWarning 恒 False（A6 neutral trigger 暴露，阶段 1 遗留）
+  - `apply_param_adjustment` 支持 `internal_factions.{faction}.weight` 路径（§5.5 A 路）
+- **`core/calibrator.py`**：LLM 调参支持派系权重路径（`internal_factions.<派系>.weight`，区间 0.01~0.9，保持总权重≈1 提示）；prompt 说明 A1/A3/A6 可调派系权重
+- **`smoke_v3_phase2.py`（新增）**：阶段 2 验收（6 项）
+- **`VERSION`**：v2.0.25 → v2.0.26
+
+### 验收（smoke_v3_phase2.py 本地全过 + 阶段 1 回归）
+
+- ✅ 3 试点 soul 加载（A1 4 派系 / A3 5 派系 / A6 5 派系）
+- ✅ **历史事件回放方向校验（§5.5 C 路）**：2022 加息→A1 hawk 方向正确（HIKE 显著产出 7/30）+ 权重敏感性验证（hawk=0.45 → 22/60 HIKE 主导，证明默认 0.20 待校准）；2023 SVB→A3 risk_off 主导（SHORT+DECREASE 16/30）
+- ✅ flag_* 布尔注入（visible_actions 派生 + A1 delay=4 分层不被破坏）
+- ✅ A1 red_line dict 格式（深恐慌 → CUT_50BP source=red_line）
+- ✅ 派系权重调参路径（apply_param_adjustment internal_factions.hawk.weight 0.2→0.3）
+- ✅ 阶段 1 回归全过（S 类行为不变、9 个无 soul 金融 Agent 一致性保持）
+
 ## v2.0.25 — 2026-08-07 (by WorkBuddy)
 
 **修改理由**：天璇 v3 soul 化重构 **阶段 1**（统一决策框架）——设计文档 `docs/tianxuan-v3-soul-redesign.md` v1.3 §3/§8.1；行为零变化（无 soul Agent 逐行动与 v2 一致）。

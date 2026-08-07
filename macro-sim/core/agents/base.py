@@ -83,6 +83,11 @@ class ActionDecision:
 
 # ── 触发条件解析（v3 阶段 1：从 sovereign.py 上移，供所有 soul Agent 使用）──
 
+# v3 阶段 2：eval 表达式里允许的内置函数名（不当作 ctx 变量替换）
+_BUILTIN_FUNCS = frozenset(
+    "abs min max round int float len sum str bool pow".split()
+)
+
 def _eval_trigger(trigger_str: str, ctx: dict, missing_strategy: str = "optimistic") -> bool:
     """
     解析 soul 触发条件字符串（数值表达式）。
@@ -103,6 +108,10 @@ def _eval_trigger(trigger_str: str, ctx: dict, missing_strategy: str = "optimist
         missing = []
         for var in vars_in_expr:
             if var in ("AND", "OR", "NOT", "and", "or", "not"):
+                continue
+            # v3 阶段 2 修复：内置函数名（abs/min/max/round 等）不当作变量替换，
+            # 否则 abs(market_sentiment) 会变成 0.0(market_sentiment)（SyntaxWarning + 恒 False）
+            if var in _BUILTIN_FUNCS:
                 continue
             val = ctx.get(var, None)
             if val is None:
@@ -231,13 +240,22 @@ class MacroAgent:
         soul 缺失字段用中性默认值；无派系 → HOLD（reason 记录）。
         """
         missing_strategy = (self.soul or {}).get("missing_strategy", "optimistic")
+        # flag_* 布尔派生（v1.2 P2-1：从 visible_actions 派生，走 info_delay 分层）
+        ctx = self._derive_soul_flags(ctx)
 
         # ① red_line_triggers（v2.2 D2：数值表达式；red_lines 中文仅叙事）
-        for rl in self.soul.get("red_line_triggers", []):
+        # 支持两种格式：list[str]（走 _escalation_action，S 类格式）/
+        #               dict{trigger: action}（金融 soul 格式，指定强制行动）
+        rl_spec = self.soul.get("red_line_triggers", []) or []
+        rl_items = rl_spec.items() if isinstance(rl_spec, dict) else [(x, None) for x in rl_spec]
+        for rl, rl_action in rl_items:
             if _eval_trigger(rl, ctx, missing_strategy=missing_strategy):
-                esc = self._escalation_action(ctx)
-                if esc not in self.VALID_ACTIONS:
-                    esc = "HOLD"
+                if rl_action:
+                    esc = rl_action if rl_action in self.VALID_ACTIONS else "HOLD"
+                else:
+                    esc = self._escalation_action(ctx)
+                    if esc not in self.VALID_ACTIONS:
+                        esc = "HOLD"
                 return ActionDecision(
                     action=esc,
                     reason=f"red_line 触发：{rl}",
@@ -333,6 +351,27 @@ class MacroAgent:
 
     # ── soul 管线辅助（v3 阶段 1：从 sovereign.py 上移通用版本）───────────
 
+    def _derive_soul_flags(self, ctx: dict) -> dict:
+        """
+        v1.2 P2-1：从 visible_actions 派生 flag_* 布尔 ctx 字段（走 info_delay 分层——
+        visible_actions 已按 Agent 的 info_delay 延迟注入，禁止从当前步直接取行动）。
+        返回浅拷贝 ctx + flag 字段；无 visible_actions 时原样返回。
+        支持：flag_hf_short / flag_media_fear / flag_retail_panic / flag_fed_cut / flag_fed_hike。
+        """
+        visible = ctx.get("visible_actions")
+        if not isinstance(visible, dict):
+            return ctx
+        flags = {
+            "flag_hf_short":     1.0 if visible.get("hedge_fund") == "SHORT_MARKET" else 0.0,
+            "flag_media_fear":   1.0 if visible.get("media") == "AMPLIFY_FEAR" else 0.0,
+            "flag_retail_panic": 1.0 if visible.get("retail") == "PANIC_SELL" else 0.0,
+            "flag_fed_cut":      1.0 if visible.get("fed") in ("CUT_25BP", "CUT_50BP") else 0.0,
+            "flag_fed_hike":     1.0 if visible.get("fed") == "HIKE_25BP" else 0.0,
+        }
+        new_ctx = dict(ctx)
+        new_ctx.update(flags)
+        return new_ctx
+
     def _snapshot_signals(self, ctx: dict) -> dict:
         """采集 ctx 中的数值信号快照（trace evidence 用，限制规模防爆炸）。"""
         signals = {}
@@ -423,10 +462,25 @@ class MacroAgent:
     # ── 参数调整接口（校准循环调用）──────────────────────
 
     def apply_param_adjustment(self, param: str, new_value: float):
-        """校准循环调用，更新单个参数并 clamp。"""
+        """
+        校准循环调用，更新单个参数并 clamp。
+        v3 §5.5 A 路：支持 soul 派系权重路径 `internal_factions.{faction}.weight`
+        （试点 soul 的 calib_ranges 区间约束由校准 prompt 表达）。
+        """
         if param in ("sensitivity", "threshold", "magnitude"):
             setattr(self.params, param, new_value)
             self.params.clamp()
+        elif param.startswith("internal_factions.") and param.endswith(".weight"):
+            # v3：派系权重调参（soul 内 internal_factions.{faction}.weight）
+            fname = param.split(".")[1]
+            factions = (self.soul or {}).get("internal_factions", {}) or {}
+            fdata = factions.get(fname)
+            if isinstance(fdata, dict):
+                fdata["weight"] = max(0.01, min(0.9, float(new_value)))
+            else:
+                raise ValueError(f"soul 无派系 {fname}（{self.agent_id}）")
+        else:
+            raise ValueError(f"不支持的参数路径：{param}")
 
     # ── 序列化接口（预留）────────────────────────────────
 
