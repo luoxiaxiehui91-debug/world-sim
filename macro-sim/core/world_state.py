@@ -185,6 +185,13 @@ class MacroWorldState:
             st = (soul or {}).get("internal_state", {}) or {}
             rs = (soul or {}).get("resources", {}) or {}
             ctx["domestic_political_pressure"] = float(st.get("domestic_political_pressure", 0.0))
+            # v2.2 验证迭代（结构性多空）：危机深化 → 国内政治压力上升
+            # （market_sentiment -0.5 → 压力 0.75），让 domestic_lobby/stability_faction
+            # 等约束派在高压下也有触发路径 —— 高压时不再是"全体一致鹰派"，出现反制声音
+            ctx["domestic_political_pressure"] = max(
+                ctx["domestic_political_pressure"],
+                max(0.0, -self.market_sentiment * 1.5),
+            )
             ctx["economic_buffer_months"] = float(
                 st.get("economic_buffer_months", rs.get("economic_buffer_months", 0.0))
             )
