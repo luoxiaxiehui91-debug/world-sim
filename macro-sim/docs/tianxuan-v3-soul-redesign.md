@@ -792,7 +792,7 @@ elif a11 == "QE_TIGHTEN":
 | 2026-08-07 | v1.1：新增 §5.5 参数校准策略（文献区间约束 + 历史数据拟合三路：校准扩展 A / 参数扫描 B / 历史事件回放 C + 本质限制）；§8.1 阶段 2/3 验收补 C 路与权重回填；§9.2 补第 8 条验收标准 | 用户拍板"能用以前的数据训练拟合权重"（15:38） |
 | 2026-08-07 | v1.2（QClaw 评审 7 条核实 5 成立）：§5.6 新增通胀数据源缺口（Taylor 锚点缺 CPI，依赖天枢补采集）；§3.4 加 temperature/missing_strategy/flag 走 visible_actions；§4.1 hawk 代理标注；§5.2 补 QE 退出文献（TT-2013/QT-2022）；§6.4 引擎因果骨架；§7.3 QE 退出不对称；§8.2 R6 增强 soul_manifest_hash；§5.1 schema 强化；§2.1 A4 退役候选定位 | QClaw tianxuan-v3-soul-review（15:46）+ WorkBuddy 核实（16:00） |
 | 2026-08-07 | v1.3（QClaw 第二轮 6 条全成立）：新增 §3.6 regime_modifiers 状态依赖权重（阶段 3 后可选）；§3.4 missing_strategy conservative 语义修正（归 0=乐观反了→按最坏情况求值）；§6.4 3b 因果骨架构建规则（硬因果画边/软因果标时序）；§5.2 文献计数 29→31；§5.6 标注天枢 v3.8.x 阻塞项；§8.1 阶段 3 拆 3a/3b 两步验收 | QClaw 第二轮（16:20）+ WorkBuddy 核实（16:30） |
-| 待定 | （阶段实施后回填） | — |
+| 2026-08-07 | **阶段 1 已实施**（commit 8da51b338，v2.0.25）：ActionDecision + decide_with_decision 统一出口 + _decide_soul 统一管线（red_line→派系权重→抽样→bias_actions，decision_temperature/missing_strategy）+ _eval_trigger 上移 base + simulation decision_trace 骨架。验收：无 soul 240 次逐行动对比 mismatch=0（行为与 v2 完全一致）/ S 类统一管线产出 / trace 3 步 / missing_strategy 三态。设计文档 §3 全部落地，§3.6 regime_modifiers 标"阶段 3 后可选"按设计保留待后续 | 阶段 1 实施（WorkBuddy，17:10-17:30） |
 
 ---
 
