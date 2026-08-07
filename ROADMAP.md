@@ -70,7 +70,7 @@
 
 | 优先级 | 项目 | 说明 |
 |--------|------|------|
-| **P2** | **A 类主权国家 Agent 激活（路径分叉治本）** | **08-06 定稿待实施**：12 Agent 全顺周期、缺交易对手段 → 路径分叉结构不可达（实测 96-99% 单路径）。走大路方案 = 激活 5 个 SovereignAgent（A1 美国/A2 中国/A3 欧盟/A4 俄罗斯/A6 中东，soul 驱动无需新子类）+ gm_resolve 消费 grv_impact_map + Board 初始化 → 地缘多方博弈产生天然市场分歧。**详见 `macro-sim/docs/a-class-sovereign-activation.md`**；跟踪 question `20260806-world-deduction-grv-mean-reversion-path-collapse`。旧"路径多样性=正常现象暂缓"判断已证伪（08-06） |
+| **P2** | **A 类主权国家 Agent 激活（路径分叉治本）** | ✅ **08-07 已实施**（commit 4aaa5fde）：S1-S5 五主权 Agent 上线（soul 驱动派系决策 + grv_dimensions + Board + red_line_triggers）+ 完整验证（100 MC×24 步，真实场景分叉达成 A95%/B5%，迭代 3 轮参数定稿 act 0.35/sent 0.20/boost 1.3）。**待收尾**：GRV=80 高压仍单路径（选项 A 接受语义/B 继续调参/C 实施 B2 聚类判据，待用户拍板）+ B 类 4 个 / C 类完整链后续阶段。详见 `macro-sim/docs/a-class-sovereign-activation.md` §3.5/§6 + operations 20260807 两份 |
 | Low | **校准参数/预测参数分离** | 当前 M1（校准阶段，前50步）和 M2（预测阶段）共用部分参数，应明确隔离，便于天玑 V4 写回时精准作用 |
 | Low | **B 类非国家 Agent（4 个）** | taxonomy 蓝图后续阶段：跨国组织/宗教网络/武装非国家——A 类激活稳定后再启动 |
 

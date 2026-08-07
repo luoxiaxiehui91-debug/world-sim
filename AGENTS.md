@@ -6,10 +6,10 @@
 
 ## 三个子系统
 
-| 子系统 | 定位 | 容器模式 | 版本（as-of 2026-08-06） | NAS 运行目录 |
+| 子系统 | 定位 | 容器模式 | 版本（as-of 2026-08-07） | NAS 运行目录 |
 |:-------|:-----|:---------|:-----|:-------------|
-| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 16+1维向量（16 风险维度 + global_composite 汇总） | **热挂载**（改代码即生效；scheduler.py 改动需 restart） | v3.8.15 · [CHANGELOG](macro-scan/TuiYan_CHANGELOG.md) | `/vol2/1000/software/macro-scan` |
-| `macro-sim`  | 仿真引擎层：12个 Agent，Monte Carlo×100，月度时间步长 | **COPY 模式**（改代码需 rebuild 镜像；deploy.sh 仓库直构） | v2.0.23 · [CHANGELOG](macro-sim/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-sim` |
+| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 维度向量（18 项，含 global_composite 汇总 + 4 GDELT 国别推导维度 + gpr_twn_raw，08-07 实测） | **热挂载**（改代码即生效；scheduler.py 改动需 restart） | v3.8.15 · [CHANGELOG](macro-scan/TuiYan_CHANGELOG.md) | `/vol2/1000/software/macro-scan` |
+| `macro-sim`  | 仿真引擎层：**17个 Agent**（12 金融 + 5 主权 S1-S5，08-07 A 类激活），Monte Carlo×100，月度时间步长 | **COPY 模式**（改代码需 rebuild 镜像；deploy.sh 仓库直构） | **v2.0.24** · [CHANGELOG](macro-sim/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-sim` |
 | `macro-ji`   | 验证层（天玑）：读天枢 data 做推演验证/反哺（T2 共享触发文件驱动，2026-08-04 独立容器上线） | **COPY 模式**（macro-ji/ 目录 rebuild） | v1.0.0 · [CHANGELOG](macro-ji/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-ji` |
 | `kaiyang`    | 可视化操作面板：只读展示天枢数据 + 控制台（:8080，control API :8900） | nginx 静态站（MOCK_ENABLED=false，A3a 已接入，index.html no-cache） | v1.9.0 · [CHANGELOG](kaiyang/CHANGELOG.md) | `/vol2/1000/software/kaiyang` |
 
@@ -54,13 +54,13 @@ macro-scan 每日按时写入，macro-sim 只读消费，kaiyang 只读展示：
 
 | 文件 | 写入时间 | 说明 |
 |:-----|:---------|:-----|
-| `data/grv_latest.json` | 06:10 | GRV 地缘风险向量（16+1维，含 social_stress/cultural_friction 与 global_composite 汇总），schema v1.0 |
+| `data/grv_latest.json` | 06:10 | GRV 地缘风险向量（18 项维度，含 global_composite 汇总 + korean_peninsula/south_china_sea/india_pacific/global_south/gpr_twn_raw，08-07 实测），schema v1.0 |
 | `data/fred_history/*.csv` | 05:30 | FRED 宏观指标（T10Y2Y / BAA10Y / DFF），值单位 `%`，读取后需 ×100 转 bp |
 | `data/news_export.json` | 07:05 | 近7天新闻摘要（40条，6类），schema v1.0；顶层 `updated`（=导出时刻，无后缀=北京）供开阳 useFeed 时间戳——2026-08-05 起写入 |
 | `data/sim_trigger.json` | 触发时 | L3+ GRV 告警后写入，触发 macro-sim 仿真 |
 | `data/scheduler_state.json` | 每60s | scheduler 运行状态落盘，control_server（:8900）读取 |
 
-**当前接口兼容版本**：macro-scan v3.8.15+ ↔ macro-sim v2.0.23+（grv v1.0 / news v1.0，as-of 2026-08-06）
+**当前接口兼容版本**：macro-scan v3.8.15+ ↔ macro-sim **v2.0.24+**（grv v1.0 / news v1.0，as-of 2026-08-07）
 
 接口 schema 变更规则：同时改两边 AGENTS.md 的接口契约节 → 两边 CHANGELOG 各追加 → 先升 macro-scan 验证输出 → 再升 macro-sim。
 

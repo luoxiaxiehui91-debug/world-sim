@@ -1,13 +1,13 @@
 # macro-sim 开发进度
 
-> 最后更新：2026-08-06  
-> 当前版本：v2.0.23
+> 最后更新：2026-08-07  
+> 当前版本：v2.0.24
 
 ---
 
-## 当前状态：v2 已部署，正式运行
+## 当前状态：v2.0.24 已部署 + A 类主权 Agent 激活（08-07）
 
-系统已完成从 v1（废弃）到 v2（正式）的重设计，部署在 NAS，daemon 模式运行中。
+系统已完成从 v1（废弃）到 v2（正式）的重设计，部署在 NAS，daemon 模式运行中。08-07 激活 A 类主权 Agent（S1-S5，soul 驱动派系决策），并修复 calibrator 新旧代码覆盖（D2/D3 fix 恢复生效 + _self_check）。**下一步：天璇 v3 soul 化重构**（设计文档 `docs/tianxuan-v3-soul-redesign.md` v1.3，待拍板后按三阶段实施）。
 
 ---
 
@@ -16,7 +16,7 @@
 ### 核心设计
 
 - **每步 = 1个月**，前50步校准历史，后24步预测未来
-- **12个 Agent**，按信息延迟分层（0~5个月），互相可见
+- **17个 Agent**（12 金融 + 5 主权 S1-S5），按信息延迟分层（0~5个月，S 类试点 0），互相可见
 - **三参数接口**：sensitivity / threshold / magnitude，校准期 LLM 自动调整
 - **概率路径树**：Monte Carlo × 100，聚类出最多3条主路径（≥5%概率）
 - **报告结构**：核心结论对比表 → 路径传导链（含因果箭头）→ LLM叙事（情景定性/传导链/投资影响）→ 校准说明
@@ -26,7 +26,8 @@
 | 模块 | 文件 | 状态 |
 |---|---|---|
 | Agent 基类 + 三参数接口 | `core/agents/base.py` | ✅ |
-| 12个 Agent 实现 | `core/agents/financial/geopolitical/social.py` | ✅ |
+| 12个 Agent 实现（金融层） | `core/agents/financial/geopolitical/social.py` | ✅ |
+| 5 个主权 Agent（A 类激活） | `core/agents/sovereign.py` + `souls/S1-S5` | ✅（08-07） |
 | Agent 配置热更新 | `config/agents.yaml` | ✅ |
 | 世界状态（含新内生变量）| `core/world_state.py` | ✅ |
 | 主仿真调度（action_history）| `core/simulation.py` | ✅ |

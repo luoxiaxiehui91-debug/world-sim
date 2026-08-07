@@ -5,7 +5,23 @@
 
 ---
 
-## 当前状态（2026-08-06 晚，by WorkBuddy）— 最新
+## 当前状态（2026-08-07 晚，by WorkBuddy）— 最新
+
+| 子系统 | 版本（as-of 08-07） | 状态 |
+|---|---|---|
+| macro-scan（天枢）| v3.8.15 | ✅ **已部署 NAS，运行中**（今日无改动；scheduler 09:42 tianji_trigger 自动触发验证点已过）|
+| macro-sim（天璇）| **v2.0.24** | ✅ **已部署 NAS，运行中**（今日大改：A 类激活 S1-S5 + calibrator D2/D3 fix 恢复生效 + _self_check + AGENT_NAME_HINT；17 Agents 全量在跑）|
+| macro-ji（天玑）| v1.0.0 | ✅ **独立容器 macro-scan-tianji-1 运行中（healthy）**（今日无改动）|
+| kaiyang（开阳）| v1.9.0 | ✅ **已部署 NAS，:8080 可访问**（今日无改动）|
+
+- Git 分支：`main`，最新 commit：`d243cee8`（feat: calibrator 运行时自检 _self_check，ADR-0011 accepted 落地）
+- **今日 08-07 完整变更链**：`f58bd52d` A 类激活设计 v2.2 → `4aaa5fde` A 类激活实施（17 agents + grv_dimensions + board_baseline）→ `2254741e/1188e25d/fa1f169f` 验证迭代 1-3（sentiment std 分叉达成）→ `d8a6c2a4` calibrator 重复代码修复（v2.0.24）→ `e8c7431b` AGENT_NAME_HINT 防幻觉 → `d243cee8` _self_check + C10
+- **重大决策**：ADR-0011 accepted（校准逻辑单一真源 + 重复定义运行时防御）；question `20260807-world-deduction-calibrator-duplicate-code` 已归档；天璇 v3 soul 化重构设计文档 `macro-sim/docs/tianxuan-v3-soul-redesign.md` v1.3（811 行，待拍板 5 决策点后三阶段实施）
+- 遗留（08-07 晚）：① GRV=80 高压路径 B≥15% 未达标（三选项待用户拍板，见 operations a-class-activation-implement）② 天璇 v3 重构待开工（阶段 1 base 框架不依赖未决项）③ worldsim-pg（backlog P2）④ 开阳展示增强 + 过程叙述模式（backlog P3，用户 08-07 需求）⑤ 天璇运行区 .archive-20260806 确认无引用后 08-13 后删 ⑥ FRED DCOILWTICO 上游停更（08-05 遗留）
+
+---
+
+## 当前状态（2026-08-06 晚，by WorkBuddy）
 
 | 子系统 | 版本（as-of 08-06） | 状态 |
 |---|---|---|
