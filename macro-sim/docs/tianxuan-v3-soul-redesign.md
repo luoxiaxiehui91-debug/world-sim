@@ -71,6 +71,7 @@ world-sim 三层流水线：
 | A2 | 商业银行 | 2 | 0.70 | `TIGHTEN_CREDIT` `HOLD` `EASE_CREDIT` |
 | A3 | 对冲基金 | 0 | 1.00 | `SHORT_MARKET` `DECREASE_RISK` `HOLD` `INCREASE_RISK` |
 | A4 | 能源国(OPEC+) | 5 | **0（挂起）** | `CUT_SUPPLY` `HOLD` `INCREASE_SUPPLY`（已由 S5_saudi 接管） |
+> **v1.2 定位**：A4 = v3 **退役候选**——不复活、不迁移 soul（能源维度由 S5_saudi 全权承接）；v3 阶段 3 结束时评估从 agents.yaml 删除（连带 gm_resolve A4 硬编码分支移除），删除前保持挂起态（activation=0）防引用断裂 |
 | A5 | 机构投资者 | 2 | 0.60 | `DECREASE_RISK` `HOLD` `INCREASE_RISK` |
 | A6 | 媒体/舆论 | 1 | 0.80 | `AMPLIFY_FEAR` `NEUTRAL_REPORT` `HOLD` `AMPLIFY_OPTIMISM` |
 | A7 | 新兴市场央行 | 3 | 0.40 | `CAPITAL_CONTROLS` `RAISE_RATES` `HOLD` `CUT_25BP` |
@@ -219,6 +220,9 @@ def decide(ctx) -> ActionDecision:
 | fallback 语义 | 无 soul → 原 if-else；有 soul 但有派系未命中 → 所有派系权重×1 后照常抽样（neutral 派系天然承接） | 渐进迁移，阶段 1/2 不改变任何行为 |
 | red_line 对金融 Agent 开放 | A1/A12 等可配 red_line_triggers（紧急降息/放弃 YCC 属强制响应） | 统一"强制行动"语义，与 S 类一致 |
 | `_eval_trigger` 扩展 | 保持数值表达式；**另加 `visible(...)` 语法** 或保留在 bias/trigger 前由管线注入布尔变量 `flag_media_fear`/`flag_hf_short` 等（见 §7.2） | 现有 eval 不支持字符串比较；用布尔注入最小改动 |
+| **flag_* 来源（v1.2 P2-1）** | **必须从 `visible_actions` 派生**（`_build_visible_actions` 已按 info_delay 延迟），禁止从当前步 ctx 直接注入——A1（delay=4）不得看到当前步对冲基金行动，信息分层与 v2 一致 | 防信息分层破坏（QClaw P2-1） |
+| **decision_temperature（v1.2 P1-1）** | soul 级可配置（默认 1.0=标准抽样）；**0=argmax 确定性**（取权重最高派系，同输入同输出）；校准回归期统一 temperature=0 与 v2 公平对比 | 解决概率化 vs 确定性断裂（QClaw P1-1）；校准可比性 |
+| **missing_strategy（v1.2 P0-2）** | soul YAML 可配 `missing_strategy: conservative/optimistic/neutral`（默认 conservative）；`_eval_trigger` 对 ctx 缺失变量：conservative=归 0 且 fail-loud 提示，optimistic=归中性值；未知变量名仍启动 fail-loud（§7.4） | 关键信号缺失不静默无反应（QClaw P0-2） |
 
 ### 3.5 可追溯性对照（需求 ①②③）
 
@@ -255,6 +259,7 @@ def decide(ctx) -> ActionDecision:
 | 对应旧规则 | 旧 5 条 if-else 全部覆盖（CUT_50BP/CUT_25BP/VERBAL/HIKE/HOLD），无行为缺口 |
 | 论文锚点 | [T-1993]（0.5/0.5 反应系数）；[CGG-2000]（平滑化）；[O-2003]（实时数据稳健性） |
 | 参数说明 | dove 两档总权重 0.55 > hawk 0.20，反映"市场压力响应优先于过热响应"的 Fed 实际不对称性；**文献无直接派系权重，区间待校准**（§5.5 P1） |
+> **v1.2 P0-1 数据缺口（重要）**：当前 ctx **无通胀变量**（get_agent_context 无 CPI；fred_history 无 CPIAUCSL），hawk trigger 用 `market_sentiment > 0.5` 代理通胀——语义偏差（乐观≠通胀高）。Taylor Rule 锚点（T-1993 0.5/0.5 通胀/产出缺口）**需通胀数据才能真正落地**。修法：天枢补 CPI 采集（CPIAUCSL 进 fred_history）+ world_state/ctx 加 `inflation` 字段 + hawk trigger 切换为 `inflation > 2.5`；落地前保留 market_sentiment 代理并标注【代理】。详见 §5.6 |
 
 **新增能力**：`fed_rate_change` 参与 hawk trigger（加息只在已降息过的环境中触发——原代码 `fed_change < 0` 语义保留）。
 
@@ -437,6 +442,7 @@ references:
 1. 每个派系的每个 `trigger` 数值阈值必须能在其 `reference_ids` 或 soul `references` 中找到出处（参数区间或"待校准"标注）；
 2. 无文献参数的阈值必须在 `references.note` 或参数表里显式标 `【待校准】`；
 3. 违反以上任一条 → soul schema 校验失败（可进 DORMANT 池，不可进 ACTIVE）。
+4. **v1.2 强化（QClaw 补充 1）**：soul 加载时机器校验——①派系权重和=1.0（±0.01 容差）②bias_actions ⊆ VALID_ACTIONS ③trigger 变量 ⊆ 该角色 ctx 清单（§2.2）④missing_strategy 枚举合法；用 Pydantic/JSON Schema 实现，启动 fail-loud（参照 ADR-0011 `_self_check` 模式）。
 
 ### 5.2 文献清单（本次联网调研核实，真实文献）
 
@@ -464,6 +470,8 @@ references:
 | U-2007 | Ugai (2007), *Effects of the Quantitative Easing Policy: A Survey of Empirical Analyses*, Monetary & Econ. Studies | A12 BOJ QE | 2001-2006 QE 有效性综述 |
 | ACM-2015 | Altavilla, Carboni & Motto (2015), *Asset Purchase Programmes and Financial Markets*, ECB WP 1864 | A11 QE | 10Y 收益率 -30~-50bp；意大利/西班牙约翻倍 |
 | P-2018 | Praet (2018), *Assessment of Quantitative Easing*, ECB 演讲 | A11 QE 存量影响 | APP 存量下压长端 ~100bp（含再投资预期） |
+| TT-2013 | 2013 Taper Tantrum 事件（美 10Y 5/22-9/5 升 ~140bp，Bernanke 5/22 证词后 10 个交易日内 +30bp） | A11 QE_TIGHTEN 退出冲击系数（v1.2 P1-3） | **QE 退出不对称**：退出冲击显著大于买入（ACM-2015 买入 -30~-50bp vs 退出 +140bp）；QE_TIGHTEN delta 系数应 > QE_EXPAND |
+| QT-2022 | 2022-06 起美联储 QT 实证（缩表 950 亿/月峰值，10Y 上行 +100~150bp 区间） | A11/A1 QE 退出与缩表路径（v1.2 P1-3） | 缩表斜率经验：QT 幅度/速度与长端上行非线性，供 gm_resolve 系数校准基准 |
 | BRS-2004 | Bernanke, Reinhart & Sack (2004), *Monetary Policy Alternatives at the Zero Bound*, Brookings | A11/A12 非常规工具 | 零下界三类工具（前瞻指引/QE/组合调整） |
 | AG-2012 | Auerbach & Gorodnichenko (2012), *Measuring the Output Responses to Fiscal Policy*, AEJ:EP 4(2) | A9 财政刺激幅度 | 扩张期乘数 0.57 vs 衰退期 2.45（状态依赖） |
 | BL-2013 | Blanchard & Leigh (2013), *Growth Forecast Errors and Fiscal Multipliers*, AER P&P 103 | A9 财政收紧 | 紧缩乘数 >1（零下界附近） |
@@ -527,6 +535,17 @@ references:
 - 阶段 2 试点 soul 校准后须对比校准评分（回归门：劣化 >10% 回退 fallback，§8.2）
 
 **拟合后动作**：拟合出的权重回填 soul YAML + 更新 §5.3 参数区间表（`【待校准】` → `校准值 + 校准日期 + 数据窗口`），供评审审计溯源。
+
+### 5.6 数据依赖缺口（v1.2，QClaw P0-1 延伸）
+
+**央行行为锚定 Taylor Rule 缺通胀数据源**：
+
+| 缺口 | 现状 | 依赖 | 影响 Agent |
+|------|------|------|-----------|
+| **通胀（CPI）** | ctx 无 inflation；fred_history 无 CPIAUCSL | **天枢补采集**（fetch_fred_history 加 CPIAUCSL → fred_history/CPIAUCSL.csv → world_state 加 inflation 字段 → ctx 透传） | A1/A11（hawk 触发）、A8（通胀应对） |
+| **产出缺口** | 无 GDP 缺口数据 | 中期可选（FRED GDPPOT/NGDPPOT 派生）；短期用 credit_spread/market_sentiment 代理 | A1 |
+
+**落地前策略**：hawk 触发保留 market_sentiment 代理并标注【代理】；CPI 落地后切换为 `inflation > 阈值`（阈值由 T-1993 通胀缺口反应系数反推）。此缺口列入 backlog，随天枢采集扩展解决。
 
 ---
 
@@ -602,6 +621,7 @@ references:
 1. **事实约束**：所有数字必须来自 trace（evidence.signals / world_subset），LLM 不得编造信号值；叙事文本里数字若出现必须在 trace 中存在。
 2. **结构强制**：输出分 4 段——【触发】第 1-3 个月谁先动、为什么 →【传导】逐月连锁（引用 agent/action/reason）→【拐点】路径分叉步的决策分歧 →【稳态】末 3 个月格局。
 3. **因果只引用 trace 内**：传导链描述必须形如"对冲基金做空（grv_stress 0.52）→ 媒体放大恐慌（A6 fear 命中）→ 散户 PANIC_SELL"，禁止外推 trace 之外的因果。
+3b. **引擎因果骨架（v1.2 P1-2）**：叙事生成前，引擎从 trace 的 `evidence.trigger_hit` + `visible_actions` 构建**因果图骨架**（A→B 触发链，节点=agent/action，边=trigger 命中），LLM 只对骨架做语言润色、禁止增删节点/边；骨架无法覆盖的月份输出结构化占位——LLM 不做因果推断，因果由引擎给定（时序相邻≠因果的幻觉从根上消除）。
 4. **长度**：每路径 400-600 字；多路径间不得复读相同措辞。
 5. **反幻觉校验**：生成后脚本级校验——抽取叙事中的关键数值，与 trace 比对，不一致则标注「叙事数字存疑」并回退到结构化表述。
 
@@ -673,6 +693,7 @@ elif a11 == "QE_TIGHTEN":
     add("A11", "market_sentiment",       -0.04 * m)   # 政策边际转鹰
     add("A11", "liquidity_premium",       0.03 * m)
 ```
+> **v1.2 P1-3（QE 退出不对称）**：上表系数为对称初值（≈ QE_EXPAND 反向），**低估退出冲击**——2013 Taper Tantrum 10Y +140bp 是买入侧（ACM-2015，-30~-50bp）的 3-4 倍量级。阶段 3 实施时按 [TT-2013]/[QT-2022] 经验系数**非对称上调**（bank_credit_tightening 0.05→0.10~0.15 起点，待校准），并单独立校准回归验证（§9 验收 3）。
 
 **注意**：这是本次重构中唯一触碰仿真引擎 `gm_resolve` 的行为变更，会影响校准基线 → 须在阶段 3 独立跑一次校准回归，确认评分不劣化（§9 验收）。
 
@@ -702,7 +723,7 @@ elif a11 == "QE_TIGHTEN":
 | R3 | **QE_TIGHTEN gm_resolve 新分支触碰引擎**：影响传导矩阵与校准基线 | 全量评分漂移 | 独立分支 + 独立校准回归；若劣化明显则 QE_TIGHTEN 的 delta 系数从 0.5× 起始逐步上调 |
 | R4 | **LLM 逐月叙事幻觉**：叙事可能编造 trace 外的数字/因果 | 报告可信度受损（违反需求①） | §6.4 反幻觉校验（数值比对 + 标记回退）；叙事 prompt 强制"只引用 trace 内信号" |
 | R5 | **_eval_trigger 语法扩展**：`visible_actions` 字符串条件不在现有 eval 支持范围 | trigger 无法直接表达"看到对冲基金做空" | 用管线注入布尔 ctx（`flag_hf_short`/`flag_media_fear`/`flag_fed_cut` 等），trigger 只写 `flag_hf_short == 1`——零语法扩展，最小改动（§3.4） |
-| R6 | 校准缓存（7 天）掩盖新行为：v3 上线后旧缓存带旧参数跑 | 误判 v3 效果 | 上线时按版本号失效 calibration_cache（cache key 加 `soul_version`） |
+| R6 | 校准缓存（7 天）掩盖新行为：v3 上线后旧缓存带旧参数跑 | 误判 v3 效果 | 上线时按版本号失效 calibration_cache（cache key 加 `soul_version`）；**v1.2 P2-2 增强**：cache key 改用 `soul_manifest_hash`（全部 soul 文件内容 sha256），任何 soul 变更自动触发全量重校准——版本号可能忘改，hash 自动（QClaw P2-2） |
 | R7 | 12 个 soul YAML 维护量与校准维度爆炸 | 后期维护成本 | soul schema 校验（§5.1）+ 默认值完备（缺字段用中性值）+ 校准只调"差异显著"参数 |
 
 ### 8.3 上线顺序建议
@@ -744,6 +765,7 @@ elif a11 == "QE_TIGHTEN":
 |------|------|------|
 | 2026-08-07 | v1.0 初稿：统一决策框架、12 金融 soul 设计表、论文锚点体系（30 条文献）、结果层 v3、校验闭环、三阶段迁移 | 用户需求①②③④ + 代码盘点 + 联网文献调研 |
 | 2026-08-07 | v1.1：新增 §5.5 参数校准策略（文献区间约束 + 历史数据拟合三路：校准扩展 A / 参数扫描 B / 历史事件回放 C + 本质限制）；§8.1 阶段 2/3 验收补 C 路与权重回填；§9.2 补第 8 条验收标准 | 用户拍板"能用以前的数据训练拟合权重"（15:38） |
+| 2026-08-07 | v1.2（QClaw 评审 7 条核实 5 成立）：§5.6 新增通胀数据源缺口（Taylor 锚点缺 CPI，依赖天枢补采集）；§3.4 加 temperature/missing_strategy/flag 走 visible_actions；§4.1 hawk 代理标注；§5.2 补 QE 退出文献（TT-2013/QT-2022）；§6.4 引擎因果骨架；§7.3 QE 退出不对称；§8.2 R6 增强 soul_manifest_hash；§5.1 schema 强化；§2.1 A4 退役候选定位 | QClaw tianxuan-v3-soul-review（15:46）+ WorkBuddy 核实（16:00） |
 | 待定 | （阶段实施后回填） | — |
 
 ---
