@@ -106,6 +106,11 @@ class SovereignAgent(MacroAgent):
         "CUT_OUTPUT",
         "INCREASE_OUTPUT",
         "EMBARGO_SIGNAL",
+        # v2.2：俄罗斯特色行动（S4_russia soul grv_impact_map 定义，加入合法空间；
+        # S1-S3 的 soul 未定义 → 实际不会产生，无副作用）
+        "NUCLEAR_SIGNAL",
+        "ENERGY_CUTOFF",
+        "CEASEFIRE_SIGNAL",
     ]
 
     def _decide_rules(self, ctx: dict) -> str:
@@ -119,9 +124,11 @@ class SovereignAgent(MacroAgent):
         if not self.soul:
             return "HOLD"
 
-        # ── Step 1: Red Lines 检查 ───────────────────────────
-        red_lines = self.soul.get("red_lines", [])
-        for rl in red_lines:
+        # ── Step 1: Red Lines 检查（v2.2 D2 修复）──────────────
+        # red_line_triggers = 数值表达式列表（可被 _eval_trigger 判定，如 "russia_europe > 75"）；
+        # red_lines = 中文自然语言描述，仅作叙事/文档用途，不再参与 eval 判定
+        # （旧版对中文 red_lines 直接 eval → 正则只匹配 ASCII → SyntaxError → 恒 False，红线全哑）。
+        for rl in self.soul.get("red_line_triggers", []):
             if _eval_trigger(rl, ctx):
                 # red_line 触发：返回最强烈的可用行动
                 escalation = self._escalation_action(ctx)
@@ -189,9 +196,15 @@ class SovereignAgent(MacroAgent):
     def _get_faction_bias(self) -> dict:
         """
         返回各派系的行动偏好映射。
-        通用版本，子类按具体 Actor 覆盖。
+        v2.2 A2 修复：优先从 soul.internal_factions.{faction}.bias_actions 读取
+        （soul 可自定义派系名与偏好，不再依赖硬编码表名——A2_china/A3_eu/A6_russia 的
+        nationalists/pragmatists/atlanticists/strategic_autonomy 等派系名不再被拒）；
+        无 bias_actions 时 fallback 硬编码通用表。
         格式：{faction_name: [preferred_action1, preferred_action2, ...]}
         """
+        bias = self._soul_faction_bias()
+        if bias:
+            return bias
         return {
             # 鹰派：倾向强制手段
             "hawks":           ["MILITARY_DEPLOYMENT", "IMPOSE_SANCTIONS", "TECH_RESTRICTION"],
@@ -203,6 +216,16 @@ class SovereignAgent(MacroAgent):
             "domestic_lobby":  ["HOLD", "DIPLOMATIC_ENGAGE"],
             "modernization_wing": ["INCREASE_OUTPUT", "DIPLOMATIC_ENGAGE"],
         }
+
+    def _soul_faction_bias(self) -> dict:
+        """A2 修复：从 soul.internal_factions.{faction}.bias_actions 读派系偏好（仅保留 VALID_ACTIONS 内行动）。"""
+        bias = {}
+        factions = (self.soul or {}).get("internal_factions", {})
+        for fname, fdata in factions.items():
+            ba = fdata.get("bias_actions")
+            if ba:
+                bias[fname] = [a for a in ba if a in self.VALID_ACTIONS]
+        return bias
 
     def _escalation_action(self, ctx: dict) -> str:
         """
@@ -253,6 +276,9 @@ class EnergyGovSovereignAgent(SovereignAgent):
     ]
 
     def _get_faction_bias(self) -> dict:
+        bias = self._soul_faction_bias()
+        if bias:
+            return bias
         return {
             "fiscal_hawks":       ["CUT_OUTPUT", "EMBARGO_SIGNAL"],
             "modernization_wing": ["INCREASE_OUTPUT", "DIPLOMATIC_OUTREACH"],

@@ -1,18 +1,13 @@
-# souls/A4_gulf_opec.yaml — 海湾国家 / OPEC+ 核心
+# souls/S5_saudi.yaml — 沙特-OPEC（产量决策行为体）
 #
-# 对应 agents.yaml 中的 A4（能源国），通过 soul_file: A4_gulf_opec.yaml 加载。
-# 本文件实现 agent_taxonomy.md 中 A5（海湾国家/OPEC+ 核心）的设计。
-# 主要 GRV 关联：middle_east_energy, global_composite
-#
-# 读取方式（_decide_rules 中）：
-#   doctrine         = self.soul.get("doctrine", "")
-#   red_lines        = self.soul.get("red_lines", [])
-#   factions         = self.soul.get("internal_factions", {})
-#   cultural_prior   = self.soul.get("cultural_prior", {})
+# v2.2：由 A4_gulf_opec.yaml 重命名（S 编号体系）；定位 = OPEC 产量决策体
+# （有统一产量渠道），非中东政治代表（taxonomy §11.1）。
+# 激活：agents.yaml S5_saudi（class: sovereign.EnergyGovSovereignAgent，纯能源）。
+# 对应 agent_taxonomy.md 核心层 A5（沙特-OPEC）。
 
-actor_id: A4
+actor_id: S5_saudi
 actor_type: sovereign_state
-name: "海湾国家 / OPEC+ 核心（沙特主导）"
+name: "沙特 / OPEC+ 核心（产量决策行为体）"
 layer: state_agent
 
 doctrine: |
@@ -27,6 +22,13 @@ red_lines:
   - "伊朗核武器试验或明确核威胁升级"
   - "沙特本土遭受大规模军事打击"
   - "油价跌破 55 USD/bbl 持续超过 60 天"
+
+# v2.2 D2：数值表达式版红线（S 类 ctx；wti_price 来自 soul internal_state.wti_price_ref）
+red_line_triggers:
+  - "middle_east_energy > 85"
+  - "middle_east_energy > 80"
+  - "middle_east_energy > 75"
+  - "wti_price < 55"
 
 resources:
   military_capacity: 0.45       # 依赖美国安全保障
@@ -47,14 +49,17 @@ internal_factions:
     weight: 0.50
     trigger: "middle_east_energy < 45 OR wti_price < 70"
     bias: "倾向减产维价，保护财政收入"
+    bias_actions: ["CUT_OUTPUT", "EMBARGO_SIGNAL"]                      # v2.2 A2
   modernization_wing:
     weight: 0.30
     trigger: "global_composite < 50 AND economic_buffer_months > 18"
     bias: "倾向稳定油价吸引外资，支持 Vision 2030 经济多元化"
+    bias_actions: ["INCREASE_OUTPUT", "DIPLOMATIC_OUTREACH"]            # v2.2 A2
   security_hawks:
     weight: 0.20
     trigger: "middle_east_energy > 70 OR iran_threat_level > 0.6"
     bias: "倾向借地区紧张局势提升军事采购和战略筹码"
+    bias_actions: ["MILITARY_DEPLOYMENT", "EMBARGO_SIGNAL"]             # v2.2 A2
 
 # 决策对 GRV 的影响方向（供 _decide_rules 参考）
 grv_impact_map:

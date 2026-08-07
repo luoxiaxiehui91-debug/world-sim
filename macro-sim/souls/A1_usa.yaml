@@ -26,6 +26,13 @@ red_lines:
   - "美元结算系统被规模性绕过（超过 20% 全球贸易份额）"
   - "盟友核设施遭受攻击"
 
+# v2.2 D2：数值表达式版红线（_eval_trigger 可判定；red_lines 中文描述仅供叙事）
+# 变量均来自 S 类 ctx（GRV 维度 0-100 原生量纲）
+red_line_triggers:
+  - "taiwan_strait > 80"
+  - "russia_europe > 85"
+  - "russia_europe > 80 AND global_composite > 75"
+
 resources:
   military_capacity: 0.95
   economic_buffer_months: 18
@@ -45,14 +52,17 @@ internal_factions:
     weight: 0.40
     trigger: "russia_europe > 70 OR taiwan_strait > 75 OR us_china_strategic > 80"
     bias: "倾向军事威慑、制裁升级和盟友部署"
+    bias_actions: ["MILITARY_DEPLOYMENT", "IMPOSE_SANCTIONS", "TECH_RESTRICTION"]   # v2.2 A2
   doves:
     weight: 0.35
     trigger: "global_composite < 40 AND economic_buffer_months > 12"
     bias: "倾向外交谈判、多边框架和成本控制"
+    bias_actions: ["DIPLOMATIC_ENGAGE", "LIFT_SANCTIONS", "HOLD"]                    # v2.2 A2
   domestic_lobby:
     weight: 0.25
     trigger: "domestic_political_pressure > 0.5"
     bias: "优先国内经济指标（通胀/就业），反对高代价军事干预"
+    bias_actions: ["HOLD", "DIPLOMATIC_ENGAGE"]                                      # v2.2 A2
 
 # 决策对 GRV 的影响方向（供未来 SovereignAgent._decide_rules 参考）
 grv_impact_map:

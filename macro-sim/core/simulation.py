@@ -23,6 +23,7 @@ from core.world_state import (
     apply_bleed_rules,
 )
 from core.agents.base import MacroAgent, AgentParams
+from core.agents.sovereign import SovereignAgent
 
 
 # ── Agent 工厂：从 agents.yaml 加载 ──────────────────────
@@ -30,7 +31,7 @@ from core.agents.base import MacroAgent, AgentParams
 def load_agents(config_path: str = "/app/config/agents.yaml") -> tuple[dict[str, MacroAgent], dict]:
     """从 agents.yaml 构建 Agent 字典，返回 (agents, global_cfg)"""
     try:
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             cfg = yaml.safe_load(f)
     except FileNotFoundError:
         # 容器外开发时 fallback 到相对路径
@@ -60,7 +61,7 @@ def load_agents(config_path: str = "/app/config/agents.yaml") -> tuple[dict[str,
             if not os.path.isabs(soul_file):
                 soul_path = os.path.normpath(soul_path)
             try:
-                with open(soul_path) as sf:
+                with open(soul_path, encoding="utf-8") as sf:
                     soul = yaml.safe_load(sf) or {}
             except FileNotFoundError:
                 pass  # soul 文件可选，不存在不报错
@@ -286,6 +287,66 @@ def gm_resolve_rules(
     elif a12 == "EASE_YCC":
         add("A12", "yen_carry_risk",    0.15 * mag("A12"))
 
+    # ── S 类主权 Agent 分支（v2.2，A1/A4/D3/B3 修复）──────────────
+    # 在传导矩阵之前执行：sovereign 的 sentiment delta 需参与传导（C3）。
+    # 白名单动态聚合（已加载 soul 的 grv_impact_map key 并集 + HOLD/NO_ACTION），
+    # 消灭两套白名单并存（代码 VALID_ACTIONS vs 旧设计 _SOVEREIGN_ACTIONS）。
+    # GRV 维度 delta 直写 world.grv_dimensions（0-100 量纲，绕过 _apply_delta clamp(0,1)），
+    # 同步同名 world_state 字段（sanctions_risk 等）→ 金融 Agent 下一轮 ctx 可见（B1 传导链）。
+    _whitelist = {"HOLD", "NO_ACTION"}
+    for _a in agents.values():
+        if isinstance(_a, SovereignAgent) and _a.soul:
+            _whitelist |= set(_a.soul.get("grv_impact_map", {}).keys())
+
+    for agent_id, action in actions.items():
+        if action in ("HOLD", "NO_ACTION"):
+            continue
+        agent = agents.get(agent_id)
+        if agent is None or not isinstance(agent, SovereignAgent) or not agent.soul:
+            continue
+        # 1. 白名单检查（fail-loud：不在白名单的行动记日志跳过）
+        if action not in _whitelist:
+            print(f"[gm_resolve] S 类行动 {agent_id} {action} 不在白名单（{sorted(_whitelist)}），跳过")
+            continue
+        # 2. 行动必须定义于 soul（防幻觉 action）
+        impacts = agent.get_grv_impact(action)
+        if not impacts:
+            print(f"[gm_resolve] S 类行动 {agent_id} {action} 无 grv_impact_map 定义，跳过（fail-loud）")
+            continue
+        m = mag(agent_id)
+        # 3. GRV 维度 delta 直写（0-100 量纲）
+        gd = getattr(world, "grv_dimensions", None)
+        if gd is not None:
+            for dim, val in impacts.items():
+                cur = float(gd.get(dim, 0.0))
+                new = max(0.0, min(100.0, cur + val * m))
+                gd[dim] = new
+                # 同步同名 world_state 字段（金融 Agent 感知；us_china_strategic → us_china_grv）
+                if dim == "us_china_strategic":
+                    world.us_china_grv = new
+                elif hasattr(world, dim):
+                    setattr(world, dim, new)
+                # per-agent delta 记录（供传导矩阵/快照展示，不写 world 属性）
+                add(agent_id, f"grv_dim.{dim}", val * m)
+        # 4. sentiment 通用影响（v2.2 B3 试点系数 ±0.15/±0.10，验证后回调）
+        if action in ("IMPOSE_SANCTIONS", "MILITARY_DEPLOYMENT", "CUT_OUTPUT",
+                      "EMBARGO_SIGNAL", "NUCLEAR_SIGNAL", "ENERGY_CUTOFF",
+                      "TECH_RESTRICTION", "ALLIANCE_REINFORCE"):
+            add(agent_id, "market_sentiment", -0.15 * m)
+            _board_delta = 0.02   # 冲突行动 → Board 全关系对 push +偏离
+        elif action in ("DIPLOMATIC_ENGAGE", "LIFT_SANCTIONS", "INCREASE_OUTPUT",
+                        "CEASEFIRE_SIGNAL", "DIPLOMATIC_OUTREACH"):
+            add(agent_id, "market_sentiment", 0.10 * m)
+            _board_delta = -0.02  # 缓和行动 → 回落
+        else:
+            _board_delta = 0.0
+        if _board_delta:
+            try:
+                from core.board_baseline import board_push_all
+                board_push_all(agent_id, _board_delta)
+            except Exception:
+                pass  # Board 数据可选，缺失不阻断
+
     # ── 传导矩阵（第二轮）────────────────────────────────────
     # D1 fix: 每个 Agent 只传导自己产生的 per-agent delta，
     # 避免把全量累积 delta 乘以传导系数（原代码导致 N 个 Agent 激活时
@@ -400,15 +461,17 @@ class MacroSimModel:
         for agent_id, agent in self.agents.items():
             if agent.forced_activate:
                 agent.forced_activate = False
-                ctx = self.world.get_agent_context(agent.role)
+                ctx = self.world.get_agent_context(agent.role, soul=getattr(agent, "soul", None))
                 ctx["visible_actions"] = self._build_visible_actions(agent)
+                self._inject_board_ctx(ctx, agent)
                 step_actions[agent_id] = agent.decide(ctx, self.use_llm)
             elif agent.activation_countdown > 0:
                 agent.activation_countdown -= 1
                 step_actions[agent_id] = "NO_ACTION"
             elif random.random() < agent.activation_prob:
-                ctx = self.world.get_agent_context(agent.role)
+                ctx = self.world.get_agent_context(agent.role, soul=getattr(agent, "soul", None))
                 ctx["visible_actions"] = self._build_visible_actions(agent)
+                self._inject_board_ctx(ctx, agent)
                 step_actions[agent_id] = agent.decide(ctx, self.use_llm)
                 agent.activation_countdown = agent.info_delay  # 行动后冷却
             else:
@@ -429,6 +492,13 @@ class MacroSimModel:
                 if hasattr(self.world, key):
                     setattr(self.world, key, val)
 
+        # v2.2 A5：Board 每步向基线衰减（行动 push 的偏离逐步回落）
+        try:
+            from core.board_baseline import board_decay_step
+            board_decay_step()
+        except Exception:
+            pass
+
         # 记录本步
         self.action_history.append(dict(step_actions))
         snapshot = {
@@ -439,6 +509,15 @@ class MacroSimModel:
         self.history.append(snapshot)
         self.world.cycle += 1
         return snapshot
+
+    def _inject_board_ctx(self, ctx: dict, agent: MacroAgent):
+        """v2.2 C1：向 ctx 注入 Board 数据（S 类主权 Agent 决策用）。
+        board_baseline.py 提供 get_board_ctx；缺失时静默跳过（非 S 类或无 Board 场景）。"""
+        try:
+            from core.board_baseline import get_board_ctx
+            ctx["board"] = get_board_ctx(agent.agent_id)
+        except Exception:
+            pass  # Board 数据可选，缺失不影响非 S 类 Agent
 
     def _apply_delta(self, delta: dict):
         # 月度步长衰减因子；设计值 0.25（=1/4，GM规则按日度感觉设计），

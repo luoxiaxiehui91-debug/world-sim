@@ -1,12 +1,10 @@
-# souls/A6_russia.yaml — 俄罗斯（主权国家 Agent）
+# souls/S4_russia.yaml — 俄罗斯（主权国家 Agent）
 #
-# 对应 agent_taxonomy.md 中的 A4（俄罗斯）。
-# 注意：本文件命名为 A6 对应 taxonomy 中 A 类第4个（俄罗斯），
-# 与 agents.yaml 中 A6（媒体 Agent）不同——
-# B+A/NOVEL 重写时 agents.yaml 将重新编号。
-# 过渡期：此文件为设计文档，暂未在 agents.yaml 中激活。
+# v2.2：由 A6_russia.yaml 重命名（S 编号体系，避开与 agents.yaml A6 媒体 Agent 混淆）。
+# 对应 agent_taxonomy.md 核心层 A4（俄罗斯）。
+# 激活：agents.yaml S4_russia（class: sovereign.SovereignAgent，复合行为体）。
 
-actor_id: A6_russia
+actor_id: S4_russia
 actor_type: sovereign_state
 name: "俄罗斯"
 layer: state_agent
@@ -23,6 +21,12 @@ red_lines:
   - "克里米亚或顿巴斯被乌克兰武装力量重新控制"
   - "外国军队直接进入俄罗斯承认的领土"
   - "政权更迭威胁（内部精英叛变 + 外部支持同时出现）"
+
+# v2.2 D2：数值表达式版红线（S 类 ctx，GRV 维度 0-100 原生量纲）
+red_line_triggers:
+  - "russia_europe > 75 AND sanctions_risk > 65"
+  - "russia_europe > 70"
+  - "russia_europe > 80"
 
 resources:
   military_capacity: 0.72       # 常规力量受损但核力量完整
@@ -43,14 +47,17 @@ internal_factions:
     weight: 0.50
     trigger: "russia_europe > 55 OR domestic_political_pressure > 0.4"
     bias: "倾向军事升级、核威慑信号、能源武器化"
+    bias_actions: ["MILITARY_DEPLOYMENT", "NUCLEAR_SIGNAL", "ENERGY_CUTOFF"]   # v2.2 A2
   pragmatists:
     weight: 0.35
     trigger: "global_composite > 70 AND economic_buffer_months < 8"
     bias: "倾向有限停火谈判、能源出口维系收入、避免经济崩溃"
+    bias_actions: ["CEASEFIRE_SIGNAL", "DIPLOMATIC_ENGAGE", "INCREASE_OUTPUT"]  # v2.2 A2
   oligarchs:
     weight: 0.15
     trigger: "sanctions_risk > 60 AND economic_buffer_months < 6"
     bias: "优先个人资产保护，对极端升级持保留态度"
+    bias_actions: ["HOLD", "DIPLOMATIC_ENGAGE"]                                # v2.2 A2
 
 grv_impact_map:
   MILITARY_DEPLOYMENT:
