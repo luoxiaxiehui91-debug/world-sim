@@ -1,0 +1,58 @@
+# souls/A1_fed.yaml — 美联储（试点 soul，v3 阶段 2）
+#
+# 来源：tianxuan-v3-soul-redesign.md §4.1（A1 美联储 — dove/hawk/neutral）
+# 论文锚点：[T-1993] Taylor Rule 0.5/0.5 反应系数；[CGG-2000] 平滑化；[O-2003] 实时数据稳健性
+# 参数说明：dove 两档总权重 0.55 > hawk 0.20（市场压力响应优先于过热响应的实际不对称性）；
+#           **文献无直接派系权重，区间待校准**（§5.5 A 路：校准 LLM 可在区间内调整）
+# v1.2 P0-1 数据缺口：ctx 无通胀变量（天枢未采集 CPIAUCSL），hawk trigger 用
+#   market_sentiment > 0.5 代理通胀【代理】；天枢补 CPI 后切换 inflation > 2.5（§5.6）
+
+actor_id: A1
+actor_type: central_bank
+name: "美联储（FOMC）"
+layer: financial_agent
+
+doctrine: |
+  联邦公开市场委员会以物价稳定与充分就业为双重使命。
+  危机应对优先（市场压力大时果断降息），对过热反应更谨慎（Taylor 规则不对称性）。
+  决策节奏缓慢（4 个月信息延迟），追求政策平滑，避免反复。
+
+red_lines:
+  - "市场深度恐慌（情绪低于-0.6）时强制大幅降息 50bp"
+
+# v3 阶段 2：dict 格式（trigger → 强制行动）
+red_line_triggers:
+  "market_sentiment < -0.6": "CUT_50BP"
+
+internal_factions:
+  dove_emergency:
+    weight: 0.30
+    trigger: "market_sentiment < -0.4 OR vix_stress > 0.6"
+    bias: "危机模式：大幅降息"
+    bias_actions: ["CUT_50BP", "CUT_25BP"]
+  dove:
+    weight: 0.25
+    trigger: "market_sentiment < -0.25 OR vix_stress > 0.4"
+    bias: "压力上升：小幅降息或口头安抚"
+    bias_actions: ["CUT_25BP", "VERBAL_INTERVENTION"]
+  neutral:
+    weight: 0.25
+    trigger: "grv_stress > 0.4 AND market_sentiment > -0.2"
+    bias: "地缘紧张但情绪尚可：口头安抚观望"
+    bias_actions: ["VERBAL_INTERVENTION", "HOLD"]
+  hawk:
+    weight: 0.20
+    trigger: "market_sentiment > 0.5 AND fed_rate_change < 0"
+    bias: "过热：加息（仅在曾降息环境中触发）"
+    bias_actions: ["HIKE_25BP", "HOLD"]
+
+# 校准参数空间（§5.5 A 路）：weight 区间
+calib_ranges:
+  internal_factions:
+    dove_emergency.weight: [0.2, 0.4]
+    dove.weight:           [0.15, 0.35]
+    neutral.weight:        [0.15, 0.35]
+    hawk.weight:           [0.1, 0.3]
+
+missing_strategy: optimistic
+decision_temperature: 1.0

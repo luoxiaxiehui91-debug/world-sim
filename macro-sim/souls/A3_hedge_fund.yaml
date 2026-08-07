@@ -1,0 +1,60 @@
+# souls/A3_hedge_fund.yaml — 对冲基金（试点 soul，v3 阶段 2）
+#
+# 来源：tianxuan-v3-soul-redesign.md §4.3（A3 对冲基金 — risk_off/risk_reduce/contrarian/risk_on/neutral）
+# 论文锚点：[DT-1985] 过度反应/逆向交易；[B-B-1988]；[S-2016] VIX 驱动 risk-on/off
+# 参数说明：旧 OVERSOLD_BOUNCE_PROB=0.45 → contrarian 派系权重承接（概率参数化进 soul）；
+#           旧 sentiment<-0.4→HOLD（已充分定价不追空）由 contrarian/neutral 在深恐慌时竞争表达
+#           **派系权重文献无直接支撑，区间待校准**（§5.5 A 路）
+
+actor_id: A3
+actor_type: financial_agent
+name: "对冲基金"
+layer: financial_agent
+
+doctrine: |
+  高杠杆风险偏好，0 延迟最灵敏。顺势做空、逆势抄底并存（过度反应反转交易）。
+  深恐慌时已充分定价不追空（避免追尾），但高压+超卖时 45% 概率逆向加仓（多空博弈）。
+
+red_lines: []
+
+# A3 无强制行动红线（做空/抄底均为策略选择，非强制响应）
+red_line_triggers: {}
+
+internal_factions:
+  risk_off:
+    weight: 0.30
+    trigger: "grv_stress > 0.4 OR vix_stress > 0.3 OR flag_media_fear OR sp500_change < -0.10"
+    bias: "高压做空"
+    bias_actions: ["SHORT_MARKET", "DECREASE_RISK"]
+  risk_reduce:
+    weight: 0.20
+    trigger: "external_pressure_shift > 0.25 OR yield_inverted == 1 OR sp500_change < -0.05"
+    bias: "中等压力降险"
+    bias_actions: ["DECREASE_RISK", "HOLD"]
+  contrarian:
+    weight: 0.20
+    trigger: "grv_stress > 0.4 AND market_sentiment < -0.4"
+    bias: "超卖反弹抄底（旧 OVERSOLD_BOUNCE_PROB 结构化）"
+    bias_actions: ["INCREASE_RISK", "HOLD"]
+  risk_on:
+    weight: 0.20
+    trigger: "grv_stress < 0.1 AND vix_stress < 0.1 AND market_sentiment > 0.1"
+    bias: "环境改善加仓"
+    bias_actions: ["INCREASE_RISK"]
+  neutral:
+    weight: 0.10
+    trigger: ""
+    bias: "观望"
+    bias_actions: ["HOLD"]
+
+# 校准参数空间（§5.5 A 路）
+calib_ranges:
+  internal_factions:
+    risk_off.weight:      [0.2, 0.4]
+    risk_reduce.weight:   [0.1, 0.3]
+    contrarian.weight:    [0.1, 0.3]
+    risk_on.weight:       [0.1, 0.3]
+    neutral.weight:       [0.05, 0.2]
+
+missing_strategy: optimistic
+decision_temperature: 1.0

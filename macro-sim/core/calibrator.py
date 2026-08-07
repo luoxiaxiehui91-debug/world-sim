@@ -202,7 +202,9 @@ def _call_llm_for_adjustment(
             f"em_capital_outflow 主要由 A7(新兴市场) 驱动。\n"
             f"每条指令格式（严格JSON数组）：\n"
             f'[{{"agent":"A2","param":"threshold","new":0.35,"reason":"信贷收紧触发太迟"}}]\n'
-            f"只输出JSON数组。param只能是sensitivity/threshold/magnitude之一。"
+            f"只输出JSON数组。param可以是 sensitivity/threshold/magnitude 之一，\n"
+            f"或派系权重路径 internal_factions.<派系名>.weight（仅限挂 soul 的 Agent，如 A1/A3/A6；\n"
+            f"权重区间 0.01~0.9，且同 Agent 各派系权重之和应≈1.0，调整时尽量保持总权重不变）。"
         )
 
         raw = call_llm(prompt, use_minimax=False)
@@ -217,12 +219,16 @@ def _call_llm_for_adjustment(
         instructions = json.loads(match.group())
         valid = []
         for inst in instructions:
-            if (isinstance(inst, dict)
+            if not (isinstance(inst, dict)
                     and "agent" in inst
                     and "param" in inst
-                    and "new" in inst
-                    and inst["param"] in ("sensitivity", "threshold", "magnitude")
-                    and 0.0 <= float(inst["new"]) <= 2.0):
+                    and "new" in inst):
+                continue
+            param = inst["param"]
+            new_val = float(inst["new"])
+            if param in ("sensitivity", "threshold", "magnitude") and 0.0 <= new_val <= 2.0:
+                valid.append(inst)
+            elif param.startswith("internal_factions.") and param.endswith(".weight") and 0.01 <= new_val <= 0.9:
                 valid.append(inst)
         return valid
 
@@ -346,7 +352,13 @@ def run_calibration(
                 new_val  = float(inst["new"])
                 reason   = inst.get("reason", "")
                 if agent_id in agents:
-                    old_val = getattr(agents[agent_id].params, param)
+                    # v3 §5.5 A 路：支持 soul 派系权重路径（internal_factions.{faction}.weight）
+                    if param.startswith("internal_factions."):
+                        fname = param.split(".")[1]
+                        factions = (agents[agent_id].soul or {}).get("internal_factions", {})
+                        old_val = factions.get(fname, {}).get("weight", 0.33) if isinstance(factions.get(fname), dict) else 0.33
+                    else:
+                        old_val = getattr(agents[agent_id].params, param)
                     agents[agent_id].apply_param_adjustment(param, new_val)
                     change = {
                         "step": step_label, "agent": agent_id,
