@@ -6,6 +6,31 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.25 — 2026-08-07 (by WorkBuddy)
+
+**修改理由**：天璇 v3 soul 化重构 **阶段 1**（统一决策框架）——设计文档 `docs/tianxuan-v3-soul-redesign.md` v1.3 §3/§8.1；行为零变化（无 soul Agent 逐行动与 v2 一致）。
+
+### 修改
+
+- **`core/agents/base.py`**
+  - **新增 `ActionDecision` dataclass**（§3.2）：action/reason/evidence/faction/confidence/source，统一决策输出（决策理由可校验，需求①）
+  - **`_eval_trigger` 从 sovereign.py 上移** + missing_strategy 支持（v1.3 R-P1 语义：optimistic=缺失归 0 不触发 / conservative=按最坏情况触发 / neutral=归 0.5）
+  - **`decide()` 兼容入口保留**（返回 str，行为与 v2 完全一致）；**新增 `decide_with_decision()` 统一出口**（有 soul → `_decide_soul()` 统一管线；无 soul → `_decide_rules()` 包一层 fallback）
+  - **新增 `_decide_soul()` 统一 soul 管线**（§3.3）：red_line_triggers → 派系权重（weight×boost×sensitivity）→ 加权抽样（decision_temperature 支持，0=argmax）→ bias_actions 选行动；含 `_snapshot_signals`/`_escalation_action`/`_faction_to_action`/`_soul_faction_bias` 通用版
+- **`core/agents/sovereign.py`**
+  - soul 决策逻辑上移 base（`SovereignAgent._decide_rules` 仅剩无 soul fallback HOLD；`EnergyGovSovereignAgent` 保留无 soul 能源退化规则）
+  - `_eval_trigger` 改为从 base import（兼容导出）
+  - 保留 `_faction_to_action`/`_get_faction_bias`/`_escalation_action` 特化版（S 类行为与 v2.2 完全一致，含 impact_map 过滤与硬编码 bias fallback）
+- **`core/simulation.py`**
+  - step() Phase 1 改用 `decide_with_decision()`（行为等价——decide() 即取 .action）；**新增 `decision_trace` 收集**（每步每激活 Agent 的 ActionDecision.to_dict()，trace 落盘骨架，结果层 v3 启用）
+- **`VERSION`**：v2.0.24 → v2.0.25
+
+### 验收（smoke_v3_phase1.py 本地全过）
+
+- ✅ 无 soul Agent **240 次**逐行动对比（20 ctx × 12 金融 Agent，同 seed 序列）mismatch=0 —— 行为与 v2 完全一致（含随机消耗模式）
+- ✅ ActionDecision schema 完整性；✅ S 类统一 soul 管线产出正常（GRV=80 高压：S1 MILITARY 4/5、S4 NUCLEAR 5/5 等符合 v2.2 验证行为）
+- ✅ decision_trace 3 步仿真收集；✅ missing_strategy 三态语义（optimistic 不触发 / conservative 最坏情况触发）
+
 ## v2.0.24 — 2026-08-07 (by WorkBuddy)
 
 **修改理由**：P1——calibrator.py 新旧两份代码并存（D2/D3 fix 被旧版覆盖静默失效，红线 #8）。question：`20260807-world-deduction-calibrator-duplicate-code`。
