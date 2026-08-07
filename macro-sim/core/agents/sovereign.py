@@ -144,8 +144,9 @@ class SovereignAgent(MacroAgent):
         for fname, fdata in factions.items():
             base_weight = float(fdata.get("weight", 0.33))
             trigger = fdata.get("trigger", "")
-            # 如果触发条件满足，该派系权重 ×1.5（更活跃）
-            boost = 1.5 if _eval_trigger(trigger, ctx) else 1.0
+            # 如果触发条件满足，该派系权重 ×1.3（v2.2 验证迭代：1.5→1.3，
+            # 高压下鹰派不再压倒性倾斜，给约束派/鸽派留分歧空间 → 路径分叉）
+            boost = 1.3 if _eval_trigger(trigger, ctx) else 1.0
             # sensitivity 参数影响派系响应强度
             effective = base_weight * boost * self.params.sensitivity
             weighted[fname] = effective
