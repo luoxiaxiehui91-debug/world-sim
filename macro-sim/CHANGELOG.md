@@ -6,6 +6,18 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.24 — 2026-08-07 (by WorkBuddy)
+
+**修改理由**：P1——calibrator.py 新旧两份代码并存（D2/D3 fix 被旧版覆盖静默失效，红线 #8）。question：`20260807-world-deduction-calibrator-duplicate-code`。
+
+### 修改
+
+- **`core/calibrator.py`**（680 → 384 行）
+  - **删除 L356-679 旧版完整副本**：旧版（外生变量误差 ERROR_WEIGHTS={grv/credit_spread/t10y2y/dff}）定义在后，Python 后定义覆盖前定义 → D2/D3 fix（2026-08-03 声称已修的内生变量误差）实际从未生效
+  - **恢复生效**：ERROR_WEIGHTS 现为内生变量版（market_sentiment 0.35 / bank_credit_tightening 0.30 / liquidity_premium 0.20 / em_capital_outflow 0.15）
+  - **D6 校准缓存读取逻辑从旧版移植**（新版原只有写入无读取）：<7 天命中缓存跳过 50 步校准
+- **`VERSION`**：v2.0.23 → v2.0.24
+
 ## v2.0.23 — 2026-08-04 (by Claude Code)
 
 **修改理由**：P4——天玑 V1 验证链路迁移。评分/建表职责迁出天璇：天玑已独立为容器 macro-ji v1.0.0（T2 watchdog 接管验证链路），天璇不再内嵌 Brier 评分与 tianji 建表；同时标注迁移后残留的孤儿代码。
