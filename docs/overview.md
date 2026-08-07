@@ -1,6 +1,6 @@
 # 世界推演系统 · 总览
 
-> macro-scan v3.8.15（天枢）· macro-sim v2.0.23（天璇）· kaiyang v1.9.0（开阳）· macro-ji v1.0.0（天玑）· as-of 2026-08-06
+> macro-scan v3.8.15（天枢）· macro-sim **v2.0.24**（天璇）· kaiyang v1.9.0（开阳）· macro-ji v1.0.0（天玑）· as-of 2026-08-07
 >
 > **当前状态与待部署事项** → 见 [`HANDOVER.md`](../HANDOVER.md)
 > **权威版本记录** → 各子系统 CHANGELOG（本行仅总览快照，不断言版本；文档分治规范见 `docs/governance/document-governance.md`）
@@ -26,7 +26,7 @@ FRED / GPR / GDELT / 新闻（RSSHub :12000，crucix 独立项目·活跃运行 
                │ GRV告警时写 sim_trigger.json
                ▼
         ┌─────────────┐
-        │  macro-sim  │  仿真层（天璇）v2.0.23
+        │  macro-sim  │  仿真层（天璇）v2.0.24
         │              │  Monte Carlo×100 → 概率路径树 → ntfy手机
         └─────────────┘
                │ 落盘 data/*.json（只读契约文件）

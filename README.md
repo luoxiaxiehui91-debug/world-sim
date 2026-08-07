@@ -34,7 +34,7 @@ world-sim/
 ### macro-sim — 宏观演化仿真系统
 - 功能：基于当前宏观状态进行多智能体仿真，压力测试宏观假设路径
 - NAS 运行路径：`/vol2/1000/software/world-sim/macro-sim`（部署通道 = deploy.sh 仓库直构，2026-08-06 方案 A 收敛后）
-- 版本：`v2.0.23`（as-of 2026-08-06；权威版本记录见 [CHANGELOG.md](macro-sim/CHANGELOG.md)，本行仅导航不断言）
+- 版本：`v2.0.24`（as-of 2026-08-07；权威版本记录见 [CHANGELOG.md](macro-sim/CHANGELOG.md)，本行仅导航不断言）
 - 详见 [macro-sim/README.md](macro-sim/README.md)
 
 ### kaiyang — 可视化操作面板（开阳）

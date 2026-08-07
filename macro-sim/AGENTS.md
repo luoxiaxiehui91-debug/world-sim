@@ -4,12 +4,12 @@
 
 ## 项目概览
 
-世界推演系统仿真层（天璇）：12个宏观角色在月度时间步长上互动演化，输出概率路径树。
+世界推演系统仿真层（天璇）：**17个宏观角色**（12 金融 + 5 主权 S1-S5，A 类 08-07 激活）在月度时间步长上互动演化，输出概率路径树。
 
 **定位**：macro-scan（天枢）发现信号 → macro-sim（天璇）演化未来（不是推理，是演化）
 
-**当前版本**：v2.0.23（2026-08-04）  
-**主要变更**：D1/D4/D7/D12 P0 bug 修复；GRV 16+1维全部接入 MacroWorldState；B+A/NOVEL Sprint-1：SovereignAgent 基类+Board+EnergyGovSovereignAgent（A4）；Sprint-2：A2/A3/A6 soul 文件预位激活；慢变量 irp/ucri/gci 注入 MacroWorldState；D6 校准缓存（<7天跳过50步）；天玑迁出为独立容器 macro-ji v1.0.0（T2 watchdog 接管验证链路）；删除 run_scoring()/_TIANJI_DDL；sim_log.db 修复为文件
+**当前版本**：**v2.0.24**（2026-08-07）  
+**主要变更**：D1/D4/D7/D12 P0 bug 修复；GRV 全维度（18 项）接入 MacroWorldState；B+A/NOVEL Sprint-1：SovereignAgent 基类+Board+EnergyGovSovereignAgent（A4）；Sprint-2：soul 文件预位；慢变量 irp/ucri/gci 注入；D6 校准缓存；天玑迁出独立容器 macro-ji v1.0.0；**A 类激活（v2.0.24 前身 commit 4aaa5fde）：S1-S5 五主权 Agent 上线 + grv_dimensions 透传 + gm_resolve sovereign 分支 + board_baseline + red_line_triggers + 派系 bias_actions**；**calibrator 新旧代码覆盖修复（v2.0.24：D2/D3 fix 恢复生效 + _self_check 自检 + AGENT_NAME_HINT 防幻觉）**
 
 ---
 
@@ -21,9 +21,9 @@ macro-sim/                ← 本地工作目录（S:\world-sim\macro-sim\，git
 │   ├── agents/
 │   │   ├── base.py         # MacroAgent 基类 + AgentParams（三参数接口）
 │   │   ├── financial.py    # A1/A2/A3/A5/A9/A11/A12
-│   │   ├── geopolitical.py # A4/A7/A8
+│   │   ├── geopolitical.py # A7/A8（A4 已改由 sovereign.EnergyGovSovereignAgent 承担）
 │   │   ├── social.py       # A6/A10
-│   │   └── sovereign.py    # SovereignAgent 基类 + Board 关系矩阵 + EnergyGovSovereignAgent（A4）
+│   │   └── sovereign.py    # SovereignAgent 基类 + EnergyGovSovereignAgent（S5_saudi）+ red_line_triggers/派系 bias_actions（S1-S5）
 │   ├── world_state.py      # MacroWorldState + 出血规则 + 月度数据加载
 │   ├── simulation.py       # 主调度器（action_history 队列 + 延迟可见）
 │   ├── calibrator.py       # 前50步校准循环
@@ -31,7 +31,7 @@ macro-sim/                ← 本地工作目录（S:\world-sim\macro-sim\，git
 │   ├── llm_client.py       # LLM 调用封装（GLM / MiniMax）
 │   └── sim_log.py          # sim_log.db 持久化
 ├── config/
-│   └── agents.yaml         # 12个 Agent 配置（热更新）
+│   └── agents.yaml         # 17个 Agent 配置（A1-A12 金融 + S1-S5 主权，热更新）
 ├── docs/
 │   ├── design_v2.md        # v2 架构设计（已确认）
 │   └── PROGRESS.md         # 开发进度

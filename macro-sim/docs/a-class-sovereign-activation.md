@@ -1,7 +1,7 @@
 # A 类主权国家 Agent 激活 — 实施设计（走大路 · 治本方案）
 
 > 文档类别：意图（INTENT）· 设计
-> 状态：**设计修订中 v2.2（2026-08-07）**——v2.1 经 QClaw deepreview2（13 条）+ 我方代码级核实（补充 4 条）后，实施前置修复清单落档（§3.5）；原"已定稿待实施"因 soul 映射错乱 + 分类学 V3 讨论回炉；本次试点收窄为核心层 5 个
+> 状态：**已实施 v2.3（2026-08-07）**——§3.5 前置修复清单阻塞 8 项全部落地（commit 4aaa5fde）+ 完整验证（100 MC×24 步双场景，迭代 3 轮：2254741e/1188e25d/fa1f169f），真实场景路径分叉达成（A95%/B5%）；GRV=80 高压仍单路径（三选项待用户拍板）；v2.4 起按 §3.5 重要级收尾（B2 聚类判据等）
 > 关联：`agent_taxonomy.md`（18 Agent 蓝图 V2 + **v3 修订草案附录**）· `core/agents/sovereign.py`（SovereignAgent 基类 v1.0）
 > 解决：question `20260806-world-deduction-grv-mean-reversion-path-collapse`（路径分叉不可达）
 > 前置完成：SovereignAgent 基类（08-03）+ 5 个 soul 文件（v2.0.19-22）——**激活条件已成熟**（但见 §3.5：代码存在 17 项前置 gap，须先修后激活）
@@ -295,3 +295,4 @@ A1 美国 IMPOSE_SANCTIONS → Board(A1,A2) conflict↑ → A2 中国反制
 | 2026-08-07 | **v2 修订**：soul 映射修正（俄罗斯→A6_russia.yaml）+ A6_mideast 移除（转情境层，taxonomy §11.2）+ id 改 S{1..n} 前缀避开 A1-A12 撞车 + gm_resolve 共存细节补充 + 本次范围收窄核心层 5 个 | 待用户最终确认 |
 | 2026-08-07 | **v2.1 修订（QClaw 评审 9 条 + Board 动态化讨论）**：①S4 俄罗斯改基类/S5 沙特改 EnergyGov（P1-3）②A4 重叠处理：S5 激活后 A4 改 NO_ACTION（P1-4）③Board 重写为"GRV 派生基线 + 仿真内偏离衰减"（P1-2 + 用户两点）④最小验证函数（P2-6）⑤试点 activation_prob 0.30-0.35（P2-5）⑥验证加回归检查（P2-7）| 待用户最终确认 |
 | 2026-08-07 | **v2.2 修订（QClaw deepreview2 13 条核实 + 补充 4 条）**：17 项实施前置修复清单落档（§3.5）——D1 soul trigger 变量供给脱节（最严重）/ D2 red_lines 中文 eval 恒 False / A1+D3 两套白名单统一 / A4+A5 量纲转换 / B1 S 类 ctx 透传 / B3 试点激活参数 / A2 派系名 / B2 聚类判据 / C1-C3 / B4 技术债 / B5 能源维度统一 | 待用户最终确认 |
+| 2026-08-07 | **v2.3 实施完成（§3.5 阻塞 8 项落地，commit 4aaa5fde + 验证迭代 3 轮 2254741e/1188e25d/fa1f169f）**：world_state grv_dimensions + S 类 ctx 透传（D1/B1/C1）；gm_resolve sovereign 分支 + 动态白名单 + GRV delta 直写（A1/A4/D3/B3）；board_baseline.py（A5）；red_line_triggers + bias_actions（D2/A2）；agents.yaml S1-S5 注册 + A4 挂起 + A6 移除 soul（C2/C3/D4）；souls 重命名 S4_russia/S5_saudi。验证：真实场景分叉 A95%/B5%，GRV=80 单路径待拍板 | ✅ 已实施（2026-08-07） |
