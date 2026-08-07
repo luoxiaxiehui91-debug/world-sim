@@ -191,6 +191,9 @@ def _extract_key_events(history_list: list[list[dict]], run_indices: list[int]) 
         "A4": "能源国",    "A5": "机构",          "A6": "媒体",
         "A7": "新兴市场央行", "A8": "PBOC",       "A9": "美财政",
         "A10": "散户",     "A11": "ECB",          "A12": "BOJ",
+        # v2.2 A 类主权 Agent（S 编号体系）
+        "S1_usa": "美国",  "S2_china": "中国",    "S3_eu": "欧盟",
+        "S4_russia": "俄罗斯", "S5_saudi": "沙特-OPEC",
     }
 
     n_runs   = len(run_indices)
