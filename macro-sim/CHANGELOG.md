@@ -45,6 +45,24 @@
 - **rho sentiment↔liquidity**：-0.164 / -0.492 / -0.124（seed42/123 达标，seed7 超 |0.3| 线）
 - **残留（第 2 轮候选）**：sentiment seed 敏感（A3 激活路径贴边）；liquidity 仍钉 cap（压力窗口 EASE 不可达→无负写者，arch"clamp 对称必要非充分"应验）；credit 0.55 假健康改善中。候选方案 = arch P0-1b pre-clamp 引擎意图 delta 测量（snapshot 已有 delta 字段，一行切换，需三方确认口径）
 
+### 探针复测 v2.0.30b（P0-1b pre-clamp 测量，commit f7a78c249，seed 42/7/123 median）
+
+**arch P0-1"测量盲区是根"完全应验**——post-clamp 世界差值在 cap/floor 处恒 0 掩盖真相，pre-clamp 意图揭示：
+
+| 变量 | consistency median | n_active | m_v median | act_frac | silence | dead | 解读 |
+|------|-------------------|----------|------------|----------|---------|------|------|
+| market_sentiment | **0.538** | 39-43 ✅ | 0.078 | 80-88% | 2-10% | False | **一直有驱动**（post-clamp 假死实锤），方向一致率仍 <60% |
+| bank_credit_tightening | 0.467 | 13-15 ❌ | **0.0** | 26-31% | 51-55% | **True** | **A2 压力窗口真失活**（pre-clamp 意图=0，非 decay 抖动；post-clamp"假健康"=decay 0.97 伪装） |
+| liquidity_premium | 0.474 | 38-40 ✅ | 0.18 | 78-82% | 12-16% | False | 有驱动但方向一致率低 |
+
+- **加权一致率（sufficient-only）**：0.513 / 0.493 / 0.555 → **median 0.513 < 0.60 未达**（比 post-clamp 更真实——不是测量假象）
+- **rho sentiment↔liquidity**：-0.655 / -0.731 / -0.691 → **三 seed 全超 |0.3|**（pre-clamp 揭示强负共驱动，post-clamp 掩盖）
+- **新暴露真问题（第 3 轮候选）**：
+  1. **A2 压力窗口失活**——credit pre-clamp 意图=0（A3 activation 0.75 后 visible hf SHORT 触发减少 + A2 activation 0.70/info_delay 2 → TIGHTEN 极少触发），credit 校准无写者可依
+  2. **写者方向 vs target 系统性偏差**——sentiment/liquidity 有驱动但一致率 0.47-0.54：A1 CUT_25BP +0.30 sentiment 正写（P1-1 增强）与 target -0.5×grv 负期望**方向冲突**（政策对冲 vs 压力推低，target 只捕捉单方向），需引擎语义审计
+  3. **rho 强负**——sentiment/liquidity 共写者（A3/A12）反向运动与 target 结构冲突
+- **结论**：测量口径修正达成目标（真相揭示）；引擎真实动力学不达标，第 3 轮需先调查（A2 失活 + 写者方向审计）再修。按评审"无样本不验收"（credit dead）→ 保持 ship 阻塞状态，不调接受线
+
 
 
 **修改理由**：P1——引擎行为失衡修复（A+D 修复批次，calib-fix-review 终局 2026-08-08）。探针实证三变量三种死法（sentiment 钉死 -1.0 / liquidity cap 假收敛 / bank_credit 单向漂移），修复 damping 双压与 MONTHLY_SCALE 尺度失衡。
