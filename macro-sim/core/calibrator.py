@@ -114,7 +114,9 @@ TUNING_STATE_PATH = Path("/app/data/calib_tuning_state.json")
 # v2.0.31b R4a（A2 grv 触发线回退 0.6→0.8）→ bump 6。理由：反作弊纪律"触发线改动宁可 bump"；
 # R3 实证 0.6 与 0.8 零差异是单窗口结论（50 月，seed42），不能证明所有窗口/历史数据下等价；
 # 且无法排除未来某次 run_calibration 在 v5 下写过缓存、回退后命中即自证。bump 零成本，取安全侧。
-CACHE_VERSION = 6
+# v2.0.32 R4b（A2 info_delay 2→1）改变引擎动力学（行动频率上限 ~1/3→~1/2，冷却窗口减半）
+# → bump 7（防 <7 天命中 v6 引擎缓存自证；qa-r2 反作弊门）
+CACHE_VERSION = 7
 # 旧 ERROR_THRESHOLD 保留为常量（外部引用兼容；触发已改 per-var 相对度量）
 ERROR_THRESHOLD_LEGACY = 0.20
 

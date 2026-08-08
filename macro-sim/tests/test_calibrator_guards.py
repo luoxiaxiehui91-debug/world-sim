@@ -233,6 +233,21 @@ def test_s_class_attribution_mapping():
     assert counts["rate_limit"] + counts["activation_gate"] + counts["tighten_signal_false"] == counts["n_s"]
 
 
+# ── 7) R4b：A2 info_delay 2→1 配置锁定 ───────────────────
+
+def test_a2_info_delay_r4b():
+    """R4b 根治 credit 失活：config/agents.yaml 的 A2 info_delay 必须为 1。
+    回归锁定：若回退到 2，冷却上限 ~1/3 步 → credit n_active<20 + silence>0.50 复发。"""
+    import yaml
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cfg = yaml.safe_load(open(os.path.join(_root, "config", "agents.yaml"), encoding="utf-8"))
+    a2 = next(a for a in cfg["agents"] if a["id"] == "A2")
+    assert a2["info_delay"] == 1, f"A2 info_delay={a2['info_delay']} ≠ 1（R4b 回归！）"
+    assert a2["activation_prob"] == 0.70, "activation 0.70 冻结（R4b 只改 info_delay）"
+    # 契约参数不动：EPS_TGT 冻结、threshold 0.5
+    assert a2["params"]["threshold"] == 0.5
+
+
 # ── 主入口 ───────────────────────────────────────────────
 
 def main():
@@ -249,6 +264,7 @@ def main():
     _t("test_ease_layer1_ctx", test_ease_layer1_ctx)
     _t("test_classify_a2_state", test_classify_a2_state)
     _t("test_s_class_attribution_mapping", test_s_class_attribution_mapping)
+    _t("test_a2_info_delay_r4b", test_a2_info_delay_r4b)
     print(f"全部通过（{len(_PASSED)} 组，断言 ≥ 12 条）")
     return 0
 
