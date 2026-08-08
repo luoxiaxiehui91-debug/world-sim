@@ -33,6 +33,7 @@ from core.calibrator import (
     _extract_preclamp_delta,
     _step_eligibility,
     check_guards,
+    classify_a2_state,
 )
 
 _PASSED = []
@@ -150,7 +151,7 @@ def test_guard_c_bands():
     assert check_guards(churn, agents, ds, ts, n_steps=10)["C_tuning"]["pass"] is False, "churn>50 FAIL"
 
 
-# ── 5) A2 触发线 R3 回归 + EASE ①决策层 ──────────────────
+# ── 5) A2 触发线回归 + EASE ①决策层 ─────────────────────
 
 def _a2():
     return CommercialBankAgent(
@@ -159,16 +160,18 @@ def _a2():
     )
 
 
-def test_a2_grv_trigger_r3():
+def test_a2_grv_trigger_contract_line():
+    """触发线契约（R4a 回退后=0.8×0.5=0.4）：0.35 不触发（R3 候选 0.3 线已回退）、
+    0.45 触发、边界 0.4 严格 >。"""
     a2 = _a2()
     base = {"credit_spread": 200, "bank_credit_tightening": 0.3,
             "vix_stress": 0.1, "visible_actions": {}}
-    # R3 线 0.6×0.5=0.3：grv_stress=0.35（旧 0.4 线时代 HOLD）→ 必须 TIGHTEN
-    assert a2._decide_rules({**base, "grv_stress": 0.35}) == "TIGHTEN_CREDIT"
-    # grv_stress=0.25 <0.3 → 不收紧（ease 需 spread<250，此处 200 满足 → EASE 或 HOLD，但绝不 TIGHTEN）
-    assert a2._decide_rules({**base, "grv_stress": 0.25}) != "TIGHTEN_CREDIT"
-    # 边界 0.3 严格 >：不触发
-    assert a2._decide_rules({**base, "grv_stress": 0.3}) != "TIGHTEN_CREDIT"
+    # 0.35 ∈ (0.3, 0.4]：R3 候选线会触发，契约线 0.4 不触发 → 必须不收紧（回退实证）
+    assert a2._decide_rules({**base, "grv_stress": 0.35}) != "TIGHTEN_CREDIT"
+    # 0.45 > 0.4：契约线触发 → TIGHTEN
+    assert a2._decide_rules({**base, "grv_stress": 0.45}) == "TIGHTEN_CREDIT"
+    # 边界 0.4 严格 >：不触发（与 R3 的 0.3 边界语义一致）
+    assert a2._decide_rules({**base, "grv_stress": 0.4}) != "TIGHTEN_CREDIT"
 
 
 def test_a2_spread_trigger_unchanged():
@@ -191,6 +194,45 @@ def test_ease_layer1_ctx():
     assert a2._decide_rules(ctx) == "EASE_CREDIT", "①决策层 EASE 可达性必须成立"
 
 
+# ── 6) R4a：S 类归因 ─────────────────────────────────────
+
+
+def test_classify_a2_state():
+    """R4a S 类归因三分类（纯函数）：冷却/激活门/决策无信号/实际行动残差。"""
+    # 冷却中（countdown>0）→ rate_limit（info_delay 机制）
+    assert classify_a2_state(2, False, False) == "rate_limit"
+    assert classify_a2_state(1, False, True) == "rate_limit", "冷却优先于一切"
+    # 未冷却 + 实际行动 → acted_other（A2 写了其他 var，对本 var 未写）
+    assert classify_a2_state(0, True, True) == "acted_other"
+    # 未冷却 + 未行动 + 通过激活门 → tighten_signal_false（决策层 HOLD）
+    assert classify_a2_state(0, False, True) == "tighten_signal_false"
+    # 未冷却 + 未行动 + 未通过激活门 → activation_gate（随机门）
+    assert classify_a2_state(0, False, False) == "activation_gate"
+
+
+def test_s_class_attribution_mapping():
+    """R4a S 类→三分类计数语义（与 run_probe 落盘口径一致）：S 类=|t|≥EPS_TGT ∧ |d|<EPS_ACT。"""
+    from core.calibrator import EPS_TGT, EPS_ACT
+    # 构造模拟步序列（a2_state 已由 classify_a2_state 生成）
+    steps = [
+        {"d": 0.001, "t": 0.10, "state": "rate_limit"},             # S → rate_limit
+        {"d": 0.001, "t": 0.10, "state": "activation_gate"},        # S → activation_gate
+        {"d": 0.001, "t": -0.10, "state": "tighten_signal_false"},  # S → tighten_signal_false
+        {"d": 0.02, "t": 0.10, "state": "acted_other"},             # T 类不计入 S
+        {"d": 0.001, "t": 0.01, "state": "activation_gate"},        # |t|<EPS_TGT → N 类不计入
+    ]
+    counts = {"activation_gate": 0, "rate_limit": 0, "tighten_signal_false": 0,
+              "acted_other": 0, "n_s": 0}
+    for s in steps:
+        if abs(s["t"]) >= EPS_TGT and abs(s["d"]) < EPS_ACT:
+            counts["n_s"] += 1
+            counts[s["state"]] += 1
+    assert counts["n_s"] == 3, "只有前 3 步是 S 类"
+    assert counts["rate_limit"] == 1 and counts["activation_gate"] == 1
+    assert counts["tighten_signal_false"] == 1 and counts["acted_other"] == 0
+    assert counts["rate_limit"] + counts["activation_gate"] + counts["tighten_signal_false"] == counts["n_s"]
+
+
 # ── 主入口 ───────────────────────────────────────────────
 
 def main():
@@ -202,9 +244,11 @@ def main():
     _t("test_guard_a_pass_and_fail", test_guard_a_pass_and_fail)
     _t("test_guard_b_collapse", test_guard_b_collapse)
     _t("test_guard_c_bands", test_guard_c_bands)
-    _t("test_a2_grv_trigger_r3", test_a2_grv_trigger_r3)
+    _t("test_a2_grv_trigger_contract_line", test_a2_grv_trigger_contract_line)
     _t("test_a2_spread_trigger_unchanged", test_a2_spread_trigger_unchanged)
     _t("test_ease_layer1_ctx", test_ease_layer1_ctx)
+    _t("test_classify_a2_state", test_classify_a2_state)
+    _t("test_s_class_attribution_mapping", test_s_class_attribution_mapping)
     print(f"全部通过（{len(_PASSED)} 组，断言 ≥ 12 条）")
     return 0
 

@@ -109,10 +109,12 @@ PROBE_PATH      = Path("/app/data/calib_probe.json")
 TUNING_STATE_PATH = Path("/app/data/calib_tuning_state.json")
 # 缓存版本：C1-1a/C3-3a 后评分口径改变，旧缓存（无 version 或 version<2）不可复用；
 # v2.0.29 A+D 修复（damping floor + MONTHLY_SCALE 0.12→0.25）改变引擎动力学 → bump 3；
-# v2.0.30 P0 修复（clamp 对称 + EASE 阈值放宽/幅度对称 + 冷却 + A1/A3 写者结构）
-# 再次改变引擎动力学 → bump 4（旧缓存全部失效）；
-# v2.0.31 R3（A2 grv 触发线 0.8→0.6）再次改变引擎动力学 → bump 5（防 <7 天命中旧引擎缓存）
-CACHE_VERSION = 5
+# v2.0.30 P0 修复（clamp 对称 + EASE 阈值放宽/幅度对称 + 冷却 + A1/A3 写者结构）→ bump 4；
+# v2.0.31 R3（A2 grv 触发线 0.8→0.6）再次改变引擎动力学 → bump 5（防 <7 天命中旧引擎缓存）；
+# v2.0.31b R4a（A2 grv 触发线回退 0.6→0.8）→ bump 6。理由：反作弊纪律"触发线改动宁可 bump"；
+# R3 实证 0.6 与 0.8 零差异是单窗口结论（50 月，seed42），不能证明所有窗口/历史数据下等价；
+# 且无法排除未来某次 run_calibration 在 v5 下写过缓存、回退后命中即自证。bump 零成本，取安全侧。
+CACHE_VERSION = 6
 # 旧 ERROR_THRESHOLD 保留为常量（外部引用兼容；触发已改 per-var 相对度量）
 ERROR_THRESHOLD_LEGACY = 0.20
 
@@ -227,6 +229,33 @@ def _eligible_for_weighted(pv: dict) -> bool:
         and not pv.get("dead", False)
         and pv.get("silence_frac", 1.0) <= 0.50
     )
+
+
+def classify_a2_state(countdown_before: int, a2_acted: bool, a2_decided: bool) -> str:
+    """R4a（qa-r2b follow-up）：A2 决策路径 why-no-action 三分类（S 类步归因用）。
+
+    输入（每步可观测状态）：
+      countdown_before: 步首 activation_countdown（>0 = 冷却中，模型在步内消费随机数，
+                        无法事后回放，必须在 step() 前读）
+      a2_acted:         本步 A2 是否实际行动（snapshot["actions"] 有 A2 条目）
+      a2_decided:       本步 A2 是否通过激活门（decision_trace[-1] 含 A2——只记
+                        通过激活/forced 的 Agent）
+    返回三分类 + acted_other 残差：
+      rate_limit           = 步首冷却中（activation_countdown>0，含 HOLD 后冷却）→
+                             info_delay/冷却 机制（R4b info_delay 2→1 决策依据）
+      acted_other          = A2 实际行动但未写本 var（仅 sentiment 可能：EASE 写 lp 不写
+                             sentiment）——非 A2 门控问题，不计入三分类
+      tighten_signal_false = 通过激活门但决策层返回 HOLD（tighten/ease 均无信号）→
+                             决策规则结构错配（level-vs-delta）
+      activation_gate      = 未冷却且未通过激活随机门 → activation_prob 机制
+    """
+    if countdown_before > 0:
+        return "rate_limit"
+    if a2_acted:
+        return "acted_other"
+    if a2_decided:
+        return "tighten_signal_false"
+    return "activation_gate"
 
 
 def _step_eligibility(sim_delta: float, tgt: float) -> str:
@@ -566,6 +595,19 @@ def run_probe(
     calibration_data = history[-probe_steps:]
     baseline_row     = history[-(probe_steps + 1)] if len(history) > probe_steps else history[0]
 
+    # R4a（qa-r2b advisory ④）：grv 触发线窗口统计落盘为机读字段——防止未来再靠散文判断
+    # "触发线改动有没有意义"。grv_stress = max(0,(grv-50)/50)（与 get_agent_context 同口径）；
+    # 契约线 0.4 vs R3 候选 0.3。若 (0.3,0.4] 月数≈0 → 触发线下探在窗口内不可判别（R3 教训）。
+    _grv_stress_list = [max(0.0, (r.get("grv", 50) - 50.0) / 50.0) for r in calibration_data]
+    grv_window_stats = {
+        "n_months": len(_grv_stress_list),
+        "grv_stress_gt_04": sum(1 for s in _grv_stress_list if s > 0.4),
+        "grv_stress_03_04": sum(1 for s in _grv_stress_list if 0.3 < s <= 0.4),
+        "grv_stress_le_03": sum(1 for s in _grv_stress_list if s <= 0.3),
+        "note": "grv_stress=max(0,(grv-50)/50)；契约触发线 0.4（*0.8），R3 候选 0.3（*0.6）；"
+                "(0.3,0.4] 月数≈0 说明触发线下探在窗口内不可判别",
+    }
+
     agents, _global_cfg = load_agents(config_path)
     # 校准期 S 类挂起（与 run_calibration 同规则）
     for _aid, _agent in agents.items():
@@ -594,6 +636,9 @@ def run_probe(
     step_records = []                                # 全部 delta 步（i/grv_delta/cs_delta/t10y2y_delta/a1/a3/per_var）
 
     for i, row in enumerate(calibration_data):
+        # R4a：A2 决策路径归因（S 类 why-no-action）——记录步首冷却状态（激活门/冷却在
+        # model.step 内消费随机数，无法事后回放，必须在步前读 countdown）
+        a2_countdown_before = agents["A2"].activation_countdown if "A2" in agents else 0
         exogenous_inject = {
             k: v for k, v in row.items()
             if k in EXOGENOUS_VARS and hasattr(model.world, k)
@@ -602,6 +647,12 @@ def run_probe(
         simulated_values = {k: snapshot.get(k, 0.0) for k in ERROR_WEIGHTS}
         if snapshot.get("actions", {}).get("A2") == "EASE_CREDIT":
             ease_decisions_main += 1
+
+        # R4a：A2 本步是否通过激活门（decision_trace 只记通过激活/forced 的 Agent）、
+        # 是否实际行动（snapshot actions 只记非 NO_ACTION）。三分类判定（S 类步用）：
+        a2_decided = bool(model.decision_trace and "A2" in model.decision_trace[-1])
+        a2_acted = bool(snapshot.get("actions", {}).get("A2"))
+        a2_state = classify_a2_state(a2_countdown_before, a2_acted, a2_decided)
 
         prev_row = calibration_data[i - 1] if i > 0 else baseline_row
         endogenous_targets = _derive_endogenous_targets(prev_row, row)
@@ -630,6 +681,7 @@ def run_probe(
             "t10y2y_delta": round(t10y2y_delta_i, 4),
             "a1": a1_i,
             "a3": a3_i,
+            "a2_state": a2_state,           # R4a：A2 决策路径归因（rate_limit/activation_gate/tighten_signal_false/acted_other）
             "per_var": {},
         }
         for v in ERROR_WEIGHTS:
@@ -660,7 +712,8 @@ def run_probe(
 
     # 统计
     probe = {"steps": probe_steps, "seed": seed, "n_delta_steps": len(delta_by_var[list(ERROR_WEIGHTS)[0]]),
-             "per_var": {}, "rho": {}, "p90_probe": 0.0, "generated": datetime.now().isoformat()}
+             "per_var": {}, "rho": {}, "p90_probe": 0.0, "generated": datetime.now().isoformat(),
+             "grv_window_stats": grv_window_stats}
     for v in ERROR_WEIGHTS:
         ds = delta_by_var[v]
         es = err_by_var[v]
@@ -699,6 +752,33 @@ def run_probe(
 
         n_delta = len(ds) if ds else 1
         sufficient = len(pairs) >= MIN_N_ACTIVE      # P0-1：样本门槛（默认 20）
+
+        # R4a（qa-r2b follow-up）：S 类步 why-no-action 归因——对每个 S 类步（|t|≥EPS_TGT ∧
+        # |d|<EPS_ACT），按 A2 决策路径归因三分类。目的：区分"level-vs-delta 决策规则错配"
+        # vs "info_delay 冷却/激活门陈旧"两机制，为 R4b info_delay 2→1 决策提供数据：
+        #   rate_limit 占比高 → info_delay/冷却 是根（A2 被冷却锁死）
+        #   tighten_signal_false 占比高 → 决策规则结构错配（通过了激活门但规则无信号）
+        # 对 sentiment/liquidity 为"A2 视角"归因（非全写者）；acted_other 表示 A2 实际行动
+        # 但未写本 var（仅 sentiment 可能：A2 EASE 写 lp 不写 sentiment）——不计入三分类。
+        _s_counts = {"activation_gate": 0, "rate_limit": 0, "tighten_signal_false": 0, "acted_other": 0, "n_s": 0}
+        for _rec in step_records:
+            _d = _rec["per_var"][v]["d"]
+            _t = _rec["per_var"][v]["t"]
+            if abs(_t) >= EPS_TGT and abs(_d) < EPS_ACT:
+                _s_counts["n_s"] += 1
+                _st = _rec.get("a2_state", "activation_gate")
+                if _st in _s_counts:
+                    _s_counts[_st] += 1
+                else:
+                    _s_counts["activation_gate"] += 1  # 未知状态兜底
+        _n_s = _s_counts["n_s"]
+        s_class_attribution = {
+            "activation_gate": round(_s_counts["activation_gate"] / _n_s, 3) if _n_s else None,
+            "rate_limit": round(_s_counts["rate_limit"] / _n_s, 3) if _n_s else None,
+            "tighten_signal_false": round(_s_counts["tighten_signal_false"] / _n_s, 3) if _n_s else None,
+            "acted_other": round(_s_counts["acted_other"] / _n_s, 3) if _n_s else None,
+            "n_s": _n_s,
+        }
         probe["per_var"][v] = {
             "m_v": round(m_v, 5),                       # median|sim_delta| → 死变量判定/T_v 标定
             "std_delta": round(statistics.pstdev(ds), 5) if len(ds) > 1 else 0.0,
@@ -723,6 +803,13 @@ def run_probe(
                 "dead": m_v < DEAD_M_V and clamp_frac < 0.3,
                 "silence_frac": (silence_by_var[v] / n_delta) if n_delta else 1.0,
             }),
+            # R4a：S 类 why-no-action 归因（A2 决策路径三分类 + acted_other 残差）
+            "s_class_attribution": s_class_attribution,
+            # R4a（data-r2 零膨胀判别）：target 非零月占比 + target SD——区分"写者失联
+            # （target 非零但引擎零响应）" vs "稀释（target 大量为 0，一致率被 N 类摊薄）"。
+            # target 是外生确定性函数，此字段离线可复算，供验收脚本与 rho(target) 联合判读。
+            "target_nonzero_frac": round(sum(1 for t in tgt_by_var[v] if abs(t) >= EPS_TGT) / n_delta, 3) if n_delta else 0.0,
+            "target_sd": round(statistics.pstdev(tgt_by_var[v]), 4) if len(tgt_by_var[v]) > 1 else 0.0,
         }
 
     # ρ 相关矩阵（sentiment/lp 双写检测）

@@ -65,15 +65,13 @@ class CommercialBankAgent(MacroAgent):
         hf_action  = visible.get("hedge_fund", "HOLD")
         retail_act = visible.get("retail", "HOLD")
 
-        # R3（v2.0.31，arch 终局候选①）：grv 触发线 0.8→0.6（grv_stress>0.4→>0.3，
-        # GRV>70→>65）——pre-clamp 探针实证 A2 压力窗口真失活（credit m_v=0.0/dead=True，
-        # act_frac 0.27<0.30 但 std_delta 0.156 证明幅度正常=触发频率问题非幅度）。
-        # 原 0.8 是"危机线"，miss 中度压力（cs 月涨 30bp target+0.36 而 spread<325 无反应）
-        # = level 规则与 delta target 语义错配；0.6 抓 GRV>65 中度压力，与 ease 线
-        # grv_stress<0.25 无重叠（HOLD 带 GRV 62.5-65 合理）。
+        # R4a（v2.0.31b，契约回退）：grv 触发线回退 0.6→0.8（grv_stress>0.3→>0.4）。
+        # R3 裁决：数据不可判别——50 月窗口 grv_stress>0.4 已 34 个月、新线 0.6 只新增
+        # (0.3,0.4] 3 个月，seed42 实测零差异 → 无证据支撑偏离契约，回退契约值 0.4。
+        # 0.6 记为"待验证候选"：R4b 修 A2 结构（info_delay/activation/决策规则）时一并重估。
         tighten_signal = (
             spread > 250 + p.threshold * 150
-            or grv_stress > p.threshold * 0.6
+            or grv_stress > p.threshold * 0.8
             or vix_stress > p.threshold * 0.7
             or hf_action == "SHORT_MARKET"
             or retail_act == "PANIC_SELL"
@@ -82,7 +80,7 @@ class CommercialBankAgent(MacroAgent):
         # 原 tightening<threshold×0.3(=0.15) 一旦收紧就回不来（探针实测 tightening
         # 锁死 0.97，EASE 决策层永假=结构性不可达）→ 放宽至 threshold×1.0(=0.5)、
         # spread<250、grv_stress<threshold×0.5(=0.25)。
-        # 与 tighten_signal 无重叠冲突：grv 触发线 0.6、spread 触发线 400、visible 挡死保留。
+        # 与 tighten_signal 无重叠冲突：grv 触发线 0.8（契约值，R4a 回退）、spread 触发线 400、visible 挡死保留。
         ease_signal = (
             spread < 250
             and tightening < p.threshold * 1.0
