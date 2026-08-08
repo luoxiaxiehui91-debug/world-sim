@@ -667,6 +667,10 @@ def run_probe(
         # R4a：A2 决策路径归因（S 类 why-no-action）——记录步首冷却状态（激活门/冷却在
         # model.step 内消费随机数，无法事后回放，必须在步前读 countdown）
         a2_countdown_before = agents["A2"].activation_countdown if "A2" in agents else 0
+        # R4c-B 补验①：记录 A2 决策时看到的 vix（Phase 1 决策发生在 step 内，vix 在
+        # step 后经 bleed/inject 才变 → 步前 world.vix == 决策时 vix）。方向闸危机豁免
+        # 阈值 vix_stress>0.5（vix>33）需此数据判定，离线不可复算（bleed 使 vix 漂移）。
+        vix_before = model.world.vix
         exogenous_inject = {
             k: v for k, v in row.items()
             if k in EXOGENOUS_VARS and hasattr(model.world, k)
@@ -710,6 +714,8 @@ def run_probe(
             "a1": a1_i,
             "a3": a3_i,
             "a2_state": a2_state,           # R4a：A2 决策路径归因（rate_limit/activation_gate/tighten_signal_false/acted_other）
+            "vix": round(vix_before, 2),                        # R4c-B 补验①：决策时 vix（bleed 漂移不可离线复算）
+            "vix_stress": round(max(0.0, (vix_before - 18.0) / 30.0), 3),  # 与 get_agent_context 同口径
             "per_var": {},
         }
         for v in ERROR_WEIGHTS:
