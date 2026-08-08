@@ -550,7 +550,15 @@ class MacroSimModel:
                     setattr(self.world, key, max(0.0, min(1.0, current + val)))
             else:
                 current = getattr(self.world, key, 0.0)
-                setattr(self.world, key, max(0.0, min(1.0, current + val)))
+                # C3-3a（2026-08-08 终局裁决）：em_capital_outflow 对称 clamp。
+                # 结构自锁根因：clamp[0,1] + target 可负（grv×0.4−t10y2y×0.3 范围 -0.7~0.7）
+                # + CAPITAL_CONTROLS 自举阈值 0.5 不可达 → 负 target 月误差恒=|target|，LLM 永远修不好。
+                # 模式照抄 china_credit_impulse 负区间分支（L547-548）。bank_credit/liquidity
+                # 保持 [0,1]（方向语义为 level，且负 target 罕见——见 OPEN-DECISIONS 独立病灶跟踪）。
+                if key == "em_capital_outflow":
+                    setattr(self.world, key, max(-1.0, min(1.0, current + val)))
+                else:
+                    setattr(self.world, key, max(0.0, min(1.0, current + val)))
 
     def run(self, inject_sequence: list[dict] = None) -> list[dict]:
         """
