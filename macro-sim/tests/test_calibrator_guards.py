@@ -309,13 +309,15 @@ def _a2_ctx(spread=200, tightening=0.3, grv=0.1, vix=0.1, cs_delta=0.0, hf="HOLD
 
 
 def test_direction_gate():
-    """R4d 方向闸：cs_delta<0（target 期望 EASE）时收紧即错，终裁删除危机豁免。"""
+    """R4d 方向闸：cs_delta<0（target 期望 EASE）时收紧即错；终裁回退预案=vix>1.0 极端豁免。"""
     a2 = _a2()
     # cs_delta<0 + grv 高压 → 方向闸挡死（不收紧）——R4b 冲突步的修复
     assert a2._decide_rules(_a2_ctx(grv=0.6, cs_delta=-10)) != "TIGHTEN_CREDIT"
-    # cs_delta<0 + vix 高压 + hf SHORT → 仍不收紧（豁免已删除，vix/hf 不再例外）
+    # cs_delta<0 + vix=1.0（≤1.0 极端线）+ hf SHORT → 仍不收紧（hf 不再豁免）
     assert a2._decide_rules(_a2_ctx(grv=0.6, vix=1.0, cs_delta=-10, hf="SHORT_MARKET")) != "TIGHTEN_CREDIT"
     assert a2._decide_rules(_a2_ctx(grv=0.6, vix=1.0, cs_delta=-10, retail="PANIC_SELL")) != "TIGHTEN_CREDIT"
+    # cs_delta<0 + vix>1.0（vix>48 极端危机，终裁回退预案）→ 允许收紧
+    assert a2._decide_rules(_a2_ctx(grv=0.6, vix=1.5, cs_delta=-10)) == "TIGHTEN_CREDIT"
     # cs_delta>0 + grv 高压 → 收紧（方向正确，保留）
     assert a2._decide_rules(_a2_ctx(grv=0.6, cs_delta=10)) == "TIGHTEN_CREDIT"
     # cs_delta 中性（|d|<2.5bp）+ grv 高压 → 收紧（生产路径逐字节不变）
