@@ -688,82 +688,122 @@ def _run_ease_probe(
     config_path: str,
     ease_initial_credit: float = 0.3,
 ) -> dict:
-    """EASE 定向探针两级（ship 闸，calib-fix-review 终局 2026-08-08）：
-    验证 A2 EASE_CREDIT 在引擎中可达且写层落地。校准对 bank_credit_tightening
-    的负向调节依赖 EASE（唯一负写者），若决策层永假或 clamp 吃写入，校准结果不可信。
+    """EASE 定向探针两级（ship 闸，QA R1 终局版 2026-08-08）。
 
-    两级判定：
-      ① 决策层：EASE_CREDIT 被选中步数 >0（ease_signal ∧ ¬tighten_signal 可达性，
-        financial.py if-elif tighten 先判，受压窗口 A3 SHORT/A6 PANIC 可见即挡死 EASE）
-      ② 写层：EASE 选中步中 bank_credit_tightening 快照差 ≤ -0.005 落地
+    v2.0.30 重构：原实现用主探针真实历史窗口（压力期）跑仿真，A3 SHORT/A6 PANIC
+    可见 → tighten 先判挡死 EASE，探针 FAIL 是**环境挡死**非引擎能力缺失
+    （构造自证的另一半，QA R1 抓的）。重构为两级**能力验证**（QA R1 裁决）：
+      ① 决策层合成 ctx 单测：构造满足 ease_signal 且不触发 tighten_signal 的 ctx
+        （spread=150<250 / tightening=0.3<0.5 / grv=0.1<0.25 / vix=0.1 / 无 visible）
+        → A2._decide_rules 必须返回 EASE_CREDIT（函数级可达性，不依赖仿真路径）
+      ② 写层宽松窗口仿真：合成温和外生（grv≈0.15 / spread≈150 / vix≈15）跑 50 步，
+        credit=0.3 起步 → EASE 选中且负 delta ≤-0.005 落地（引擎级落地能力）
 
-    ship 闸：①≥1 且 ②≥1 → PASS（EASE 可达，ship 放行）；
-      ①=0 → FAIL（ease_signal 永假，EASE 判据降级——校准不阻塞但 ship 阻塞，拆三条件：
-      spread<250 / tightening<threshold×1.0 / grv_stress<threshold×0.5）；
-      ①≥1 但 ②=0 → FAIL（写层截断负写入，ship 阻塞）。
+    ship 闸：① 且 ② → PASS（EASE 能力具备，ship 放行）；
+      ① FAIL → 决策层永假（ease_signal 三条件：spread<250 / tightening<thr×1.0 /
+      grv_stress<thr×0.5，或 tighten 先判/visible 挡死逻辑错误）；
+      ② FAIL → 写层负写入截断（clamp/衰减压掉）。
 
-    独立子探针：强制初始 bank_credit_tightening=0.3（v2.0.30 放宽后 0.3<0.5 满足
-    easing 前提，自证已解；保留前置正区起步以测"从正区降下来"的真实路径），
-    与主探针同历史窗口，不污染主探针统计。
+    独立子探针：合成窗口不污染主探针统计；credit 0.3 正区起步测真实落地路径。
     """
-    print(f"[calibrator] EASE 定向探针开始（{probe_steps} 步，初始 credit={ease_initial_credit}）...")
+    print(f"[calibrator] EASE 定向探针（两级能力验证，合成宽松窗口 {probe_steps} 步，初始 credit={ease_initial_credit}）...")
     agents, _global_cfg = load_agents(config_path)
     # 校准期 S 类挂起（与 run_probe 主探针同规则）
     for _aid, _agent in agents.items():
         if _aid.startswith("S"):
             _agent.activation_prob = 0.0
+    a2 = agents.get("A2")
 
-    initial_world = make_world_from_history_row(
-        calibration_data[0], baseline_row, label=calibration_data[0]["date"]
-    )
-    initial_world.total_cycles = probe_steps
-    # 前置：EASE 落地测真实路径——从正区起步（v2.0.30 对称 clamp 后 0 起步也能落地，
-    # 但 0.3 正区起步更接近校准实际场景，保留）
-    if hasattr(initial_world, "bank_credit_tightening"):
-        initial_world.bank_credit_tightening = ease_initial_credit
-    model = MacroSimModel(initial_world, agents=agents, use_llm=False)
+    # ① 决策层合成 ctx 单测（函数级可达性）
+    layer1_pass = False
+    layer1_decision = "HOLD"
+    if a2 is not None:
+        ctx = {
+            "credit_spread": 150.0,        # <250 easing ✓ / <400 tighten ✗
+            "bank_credit_tightening": ease_initial_credit,  # <0.5 easing ✓
+            "grv_stress": 0.1,             # <0.25 easing ✓ / <0.4 tighten ✗
+            "vix_stress": 0.1,             # <0.35 tighten ✗
+            "visible_actions": {},         # 无 hf SHORT / retail PANIC 挡死
+        }
+        layer1_decision = a2._decide_rules(ctx)
+        layer1_pass = layer1_decision == "EASE_CREDIT"
 
-    ease_decisions = 0    # ① 决策层
-    ease_landed = 0       # ② 写层落地
+    # ② 写层宽松窗口仿真（合成温和外生，测引擎级落地能力）
+    ease_decisions = 0    # ②决策层（合成窗口）
+    ease_landed = 0       # ②写层落地
     ease_deltas: list[float] = []
     prev_credit = ease_initial_credit
-    for row in calibration_data:
-        exogenous_inject = {
-            k: v for k, v in row.items()
-            if k in EXOGENOUS_VARS and hasattr(model.world, k)
-        }
-        snapshot = model.step(inject_world=exogenous_inject)
-        cur_credit = snapshot.get("bank_credit_tightening", prev_credit)
-        if snapshot.get("actions", {}).get("A2") == "EASE_CREDIT":
-            ease_decisions += 1
-            d = cur_credit - prev_credit
-            ease_deltas.append(round(d, 5))
-            if d <= -0.005:
-                ease_landed += 1
-        prev_credit = cur_credit
+    if a2 is not None and calibration_data:
+        # 以真实行做模板，外生键覆盖为温和值（grv 低/spread 温和/vix 低）
+        template = dict(calibration_data[0])
+        soft_row = {}
+        for _k, _v in template.items():
+            if _k in ("grv", "grv_energy", "us_china_grv"):
+                soft_row[_k] = 0.15
+            elif _k == "credit_spread":
+                soft_row[_k] = 150.0
+            elif _k == "t10y2y":
+                soft_row[_k] = 2.5
+            elif _k == "dff":
+                soft_row[_k] = 4.5
+            elif _k == "vix":
+                soft_row[_k] = 15.0
+            else:
+                soft_row[_k] = _v
+        soft_rows = [dict(soft_row) for _ in range(probe_steps)]
+        soft_baseline = dict(soft_row)
 
-    if ease_decisions >= 1 and ease_landed >= 1:
-        gate, advice = "PASS", "EASE 两级可达：校准负向调节有对应机制，ship 放行"
-    elif ease_decisions == 0:
+        initial_world = make_world_from_history_row(
+            soft_rows[0], soft_baseline, label="ease-probe-soft-window"
+        )
+        initial_world.total_cycles = probe_steps
+        if hasattr(initial_world, "bank_credit_tightening"):
+            initial_world.bank_credit_tightening = ease_initial_credit
+        model = MacroSimModel(initial_world, agents=agents, use_llm=False)
+
+        for row in soft_rows:
+            exogenous_inject = {
+                k: v for k, v in row.items()
+                if k in EXOGENOUS_VARS and hasattr(model.world, k)
+            }
+            snapshot = model.step(inject_world=exogenous_inject)
+            cur_credit = snapshot.get("bank_credit_tightening", prev_credit)
+            if snapshot.get("actions", {}).get("A2") == "EASE_CREDIT":
+                ease_decisions += 1
+                d = cur_credit - prev_credit
+                ease_deltas.append(round(d, 5))
+                if d <= -0.005:
+                    ease_landed += 1
+            prev_credit = cur_credit
+    else:
+        print("  [calibrator] EASE 子探针：A2 缺失或数据为空，跳过写层仿真")
+
+    # ship 闸（QA R1 两级能力验证）：①合成 ctx 决策层 且 ②宽松窗口写层落地
+    if layer1_pass and ease_landed >= 1:
+        gate, advice = "PASS", "EASE 两级能力验证通过：决策层可达且写层落地，ship 放行"
+    elif not layer1_pass:
         gate = "FAIL"
-        advice = ("决策层 EASE=0：ease_signal 永假（v2.0.30 放宽后条件 "
-                  "spread<250 ∧ tightening<threshold×1.0 ∧ grv_stress<threshold×0.5，"
-                  "且 tighten 先判挡死受压窗口）。EASE 判据降级——校准不阻塞但 ship 阻塞，"
-                  "拆三条件定位")
+        advice = ("①决策层 FAIL：合成 ctx（spread=150/tightening=0.3/grv=0.1/vix=0.1/无 visible）"
+                  "下 A2 未返回 EASE_CREDIT——ease_signal 三条件（spread<250 ∧ "
+                  "tightening<threshold×1.0 ∧ grv_stress<threshold×0.5）或 tighten 先判/visible "
+                  "挡死逻辑有误，拆条件定位")
     else:
         gate = "FAIL"
-        advice = (f"决策层 EASE={ease_decisions} 但写层落地={ease_landed}："
-                  f"写层负写入截断（clamp/衰减压掉）→ 校准负向调节不可达，ship 阻塞")
+        advice = (f"②写层 FAIL：合成窗口决策层 EASE={ease_decisions} 但落地={ease_landed}"
+                  f"（负 delta ≤-0.005 步数不足）——clamp/衰减压掉负写入，ship 阻塞")
 
     result = {
         "gate": gate,
+        "layer1_pass": layer1_pass,
+        "layer1_decision": layer1_decision,
         "ease_decisions": ease_decisions,
         "ease_landed": ease_landed,
         "ease_credit_deltas": ease_deltas,
         "initial_credit": ease_initial_credit,
         "advice": advice,
     }
-    print(f"[calibrator] EASE 定向探针：决策层={ease_decisions} 落地={ease_landed} → ship 闸 {gate}")
+    print(f"[calibrator] EASE 定向探针：①决策层={layer1_decision}(pass={layer1_pass}) "
+          f"②落地={ease_landed}/{ease_decisions} → ship 闸 {gate}")
     return result
 
 
