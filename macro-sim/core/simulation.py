@@ -531,8 +531,12 @@ class MacroSimModel:
 
     def _apply_delta(self, delta: dict):
         # 月度步长衰减因子；设计值 0.25（=1/4，GM规则按日度感觉设计），
-        # 实测 0.25 导致路径振荡，经验调至 0.12（见 CHANGELOG v2.0.1）
-        MONTHLY_SCALE = 0.12
+        # 实测 0.25 导致路径振荡，经验调至 0.12（见 CHANGELOG v2.0.1）。
+        # 2026-08-08 D 修复（calib-fix-review 终局）：0.12→0.25。
+        # 根因：MONTHLY_SCALE 只作用于 sentiment（apply_sentiment_delta 前乘），
+        # credit/liquidity 走 else 分支不经缩放 → sentiment delta 尺度小 8 倍，三变量三种死法。
+        # arch 拒 1.0（8 倍跳重演 v2.0.1 振荡史）；回退闸=预测回归振荡→回 0.12。
+        MONTHLY_SCALE = 0.25
         for key, val in delta.items():
             if key == "market_sentiment":
                 apply_sentiment_delta(self.world, val * MONTHLY_SCALE)

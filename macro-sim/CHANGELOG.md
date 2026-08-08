@@ -1,10 +1,48 @@
 # Changelog
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-08-06（记录类文档随部署持续更新）
+> 最后核对时间：2026-08-08（记录类文档随部署持续更新）
 
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+
+## v2.0.29 — 2026-08-08 (by WorkBuddy)
+
+**修改理由**：P1——引擎行为失衡修复（A+D 修复批次，calib-fix-review 终局 2026-08-08）。探针实证三变量三种死法（sentiment 钉死 -1.0 / liquidity cap 假收敛 / bank_credit 单向漂移），修复 damping 双压与 MONTHLY_SCALE 尺度失衡。
+
+### 修改
+
+- **`core/world_state.py`**（apply_sentiment_delta）
+  - **A 修复：damping 下限**。原 `1/(1+3|s|)` 在 s=-1 时压到 0.25 → 与 MONTHLY_SCALE 双压，sentiment 欠响应钉死 floor 根因。初版 floor 0.5 实测仍不足（贴边 54%>50%、正 delta 18%<20%），按终局裁决授权升 **A=1.0**（damping 恒 1，恢复不受压缩）
+- **`core/simulation.py`**（_apply_delta）
+  - **D 修复：MONTHLY_SCALE 0.12→0.25**。根因：MONTHLY_SCALE 只作用于 sentiment（apply_sentiment_delta 前乘），credit/liquidity 走 else 分支不经缩放 → sentiment delta 尺度小 8 倍。arch 拒 1.0（8 倍跳重演 v2.0.1 振荡史）；回退闸=预测回归振荡→回 0.12
+- **`core/calibrator.py`**
+  - **A2 写者补丁**：ERROR_VAR_WRITERS market_sentiment 清单补 A2（simulation.py:138 EASE_CREDIT 写 -0.08*m，原清单漏——守卫 B 判定不受影响但清单必须与 gm 规则一致）
+  - **EASE 定向探针两级（ship 闸）**：新增 `_run_ease_probe`——独立子探针强制初始 bank_credit_tightening=0.3（[0,1] clamp 吃 0 起步写入测不出落地），测 ①决策层 EASE_CREDIT 可达性 ②写层负 delta |Δ|≥0.005 落地；PASS=两级全过，FAIL=ship 阻塞（校准不阻塞）
+  - **探针增强**：per_var 加 `silence_frac`（S 类占比，D 触发条件 ①）；新增 `_print_d_trigger_check` 对照打印 D 触发条件（silence>50% / act<30% / m_v<0.005 死线 / 0.025-0.05 参考线）
+- **`VERSION`**：v2.0.27 → v2.0.29（补 v2.0.28 遗漏：v2.0.28 提交时未更新 VERSION/CHANGELOG，实际内容见 v2.0.28 条目下方 commit 32cb21586）
+
+### 验证
+
+- ✅ 本地 ast.parse 三文件语法 + import 冒烟（A2 写者补丁生效）
+- ✅ 容器 md5 三文件双端一致 + container import OK
+- ✅ 50 步探针复测（seed 42/7/123 三轮）：sentiment 一致率 0.385→~0.55（大幅改善）；bank_credit 0.55-0.61 边缘；liquidity 仍死（cap 假收敛，OPEN-DECISIONS 已登记引擎驱动链复核）；EASE ship 闸 FAIL（tightening 锁 0.97，实证另立 issue ③ TIGHTEN vs EASE 不对称）
+- ⚠️ **接受线未达**：加权一致率 0.51-0.55 < 60% → 按回退阶梯上报 ε_act 团队决议（见 OPEN-DECISIONS）
+
+## v2.0.28 — 2026-08-08 (by WorkBuddy) — 补录
+
+**修改理由**：P1——校准 C1-1a/C3-3a 改造（终局裁决 2026-08-07，commit 32cb21586）。此条目补录：原提交未更新 VERSION/CHANGELOG。
+
+### 修改
+
+- **`core/calibrator.py`**：delta 口径（sim_delta=now-last 比 target）、per-var 相对触发 |e|/|t|>0.5+限流 2 步、一致性率评分 score=100×Σw×rate、_step_eligibility 四类（N/U/S/T）、三守卫（A 活跃/B 塌缩/C 调参带）、run_probe 探针（写 calib_probe.json + target_scale 系数重标定）、趋势比率制、error_history 双口径字段、CACHE_VERSION=2
+- **`core/simulation.py`**：em_capital_outflow 对称 clamp（C3-3a，L551-553）
+- **`VERSION`**：应为 v2.0.28（本次补录时已升至 v2.0.29，见上）
+
+### 验证
+
+- ✅ 50 步探针实证：liquidity_premium 死变量（m_v=0, dead=True）；一致率全 <60%（0.44/0.48/0.50）；sentiment target_scale=0.053 实证系数无尺度依据；rho sentiment↔liquidity 负相关 -0.586
+- ✅ 部署：docker build macro-sim:latest → compose up --force-recreate → 容器内验证 import OK + 探针跑通
 
 ## v2.0.27 — 2026-08-08 (by WorkBuddy)
 
