@@ -67,12 +67,15 @@ class CommercialBankAgent(MacroAgent):
         # R4d：cs_delta 经 world 属性进 ctx（校准循环设置；非校准默认 0.0 → 生产路径不变）
         cs_delta   = ctx.get("credit_spread_delta", 0.0)
 
-        # R4d 方向对齐（docs/r4c-b-a2-direction-alignment.md §1.2 + 终裁：删除危机豁免）：
+        # R4d 方向对齐（docs/r4c-b-a2-direction-alignment.md §1.2 + 终裁回退预案）：
         # |cs_delta|≥2.5bp 对应 credit target |t|=|cs_signal×0.6|≥EPS_TGT(0.03)（同口径）。
-        # target_dir = ease：cs 回落（target 期望 EASE）→ 收紧即错，方向闸直接挡死；
-        # 终裁删除危机豁免——vix/hf/retail 不再例外（补验实测 vix 豁免 62% 架空方向闸）。
+        # target_dir = ease：cs 回落（target 期望 EASE）→ 收紧即错，方向闸挡死。
+        # R4d v1 曾删除危机豁免（终裁），实测 directional_ease 触发率仅 0.21-0.29 → 70-80%
+        # cs 回落步转 HOLD→S 类→silence 0.57>0.50 超线 → 按终裁回退预案启用 vix>1.0 极端豁免：
+        # cs 回落时收紧仅限 vix_stress>1.0（vix>48）极端危机；非极端 cs 回落仍挡死。
+        # （vix 经 bleed 漂移可达 vix≈168，极端豁免仍会触发，但占比可控）
         target_dir = "ease" if cs_delta < -2.5 else ("tighten" if cs_delta > 2.5 else "neutral")
-        tighten_ok = target_dir != "ease"
+        tighten_ok = (target_dir != "ease") or vix_stress > p.threshold * 2.0  # vix_stress>1.0
         tighten_signal = (
             spread > 250 + p.threshold * 150
             or grv_stress > p.threshold * 0.8
