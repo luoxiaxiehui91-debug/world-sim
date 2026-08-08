@@ -95,8 +95,9 @@ DELTA_DEAD = 0.05
 CALIB_LOG_PATH  = Path("/app/output/calibration_log.jsonl")
 PROBE_PATH      = Path("/app/data/calib_probe.json")
 TUNING_STATE_PATH = Path("/app/data/calib_tuning_state.json")
-# 缓存版本：C1-1a/C3-3a 后评分口径改变，旧缓存（无 version 或 version<2）不可复用
-CACHE_VERSION = 2
+# 缓存版本：C1-1a/C3-3a 后评分口径改变，旧缓存（无 version 或 version<2）不可复用；
+# v2.0.29 A+D 修复（damping floor + MONTHLY_SCALE 0.12→0.25）改变引擎动力学 → bump 3
+CACHE_VERSION = 3
 # 旧 ERROR_THRESHOLD 保留为常量（外部引用兼容；触发已改 per-var 相对度量）
 ERROR_THRESHOLD_LEGACY = 0.20
 
@@ -795,6 +796,7 @@ def run_calibration(
 
     # D6 fix: 尝试加载校准缓存（v2.2 从旧版移植；<7 天直接跳过 50 步校准）
     # C1-1a/C3-3a：缓存版本升级到 CACHE_VERSION=2，旧缓存（评分口径不同）不可复用
+    # v2.0.29 A+D：bump 3（引擎动力学改变，旧缓存失效——防 <7 天命中旧引擎缓存）
     _cache_path = Path("/app/data/calibration_cache.json")
     try:
         if _cache_path.exists():
