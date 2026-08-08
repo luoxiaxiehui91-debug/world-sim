@@ -110,8 +110,9 @@ TUNING_STATE_PATH = Path("/app/data/calib_tuning_state.json")
 # 缓存版本：C1-1a/C3-3a 后评分口径改变，旧缓存（无 version 或 version<2）不可复用；
 # v2.0.29 A+D 修复（damping floor + MONTHLY_SCALE 0.12→0.25）改变引擎动力学 → bump 3；
 # v2.0.30 P0 修复（clamp 对称 + EASE 阈值放宽/幅度对称 + 冷却 + A1/A3 写者结构）
-# 再次改变引擎动力学 → bump 4（旧缓存全部失效）
-CACHE_VERSION = 4
+# 再次改变引擎动力学 → bump 4（旧缓存全部失效）；
+# v2.0.31 R3（A2 grv 触发线 0.8→0.6）再次改变引擎动力学 → bump 5（防 <7 天命中旧引擎缓存）
+CACHE_VERSION = 5
 # 旧 ERROR_THRESHOLD 保留为常量（外部引用兼容；触发已改 per-var 相对度量）
 ERROR_THRESHOLD_LEGACY = 0.20
 
@@ -212,6 +213,20 @@ def _extract_preclamp_delta(snapshot: dict) -> dict:
             d = d * MONTHLY_SCALE
         out[v] = round(d, 5)
     return out
+
+
+def _eligible_for_weighted(pv: dict) -> bool:
+    """R3（v2.0.31，qa-r2b blocking #2）：变量可否计入加权一致率与合并 CI。
+
+    修复前仅按 sufficient 过滤（n_active≥20），dead=True 或 silence_frac>0.50 的
+    变量若碰巧 n_active≥20（大量微小/反向激活），仍会以噪声样本投票=加权自证。
+    必须同时满足：sufficient ∧ 非 dead ∧ silence_frac≤0.50 才可入池。
+    """
+    return bool(
+        pv.get("sufficient", False)
+        and not pv.get("dead", False)
+        and pv.get("silence_frac", 1.0) <= 0.50
+    )
 
 
 def _step_eligibility(sim_delta: float, tgt: float) -> str:
@@ -572,6 +587,11 @@ def run_probe(
     all_pairs    = {v: [] for v in ERROR_WEIGHTS}   # (d, t) 所有步（ρ 矩阵用）
     ease_decisions_main = 0   # 主探针顺带观察：A2 选中 EASE_CREDIT 的步数（ship 闸以子探针为准）
     silence_by_var = {v: 0 for v in ERROR_WEIGHTS}  # S 类计数（D 触发条件 ① silence_frac>50%）
+    # R3（v2.0.31）：per-step 元数据持久化（qa-r2b blocking #1）——grv↑/↓ 分桶、
+    # policy_hedge_frac（A1 CUT 正写 vs target 负期望）、A3_bounce_frac（45% 超卖反弹）、
+    # rho(sim,target) 均需逐步对齐；steps 数组供验收脚本重建守卫/离线基线，杜绝口径分叉。
+    t_meta = {v: [] for v in ERROR_WEIGHTS}         # T 类步元数据（与 active_pairs[v] 对齐）
+    step_records = []                                # 全部 delta 步（i/grv_delta/cs_delta/t10y2y_delta/a1/a3/per_var）
 
     for i, row in enumerate(calibration_data):
         exogenous_inject = {
@@ -595,9 +615,27 @@ def run_probe(
         sim_delta = _extract_preclamp_delta(snapshot)
         prev_simulated = simulated_values
 
+        # R3：逐步元数据（grv/cs/t10y2y 变化符号 + A1/A3 行动，与 delta 步对齐）
+        grv_delta_i    = row.get("grv", 50) - prev_row.get("grv", 50)
+        cs_delta_i     = row.get("credit_spread", 250) - prev_row.get("credit_spread", 250)
+        t10y2y_delta_i = row.get("t10y2y", -10) - prev_row.get("t10y2y", -10)
+        actions_i = snapshot.get("actions", {}) or {}
+        a1_i = actions_i.get("A1", "HOLD")
+        a3_i = actions_i.get("A3", "HOLD")
+
+        step_record = {
+            "i": i,
+            "grv_delta": round(grv_delta_i, 4),
+            "cs_delta": round(cs_delta_i, 4),
+            "t10y2y_delta": round(t10y2y_delta_i, 4),
+            "a1": a1_i,
+            "a3": a3_i,
+            "per_var": {},
+        }
         for v in ERROR_WEIGHTS:
             d = sim_delta[v]
             t = endogenous_targets[v]
+            step_record["per_var"][v] = {"d": d, "t": round(t, 5)}
             delta_by_var[v].append(d)
             tgt_by_var[v].append(t)
             level_by_var[v].append(simulated_values[v])   # P0-1：clamp_frac 统计用
@@ -605,6 +643,11 @@ def run_probe(
             cls = _step_eligibility(d, t)
             if cls == "T":
                 active_pairs[v].append((d, t))
+                t_meta[v].append({
+                    "grv_sign": "up" if grv_delta_i > 0 else ("down" if grv_delta_i < 0 else "flat"),
+                    "a1": a1_i,
+                    "a3": a3_i,
+                })
                 err_by_var[v].append(abs(d - t) * (1.5 if d * t < 0 else 1.0))
             elif cls == "N":
                 err_by_var[v].append(0.0)
@@ -613,6 +656,7 @@ def run_probe(
             else:  # S
                 err_by_var[v].append(abs(t))
                 silence_by_var[v] += 1
+        step_records.append(step_record)
 
     # 统计
     probe = {"steps": probe_steps, "seed": seed, "n_delta_steps": len(delta_by_var[list(ERROR_WEIGHTS)[0]]),
@@ -631,6 +675,28 @@ def run_probe(
         # "饱和（引擎疯狂驱动被 clamp 吃掉）" vs "真无写者"。post-clamp 世界差值
         # 在边界处恒 0，m_v=0 可能是饱和而非死——dead 判定必须与 clamp_frac 联合。
         clamp_frac = sum(1 for lev in lv if abs(lev) >= 0.999) / len(lv) if lv else 0.0
+
+        # R3（v2.0.31，qa-r2b blocking #1）：grv↑/↓ 分桶一致率——验证引擎是否在
+        # 压力升/降两方向都有正确响应（单一方向达标可能是"只会在升压时动"）。
+        meta = t_meta[v]
+        up_pairs   = [(pairs[k], meta[k]) for k in range(len(pairs)) if meta[k]["grv_sign"] == "up"]
+        down_pairs = [(pairs[k], meta[k]) for k in range(len(pairs)) if meta[k]["grv_sign"] == "down"]
+        cons_up   = (sum(1 for (d, t), _m in up_pairs if d * t >= 0) / len(up_pairs)) if up_pairs else None
+        cons_down = (sum(1 for (d, t), _m in down_pairs if d * t >= 0) / len(down_pairs)) if down_pairs else None
+
+        # R3（arch 候选②）：policy_hedge_frac = T 类步中 A1 政策宽松（CUT_25BP/CUT_50BP）
+        # 且引擎意图与 target 反向的占比——量化"政策对冲 vs 压力推低"方向冲突对
+        # sentiment 一致率 0.54 上限的贡献（≥30% → 豁免成立，非政策步为主口径）。
+        hedge_steps = [k for k in range(len(pairs))
+                       if meta[k]["a1"] in ("CUT_25BP", "CUT_50BP") and pairs[k][0] * pairs[k][1] < 0]
+        policy_hedge_frac = (len(hedge_steps) / len(pairs)) if pairs else 0.0
+
+        # R3（arch 候选②）：A3_bounce_frac = T 类步中 A3 超卖反弹（INCREASE_RISK，45%
+        # 概率）且意图与 target 反向的占比——量化 bounce 对 sentiment 方向的干扰。
+        bounce_steps = [k for k in range(len(pairs))
+                        if meta[k]["a3"] == "INCREASE_RISK" and pairs[k][0] * pairs[k][1] < 0]
+        a3_bounce_frac = (len(bounce_steps) / len(pairs)) if pairs else 0.0
+
         n_delta = len(ds) if ds else 1
         sufficient = len(pairs) >= MIN_N_ACTIVE      # P0-1：样本门槛（默认 20）
         probe["per_var"][v] = {
@@ -645,6 +711,18 @@ def run_probe(
             "sufficient": sufficient,                   # P0-1：n_active≥MIN_N_ACTIVE 才算 pass/fail
             "dead": m_v < DEAD_M_V and clamp_frac < 0.3,  # P0-1 改判：真无写者才算死，饱和不算
             "target_scale": 1.0,                        # P1-2 禁用（data 终局：key bug + 2·m_v 自指退化）
+            # R3 四字段（qa-r2b blocking #1 / arch 候选② / data-r2 口径对齐）
+            "consistency_grv_up": round(cons_up, 3) if cons_up is not None else None,
+            "consistency_grv_down": round(cons_down, 3) if cons_down is not None else None,
+            "n_grv_up": len(up_pairs),
+            "n_grv_down": len(down_pairs),
+            "policy_hedge_frac": round(policy_hedge_frac, 3),
+            "a3_bounce_frac": round(a3_bounce_frac, 3),
+            "eligible_for_weighted": _eligible_for_weighted({
+                "sufficient": sufficient,
+                "dead": m_v < DEAD_M_V and clamp_frac < 0.3,
+                "silence_frac": (silence_by_var[v] / n_delta) if n_delta else 1.0,
+            }),
         }
 
     # ρ 相关矩阵（sentiment/lp 双写检测）
@@ -666,6 +744,23 @@ def run_probe(
             d2 = sum((b - m2) ** 2 for b in s2[:n]) ** 0.5
             probe["rho"][v1][v2] = round(num / (d1 * d2), 3) if d1 and d2 else 0.0
 
+    # R3（data-r2 口径对齐）：rho(sim,target) = 引擎意图 delta 与 target 的逐步相关
+    # （与 rho 矩阵同用全步样本；target 是外生确定性函数，离线 rho(target,driver)
+    # 可复算——验收脚本比对二者符号，验证引擎方向与 target 结构是否一致）。
+    probe["rho_sim_target"] = {}
+    for v in ERROR_WEIGHTS:
+        _s1 = delta_by_var[v]
+        _s2 = tgt_by_var[v]
+        _n = min(len(_s1), len(_s2))
+        if _n < 3:
+            probe["rho_sim_target"][v] = 0.0
+            continue
+        _m1, _m2 = statistics.mean(_s1[:_n]), statistics.mean(_s2[:_n])
+        _num = sum((a - _m1) * (b - _m2) for a, b in zip(_s1[:_n], _s2[:_n]))
+        _d1 = sum((a - _m1) ** 2 for a in _s1[:_n]) ** 0.5
+        _d2 = sum((b - _m2) ** 2 for b in _s2[:_n]) ** 0.5
+        probe["rho_sim_target"][v] = round(_num / (_d1 * _d2), 3) if _d1 and _d2 else 0.0
+
     all_errors = [e for v in ERROR_WEIGHTS for e in err_by_var[v]]
     probe["p90_probe"] = round(sorted(all_errors)[int(len(all_errors) * 0.9)] if all_errors else 0.0, 4)
     # 加权典型误差（score 分母重锚参考）
@@ -673,16 +768,21 @@ def run_probe(
         sum(ERROR_WEIGHTS[v] * (statistics.mean(err_by_var[v]) if err_by_var[v] else 1.0)
             for v in ERROR_WEIGHTS), 4)
 
-    # P0-1：加权一致率（仅计 sufficient 变量，死/样本不足不计入——防加权自证）
-    # 验收口径：Σw×consistency（sufficient only）/ Σw（sufficient only）≥0.60
+    # P0-1 + R3：加权一致率（仅计 eligible 变量——sufficient ∧ 非 dead ∧ silence≤0.50，
+    # qa-r2b blocking #2：dead/沉默超限变量即使 n_active≥20 也须排除，防噪声样本投票）
+    # 验收口径：Σw×consistency（eligible only）/ Σw（eligible only）≥0.60
     w_ok   = sum(ERROR_WEIGHTS[v] for v in ERROR_WEIGHTS
-                 if probe["per_var"][v]["sufficient"])
+                 if probe["per_var"][v]["eligible_for_weighted"])
     w_cons = sum(ERROR_WEIGHTS[v] * probe["per_var"][v]["consistency_rate"]
-                 for v in ERROR_WEIGHTS if probe["per_var"][v]["sufficient"])
+                 for v in ERROR_WEIGHTS if probe["per_var"][v]["eligible_for_weighted"])
     probe["weighted_consistency"] = round(w_cons / w_ok, 3) if w_ok > 0 else None
     probe["weighted_note"] = (
-        "加权一致率仅计 n_active≥%d 的变量（insufficient sample 不计入）" % MIN_N_ACTIVE
-        if w_ok > 0 else "全部变量样本不足，加权一致率无定义")
+        "加权一致率仅计 eligible 变量（sufficient ∧ 非 dead ∧ silence_frac≤0.50）"
+        if w_ok > 0 else "无 eligible 变量，加权一致率无定义")
+
+    # R3（qa-r2b blocking #1）：persist per-step 元组（验收脚本重建守卫/离线基线用，
+    # 判定只读落盘工件，杜绝口径分叉）
+    probe["steps"] = step_records
 
     # EASE 定向探针两级（ship 闸，calib-fix-review 终局）：
     # 独立子探针强制初始 bank_credit_tightening=0.3（[0,1] clamp 吃 0 起步写入测不出落地），

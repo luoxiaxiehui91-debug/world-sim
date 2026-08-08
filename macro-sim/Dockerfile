@@ -16,6 +16,7 @@ COPY run.py ./
 COPY core/ ./core/
 COPY config/ ./config/
 COPY souls/ ./souls/
+COPY scripts/ ./scripts/
 COPY VERSION ./
 
 # 输出目录

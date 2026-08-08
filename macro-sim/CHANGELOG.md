@@ -6,6 +6,27 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.31 — 2026-08-08 (by WorkBuddy)
+
+**修改理由**：P0——R3 修复 + 验收基建（calib-eps-act-review R2 四方终局 + R3 实现指令，2026-08-08）。加权一致率 0.513<0.60 + credit 真失活（pre-clamp 意图=0 dead=True）+ rho 三 seed 超 |0.3|。裁决：①修 A2 触发线（arch 候选①）②sentiment 政策对冲先调查后豁免（arch 候选②）③rho 结构性共驱动豁免（arch 候选③）④死变量豁免修复（qa-r2b blocking #2）⑤机读验收三合一（qa-r2b 定稿）。
+
+### 修改
+
+- **`core/agents/financial.py`**（CommercialBankAgent._decide_rules）
+  - **R3（arch 候选①）**：tighten_signal grv 触发线 `p.threshold*0.8 → *0.6`（grv_stress>0.4→>0.3，GRV>70→>65）。pre-clamp 探针实证 A2 压力窗口真失活（credit m_v=0.0/dead=True，act_frac 0.27<0.30 但 std_delta 0.156=幅度正常，触发频率问题非幅度）。原 0.8 是危机线 miss 中度压力（cs 月涨 30bp target+0.36 而 spread<325 无反应）= level 规则与 delta target 语义错配。与 ease 线 grv<0.25 无重叠（HOLD 带 GRV 62.5-65）
+- **`core/calibrator.py`**
+  - **R3 探针四字段（qa-r2b blocking #1 / arch 候选② / data-r2）**：per-var `consistency_grv_up/down`（按 grv_delta 符号分桶）+ `policy_hedge_frac`（A1 CUT 且 intent 与 target 反向占比）+ `a3_bounce_frac`（A3 INCREASE_RISK 且反向占比）+ `rho_sim_target`（intent vs target 逐步相关）；新增 `probe["steps"]` per-step 元组持久化（判定只读落盘工件，杜绝口径分叉）
+  - **R3 死变量豁免（qa-r2b blocking #2）**：新增 `_eligible_for_weighted`（sufficient ∧ 非 dead ∧ silence_frac≤0.50），加权一致率改用 eligible 池——dead 变量即使 n_active≥20 也不得投票
+  - **CACHE_VERSION 4→5**（A2 触发线改动改变引擎动力学，旧缓存自证风险，qa-r2 反作弊门）
+- **`scripts/run_probe_acceptance.py`（新增，qa-r2b 三合一）**：5 seed（42/7/123/2024/777）逐 seed 跑探针落盘 `output/calib_probe_seed{seed}_v2030c.json`；fail-fast 判定（dead/silence 硬闸→合并 CI 下限≥0.55→合并点估≥0.60→per-seed≥0.50→grv 分桶/credit 复活/三守卫/EASE/回退闸/rho 符号）；`--smoke` 冒烟模式
+- **`output/baseline_v2030b.json`（新增）**：回退闸机读基线（seed42 精确 per-var + seed7/123 weighted；floor=weighted−0.10）
+- **`tests/test_calibrator_guards.py`（新增）**：10 组守卫/测量层/A2 触发线回归单测（自包含脚本，不依赖 pytest）
+- **`Dockerfile`**：COPY scripts/（验收脚本进容器）
+
+### R3 验收证据
+
+- 判定只读落盘工件（禁 calibration_cache / CHANGELOG 散文不作判定输入）；全量在容器内 `python scripts/run_probe_acceptance.py` 产出
+
 ## v2.0.30 — 2026-08-08 (by WorkBuddy)
 
 **修改理由**：P0——校准接受线未达修复批次（calib-eps-act-review R1 三方终局 + audit 复核，2026-08-08）。加权一致率 0.51-0.55 < 60%：sentiment/liquidity 贴边假死（post-clamp 测量盲区 + clamp[0,1] 砍负半轴 + 正写者主导）+ EASE 决策层永假（ease_signal 过严）+ target_scale key bug。裁决：**修引擎，禁调门槛**。依据：`calib-eps-act-review-R1-综合评审-2026-08-08.md` §4/§7（commit 45d6ed390）。
