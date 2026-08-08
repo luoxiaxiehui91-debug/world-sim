@@ -29,6 +29,8 @@ from core.agents.financial import CommercialBankAgent
 from core.calibrator import (
     ERROR_WEIGHTS,
     MONTHLY_SCALE,
+    _activity_band,
+    _dead_new,
     _eligible_for_weighted,
     _extract_preclamp_delta,
     _step_eligibility,
@@ -248,6 +250,56 @@ def test_a2_info_delay_r4b():
     assert a2["params"]["threshold"] == 0.5
 
 
+# ── 8) R4c：dead 语义修正 + 两层口径 ─────────────────────
+
+def test_dead_new_semantics():
+    """R4c dead 新语义：act_frac<0.10 OR m_v_active<0.002（m_v_active=行动步 median|d|）。"""
+    # 旧语义 knife-edge 反例：credit act 0.388 / m_v_active 0.335 → 必须 NOT dead
+    assert _dead_new(0.388, 0.335) is False, "部分活跃（act≥0.10 ∧ 行动幅度正常）不是死"
+    # act<0.10 → dead（几乎从不行动）
+    assert _dead_new(0.05, 0.30) is True
+    # m_v_active<0.002 → dead（行动时幅度趋零）
+    assert _dead_new(0.50, 0.001) is True
+    # 双条件均满足 → not dead
+    assert _dead_new(0.30, 0.10) is False
+    # 边界：act=0.10 严格 ≥ 不触发第一条件
+    assert _dead_new(0.10, 0.30) is False
+    assert _dead_new(0.30, 0.0019) is True, "m_v_active<0.002 判死"
+    assert _dead_new(0.30, 0.002) is False, "边界 m_v_active=0.002 严格 < 才判死"
+
+
+def test_activity_band():
+    """R4c 活性语义带：low<0.10=dead / insufficient∈[0.10,0.30) / adequate≥0.30。"""
+    assert _activity_band(0.05) == "low"
+    assert _activity_band(0.10) == "insufficient"
+    assert _activity_band(0.20) == "insufficient"
+    assert _activity_band(0.30) == "adequate"
+    assert _activity_band(0.388) == "adequate", "credit R4b act=0.388 ∈ adequate"
+    # insufficient 语义：非死但 guard A（act≥0.30）FAIL → 活性不足由守卫 A + p̂ 稀释表达
+
+
+def test_merged_eligible():
+    """R4c 合并口径（闸②③）：per-var 跨 seed 合计 n_active≥20 ∧ median dead False ∧
+    median silence≤0.50。credit R4b 5 seed 合计 93（21+18+16+19+19）→ 入合并池。"""
+    import importlib.util, os, sys as _sys
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _spec = importlib.util.spec_from_file_location("rpa", os.path.join(_root, "scripts", "run_probe_acceptance.py"))
+    _rpa = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_rpa)
+    # 构造 credit 五 seed stats（R4b 实测值）
+    n_per_seed = [21, 18, 16, 19, 19]
+    stats_list = [{"bank_credit_tightening": {"n_active": n, "dead": False, "silence_frac": 0.43}}
+                  for n in n_per_seed]
+    assert _rpa.merged_eligible(stats_list, "bank_credit_tightening") is True, "credit 合计 93 ≥20 入池"
+    # 合计 <20 → 不入池（n=3×5=15）
+    stats_short = [{"bank_credit_tightening": {"n_active": 3, "dead": False, "silence_frac": 0.1}}
+                   for _ in range(5)]
+    assert _rpa.merged_eligible(stats_short, "bank_credit_tightening") is False, "合计 15<20 不入池"
+    # 若某 seed dead → median dead 仍 False（≤2 seed dead 不判死）
+    stats_one_dead = [{"bank_credit_tightening": {"n_active": n, "dead": (i == 0), "silence_frac": 0.43}}
+                      for i, n in enumerate([21, 18, 16, 19, 19])]
+    assert _rpa.merged_eligible(stats_one_dead, "bank_credit_tightening") is True
+
+
 # ── 主入口 ───────────────────────────────────────────────
 
 def main():
@@ -265,6 +317,9 @@ def main():
     _t("test_classify_a2_state", test_classify_a2_state)
     _t("test_s_class_attribution_mapping", test_s_class_attribution_mapping)
     _t("test_a2_info_delay_r4b", test_a2_info_delay_r4b)
+    _t("test_dead_new_semantics", test_dead_new_semantics)
+    _t("test_activity_band", test_activity_band)
+    _t("test_merged_eligible", test_merged_eligible)
     print(f"全部通过（{len(_PASSED)} 组，断言 ≥ 12 条）")
     return 0
 

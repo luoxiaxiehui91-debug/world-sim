@@ -6,6 +6,27 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.33 — 2026-08-08 (by WorkBuddy)
+
+**修改理由**：P0——R4c dead 语义修正（qa-r2b+data-r2 双会签终裁，2026-08-08）。R4b 实测 credit act 0.388 / m_v_active 0.335 但全步 m_v median=0（61% 零 intent 步）→ 旧 dead（m_v<0.002 ∧ clamp<0.3）把"部分活跃"误判真死，dead 闸先行阻塞。修正 dead 语义为测量层修复，同时落地两层验收口径（合并 vs per-seed）。
+
+### 修改
+
+- **`core/calibrator.py`**
+  - **R4c dead 新语义**：`dead = act_frac<0.10 OR m_v_active<0.002`（`m_v_active`=median|d| over 行动步 |d|>0，新增字段；旧 m_v 全步 median 保留参考）。新增纯函数 `_dead_new` / `_activity_band`（low/insufficient/adequate 语义带）
+  - **CACHE_VERSION 7→8**：dead 是测量层改动，但经 eligible_for_weighted 改变加权一致率计分口径（credit 由排除→sufficient 时入池）→ 旧缓存 score 语义不同，按纪律 bump
+- **`scripts/run_probe_acceptance.py`**
+  - **两层口径**：闸②③合并 = `merged_eligible`（per-var 跨 seed 合计 n_active≥20 ∧ median dead False ∧ median silence≤0.50，credit 5 seed 合计 93 入池）；闸④ per-seed = `per_seed_weighted`（per-seed n_active≥20，era-independent——由 steps 重算 + 当前 dead 语义）
+  - **5b credit 复活 m_v 统一 m_v_active 口径**（credit 0.335 过 ≥0.01）
+  - dead 硬闸报错改新语义字段；act∈[0.10,0.30)=insufficient 语义文档化（guard A + p̂ 稀释共同表达，不设独立闸）
+- **`tests/test_calibrator_guards.py`**：新增 dead 新语义 / activity_band / merged_eligible 三组（16 组 56 断言）
+
+### R4c 验收证据
+
+- dead 修正生效：credit 全 seed dead=False（act 0.327-0.429 ≥0.10 ∧ m_v_active 0.335 ≥0.002），
+  gate1 通过；credit 入合并池（5 seed 合计 n_active 93）；remaining blocker 转为合并 CI/点估
+- 判定只读落盘工件（禁 calibration_cache / CHANGELOG 散文不作判定输入）
+
 ## v2.0.32 — 2026-08-08 (by WorkBuddy)
 
 **修改理由**：P0——R4b credit 失活根治（calib-eps-act-review R3/R4a 根因链三方闭环，2026-08-08）。R4a S 类归因实证：credit 沉默 27 步中 rate_limit=0.815（22 步冷却锁死）→ info_delay 限流是根，tighten_signal_false=0.0 否决决策规则错配。裁决：info_delay 2→1 一次性根治（同时提升 n_active 与方向多样性），S 类规则不改。
