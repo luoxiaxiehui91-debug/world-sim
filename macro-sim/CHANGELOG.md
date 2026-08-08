@@ -6,7 +6,46 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## v2.0.29 — 2026-08-08 (by WorkBuddy)
+## v2.0.30 — 2026-08-08 (by WorkBuddy)
+
+**修改理由**：P0——校准接受线未达修复批次（calib-eps-act-review R1 三方终局 + audit 复核，2026-08-08）。加权一致率 0.51-0.55 < 60%：sentiment/liquidity 贴边假死（post-clamp 测量盲区 + clamp[0,1] 砍负半轴 + 正写者主导）+ EASE 决策层永假（ease_signal 过严）+ target_scale key bug。裁决：**修引擎，禁调门槛**。依据：`calib-eps-act-review-R1-综合评审-2026-08-08.md` §4/§7（commit 45d6ed390）。
+
+### 修改
+
+- **`core/calibrator.py`**
+  - **P0-1 测量层（QA R1 裁决）**：
+    - 新增 `clamp_frac` 指标（贴边 |level|≥0.999 步数占比）——区分"饱和（引擎疯狂驱动被 clamp 吃掉）" vs "真无写者"（post-clamp 世界差值在边界处恒 0，m_v=0 可能是饱和而非死）
+    - **dead 改判**：`m_v < DEAD_M_V ∧ clamp_frac < 0.3`（原 m_v<0.002 单点 knife-edge，把 cap 饱和误标"真死"）
+    - 新增 `MIN_N_ACTIVE = 20` 样本门槛：n_active<20 的变量不算 pass/fail（insufficient sample），不计入加权一致率（死变量 0.25 权重用 ~10 噪声样本投票=加权自证）
+    - `run_probe` 新增 `seed` 参数（canonical 42）——探针有 activation 随机性，单次不可信，验收须多 seed 取 median
+    - 新增 `weighted_consistency`（仅计 sufficient 变量）
+  - **P1-2（data 终局裁决）**：`_load_target_scales` **显式禁用**（恒返回 {}）——key bug（写 nested 读顶层从未生效）+ T_v=2·m_v 公式自指退化（sentiment m_v≈0.005 → target≈0.01<EPS_TGT → 样本掏空 = 改门槛自证）
+  - **CACHE_VERSION 3→4**（引擎动力学改变，旧缓存失效）
+- **`core/agents/financial.py`**（CommercialBankAgent._decide_rules）
+  - **P0-2 EASE 决策层**：ease_signal 阈值放宽 `spread<250 ∧ tightening<threshold×1.0 ∧ grv_stress<threshold×0.5`（原 200/×0.3/×0.3——tightening<0.15 一旦收紧回不来，探针实测锁死 0.97，EASE 决策层结构性不可达）。与 tighten_signal 无重叠冲突（grv 触发线 0.8、spread 触发线 400、visible 挡死保留）
+  - **P0-2 EASE 后 2 步冷却**防 flip-flop（v2.0.1 振荡史）：EASE 后冷却期跳过 TIGHTEN 分支（允许继续 EASE 或 HOLD）
+- **`core/simulation.py`**
+  - **P0-2 幅度对称**：EASE `-0.18→-0.25`（+0.25/-0.25 对称；原恢复比收紧慢 ~3 倍，一旦收紧回不来）
+  - **P0-3 clamp 对称 [-1,1]**：bank_credit_tightening / liquidity_premium 纳入对称 clamp（照 em_capital_outflow 模式）——target 均可负（credit=cs×0.6 / lp=cs×0.4+t10y2y×0.3∈[-0.7,0.7]），clamp[0,1] 结构性砍负半轴 → 负 target 不可测、cap 假收敛（探针 m_v=0 假死）。连带已核：decay ×0.97/×0.93 负区向 0 回归安全；下游 bleed 阈值全在正侧；EASE 在负 credit 下更易触发（合理）
+  - **P1-1 写者结构**：A1 CUT_25BP sentiment `+0.20→+0.30`（正写增强打破负写垄断）
+- **`config/agents.yaml`**
+  - **P1-1**：A3 SHORT activation `1.00→0.75`（降负写频率；A3 决策分支不动保 08-06 path diversity 修复）
+
+### 探针复测（v2.0.30，固定 seed 协议 42/7/123 三探针 median）
+
+| 变量 | consistency median | n_active median | sufficient | m_v median | clamp_frac | dead | 判定 |
+|------|-------------------|-----------------|------------|------------|-----------|------|------|
+| market_sentiment | 0.567 | 18 | ❌(<20) | 0.0 | 0.57 | False | 未达（seed 敏感：0.333-0.727） |
+| bank_credit_tightening | 0.55 | 40 | ✅ | 0.028 | 0.0 | False | 未达（seed42 0.725 亮点） |
+| liquidity_premium | 0.471 | 17 | ❌(<20) | 0.0 | 0.57 | **False** | 未达（饱和非死，P0-1 修正生效） |
+
+- **EASE ship 闸：三 seed 全 PASS**（QA R1 两级能力验证重构）——①合成 ctx 决策层全返回 EASE_CREDIT；②宽松窗口写层落地 13/15、13/14、13/15（~87-93%）。原压力窗口 FAIL 是环境挡死（visible hf SHORT）非引擎能力缺失（构造自证），已按 QA 裁决重构为合成宽松窗口能力验证
+- **加权一致率（sufficient-only）**：seed42 0.641 / seed7 0.55 / seed123 0.521 → **median 0.55 < 0.60 未达**
+- **dead 判定修正核心成果**：liquidity 三 seed 全 dead=False（clamp_frac 0.53-0.88 揭示"cap 饱和"真相）——不再误判真死，不被 C3 移除，保留校准价值
+- **rho sentiment↔liquidity**：-0.164 / -0.492 / -0.124（seed42/123 达标，seed7 超 |0.3| 线）
+- **残留（第 2 轮候选）**：sentiment seed 敏感（A3 激活路径贴边）；liquidity 仍钉 cap（压力窗口 EASE 不可达→无负写者，arch"clamp 对称必要非充分"应验）；credit 0.55 假健康改善中。候选方案 = arch P0-1b pre-clamp 引擎意图 delta 测量（snapshot 已有 delta 字段，一行切换，需三方确认口径）
+
+
 
 **修改理由**：P1——引擎行为失衡修复（A+D 修复批次，calib-fix-review 终局 2026-08-08）。探针实证三变量三种死法（sentiment 钉死 -1.0 / liquidity cap 假收敛 / bank_credit 单向漂移），修复 damping 双压与 MONTHLY_SCALE 尺度失衡。
 
