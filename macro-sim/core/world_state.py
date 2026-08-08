@@ -29,6 +29,10 @@ class MacroWorldState:
     credit_spread: float      # 信用利差 bps (BAA-10Y)
     dff: float                # 联邦基金利率 %
     situation_level: int
+    # R4d：credit_spread 月变化量（bps）——A2 方向对齐用（docs/r4c-b-a2-direction-alignment.md）。
+    # 校准循环在 step 前设置（prev_row vs curr_row）；非校准运行默认 0.0 → A2 方向闸不触发、
+    # 生产路径逐字节不变。
+    credit_spread_delta: float = 0.0
     # D7 fix: 补充 6 个 GRV 维度，使仿真输入与天枢产出的 11 维对齐
     climate_risk: float = 0.0       # 气候风险 [0,100]，来自 fetch_climate_signals
     disaster_risk: float = 0.0      # 灾害风险 [0,100]，来自 fetch_disaster_signals
@@ -102,6 +106,7 @@ class MacroWorldState:
             "vix_stress":    vix_stress,
             "yield_inverted": yield_inv,
             "market_sentiment": round(self.market_sentiment, 3),
+            "credit_spread_delta": round(self.credit_spread_delta, 4),  # R4d：A2 方向对齐
             "cycle": self.cycle,
         }
 

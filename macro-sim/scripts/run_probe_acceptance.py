@@ -74,6 +74,81 @@ Z95 = 1.96
 # 回退闸基线（weighted 来源 baseline_v2030b.json，启动时读取，禁止硬编码进判定）
 ROLLBACK_SEEDS = [42, 7, 123]
 
+# R4d 回退线（docs/r4c-b-a2-direction-alignment.md §2 + team-lead 终裁）——机读闸。
+# 判定：target 达标（partial 接受线）→ 绿；target 未达但 >revert → 黄（保留观察）；
+# ≤revert（或方向违规）→ 红（建议 git revert R4d）。
+R4D_ROLLBACK_LINES = {
+    "credit_consistency": {"target": 0.60, "revert": 0.40, "worse": "lt",
+                           "desc": "credit consistency median ≥0.60（达标）；<0.40 revert"},
+    "grv_down": {"target": 0.40, "revert": 0.20, "worse": "lt",
+                 "desc": "sentiment grv_down median ≥0.40（达标）；<0.20 revert"},
+    "merged_p": {"target": 0.55, "revert": 0.43, "worse": "lt",
+                 "desc": "merged p̂ ≥0.55（partial 接受线）；<0.43 revert"},
+    "credit_n_active": {"target": 18, "revert": None, "worse": "lt",
+                        "desc": "credit n_active median ≥18（中性带已证零影响，风险=directional_ease 触发率）"},
+    "credit_silence": {"target": 0.50, "revert": None, "worse": "gt",
+                       "desc": "credit silence median ≤0.50（方向 EASE 保底）"},
+}
+
+
+def directional_ease_trigger_rate(probe: dict) -> dict:
+    """R4d 必测项：方向 EASE 实际触发率——target_dir=="ease"（cs_delta<-2.5）步中，
+    A2 实际产出负 intent（EASE 转换）vs HOLD（→S 类）vs 正 intent（方向闸 FAIL，不应出现）。
+    对照 R4c-B 投影（乐观=全转 EASE）的偏差=触发率不足的 HOLD 损失，如实记录。"""
+    steps = probe.get("steps", [])
+    n_dir = n_eased = n_hold = n_tighten = 0
+    for rec in steps:
+        cs = rec.get("cs_delta", 0.0)
+        if cs < -2.5:
+            n_dir += 1
+            d = rec["per_var"]["bank_credit_tightening"]["d"]
+            if d < -1e-9:
+                n_eased += 1
+            elif abs(d) <= 1e-9:
+                n_hold += 1
+            else:
+                n_tighten += 1
+    return {
+        "n_target_ease": n_dir,
+        "n_eased": n_eased,
+        "n_hold": n_hold,
+        "n_tighten_fail": n_tighten,
+        "trigger_rate": round(n_eased / n_dir, 3) if n_dir else None,
+    }
+
+
+def rollback_check(probes: dict, merged: dict, credit_med: dict, grv_down_med: float) -> dict:
+    """R4d 回退线 5 条机读判定：返回 {line: {value, status: met/warn/revert, desc}}。"""
+    metrics = {
+        "credit_consistency": credit_med.get("consistency_rate"),
+        "grv_down": grv_down_med,
+        "merged_p": merged.get("p_hat"),
+        "credit_n_active": credit_med.get("n_active"),
+        "credit_silence": credit_med.get("silence_frac"),
+    }
+    out = {}
+    for name, spec in R4D_ROLLBACK_LINES.items():
+        val = metrics.get(name)
+        if val is None:
+            out[name] = {"value": None, "status": "unknown", "desc": spec["desc"]}
+            continue
+        if spec["worse"] == "lt":
+            if spec["revert"] is not None and val < spec["revert"]:
+                status = "revert"
+            elif val >= spec["target"]:
+                status = "met"
+            else:
+                status = "warn"
+        else:  # gt
+            if spec["revert"] is not None and val > spec["revert"]:
+                status = "revert"
+            elif val <= spec["target"]:
+                status = "met"
+            else:
+                status = "warn"
+        out[name] = {"value": round(val, 4), "status": status, "desc": spec["desc"]}
+    return out
+
 
 # ── 工具 ─────────────────────────────────────────────────
 
@@ -231,7 +306,7 @@ def evaluate(probes: dict, baseline: dict) -> Verdict:
         "pool_note": f"eligible 池={pool or '空'}；N={N:.1f} 为加权有效样本量（Σw×n_active），非名义配对总数",
     }
     med = {}
-    for ind in ("n_active", "m_v_active", "act_frac", "silence_frac"):
+    for ind in ("n_active", "m_v_active", "act_frac", "silence_frac", "consistency_rate"):
         vals = [probes[sd]["stats"]["bank_credit_tightening"][ind] for sd in seeds]
         med[ind] = statistics.median(vals)
     # R4c：act∈[0.10,0.30) 语义文档化——非死但活性不足：guard A（act≥0.30）FAIL +
@@ -464,6 +539,24 @@ def main() -> int:
             for v in ERROR_WEIGHTS
         }
 
+    # R4d 必测项：方向 EASE 实际触发率（对照 R4c-B 乐观投影）+ 回退线 5 条机读判定
+    de_trigger = {str(sd): directional_ease_trigger_rate(probes[str(sd)]["raw"]) for sd in seeds}
+    grv_down_vals = [
+        probes[str(sd)]["raw"].get("per_var", {}).get("market_sentiment", {}).get("consistency_grv_down")
+        for sd in seeds
+    ]
+    grv_down_med = statistics.median([v for v in grv_down_vals if v is not None]) \
+        if any(v is not None for v in grv_down_vals) else None
+    r4d_rollback = rollback_check(probes, probes.get("_merged") or {},
+                                  probes.get("_credit_median") or {}, grv_down_med)
+    # 回退线红（revert）→ 记入 verdict failures（FAIL 带证据）
+    for name, rc in r4d_rollback.items():
+        if rc["status"] == "revert":
+            verdict.fail("5g-r4d-rollback",
+                         f"回退线 {name} 触发 revert：value={rc['value']}（{rc['desc']}）")
+        elif rc["status"] == "warn":
+            verdict.warn(f"回退线 {name} 未达 target：value={rc['value']}（{rc['desc']}）")
+
     # 汇总输出
     summary = {
         "verdict": "PASS" if verdict.ok else "FAIL",
@@ -475,6 +568,8 @@ def main() -> int:
         "s_class_table": s_class_table,
         "merged": probes.get("_merged"),
         "credit_median": probes.get("_credit_median"),
+        "directional_ease_trigger": de_trigger,   # R4d 必测项（对照投影）
+        "r4d_rollback": r4d_rollback,             # R4d 回退线 5 条机读判定
         "failures": [{"step": s, "msg": m} for s, m in verdict.failures],
         "warnings": verdict.warnings,
     }
@@ -494,9 +589,18 @@ def main() -> int:
     cm = summary.get("credit_median") or {}
     if cm:
         print(f"credit median: n_active={cm['n_active']} m_v_active={cm['m_v_active']:.4f} "
-              f"act={cm['act_frac']:.2f} silence={cm['silence_frac']:.2f}")
+              f"act={cm['act_frac']:.2f} silence={cm['silence_frac']:.2f} "
+              f"consistency={cm.get('consistency_rate', 0):.3f}")
     if probes.get("_activity_semantics"):
         print(f"[语义] {probes['_activity_semantics']}")
+    # R4d 必测项：方向 EASE 实际触发率（对照投影）
+    for sd, dt in (de_trigger or {}).items():
+        print(f"[R4d] directional_ease (seed{sd}): target_ease={dt['n_target_ease']} "
+              f"eased={dt['n_eased']} hold={dt['n_hold']} tighten_fail={dt['n_tighten_fail']} "
+              f"trigger_rate={dt['trigger_rate']}")
+    # R4d 回退线机读判定
+    for name, rc in (r4d_rollback or {}).items():
+        print(f"[R4d回退线] {name}: value={rc['value']} status={rc['status']} —— {rc['desc']}")
     for sd, tbl in (s_class_table or {}).items():
         ca = (tbl or {}).get("bank_credit_tightening") or {}
         if ca.get("n_s"):

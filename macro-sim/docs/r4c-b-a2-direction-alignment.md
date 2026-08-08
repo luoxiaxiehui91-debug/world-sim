@@ -173,3 +173,17 @@ per-seed 敏感性（乐观投影=非豁免冲突步全部转正确 EASE）：
 - **不动**：target 系数、EPS_TGT、activation、info_delay、EASE 冷却、A1/A3/A10 写者结构
 - CACHE_VERSION 8→9（引擎决策规则改变，动力学改变 → 反作弊门必须 bump）
 - 测试新增：方向闸单测（cs_delta<0 且 grv 高压 → 不收紧 / 方向 EASE 触发）+ 回退触发线常量
+
+## 6. R4d 实施记录（v2.0.34，commit 待填）
+
+| 项 | 实施 | 说明 |
+|----|------|------|
+| 方向闸 | ✅ 已实施 | `cs_delta<-2.5` 时收紧挡死；**危机豁免按终裁删除**（vix/hf/retail 不再例外） |
+| 方向 EASE | ✅ 已实施 | cs 回落时 spread 250→350、grv 0.25→0.4 |
+| EPS 中性带 | ✅ 已实施 | ±2.5bp（补验②已证对 n_active 零影响） |
+| cs_delta 进 ctx | ✅ 已实施 | world.credit_spread_delta 属性 + get_agent_context 输出；校准循环 step 前设置；非校准默认 0.0 |
+| layer-1 ctx 锁定 | ✅ 已实施 | 手写合成 dict，源码检查断言不得走 get_agent_context / 不得含 cs_delta |
+| 回退线机读化 | ✅ 已实施 | R4D_ROLLBACK_LINES 5 条入验收脚本（revert 记 FAIL / warn 记 WARN） |
+| 必测项持久化 | ✅ 已实施 | step_record 新增 spread/tightening/grv level（directional_ease 触发率复算用） |
+| CACHE_VERSION | 8→9 | 已 bump |
+| 实测结果 | 见 R4d 回传 | directional_ease 触发率 + 5 seed 关键表 + 回退线判定 |

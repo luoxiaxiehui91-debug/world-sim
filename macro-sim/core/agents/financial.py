@@ -51,7 +51,7 @@ class FedAgent(MacroAgent):
 
 @dataclass
 class CommercialBankAgent(MacroAgent):
-    """A2：商业银行风控 — 2个月延迟"""
+    """A2：商业银行风控 — 1个月延迟（R4b info_delay 2→1）"""
     VALID_ACTIONS: ClassVar[list[str]] = ["TIGHTEN_CREDIT", "HOLD", "EASE_CREDIT"]
 
     def _decide_rules(self, ctx: dict) -> str:
@@ -64,27 +64,31 @@ class CommercialBankAgent(MacroAgent):
         visible    = ctx.get("visible_actions", {})
         hf_action  = visible.get("hedge_fund", "HOLD")
         retail_act = visible.get("retail", "HOLD")
+        # R4d：cs_delta 经 world 属性进 ctx（校准循环设置；非校准默认 0.0 → 生产路径不变）
+        cs_delta   = ctx.get("credit_spread_delta", 0.0)
 
-        # R4a（v2.0.31b，契约回退）：grv 触发线回退 0.6→0.8（grv_stress>0.3→>0.4）。
-        # R3 裁决：数据不可判别——50 月窗口 grv_stress>0.4 已 34 个月、新线 0.6 只新增
-        # (0.3,0.4] 3 个月，seed42 实测零差异 → 无证据支撑偏离契约，回退契约值 0.4。
-        # 0.6 记为"待验证候选"：R4b 修 A2 结构（info_delay/activation/决策规则）时一并重估。
+        # R4d 方向对齐（docs/r4c-b-a2-direction-alignment.md §1.2 + 终裁：删除危机豁免）：
+        # |cs_delta|≥2.5bp 对应 credit target |t|=|cs_signal×0.6|≥EPS_TGT(0.03)（同口径）。
+        # target_dir = ease：cs 回落（target 期望 EASE）→ 收紧即错，方向闸直接挡死；
+        # 终裁删除危机豁免——vix/hf/retail 不再例外（补验实测 vix 豁免 62% 架空方向闸）。
+        target_dir = "ease" if cs_delta < -2.5 else ("tighten" if cs_delta > 2.5 else "neutral")
+        tighten_ok = target_dir != "ease"
         tighten_signal = (
             spread > 250 + p.threshold * 150
             or grv_stress > p.threshold * 0.8
             or vix_stress > p.threshold * 0.7
             or hf_action == "SHORT_MARKET"
             or retail_act == "PANIC_SELL"
-        )
-        # P0-2（v2.0.30，arch/QA/data 三方终局）：ease_signal 阈值放宽。
-        # 原 tightening<threshold×0.3(=0.15) 一旦收紧就回不来（探针实测 tightening
-        # 锁死 0.97，EASE 决策层永假=结构性不可达）→ 放宽至 threshold×1.0(=0.5)、
-        # spread<250、grv_stress<threshold×0.5(=0.25)。
-        # 与 tighten_signal 无重叠冲突：grv 触发线 0.8（契约值，R4a 回退）、spread 触发线 400、visible 挡死保留。
+        ) and tighten_ok
+
+        # P0-2（v2.0.30）+ R4d 方向 EASE：cs 回落（target_dir=="ease"）时 EASE 更易触发
+        # （spread 250→350、grv_stress 0.25→0.4）——把"错误收紧步"转"正确 EASE 步"保 n_active。
+        # 中性/收紧方向沿用 P0-2 原阈值；layer-1 合成 ctx 无 cs_delta → 中性 → 与 P0-2 逐字节同。
+        directional_ease = target_dir == "ease"
         ease_signal = (
-            spread < 250
+            spread < (350 if directional_ease else 250)
             and tightening < p.threshold * 1.0
-            and grv_stress < p.threshold * 0.5
+            and grv_stress < (p.threshold * 0.8 if directional_ease else p.threshold * 0.5)
         )
 
         # P0-2：EASE 后 2 步冷却防 flip-flop（v2.0.1 振荡史）。EASE 一步后
