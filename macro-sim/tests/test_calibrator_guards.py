@@ -328,12 +328,18 @@ def test_direction_gate():
 
 
 def test_directional_ease():
-    """R4d 方向 EASE：cs_delta<0 时 spread 250→350、grv 0.25→0.4，错误收紧步转正确 EASE。"""
+    """R4d/R4e 方向 EASE：cs_delta<0 时 spread 250→350、grv 0.25→0.4→0.6（R4e 放宽），
+    错误收紧步转正确 EASE。中性/收紧方向阈值不动。"""
     a2 = _a2()
     # cs_delta<0 + spread 300（旧 250 线不 EASE，新 350 线 EASE）→ 方向 EASE
     assert a2._decide_rules(_a2_ctx(spread=300, cs_delta=-10)) == "EASE_CREDIT"
-    # cs_delta<0 + spread 300 + grv 0.3（旧 0.25 线挡，新 0.4 线放行）→ EASE
+    # cs_delta<0 + spread 300 + grv 0.3（R4d 0.4 线放行）→ EASE
     assert a2._decide_rules(_a2_ctx(spread=300, grv=0.3, cs_delta=-10)) == "EASE_CREDIT"
+    # R4e：grv 0.55（R4d 0.4 线挡，R4e 0.6 线放行）→ EASE
+    assert a2._decide_rules(_a2_ctx(spread=300, grv=0.55, cs_delta=-10)) == "EASE_CREDIT"
+    # R4e 边界：grv=0.6 严格 < 才放行 → 0.6 不 EASE
+    assert a2._decide_rules(_a2_ctx(spread=300, grv=0.6, cs_delta=-10)) != "EASE_CREDIT"
+    assert a2._decide_rules(_a2_ctx(spread=300, grv=0.65, cs_delta=-10)) != "EASE_CREDIT"
     # cs_delta 中性 + spread 300（>250）→ 不 EASE（旧阈值，生产路径不变）
     assert a2._decide_rules(_a2_ctx(spread=300, cs_delta=0.0)) != "EASE_CREDIT"
     # cs_delta<0 + spread 360（>350 方向线）→ 不 EASE
@@ -342,6 +348,43 @@ def test_directional_ease():
     assert a2._decide_rules(_a2_ctx(spread=200, tightening=0.6, cs_delta=-10)) != "EASE_CREDIT"
     # layer-1 ctx（无 cs_delta）→ 中性 → EASE 保持（EASE ship 闸不受影响）
     assert a2._decide_rules(_a2_ctx(spread=150, cs_delta=0.0)) == "EASE_CREDIT"
+
+
+def test_ease_block_reason():
+    """R4e ease-block 三分类归因（qa-r2b 条件 2）：首失败条件优先（spread→tightening→grv）。"""
+    import importlib.util, os
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _spec = importlib.util.spec_from_file_location("rpa", os.path.join(_root, "scripts", "run_probe_acceptance.py"))
+    _rpa = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_rpa)
+
+    def _mk(step):
+        return {"steps": step}
+
+    # 单步：spread≥350 挡
+    r = _rpa.ease_block_reason_distribution(_mk([{"cs_delta": -10, "credit_spread": 360.0,
+                                                   "bank_credit_tightening": 0.3, "grv_level": 60.0,
+                                                   "per_var": {"bank_credit_tightening": {"d": 0.0}}}]))
+    assert r["spread_ge_350"] == 1 and r["n_block"] == 1
+    # 单步：spread<350 但 tightening≥0.5 挡（首失败=spread 通过→tightening）
+    r = _rpa.ease_block_reason_distribution(_mk([{"cs_delta": -10, "credit_spread": 300.0,
+                                                   "bank_credit_tightening": 0.55, "grv_level": 60.0,
+                                                   "per_var": {"bank_credit_tightening": {"d": 0.0}}}]))
+    assert r["tightening_ge_05"] == 1
+    # 单步：spread/tightening 通过但 grv≥0.6 挡
+    r = _rpa.ease_block_reason_distribution(_mk([{"cs_delta": -10, "credit_spread": 300.0,
+                                                   "bank_credit_tightening": 0.3, "grv_level": 82.0,
+                                                   "per_var": {"bank_credit_tightening": {"d": 0.0}}}]))
+    assert r["grv_ge_06"] == 1  # grv_stress=(82-50)/50=0.64 ≥0.6
+    # 已 EASE 步不计入 block
+    r = _rpa.ease_block_reason_distribution(_mk([{"cs_delta": -10, "credit_spread": 300.0,
+                                                   "bank_credit_tightening": 0.3, "grv_level": 60.0,
+                                                   "per_var": {"bank_credit_tightening": {"d": -0.25}}}]))
+    assert r["n_block"] == 0
+    # tighten_fail（方向闸后仍收紧——vix>1.0 极端豁免）单独计数
+    r = _rpa.ease_block_reason_distribution(_mk([{"cs_delta": -10, "credit_spread": 300.0,
+                                                   "bank_credit_tightening": 0.3, "grv_level": 60.0,
+                                                   "per_var": {"bank_credit_tightening": {"d": 0.25}}}]))
+    assert r["tighten_fail"] == 1 and r["n_block"] == 1
 
 
 def test_rollback_line_constants():
@@ -396,6 +439,7 @@ def main():
     _t("test_merged_eligible", test_merged_eligible)
     _t("test_direction_gate", test_direction_gate)
     _t("test_directional_ease", test_directional_ease)
+    _t("test_ease_block_reason", test_ease_block_reason)
     _t("test_rollback_line_constants", test_rollback_line_constants)
     _t("test_layer1_ctx_handwritten_constraint", test_layer1_ctx_handwritten_constraint)
     print(f"全部通过（{len(_PASSED)} 组，断言 ≥ 12 条）")

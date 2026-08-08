@@ -122,7 +122,8 @@ TUNING_STATE_PATH = Path("/app/data/calib_tuning_state.json")
 # 按反作弊纪律"计分口径变宁可 bump"，bump 8（解释见 commit）。
 # v2.0.34 R4d（A2 方向对齐：cs_delta 方向闸 + 方向 EASE，删除危机豁免）改变引擎决策
 # → bump 9（防 <7 天命中 v8 引擎缓存自证；qa-r2 反作弊门）
-CACHE_VERSION = 9
+# v2.0.35 R4e（方向 EASE grv 限制 0.4→0.6）再次改变引擎决策 → bump 10（同理由）
+CACHE_VERSION = 10
 # 旧 ERROR_THRESHOLD 保留为常量（外部引用兼容；触发已改 per-var 相对度量）
 ERROR_THRESHOLD_LEGACY = 0.20
 

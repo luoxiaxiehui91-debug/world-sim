@@ -6,6 +6,36 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.35 — 2026-08-08 (by WorkBuddy)
+
+**修改理由**：P0——R4e 方向 EASE grv 放宽（team-lead partial 判据确认 + qa-r2b/data-r2 会签，
+2026-08-08）。R4d 实测 directional_ease 触发率仅 0.167（hold 62-71%），根因=cs 回落月 grv
+仍 ≥0.4 挡死 ~70% 转换 → silence 0.51>0.50 硬闸 FAIL。放宽方向 EASE 的 grv 限制至 0.6
+（EASE 仅写 credit/lp 不写 sentiment，sentiment 零直接副作用——simulation.py:142-147 核验）。
+
+### 修改
+
+- **`core/agents/financial.py`**（CommercialBankAgent._decide_rules）
+  - **R4e**：方向 EASE 的 grv 限制 `p.threshold*0.8（0.4）→ p.threshold*1.2（0.6）`——只改
+    directional_ease 分支（cs_delta<-2.5 时），中性/收紧方向阈值（spread<250 / grv<0.25）不动；
+    layer-1 合成 ctx 无 cs_delta → 中性 → 与 P0-2 逐字节同
+  - **偏离记录（qa-r2b 条件 4）**：危机豁免设计偏离——R4c-B 设计 `vix>0.5+hf/retail` → 终裁
+    回退预案仅 `vix>1.0`（R4d 568ebd72a），本版保持
+- **`core/calibrator.py`**：**CACHE_VERSION 9→10**（方向 EASE 阈值改变引擎决策，反作弊门）
+- **`scripts/run_probe_acceptance.py`**
+  - **ease-block 逐步归因（qa-r2b 条件 2）**：`ease_block_reason_distribution()`——target_dir==
+    "ease" 且 A2 未 EASE 的步按放宽后三条件判定挡死原因（spread_ge_350 / tightening_ge_05 /
+    grv_ge_06 / tighten_fail），对齐 s_class_attribution 落盘模式；输入=R4d 已持久化的决策时
+    level（spread/tightening/grv）
+- **`tests/test_calibrator_guards.py`**：test_directional_ease 补 grv 0.55/0.6/0.65 边界（R4e）；
+  新增 test_ease_block_reason 三分类归因（21 组 80 断言）
+
+### R4e partial 验收标准（team-lead 确认）
+
+成功 = ①credit 入池（silence median≤0.50）∧ ②credit_consistency≥0.60 ∧ ③n_active≥18
+（合并口径）∧ ④merged p̂≥0.55（partial 接受线）。达标 = merged p̂≥0.616（N≈230 CI 等效）。
+weighted 0.60 门槛冻结不动。判定只读落盘工件（禁 calibration_cache 自证）。
+
 ## v2.0.34 — 2026-08-08 (by WorkBuddy)
 
 **修改理由**：P0——R4d A2 方向对齐实施（R4c-B 设计三方会签通过 + team-lead 终裁，2026-08-08）。
