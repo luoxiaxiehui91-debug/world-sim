@@ -401,12 +401,22 @@ def main() -> int:
     for sd in seeds:
         n_active_table[str(sd)] = {v: probes[str(sd)]["stats"][v]["n_active"]
                                    for v in ERROR_WEIGHTS}
-    # R4a（data-r2 零膨胀判别）：rho 窗口 target 非零比例 + target SD（从落盘 per_var 读）
+    # R4a（data-r2 零膨胀判别）：rho 窗口 target 非零比例 + target SD（从落盘 per_var 读；
+    # 旧工件（R3 期）无此字段 → .get 兜底 None，防 --read-only 对混合代工件崩溃）
     rho_target_stats = {}
     for sd in seeds:
+        pv = probes[str(sd)]["raw"].get("per_var", {})
         rho_target_stats[str(sd)] = {
-            v: {"target_nonzero_frac": probes[str(sd)]["raw"]["per_var"][v]["target_nonzero_frac"],
-                "target_sd": probes[str(sd)]["raw"]["per_var"][v]["target_sd"]}
+            v: {"target_nonzero_frac": pv.get(v, {}).get("target_nonzero_frac"),
+                "target_sd": pv.get(v, {}).get("target_sd")}
+            for v in ERROR_WEIGHTS
+        }
+
+    # R4a：S 类 why-no-action 归因（credit 决策路径，R4b info_delay 决策用）落盘+打印
+    s_class_table = {}
+    for sd in seeds:
+        s_class_table[str(sd)] = {
+            v: probes[str(sd)]["raw"].get("per_var", {}).get(v, {}).get("s_class_attribution")
             for v in ERROR_WEIGHTS
         }
 
@@ -418,6 +428,7 @@ def main() -> int:
         "per_seed_weighted": {str(sd): probes[str(sd)]["weighted"] for sd in seeds},
         "n_active_table": n_active_table,
         "rho_target_stats": rho_target_stats,
+        "s_class_table": s_class_table,
         "merged": probes.get("_merged"),
         "credit_median": probes.get("_credit_median"),
         "failures": [{"step": s, "msg": m} for s, m in verdict.failures],
@@ -440,6 +451,12 @@ def main() -> int:
     if cm:
         print(f"credit median: n_active={cm['n_active']} m_v={cm['m_v']:.4f} "
               f"act={cm['act_frac']:.2f} silence={cm['silence_frac']:.2f}")
+    for sd, tbl in (s_class_table or {}).items():
+        ca = (tbl or {}).get("bank_credit_tightening") or {}
+        if ca.get("n_s"):
+            print(f"credit S 类归因 (seed{sd}): activation_gate={ca.get('activation_gate')} "
+                  f"rate_limit={ca.get('rate_limit')} tighten_signal_false={ca.get('tighten_signal_false')} "
+                  f"n_s={ca.get('n_s')}")
     for step, msg in verdict.failures:
         print(f"  FAIL [{step}] {msg}")
     for msg in verdict.warnings:
