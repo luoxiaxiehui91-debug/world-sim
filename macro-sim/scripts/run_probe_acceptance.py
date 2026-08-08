@@ -34,7 +34,8 @@ R3 验收脚本（qa-r2b 定稿，三合一）：多 seed 探针 + 机读判定 
 
 R4a 说明
 --------
-- weighted 直接复用探针落盘 weighted_consistency（同一函数同一舍入，消除双口径 0.001 差）
+- weighted 直接复用探针落盘权威精确值 weighted_consistency_exact（未舍入 consistency，
+  round 仅展示；R4a 复核点 1 锁定单一权威路径，消除 0.001/0.003 双口径差）
 - merged 输出显式标注 eligible 池与 N（加权有效样本量，非名义配对总数）
 - rho 窗口 target 零膨胀字段：per_var target_nonzero_frac + target_sd（data-r2 判别）
 - --read-only 只读判定模式：防随机重跑覆盖工件
@@ -137,7 +138,9 @@ def var_stats(probe: dict, samples: dict) -> dict:
 
 def merged_pooled(seeds_stats: list[dict]) -> tuple[float, float, float, float, list]:
     """跨 seed 合并加权一致率：p̂、N、K、Wilson CI 下限 + eligible 池（变量清单）。
-    N 是加权有效样本量（Σ w_v×n_vs），非名义配对总数——CI 宽度据此解读，防误读。"""
+    N 是加权有效样本量（Σ w_v×n_vs），非名义配对总数——CI 宽度据此解读，防误读。
+    R4a-2（data-r2 复核点 1）：consistency 取自 var_stats（由落盘 steps 重算，未舍入），
+    与探针 per_var consistency_rate_exact 同值——单一权威精确路径；round 仅用于展示。"""
     N = K = 0.0
     pool: list[str] = []
     for st in seeds_stats:
@@ -335,10 +338,10 @@ def run_one_seed(seed: int, data_root: str, out_dir: Path, smoke: bool = False) 
         json.dumps(probe, ensure_ascii=False, indent=2), encoding="utf-8")
     samples = rebuild_samples(probe)
     stats = var_stats(probe, samples)
-    # R4a（qa-r2b advisory + data-r2）：weighted 直接复用探针落盘的 weighted_consistency
-    # （同一函数、同一舍入），不再二次 round——消除 R3 双口径 0.001 差（probe 用 round 后
-    # 的 consistency_rate，acceptance 二次计算用未舍入值 → 0.513 vs 0.514）。
-    weighted = probe.get("weighted_consistency")
+    # R4a-2（data-r2 复核点 1）：weighted 读探针落盘的权威精确值 weighted_consistency_exact
+    # （未舍入 consistency 计算，round 仅展示）；旧工件（R4a 前）无 exact → 回退 weighted_consistency。
+    # 消除 R3 双口径 0.001 差与 R4a 复核发现的 0.003 差（probe round vs 验收 steps 未舍入）。
+    weighted = probe.get("weighted_consistency_exact", probe.get("weighted_consistency"))
     entry = {"weighted": weighted, "stats": stats, "raw": probe}
     if smoke:
         print(f"[smoke] seed{seed} weighted={weighted} | credit="
@@ -354,9 +357,10 @@ def load_one_seed(seed: int, out_dir: Path, smoke: bool = False) -> dict:
     probe = json.loads(path.read_text(encoding="utf-8"))
     samples = rebuild_samples(probe)
     stats = var_stats(probe, samples)
-    entry = {"weighted": probe.get("weighted_consistency"), "stats": stats, "raw": probe}
+    weighted = probe.get("weighted_consistency_exact", probe.get("weighted_consistency"))
+    entry = {"weighted": weighted, "stats": stats, "raw": probe}
     if smoke:
-        print(f"[read-only] seed{seed} weighted={entry['weighted']} | credit="
+        print(f"[read-only] seed{seed} weighted={weighted} | credit="
               f"{stats['bank_credit_tightening']}")
     return entry
 

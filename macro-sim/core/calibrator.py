@@ -785,6 +785,11 @@ def run_probe(
             "p90_error": round(sorted(es)[int(len(es) * 0.9)] if es else 0.0, 4),
             "active_rate": round(active_rate, 3),
             "consistency_rate": round(consistency, 3),
+            # R4a-2（data-r2 复核点 1）：未舍入精确一致率——权威加权路径唯一化。
+            # 探针落盘一致性用 round(,3)，验收合并 CI 用 steps 重算未舍入值 → 双口径差 ~0.003
+            # （p̂ 0.513 vs 0.516）。锁定：per_var 持久化未舍入 consistency_rate_exact，
+            # weighted_consistency_exact 由它计算；验收一律读精确值，round 仅用于展示。
+            "consistency_rate_exact": round(consistency, 6),
             "silence_frac": round(silence_by_var[v] / n_delta, 3),  # S 类占比（D 触发条件 ①）
             "clamp_frac": round(clamp_frac, 3),         # P0-1：贴边占比（饱和 vs 无写者）
             "n_active": len(pairs),
@@ -858,13 +863,17 @@ def run_probe(
     # P0-1 + R3：加权一致率（仅计 eligible 变量——sufficient ∧ 非 dead ∧ silence≤0.50，
     # qa-r2b blocking #2：dead/沉默超限变量即使 n_active≥20 也须排除，防噪声样本投票）
     # 验收口径：Σw×consistency（eligible only）/ Σw（eligible only）≥0.60
+    # R4a-2（data-r2 复核点 1）：权威加权路径唯一化——用未舍入 consistency_rate_exact 计算
+    # weighted_consistency_exact（精确），weighted_consistency 仅作 round(,3) 展示；验收读 exact。
     w_ok   = sum(ERROR_WEIGHTS[v] for v in ERROR_WEIGHTS
                  if probe["per_var"][v]["eligible_for_weighted"])
-    w_cons = sum(ERROR_WEIGHTS[v] * probe["per_var"][v]["consistency_rate"]
+    w_cons = sum(ERROR_WEIGHTS[v] * probe["per_var"][v]["consistency_rate_exact"]
                  for v in ERROR_WEIGHTS if probe["per_var"][v]["eligible_for_weighted"])
-    probe["weighted_consistency"] = round(w_cons / w_ok, 3) if w_ok > 0 else None
+    probe["weighted_consistency_exact"] = round(w_cons / w_ok, 6) if w_ok > 0 else None
+    probe["weighted_consistency"] = round(probe["weighted_consistency_exact"], 3) if w_ok > 0 else None
     probe["weighted_note"] = (
-        "加权一致率仅计 eligible 变量（sufficient ∧ 非 dead ∧ silence_frac≤0.50）"
+        "加权一致率仅计 eligible 变量（sufficient ∧ 非 dead ∧ silence_frac≤0.50）；"
+        "weighted_consistency_exact=权威精确值（未舍入 consistency），weighted_consistency=展示值"
         if w_ok > 0 else "无 eligible 变量，加权一致率无定义")
 
     # R3（qa-r2b blocking #1）：persist per-step 元组（验收脚本重建守卫/离线基线用，
