@@ -25,6 +25,9 @@
   - 新增 `--read-only` 只读判定模式（防随机重跑覆盖工件）
   - 硬闸短路也输出 merged/credit_median（FAIL 也带证据）
   - 汇总落盘 per-var/per-seed `n_active_table` + `rho_target_stats`
+  - **R4a-2（commit 710278330，data-r2 复核点 1）**：权威加权路径唯一化——probe per_var 新增
+    `consistency_rate_exact`（未舍入）、`weighted_consistency_exact`（round 仅展示），
+    验收 per-seed weighted 读 exact，合并 CI 用 steps 重算（同值）——消除 0.001/0.003 双口径差
 - **`tests/test_calibrator_guards.py`**：新增 classify_a2_state / S 类映射 / 触发线契约回退回归，共 12 组（断言 41 条；原 narrative 11 组不降）
 
 ### R4a 验收证据
