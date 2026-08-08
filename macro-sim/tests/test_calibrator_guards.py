@@ -300,6 +300,78 @@ def test_merged_eligible():
     assert _rpa.merged_eligible(stats_one_dead, "bank_credit_tightening") is True
 
 
+# ── 9) R4d：A2 方向对齐（方向闸/方向 EASE/回退线/layer-1 约束）──
+
+def _a2_ctx(spread=200, tightening=0.3, grv=0.1, vix=0.1, cs_delta=0.0, hf="HOLD", retail="HOLD"):
+    return {"credit_spread": spread, "bank_credit_tightening": tightening,
+            "grv_stress": grv, "vix_stress": vix, "credit_spread_delta": cs_delta,
+            "visible_actions": {"hedge_fund": hf, "retail": retail}}
+
+
+def test_direction_gate():
+    """R4d 方向闸：cs_delta<0（target 期望 EASE）时收紧即错，终裁删除危机豁免。"""
+    a2 = _a2()
+    # cs_delta<0 + grv 高压 → 方向闸挡死（不收紧）——R4b 冲突步的修复
+    assert a2._decide_rules(_a2_ctx(grv=0.6, cs_delta=-10)) != "TIGHTEN_CREDIT"
+    # cs_delta<0 + vix 高压 + hf SHORT → 仍不收紧（豁免已删除，vix/hf 不再例外）
+    assert a2._decide_rules(_a2_ctx(grv=0.6, vix=1.0, cs_delta=-10, hf="SHORT_MARKET")) != "TIGHTEN_CREDIT"
+    assert a2._decide_rules(_a2_ctx(grv=0.6, vix=1.0, cs_delta=-10, retail="PANIC_SELL")) != "TIGHTEN_CREDIT"
+    # cs_delta>0 + grv 高压 → 收紧（方向正确，保留）
+    assert a2._decide_rules(_a2_ctx(grv=0.6, cs_delta=10)) == "TIGHTEN_CREDIT"
+    # cs_delta 中性（|d|<2.5bp）+ grv 高压 → 收紧（生产路径逐字节不变）
+    assert a2._decide_rules(_a2_ctx(grv=0.6, cs_delta=0.0)) == "TIGHTEN_CREDIT"
+    # 边界：cs_delta=-2.5 严格 < 才进 ease 方向（-2.5 → neutral → 收紧路径保留）
+    assert a2._decide_rules(_a2_ctx(grv=0.6, cs_delta=-2.5)) == "TIGHTEN_CREDIT"
+    assert a2._decide_rules(_a2_ctx(grv=0.6, cs_delta=-2.6)) != "TIGHTEN_CREDIT"
+
+
+def test_directional_ease():
+    """R4d 方向 EASE：cs_delta<0 时 spread 250→350、grv 0.25→0.4，错误收紧步转正确 EASE。"""
+    a2 = _a2()
+    # cs_delta<0 + spread 300（旧 250 线不 EASE，新 350 线 EASE）→ 方向 EASE
+    assert a2._decide_rules(_a2_ctx(spread=300, cs_delta=-10)) == "EASE_CREDIT"
+    # cs_delta<0 + spread 300 + grv 0.3（旧 0.25 线挡，新 0.4 线放行）→ EASE
+    assert a2._decide_rules(_a2_ctx(spread=300, grv=0.3, cs_delta=-10)) == "EASE_CREDIT"
+    # cs_delta 中性 + spread 300（>250）→ 不 EASE（旧阈值，生产路径不变）
+    assert a2._decide_rules(_a2_ctx(spread=300, cs_delta=0.0)) != "EASE_CREDIT"
+    # cs_delta<0 + spread 360（>350 方向线）→ 不 EASE
+    assert a2._decide_rules(_a2_ctx(spread=360, cs_delta=-10)) != "EASE_CREDIT"
+    # cs_delta<0 + tightening 0.6（>0.5 冻结）→ 不 EASE
+    assert a2._decide_rules(_a2_ctx(spread=200, tightening=0.6, cs_delta=-10)) != "EASE_CREDIT"
+    # layer-1 ctx（无 cs_delta）→ 中性 → EASE 保持（EASE ship 闸不受影响）
+    assert a2._decide_rules(_a2_ctx(spread=150, cs_delta=0.0)) == "EASE_CREDIT"
+
+
+def test_rollback_line_constants():
+    """R4d 回退线 5 条机读常量（docs/r4c-b §2 + team-lead 终裁）。"""
+    import importlib.util, os
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _spec = importlib.util.spec_from_file_location("rpa", os.path.join(_root, "scripts", "run_probe_acceptance.py"))
+    _rpa = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_rpa)
+    lines = _rpa.R4D_ROLLBACK_LINES
+    assert set(lines.keys()) == {"credit_consistency", "grv_down", "merged_p",
+                                 "credit_n_active", "credit_silence"}, "回退线必须 5 条"
+    assert lines["credit_consistency"]["target"] == 0.60 and lines["credit_consistency"]["revert"] == 0.40
+    assert lines["grv_down"]["target"] == 0.40 and lines["grv_down"]["revert"] == 0.20
+    assert lines["merged_p"]["target"] == 0.55 and lines["merged_p"]["revert"] == 0.43
+    assert lines["credit_n_active"]["target"] == 18
+    assert lines["credit_silence"]["target"] == 0.50
+
+
+def test_layer1_ctx_handwritten_constraint():
+    """R4d：ease_probe layer-1 ctx 必须保持手写合成 dict——不得走 get_agent_context
+    （会注入 credit_spread_delta，破坏方向对齐下 ship 闸的确定性）。源码检查约束。"""
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src = open(os.path.join(_root, "core", "calibrator.py"), encoding="utf-8").read()
+    # 定位 _run_ease_probe 的 layer-1 ctx 构造（①决策层合成 ctx 单测）
+    m = src.find('layer1_pass = False')
+    assert m > 0, "layer-1 ctx 构造段未找到"
+    seg = src[m:m + 700]
+    assert "get_agent_context" not in seg, "layer-1 不得走 get_agent_context（会注入 cs_delta）"
+    assert "credit_spread_delta" not in seg, "layer-1 ctx 不得含 credit_spread_delta（手写合成锁定）"
+    assert '"credit_spread": 150.0' in seg, "layer-1 ctx 必须为手写合成 dict（spread=150）"
+
+
 # ── 主入口 ───────────────────────────────────────────────
 
 def main():
@@ -320,6 +392,10 @@ def main():
     _t("test_dead_new_semantics", test_dead_new_semantics)
     _t("test_activity_band", test_activity_band)
     _t("test_merged_eligible", test_merged_eligible)
+    _t("test_direction_gate", test_direction_gate)
+    _t("test_directional_ease", test_directional_ease)
+    _t("test_rollback_line_constants", test_rollback_line_constants)
+    _t("test_layer1_ctx_handwritten_constraint", test_layer1_ctx_handwritten_constraint)
     print(f"全部通过（{len(_PASSED)} 组，断言 ≥ 12 条）")
     return 0
 

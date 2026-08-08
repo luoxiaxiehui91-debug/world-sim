@@ -6,6 +6,45 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.34 — 2026-08-08 (by WorkBuddy)
+
+**修改理由**：P0——R4d A2 方向对齐实施（R4c-B 设计三方会签通过 + team-lead 终裁，2026-08-08）。
+credit consistency 0.476 / sentiment grv_down 0.273 / merged p̂ 0.477 共同根因 = rule-vs-target
+语义错配（A2 level 信号收紧 vs target cs_delta 方向语义）。终裁：删除危机豁免（补验实测 vix
+豁免 62% 架空方向闸）；partial 接受线 p̂≥0.55；回退线 5 条机读化。
+
+### 修改
+
+- **`core/agents/financial.py`**（CommercialBankAgent._decide_rules）
+  - **R4d 方向对齐**（docs/r4c-b-a2-direction-alignment.md §1.2 + 终裁删除豁免）：
+    - 方向闸：`cs_delta<-2.5`（target 期望 EASE）时收紧即错，直接挡死——**危机豁免已删除**
+      （vix/hf/retail 不再例外）
+    - 方向 EASE：`cs_delta<-2.5` 时 spread 阈值 250→350、grv 限制 0.25→0.4——错误收紧步转正确 EASE 步
+    - EPS 中性带 ±2.5bp：与 credit target |t|≥EPS_TGT(0.03) 同口径；中性/收紧方向沿用 P0-2 原阈值
+  - `cs_delta` 经 ctx 读取（`credit_spread_delta`，默认 0.0）——非校准生产路径逐字节不变
+- **`core/world_state.py`**
+  - `MacroWorldState.credit_spread_delta: float = 0.0`（新属性）+ `get_agent_context` 输出
+    `ctx["credit_spread_delta"]`（A2 方向对齐用）
+- **`core/calibrator.py`**
+  - run_probe / run_calibration：step 前设置 `world.credit_spread_delta = cs_delta_i`（与
+    `_derive_endogenous_targets` 同源）
+  - **R4d 必测项**：step_record 持久化决策时 spread/tightening/grv level（directional_ease
+    实际触发率离线不可复算）
+  - **CACHE_VERSION 8→9**（A2 决策规则改变，动力学改变，反作弊门）
+- **`scripts/run_probe_acceptance.py`**
+  - **R4d 回退线 5 条机读化**：`R4D_ROLLBACK_LINES`（credit consistency ≥0.60 / grv_down ≥0.40 /
+    p̂ ≥0.55 / n_active ≥18 / silence ≤0.50；revert 线 0.40/0.20/0.43）→ `rollback_check()` 机读判定，
+    revert 记 FAIL / warn 记 WARN
+  - **R4d 必测项**：`directional_ease_trigger_rate()` 实测方向 EASE 实际触发率（对照 R4c-B 乐观投影）
+- **`tests/test_calibrator_guards.py`**：新增方向闸 / 方向 EASE / 回退线常量 / layer-1 手写合成约束
+  四组（20 组 70 断言）
+
+### R4d 验收证据
+
+- 全量 5 seed 探针 + 验收（容器内 scripts/run_probe_acceptance.py）：credit 四指标 + consistency +
+  per-seed weighted + merged p̂/CI/N + directional_ease 实际触发率 + 回退线判定 + EASE ship 闸
+- 判定只读落盘工件（禁 calibration_cache / CHANGELOG 散文不作判定输入）
+
 ## v2.0.33 — 2026-08-08 (by WorkBuddy)
 
 **修改理由**：P0——R4c dead 语义修正（qa-r2b+data-r2 双会签终裁，2026-08-08）。R4b 实测 credit act 0.388 / m_v_active 0.335 但全步 m_v median=0（61% 零 intent 步）→ 旧 dead（m_v<0.002 ∧ clamp<0.3）把"部分活跃"误判真死，dead 闸先行阻塞。修正 dead 语义为测量层修复，同时落地两层验收口径（合并 vs per-seed）。

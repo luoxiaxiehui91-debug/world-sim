@@ -120,7 +120,9 @@ TUNING_STATE_PATH = Path("/app/data/calib_tuning_state.json")
 # 判断：dead 是测量层改动（非动力学），但 dead 经 eligible_for_weighted 改变加权一致率
 # 计分口径（credit 由排除→sufficient 时入池）→ 旧缓存 score 语义不同，必须失效；
 # 按反作弊纪律"计分口径变宁可 bump"，bump 8（解释见 commit）。
-CACHE_VERSION = 8
+# v2.0.34 R4d（A2 方向对齐：cs_delta 方向闸 + 方向 EASE，删除危机豁免）改变引擎决策
+# → bump 9（防 <7 天命中 v8 引擎缓存自证；qa-r2 反作弊门）
+CACHE_VERSION = 9
 # 旧 ERROR_THRESHOLD 保留为常量（外部引用兼容；触发已改 per-var 相对度量）
 ERROR_THRESHOLD_LEGACY = 0.20
 
@@ -664,6 +666,11 @@ def run_probe(
     step_records = []                                # 全部 delta 步（i/grv_delta/cs_delta/t10y2y_delta/a1/a3/per_var）
 
     for i, row in enumerate(calibration_data):
+        prev_row = calibration_data[i - 1] if i > 0 else baseline_row
+        # R4d：A2 方向对齐——cs_delta 经 world 属性进 ctx。必须在 step 前设置（Phase 1
+        # 决策读取），与 _derive_endogenous_targets 同源（prev_row vs curr_row）。
+        cs_delta_i = row.get("credit_spread", 250) - prev_row.get("credit_spread", 250)
+        model.world.credit_spread_delta = cs_delta_i
         # R4a：A2 决策路径归因（S 类 why-no-action）——记录步首冷却状态（激活门/冷却在
         # model.step 内消费随机数，无法事后回放，必须在步前读 countdown）
         a2_countdown_before = agents["A2"].activation_countdown if "A2" in agents else 0
@@ -671,6 +678,11 @@ def run_probe(
         # step 后经 bleed/inject 才变 → 步前 world.vix == 决策时 vix）。方向闸危机豁免
         # 阈值 vix_stress>0.5（vix>33）需此数据判定，离线不可复算（bleed 使 vix 漂移）。
         vix_before = model.world.vix
+        # R4d 必测项：记录 A2 决策时看到的 level（spread/tightening/grv）——directional_ease
+        # 实际触发率需这些 level 复算（HOLD 转换 vs EASE 转换），离线不可复算。
+        spread_before = model.world.credit_spread
+        tighten_before = model.world.bank_credit_tightening
+        grv_level_before = model.world.grv
         exogenous_inject = {
             k: v for k, v in row.items()
             if k in EXOGENOUS_VARS and hasattr(model.world, k)
@@ -686,7 +698,6 @@ def run_probe(
         a2_acted = bool(snapshot.get("actions", {}).get("A2"))
         a2_state = classify_a2_state(a2_countdown_before, a2_acted, a2_decided)
 
-        prev_row = calibration_data[i - 1] if i > 0 else baseline_row
         endogenous_targets = _derive_endogenous_targets(prev_row, row)
 
         if prev_simulated is None:
@@ -700,7 +711,6 @@ def run_probe(
 
         # R3：逐步元数据（grv/cs/t10y2y 变化符号 + A1/A3 行动，与 delta 步对齐）
         grv_delta_i    = row.get("grv", 50) - prev_row.get("grv", 50)
-        cs_delta_i     = row.get("credit_spread", 250) - prev_row.get("credit_spread", 250)
         t10y2y_delta_i = row.get("t10y2y", -10) - prev_row.get("t10y2y", -10)
         actions_i = snapshot.get("actions", {}) or {}
         a1_i = actions_i.get("A1", "HOLD")
@@ -716,6 +726,9 @@ def run_probe(
             "a2_state": a2_state,           # R4a：A2 决策路径归因（rate_limit/activation_gate/tighten_signal_false/acted_other）
             "vix": round(vix_before, 2),                        # R4c-B 补验①：决策时 vix（bleed 漂移不可离线复算）
             "vix_stress": round(max(0.0, (vix_before - 18.0) / 30.0), 3),  # 与 get_agent_context 同口径
+            "credit_spread": round(spread_before, 1),          # R4d 必测：决策时 spread level
+            "bank_credit_tightening": round(tighten_before, 3),# R4d 必测：决策时 tightening level
+            "grv_level": round(grv_level_before, 2),           # R4d 必测：决策时 grv level
             "per_var": {},
         }
         for v in ERROR_WEIGHTS:
@@ -1224,6 +1237,11 @@ def run_calibration(
 
     print(f"[calibrator] 开始校准，{calib_steps} 步（relative_trigger={trigger}）...")
     for i, row in enumerate(calibration_data):
+        # R4d：A2 方向对齐——cs_delta 经 world 属性进 ctx（与 probe 循环同口径）
+        prev_row = calibration_data[i - 1] if i > 0 else baseline_row
+        model.world.credit_spread_delta = (
+            row.get("credit_spread", 250) - prev_row.get("credit_spread", 250)
+        )
         # D2/D3 fix: Teacher Forcing 只注入外生变量，不覆盖内生变量
         exogenous_inject = {
             k: v for k, v in row.items()
@@ -1235,7 +1253,6 @@ def run_calibration(
         simulated_values = {k: snapshot.get(k, 0.0) for k in ERROR_WEIGHTS}
 
         # D2/D3 fix: 误差目标改为内生变量期望方向（从相邻外生变量变化推导）
-        prev_row = calibration_data[i - 1] if i > 0 else baseline_row
         endogenous_targets = _derive_endogenous_targets(prev_row, row)
 
         # C1-1a：第一步（无 prev）跳过触发但照常记 sim 值（评审：不可用 initial_world
