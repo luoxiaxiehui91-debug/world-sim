@@ -310,6 +310,19 @@ def run_calibration(
     baseline_row     = history[-(calib_steps + 1)] if len(history) > calib_steps else history[0]
 
     agents, _global_cfg = load_agents(config_path)
+
+    # v2.0.27 修复（question 20260808-world-deduction-calibration-s-class-disturbance）：
+    # 校准期 S 类主权 Agent activation_prob 置 0——校准是 50 个月历史拟合（2022-06→2026-07），
+    # S 类主权行为 08-07 才激活（A 类激活 commit 4aaa5fde），历史期本不该有它们参与；
+    # 校准循环 model.step() 会让 S 类按 0.35 激活并写 grv_dimensions/sentiment 扰动内生变量
+    # （实测 3 步 6 次激活 → score 0，A/B 双组 0.70/0.67 一致证明与 3 soul 试点无关）。
+    # 注意：仅校准期生效，不影响预测期（run_prediction 重新 load_agents 拿原始 activation_prob）。
+    for _aid, _agent in agents.items():
+        if _aid.startswith("S"):
+            _agent.activation_prob = 0.0
+    _n_s = sum(1 for a in agents if a.startswith("S"))
+    print(f"[calibrator] 校准期 S 类主权 Agent 已挂起（{_n_s} 个，activation_prob=0）——历史拟合期无主权行为")
+
     initial_world = make_world_from_history_row(
         calibration_data[0], baseline_row, label=calibration_data[0]["date"]
     )

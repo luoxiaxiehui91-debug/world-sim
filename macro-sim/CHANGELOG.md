@@ -6,6 +6,23 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.27 — 2026-08-08 (by WorkBuddy)
+
+**修改理由**：P1——校准 score=0 根因修复（S 类主权 Agent 扰动校准循环，question `20260808-world-deduction-calibration-s-class-disturbance`）。
+
+### 修改
+
+- **`core/calibrator.py`**（run_calibration）
+  - **校准期 S 类主权 Agent activation_prob 置 0**：校准是 50 个月历史拟合（2022-06→2026-07），S 类主权行为 08-07 才激活（A 类激活），历史期本不该有它们参与；校准循环 model.step() 让 S 类按 0.35 激活并写 grv_dimensions/sentiment 扰动内生变量（实测 3 步 6 次激活 → score 0，A/B 双组 0.70/0.67 一致证明与 3 soul 试点无关）
+  - **仅校准期生效**：预测期 run_prediction 独立 load_agents（bifurcation.py L363），重新拿原始 activation_prob=0.35，不受影响
+- **`VERSION`**：v2.0.26 → v2.0.27
+
+### 验证
+
+- ✅ 本地：校准期挂起后 3 步仿真 S 类激活 0 次（修复前 6 次）
+- ✅ 预测期隔离：run_prediction 独立 load_agents 确认
+- 待：容器内完整校准回归（nohup 分离），验证 score 恢复（≥ 历史 80×0.95=76）
+
 ## v2.0.26 — 2026-08-07 (by WorkBuddy)
 
 **修改理由**：天璇 v3 soul 化重构 **阶段 2**（试点 3 soul + 校准扩展）——设计文档 §4.1/4.3/4.5 + §5.5 A 路；历史事件回放方向校验通过。
