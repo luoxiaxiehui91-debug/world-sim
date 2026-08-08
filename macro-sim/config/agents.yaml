@@ -28,7 +28,15 @@ agents:
     name: 商业银行
     role: commercial_bank
     class: financial.CommercialBankAgent
-    info_delay: 2
+    # R4b（v2.0.32，根因链三方闭环）：info_delay 2→1——credit 失活根治。
+    # S 类归因实测（seed42）：rate_limit=0.815 / tighten_signal_false=0.0 —— 27 个 S 类步中
+    # 22 步 A2 在冷却锁死（全步冷却占比 57%），"决策规则错配"被 0.0 否决。
+    # info_delay=2 冷却 → 行动频率上限 ~1/3 步（act 0.265<0.30）；2→1 上限提至 ~1/2，
+    # 预期一次性解决 credit n_active<20 + silence>0.50 + 方向单一（冷却窗口减半=行动机会翻倍）。
+    # 同时 1 与 base.py:158 文档 taxonomy 对齐（info_delay=1 → 商业银行；原 2 属机构投资者档）。
+    # 副作用评估：visible_actions 延迟 2→1 步（hf SHORT/PANIC 感知更及时，略增 tighten 触发，
+    # 方向正确）；不影响其他 Agent。
+    info_delay: 1
     activation_prob: 0.70
     transmission_coefficients:
       to_A3: 0.40   # 信贷收紧对对冲基金流动性的影响

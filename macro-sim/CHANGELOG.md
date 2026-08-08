@@ -6,6 +6,23 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.32 — 2026-08-08 (by WorkBuddy)
+
+**修改理由**：P0——R4b credit 失活根治（calib-eps-act-review R3/R4a 根因链三方闭环，2026-08-08）。R4a S 类归因实证：credit 沉默 27 步中 rate_limit=0.815（22 步冷却锁死）→ info_delay 限流是根，tighten_signal_false=0.0 否决决策规则错配。裁决：info_delay 2→1 一次性根治（同时提升 n_active 与方向多样性），S 类规则不改。
+
+### 修改
+
+- **`config/agents.yaml`**（A2 商业银行）
+  - **R4b info_delay 2→1**：行动频率上限 ~1/3 步 → ~1/2 步（冷却窗口减半=行动机会翻倍）；与 base.py:158 文档 taxonomy 对齐（info_delay=1 → 商业银行；原 2 属机构投资者档）。副作用：visible_actions 感知延迟 2→1 步（hf SHORT/PANIC 更及时，略增 tighten 触发，方向正确）。activation 0.70 / threshold 0.5 / EPS_TGT 均冻结不动
+- **`core/calibrator.py`**
+  - **CACHE_VERSION 6→7**：A2 info_delay 改变引擎动力学（qa-r2 反作弊门，防 <7 天命中 v6 缓存自证）
+- **`tests/test_calibrator_guards.py`**：新增 `test_a2_info_delay_r4b`（config 锁定 info_delay=1 + activation 0.70 + threshold 0.5 冻结），13 组断言 44 条
+
+### R4b 验收证据
+
+- 全量 5 seed 探针 + 验收（容器内 scripts/run_probe_acceptance.py）——credit 四指标实测表见回传
+- 判定只读落盘工件（禁 calibration_cache / CHANGELOG 散文不作判定输入）
+
 ## v2.0.31b — 2026-08-08 (by WorkBuddy)
 
 **修改理由**：R4a 纯测量/回退段（calib-eps-act-review R3 裁决 + qa-r2b follow-up，2026-08-08）。R3 实证 A2 grv 触发线 0.6 与契约 0.8 在本窗口零差异（(0.3,0.4] 仅 3 个月不可判别）→ 无证据支撑偏离契约，回退 0.8；同时补 S 类 why-no-action 归因测量，为 R4b info_delay 2→1 决策提供数据。
