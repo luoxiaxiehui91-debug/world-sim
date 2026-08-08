@@ -100,6 +100,9 @@ MIN_N_ACTIVE = 20
 # 0.0-0.005 跨线摆动），且把 cap 饱和误标"真死"——须与 clamp_frac 联合判定
 # （dead = m_v<DEAD_M_V ∧ clamp_frac<0.3，饱和不算死）
 DEAD_M_V = 0.002
+# P0-1b（v2.0.30）：sentiment 前乘缩放系数，与 simulation.py:544 同步
+#（_apply_delta 内局部常量；apply_sentiment_delta 前乘，pre-clamp 意图对齐 target 尺度用）
+MONTHLY_SCALE = 0.25
 
 CALIB_LOG_PATH  = Path("/app/output/calibration_log.jsonl")
 PROBE_PATH      = Path("/app/data/calib_probe.json")
@@ -187,6 +190,28 @@ def _load_target_scales() -> dict:
     探针已有相对触发 |e|/|t|>0.5（scale-free），无需 scale 重标定。
     恒返回 {}（原始系数），探针输出 target_scale 字段保留仅作记录。"""
     return {}
+
+
+def _extract_preclamp_delta(snapshot: dict) -> dict:
+    """P0-1b（v2.0.30，arch 终局 P0-1）：从 snapshot 取 pre-clamp 引擎意图 delta。
+
+    snapshot["delta"] = 引擎 add 聚合的原始 delta（未 clamp、未衰减）——
+    simulation.py:517 记录。post-clamp 世界差值在 cap/floor 处恒 0（clamp 截断），
+    把"引擎疯狂驱动"误报"无驱动"（三变量假死测量盲区根）。
+    本函数统一 probe 循环 + 主校准循环两处口径，杜绝分叉：
+    - sentiment ×MONTHLY_SCALE（0.25）对齐 target 尺度（apply_sentiment_delta 前乘；
+      damping A=1.0 后恒 1，无需再乘）
+    - credit/liquidity 走 else 分支无缩放，直接用
+    未写变量不在 delta 字典 → 0.0（无行动）。
+    """
+    intent = snapshot.get("delta", {}) or {}
+    out = {}
+    for v in ERROR_WEIGHTS:
+        d = intent.get(v, 0.0)
+        if v == "market_sentiment":
+            d = d * MONTHLY_SCALE
+        out[v] = round(d, 5)
+    return out
 
 
 def _step_eligibility(sim_delta: float, tgt: float) -> str:
@@ -564,7 +589,10 @@ def run_probe(
         if prev_simulated is None:
             prev_simulated = simulated_values   # 第一步只记 sim 值，无 delta
             continue
-        sim_delta = {v: simulated_values[v] - prev_simulated[v] for v in ERROR_WEIGHTS}
+        # P0-1b（v2.0.30，arch 终局）：sim_delta 改用 pre-clamp 引擎意图 delta。
+        # 原 post-clamp 世界差值在 cap/floor 处恒 0 → 假死误报；意图可见后
+        # m_v/一致率基于引擎真实驱动计算（clamp_frac 仍用世界 level 判定饱和）。
+        sim_delta = _extract_preclamp_delta(snapshot)
         prev_simulated = simulated_values
 
         for v in ERROR_WEIGHTS:
@@ -973,7 +1001,9 @@ def run_calibration(
             print(f"  步 {i+1:02d}/{calib_steps} [{step_label}] 第一步（无 prev，跳过触发，仅记录）")
             continue
 
-        sim_delta = {v: simulated_values[v] - prev_simulated[v] for v in ERROR_WEIGHTS}
+        # P0-1b（v2.0.30，arch 终局）：sim_delta 改用 pre-clamp 引擎意图 delta
+        #（与 probe 循环同口径，_extract_preclamp_delta 统一；LLM 喂数/error 同步意图）
+        sim_delta = _extract_preclamp_delta(snapshot)
         prev_simulated = simulated_values
 
         # 记录守卫样本 + 一致性率样本
