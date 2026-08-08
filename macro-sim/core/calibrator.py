@@ -51,6 +51,7 @@ C3-3a（2026-08-08 终局裁决）：
 import copy
 import json
 import os
+import random
 import re
 import statistics
 from collections import deque
@@ -91,13 +92,23 @@ EPS_TGT = 0.03
 EPS_ACT = 0.005
 # score 轴宽恕阈值（N 类 |Δ|<0.05 记 0 误差）
 DELTA_DEAD = 0.05
+# P0-1（v2.0.30，QA R1 裁决）：最小有效样本门槛——n_active<MIN_N_ACTIVE 的变量
+# 不算 pass/fail，算 insufficient sample（consistency 在 n_active 6-20 时是噪声不是
+# 证据），且不得计入加权一致率（死变量 0.25 权重用 ~10 噪声样本投票=加权自证）
+MIN_N_ACTIVE = 20
+# P0-1（v2.0.30）：死变量 m_v 阈值。原 0.002 是单点 knife-edge（sentiment m_v
+# 0.0-0.005 跨线摆动），且把 cap 饱和误标"真死"——须与 clamp_frac 联合判定
+# （dead = m_v<DEAD_M_V ∧ clamp_frac<0.3，饱和不算死）
+DEAD_M_V = 0.002
 
 CALIB_LOG_PATH  = Path("/app/output/calibration_log.jsonl")
 PROBE_PATH      = Path("/app/data/calib_probe.json")
 TUNING_STATE_PATH = Path("/app/data/calib_tuning_state.json")
 # 缓存版本：C1-1a/C3-3a 后评分口径改变，旧缓存（无 version 或 version<2）不可复用；
-# v2.0.29 A+D 修复（damping floor + MONTHLY_SCALE 0.12→0.25）改变引擎动力学 → bump 3
-CACHE_VERSION = 3
+# v2.0.29 A+D 修复（damping floor + MONTHLY_SCALE 0.12→0.25）改变引擎动力学 → bump 3；
+# v2.0.30 P0 修复（clamp 对称 + EASE 阈值放宽/幅度对称 + 冷却 + A1/A3 写者结构）
+# 再次改变引擎动力学 → bump 4（旧缓存全部失效）
+CACHE_VERSION = 4
 # 旧 ERROR_THRESHOLD 保留为常量（外部引用兼容；触发已改 per-var 相对度量）
 ERROR_THRESHOLD_LEGACY = 0.20
 
@@ -167,14 +178,14 @@ def _derive_endogenous_targets(prev_row: dict, curr_row: dict) -> dict:
 
 
 def _load_target_scales() -> dict:
-    """从 calib_probe.json 读取探针标定的 target 系数（T_v=α·m_v 落地）。
-    文件缺失/损坏 → 返回 {}（用原始系数）。"""
-    try:
-        if PROBE_PATH.exists():
-            data = json.loads(PROBE_PATH.read_text(encoding="utf-8"))
-            return data.get("target_scale", {}) or {}
-    except Exception as _e:
-        print(f"  [calibrator] calib_probe.json 读取失败（用原始系数）: {_e}")
+    """P1-2（v2.0.30，data 终局裁决）：target_scale 重标定显式禁用。
+    两个结构性缺陷不可修：
+    1) key bug——run_probe 写 nested per_var[v].target_scale，本函数读顶层
+       "target_scale" → key 不匹配恒返回 {}（旧实现从未生效）；
+    2) T_v=2·m_v 公式自指退化——sentiment m_v≈0.005 → 新 target≈0.01<EPS_TGT
+       → 步全转 N/U 掏空样本，active 崩、silence 逃逸守卫 A = 改门槛自证。
+    探针已有相对触发 |e|/|t|>0.5（scale-free），无需 scale 重标定。
+    恒返回 {}（原始系数），探针输出 target_scale 字段保留仅作记录。"""
     return {}
 
 
@@ -495,15 +506,20 @@ def run_probe(
     fred_path: str = "/app/macro_data/fred_history",
     probe_steps: int = 50,
     config_path: str = "/app/config/agents.yaml",
+    seed: int = 42,
 ) -> dict:
     """
     探针：固定参数、不调参、只记 sim_delta/target 序列，测 delta-error 稳态分布。
     产出 per-var：m_v=median|sim_delta|（死变量判定/T_v 标定）、std、P90(error)、
-    active_rate、consistency_rate、ρ 相关矩阵、target_scale 建议（T_v=α·m_v，α∈[1.5,2.5]）。
+    active_rate、consistency_rate、ρ 相关矩阵、clamp_frac（饱和 vs 无写者区分，
+    P0-1 v2.0.30 新增——dead 改判 m_v<0.002 ∧ clamp_frac<0.3）。
     写 /app/data/calib_probe.json。
+    seed：固定随机种子（P0-1 v2.0.30 新增，canonical 42）——探针有 activation
+    随机性，单次不可信，验收须多 seed（42/7/123）取 median。
     段1 诊断（12-15 步）与段2 标定（50 步）共用本函数，差别=步数与测量目标。
     """
-    print(f"[calibrator] 探针开始（{probe_steps} 步，固定参数禁调参）...")
+    random.seed(seed)
+    print(f"[calibrator] 探针开始（{probe_steps} 步，固定参数禁调参，seed={seed}）...")
     history = load_monthly_history(grv_path, fred_path, months=probe_steps + 6)
     if len(history) < probe_steps:
         probe_steps = len(history)
@@ -526,6 +542,7 @@ def run_probe(
     delta_by_var = {v: [] for v in ERROR_WEIGHTS}
     tgt_by_var   = {v: [] for v in ERROR_WEIGHTS}
     err_by_var   = {v: [] for v in ERROR_WEIGHTS}
+    level_by_var = {v: [] for v in ERROR_WEIGHTS}   # P0-1：每步 level（clamp_frac 用）
     active_pairs = {v: [] for v in ERROR_WEIGHTS}   # (d, t) 仅 T 类
     all_pairs    = {v: [] for v in ERROR_WEIGHTS}   # (d, t) 所有步（ρ 矩阵用）
     ease_decisions_main = 0   # 主探针顺带观察：A2 选中 EASE_CREDIT 的步数（ship 闸以子探针为准）
@@ -555,6 +572,7 @@ def run_probe(
             t = endogenous_targets[v]
             delta_by_var[v].append(d)
             tgt_by_var[v].append(t)
+            level_by_var[v].append(simulated_values[v])   # P0-1：clamp_frac 统计用
             all_pairs[v].append((d, t))
             cls = _step_eligibility(d, t)
             if cls == "T":
@@ -569,18 +587,24 @@ def run_probe(
                 silence_by_var[v] += 1
 
     # 统计
-    probe = {"steps": probe_steps, "n_delta_steps": len(delta_by_var[list(ERROR_WEIGHTS)[0]]),
+    probe = {"steps": probe_steps, "seed": seed, "n_delta_steps": len(delta_by_var[list(ERROR_WEIGHTS)[0]]),
              "per_var": {}, "rho": {}, "p90_probe": 0.0, "generated": datetime.now().isoformat()}
     for v in ERROR_WEIGHTS:
         ds = delta_by_var[v]
         es = err_by_var[v]
         pairs = active_pairs[v]
+        lv = level_by_var[v]
         m_v = statistics.median([abs(d) for d in ds]) if ds else 0.0
         consistency = (
             sum(1 for d, t in pairs if d * t >= 0) / len(pairs) if pairs else 0.0
         )
         active_rate = len(pairs) / len(ds) if ds else 0.0
+        # P0-1：clamp_frac = 贴边（|level|≥0.999，clamp 边界）步数占比——区分
+        # "饱和（引擎疯狂驱动被 clamp 吃掉）" vs "真无写者"。post-clamp 世界差值
+        # 在边界处恒 0，m_v=0 可能是饱和而非死——dead 判定必须与 clamp_frac 联合。
+        clamp_frac = sum(1 for lev in lv if abs(lev) >= 0.999) / len(lv) if lv else 0.0
         n_delta = len(ds) if ds else 1
+        sufficient = len(pairs) >= MIN_N_ACTIVE      # P0-1：样本门槛（默认 20）
         probe["per_var"][v] = {
             "m_v": round(m_v, 5),                       # median|sim_delta| → 死变量判定/T_v 标定
             "std_delta": round(statistics.pstdev(ds), 5) if len(ds) > 1 else 0.0,
@@ -588,10 +612,11 @@ def run_probe(
             "active_rate": round(active_rate, 3),
             "consistency_rate": round(consistency, 3),
             "silence_frac": round(silence_by_var[v] / n_delta, 3),  # S 类占比（D 触发条件 ①）
+            "clamp_frac": round(clamp_frac, 3),         # P0-1：贴边占比（饱和 vs 无写者）
             "n_active": len(pairs),
-            "dead": m_v < 0.002,                        # δ_min：死变量走 C3 不标定
-            "target_scale": round(2.0 * m_v / max(1e-9, abs(_median_target(v, tgt_by_var[v]))), 3)
-            if m_v > 0 and _median_target(v, tgt_by_var[v]) > 1e-9 else 1.0,
+            "sufficient": sufficient,                   # P0-1：n_active≥MIN_N_ACTIVE 才算 pass/fail
+            "dead": m_v < DEAD_M_V and clamp_frac < 0.3,  # P0-1 改判：真无写者才算死，饱和不算
+            "target_scale": 1.0,                        # P1-2 禁用（data 终局：key bug + 2·m_v 自指退化）
         }
 
     # ρ 相关矩阵（sentiment/lp 双写检测）
@@ -619,6 +644,17 @@ def run_probe(
     probe["avg_weighted_error"] = round(
         sum(ERROR_WEIGHTS[v] * (statistics.mean(err_by_var[v]) if err_by_var[v] else 1.0)
             for v in ERROR_WEIGHTS), 4)
+
+    # P0-1：加权一致率（仅计 sufficient 变量，死/样本不足不计入——防加权自证）
+    # 验收口径：Σw×consistency（sufficient only）/ Σw（sufficient only）≥0.60
+    w_ok   = sum(ERROR_WEIGHTS[v] for v in ERROR_WEIGHTS
+                 if probe["per_var"][v]["sufficient"])
+    w_cons = sum(ERROR_WEIGHTS[v] * probe["per_var"][v]["consistency_rate"]
+                 for v in ERROR_WEIGHTS if probe["per_var"][v]["sufficient"])
+    probe["weighted_consistency"] = round(w_cons / w_ok, 3) if w_ok > 0 else None
+    probe["weighted_note"] = (
+        "加权一致率仅计 n_active≥%d 的变量（insufficient sample 不计入）" % MIN_N_ACTIVE
+        if w_ok > 0 else "全部变量样本不足，加权一致率无定义")
 
     # EASE 定向探针两级（ship 闸，calib-fix-review 终局）：
     # 独立子探针强制初始 bank_credit_tightening=0.3（[0,1] clamp 吃 0 起步写入测不出落地），
@@ -652,23 +688,23 @@ def _run_ease_probe(
     config_path: str,
     ease_initial_credit: float = 0.3,
 ) -> dict:
-    """
-    EASE 定向探针两级（ship 闸，calib-fix-review 终局 2026-08-08）：
+    """EASE 定向探针两级（ship 闸，calib-fix-review 终局 2026-08-08）：
     验证 A2 EASE_CREDIT 在引擎中可达且写层落地。校准对 bank_credit_tightening
     的负向调节依赖 EASE（唯一负写者），若决策层永假或 clamp 吃写入，校准结果不可信。
 
     两级判定：
       ① 决策层：EASE_CREDIT 被选中步数 >0（ease_signal ∧ ¬tighten_signal 可达性，
-        financial.py:80-86 if-elif tighten 先判，受压窗口 A3 SHORT/A6 PANIC 可见即挡死 EASE）
+        financial.py if-elif tighten 先判，受压窗口 A3 SHORT/A6 PANIC 可见即挡死 EASE）
       ② 写层：EASE 选中步中 bank_credit_tightening 快照差 ≤ -0.005 落地
-        （[0,1] clamp 吃 0 起步写入 → 前置初始 bank_credit_tightening>0，默认 0.3）
 
     ship 闸：①≥1 且 ②≥1 → PASS（EASE 可达，ship 放行）；
       ①=0 → FAIL（ease_signal 永假，EASE 判据降级——校准不阻塞但 ship 阻塞，拆三条件：
-      spread<200 / tightening<threshold×0.3 / grv_stress<threshold×0.3）；
-      ①≥1 但 ②=0 → FAIL（clamp 截断负写入，[0,1] clamp 吃 0 起步写入）。
+      spread<250 / tightening<threshold×1.0 / grv_stress<threshold×0.5）；
+      ①≥1 但 ②=0 → FAIL（写层截断负写入，ship 阻塞）。
 
-    独立子探针：强制初始 bank_credit_tightening=0.3，与主探针同历史窗口，不污染主探针统计。
+    独立子探针：强制初始 bank_credit_tightening=0.3（v2.0.30 放宽后 0.3<0.5 满足
+    easing 前提，自证已解；保留前置正区起步以测"从正区降下来"的真实路径），
+    与主探针同历史窗口，不污染主探针统计。
     """
     print(f"[calibrator] EASE 定向探针开始（{probe_steps} 步，初始 credit={ease_initial_credit}）...")
     agents, _global_cfg = load_agents(config_path)
@@ -681,7 +717,8 @@ def _run_ease_probe(
         calibration_data[0], baseline_row, label=calibration_data[0]["date"]
     )
     initial_world.total_cycles = probe_steps
-    # 前置：EASE 落地需要 level>0（[0,1] clamp 吃 0 起步写入测不出落地）
+    # 前置：EASE 落地测真实路径——从正区起步（v2.0.30 对称 clamp 后 0 起步也能落地，
+    # 但 0.3 正区起步更接近校准实际场景，保留）
     if hasattr(initial_world, "bank_credit_tightening"):
         initial_world.bank_credit_tightening = ease_initial_credit
     model = MacroSimModel(initial_world, agents=agents, use_llm=False)
@@ -709,14 +746,14 @@ def _run_ease_probe(
         gate, advice = "PASS", "EASE 两级可达：校准负向调节有对应机制，ship 放行"
     elif ease_decisions == 0:
         gate = "FAIL"
-        advice = ("决策层 EASE=0：ease_signal 永假（financial.py:75-79 三条件 "
-                  "spread<200 ∧ tightening<threshold×0.3 ∧ grv_stress<threshold×0.3，"
+        advice = ("决策层 EASE=0：ease_signal 永假（v2.0.30 放宽后条件 "
+                  "spread<250 ∧ tightening<threshold×1.0 ∧ grv_stress<threshold×0.5，"
                   "且 tighten 先判挡死受压窗口）。EASE 判据降级——校准不阻塞但 ship 阻塞，"
                   "拆三条件定位")
     else:
         gate = "FAIL"
         advice = (f"决策层 EASE={ease_decisions} 但写层落地={ease_landed}："
-                  f"[0,1] clamp 截断负写入（credit 贴 0 起步）→ 校准负向调节不可达，ship 阻塞")
+                  f"写层负写入截断（clamp/衰减压掉）→ 校准负向调节不可达，ship 阻塞")
 
     result = {
         "gate": gate,

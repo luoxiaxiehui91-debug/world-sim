@@ -72,16 +72,29 @@ class CommercialBankAgent(MacroAgent):
             or hf_action == "SHORT_MARKET"
             or retail_act == "PANIC_SELL"
         )
+        # P0-2（v2.0.30，arch/QA/data 三方终局）：ease_signal 阈值放宽。
+        # 原 tightening<threshold×0.3(=0.15) 一旦收紧就回不来（探针实测 tightening
+        # 锁死 0.97，EASE 决策层永假=结构性不可达）→ 放宽至 threshold×1.0(=0.5)、
+        # spread<250、grv_stress<threshold×0.5(=0.25)。
+        # 与 tighten_signal 无重叠冲突：grv 触发线 0.8、spread 触发线 400、visible 挡死保留。
         ease_signal = (
-            spread < 200
-            and tightening < p.threshold * 0.3
-            and grv_stress < p.threshold * 0.3
+            spread < 250
+            and tightening < p.threshold * 1.0
+            and grv_stress < p.threshold * 0.5
         )
 
-        if tighten_signal:
+        # P0-2：EASE 后 2 步冷却防 flip-flop（v2.0.1 振荡史）。EASE 一步后
+        # tightening 刚降回 <0.5，若 spread/grv 仍高压，下一步又 TIGHTEN →
+        # EASE/TIGHTEN 交替振荡。冷却期跳过 TIGHTEN 分支（允许继续 EASE 或 HOLD）。
+        ease_cooldown = getattr(self, "_ease_cooldown", 0)
+
+        if tighten_signal and ease_cooldown == 0:
             return "TIGHTEN_CREDIT"
         if ease_signal:
+            setattr(self, "_ease_cooldown", 2)
             return "EASE_CREDIT"
+        if ease_cooldown > 0:
+            setattr(self, "_ease_cooldown", ease_cooldown - 1)
         return "HOLD"
 
 

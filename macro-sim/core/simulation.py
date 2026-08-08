@@ -119,7 +119,10 @@ def gm_resolve_rules(
     elif a1 == "CUT_25BP":
         m = mag("A1")
         add("A1", "fed_rate_change",        -25)
-        add("A1", "market_sentiment",         0.20 * m)
+        # P1-1（v2.0.30，arch 终局）：+0.20→+0.30——sentiment 贴 floor 根因是负写者
+        # 每步主导（A3 SHORT -0.18×1.0 + A10 PANIC -0.10），增强正写打破钉死。
+        # 不动 A3 决策分支（08-06 修过 path diversity），只降其 activation（见 agents.yaml）。
+        add("A1", "market_sentiment",         0.30 * m)
         add("A1", "bank_credit_tightening",  -0.08 * m)
     elif a1 == "VERBAL_INTERVENTION":
         add("A1", "market_sentiment",  0.12 * mag("A1"))
@@ -138,7 +141,9 @@ def gm_resolve_rules(
         add("A2", "market_sentiment",        -0.08 * m)
     elif a2 == "EASE_CREDIT":
         m = mag("A2")
-        add("A2", "bank_credit_tightening", -0.18 * m)
+        # P0-2（v2.0.30）：幅度对称 -0.18→-0.25（+0.25/-0.25 对称，终局 issue ③）。
+        # 原 +0.25 vs -0.18 + decay×0.97 → 恢复比收紧慢 ~3 倍，一旦收紧回不来。
+        add("A2", "bank_credit_tightening", -0.25 * m)
         add("A2", "liquidity_premium",       -0.08 * m)
 
     # ── A3 对冲基金 ───────────────────────────────────────
@@ -557,9 +562,12 @@ class MacroSimModel:
                 # C3-3a（2026-08-08 终局裁决）：em_capital_outflow 对称 clamp。
                 # 结构自锁根因：clamp[0,1] + target 可负（grv×0.4−t10y2y×0.3 范围 -0.7~0.7）
                 # + CAPITAL_CONTROLS 自举阈值 0.5 不可达 → 负 target 月误差恒=|target|，LLM 永远修不好。
-                # 模式照抄 china_credit_impulse 负区间分支（L547-548）。bank_credit/liquidity
-                # 保持 [0,1]（方向语义为 level，且负 target 罕见——见 OPEN-DECISIONS 独立病灶跟踪）。
-                if key == "em_capital_outflow":
+                # P0-3（v2.0.30，arch/QA/data 三方终局）：bank_credit/liquidity 同批对称化
+                # [-1,1]——target 均可负（credit=cs×0.6 / lp=cs×0.4+t10y2y×0.3∈[-0.7,0.7]），
+                # clamp[0,1] 结构性砍负半轴 → 负 target 不可测、cap 假收敛（探针 m_v=0 假死）。
+                # 连带已核：decay ×0.97/×0.93 负区向 0 均值回归安全；下游 bleed 阈值全在正侧；
+                # EASE 在负 credit 下更易触发（合理）。
+                if key in ("em_capital_outflow", "bank_credit_tightening", "liquidity_premium"):
                     setattr(self.world, key, max(-1.0, min(1.0, current + val)))
                 else:
                     setattr(self.world, key, max(0.0, min(1.0, current + val)))

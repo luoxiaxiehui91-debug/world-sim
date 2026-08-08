@@ -44,7 +44,10 @@ agents:
     class: financial.HedgeFundAgent
     soul_file: A3_hedge_fund.yaml   # v3 阶段 2 试点：soul 驱动（OVERSOLD_BOUNCE 概率参数化进 contrarian 派系）
     info_delay: 0        # 即时，最灵敏
-    activation_prob: 1.00
+    # P1-1（v2.0.30，arch 终局）：activation 1.00→0.75——sentiment 贴 floor 根因是
+    # 负写者每步主导（A3 SHORT -0.18×1.0），降激活频率打破负压垄断。A3 决策分支不动
+    # （08-06 path diversity 修复），降 activation 反而提高步间多样性（25% 步无 A3 行动）。
+    activation_prob: 0.75
     transmission_coefficients:
       to_A6: 0.50   # 对冲基金做空是媒体的信号来源
       to_A10: 0.60  # 对冲基金行为直接影响散户跟风
