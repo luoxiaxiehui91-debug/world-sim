@@ -84,14 +84,17 @@ class CommercialBankAgent(MacroAgent):
             or retail_act == "PANIC_SELL"
         ) and tighten_ok
 
-        # P0-2（v2.0.30）+ R4d 方向 EASE：cs 回落（target_dir=="ease"）时 EASE 更易触发
-        # （spread 250→350、grv_stress 0.25→0.4）——把"错误收紧步"转"正确 EASE 步"保 n_active。
-        # 中性/收紧方向沿用 P0-2 原阈值；layer-1 合成 ctx 无 cs_delta → 中性 → 与 P0-2 逐字节同。
+        # P0-2（v2.0.30）+ R4d/R4e 方向 EASE：cs 回落（target_dir=="ease"）时 EASE 更易触发
+        # ——把"错误收紧步"转"正确 EASE 步"保 n_active。R4d 版 grv 限制 0.4（*0.8）实测挡死
+        # ~70% 转换（cs 回落月 grv 仍高）→ R4e 放宽至 0.6（*1.2，qa-r2b/data-r2 会签）：
+        # EASE 仅写 credit/lp 不写 sentiment（simulation.py:142-147），对 sentiment 零直接副作用。
+        # 中性/收紧方向阈值不动（spread<250 / grv<0.25）；layer-1 合成 ctx 无 cs_delta → 中性
+        # → 与 P0-2 逐字节同。
         directional_ease = target_dir == "ease"
         ease_signal = (
             spread < (350 if directional_ease else 250)
             and tightening < p.threshold * 1.0
-            and grv_stress < (p.threshold * 0.8 if directional_ease else p.threshold * 0.5)
+            and grv_stress < (p.threshold * 1.2 if directional_ease else p.threshold * 0.5)
         )
 
         # P0-2：EASE 后 2 步冷却防 flip-flop（v2.0.1 振荡史）。EASE 一步后

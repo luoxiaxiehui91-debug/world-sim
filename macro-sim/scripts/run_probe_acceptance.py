@@ -117,6 +117,41 @@ def directional_ease_trigger_rate(probe: dict) -> dict:
     }
 
 
+def ease_block_reason_distribution(probe: dict) -> dict:
+    """R4e（qa-r2b 条件 2）：ease-block 逐步归因——target_dir=="ease"（cs_delta<-2.5）且 A2
+    未 EASE（intent≥0）的步，按放宽后方向 EASE 三条件判定挡死原因（首失败条件优先）：
+      spread_ge_350 / tightening_ge_05 / grv_ge_06（R4e 阈值 0.6）/ would_fire（不应出现）。
+    对齐 s_class_attribution 落盘模式；输入=step_record 已持久化的决策时 level（R4d 必测项）。"""
+    steps = probe.get("steps", [])
+    counts = {"n_block": 0, "spread_ge_350": 0, "tightening_ge_05": 0, "grv_ge_06": 0,
+              "would_fire": 0, "tighten_fail": 0}
+    for rec in steps:
+        cs = rec.get("cs_delta", 0.0)
+        if cs >= -2.5:
+            continue
+        d = rec["per_var"]["bank_credit_tightening"]["d"]
+        if d < -1e-9:
+            continue  # 已 EASE，非 block
+        spread = rec.get("credit_spread", 0.0)
+        tightening = rec.get("bank_credit_tightening", 0.0)
+        grv_stress = max(0.0, (rec.get("grv_level", 50.0) - 50.0) / 50.0)
+        if d > 1e-9:
+            counts["tighten_fail"] += 1
+            counts["n_block"] += 1
+            continue
+        counts["n_block"] += 1
+        if spread >= 350:
+            counts["spread_ge_350"] += 1
+        elif tightening >= 0.5:
+            counts["tightening_ge_05"] += 1
+        elif grv_stress >= 0.6:
+            counts["grv_ge_06"] += 1
+        else:
+            counts["would_fire"] += 1
+    n = counts["n_block"]
+    return {k: (round(v / n, 3) if n and k != "n_block" else v) for k, v in counts.items()}
+
+
 def rollback_check(probes: dict, merged: dict, credit_med: dict, grv_down_med: float) -> dict:
     """R4d 回退线 5 条机读判定：返回 {line: {value, status: met/warn/revert, desc}}。"""
     metrics = {
@@ -541,6 +576,8 @@ def main() -> int:
 
     # R4d 必测项：方向 EASE 实际触发率（对照 R4c-B 乐观投影）+ 回退线 5 条机读判定
     de_trigger = {str(sd): directional_ease_trigger_rate(probes[str(sd)]["raw"]) for sd in seeds}
+    # R4e（qa-r2b 条件 2）：ease-block 逐步归因（放宽后仍挡死的三分类）
+    ease_block = {str(sd): ease_block_reason_distribution(probes[str(sd)]["raw"]) for sd in seeds}
     grv_down_vals = [
         probes[str(sd)]["raw"].get("per_var", {}).get("market_sentiment", {}).get("consistency_grv_down")
         for sd in seeds
@@ -569,6 +606,7 @@ def main() -> int:
         "merged": probes.get("_merged"),
         "credit_median": probes.get("_credit_median"),
         "directional_ease_trigger": de_trigger,   # R4d 必测项（对照投影）
+        "ease_block_reason": ease_block,          # R4e（qa-r2b 条件 2）：放宽后仍挡死三分类
         "r4d_rollback": r4d_rollback,             # R4d 回退线 5 条机读判定
         "failures": [{"step": s, "msg": m} for s, m in verdict.failures],
         "warnings": verdict.warnings,
@@ -598,6 +636,12 @@ def main() -> int:
         print(f"[R4d] directional_ease (seed{sd}): target_ease={dt['n_target_ease']} "
               f"eased={dt['n_eased']} hold={dt['n_hold']} tighten_fail={dt['n_tighten_fail']} "
               f"trigger_rate={dt['trigger_rate']}")
+    # R4e：ease-block 逐步归因（放宽后仍挡死三分类）
+    for sd, eb in (ease_block or {}).items():
+        print(f"[R4e] ease-block (seed{sd}): n_block={eb['n_block']} "
+              f"grv_ge_06={eb['grv_ge_06']} spread_ge_350={eb['spread_ge_350']} "
+              f"tightening_ge_05={eb['tightening_ge_05']} would_fire={eb['would_fire']} "
+              f"tighten_fail={eb['tighten_fail']}")
     # R4d 回退线机读判定
     for name, rc in (r4d_rollback or {}).items():
         print(f"[R4d回退线] {name}: value={rc['value']} status={rc['status']} —— {rc['desc']}")
