@@ -116,7 +116,11 @@ TUNING_STATE_PATH = Path("/app/data/calib_tuning_state.json")
 # 且无法排除未来某次 run_calibration 在 v5 下写过缓存、回退后命中即自证。bump 零成本，取安全侧。
 # v2.0.32 R4b（A2 info_delay 2→1）改变引擎动力学（行动频率上限 ~1/3→~1/2，冷却窗口减半）
 # → bump 7（防 <7 天命中 v6 引擎缓存自证；qa-r2 反作弊门）
-CACHE_VERSION = 7
+# v2.0.33 R4c（dead 语义修正：m_v 全步→m_v_active 行动步 + act_frac<0.10 判死）→ bump 8。
+# 判断：dead 是测量层改动（非动力学），但 dead 经 eligible_for_weighted 改变加权一致率
+# 计分口径（credit 由排除→sufficient 时入池）→ 旧缓存 score 语义不同，必须失效；
+# 按反作弊纪律"计分口径变宁可 bump"，bump 8（解释见 commit）。
+CACHE_VERSION = 8
 # 旧 ERROR_THRESHOLD 保留为常量（外部引用兼容；触发已改 per-var 相对度量）
 ERROR_THRESHOLD_LEGACY = 0.20
 
@@ -217,6 +221,28 @@ def _extract_preclamp_delta(snapshot: dict) -> dict:
             d = d * MONTHLY_SCALE
         out[v] = round(d, 5)
     return out
+
+
+def _dead_new(act_frac: float, m_v_active: float) -> bool:
+    """R4c（qa-r2b+data-r2 双会签）dead 新语义：act_frac<0.10 OR m_v_active<0.002。
+
+    旧语义（m_v 全步 median ∧ clamp_frac<0.3）在 pre-clamp 意图口径下 knife-edge：
+    credit act 0.388（>50% 步零 intent → 全步 median|d|=0）被误判真死；但行动步幅度
+    m_v_active=0.335 正常——引擎"部分活跃"而非"无写者"。
+    新公式：要么几乎从不行动（act<10%），要么行动时幅度趋零（m_v_active<0.002）才算死。
+    """
+    return bool(act_frac < 0.10 or m_v_active < DEAD_M_V)
+
+
+def _activity_band(act_frac: float) -> str:
+    """R4c 活性语义带（文档化，不设独立闸）：low<0.10=dead / insufficient∈[0.10,0.30) /
+    adequate≥0.30。insufficient：非死但活性不足——guard A（act≥0.30）FAIL + 零 intent 步
+    稀释 active 样本 → p̂ 保守偏 FAIL，由守卫 A 与 p̂ 稀释共同表达。"""
+    if act_frac < 0.10:
+        return "low"
+    if act_frac < 0.30:
+        return "insufficient"
+    return "adequate"
 
 
 def _eligible_for_weighted(pv: dict) -> bool:
@@ -755,6 +781,17 @@ def run_probe(
         n_delta = len(ds) if ds else 1
         sufficient = len(pairs) >= MIN_N_ACTIVE      # P0-1：样本门槛（默认 20）
 
+        # R4c（qa-r2b+data-r2 双会签）：m_v_active = median|d| over 行动步（|d|>0）——
+        # 只测"引擎行动时的幅度"，不被零 intent 步稀释。credit R4b 实测 m_v=0.0（median 含
+        # 61% 零步）但 m_v_active=0.335（行动步幅度 0.25-0.35 正常）——旧 m_v 把"部分活跃"
+        # 误判真死，new dead 公式修复：dead = act_frac<0.10 OR m_v_active<0.002。
+        _act_ds = [d for d in ds if abs(d) > 0]
+        m_v_active = statistics.median([abs(d) for d in _act_ds]) if _act_ds else 0.0
+        _dead_new = _dead_new(active_rate, m_v_active)
+        # act∈[0.10,0.30)：非死但活性不足（guard A FAIL + 稀释 p̂ 保守偏 FAIL 的语义带，
+        # R4c 双会签定稿——不设独立闸，由 guard A act≥0.30 与 p̂ 稀释共同表达）
+        activity_band = _activity_band(active_rate)
+
         # R4a（qa-r2b follow-up）：S 类步 why-no-action 归因——对每个 S 类步（|t|≥EPS_TGT ∧
         # |d|<EPS_ACT），按 A2 决策路径归因三分类。目的：区分"level-vs-delta 决策规则错配"
         # vs "info_delay 冷却/激活门陈旧"两机制，为 R4b info_delay 2→1 决策提供数据：
@@ -782,10 +819,12 @@ def run_probe(
             "n_s": _n_s,
         }
         probe["per_var"][v] = {
-            "m_v": round(m_v, 5),                       # median|sim_delta| → 死变量判定/T_v 标定
+            "m_v": round(m_v, 5),                       # median|sim_delta| 全步（参考）
+            "m_v_active": round(m_v_active, 5),         # R4c：median|d| over 行动步（dead 判定用）
             "std_delta": round(statistics.pstdev(ds), 5) if len(ds) > 1 else 0.0,
             "p90_error": round(sorted(es)[int(len(es) * 0.9)] if es else 0.0, 4),
             "active_rate": round(active_rate, 3),
+            "activity_band": activity_band,             # R4c：low/insufficient/adequate（语义文档化）
             "consistency_rate": round(consistency, 3),
             # R4a-2（data-r2 复核点 1）：未舍入精确一致率——权威加权路径唯一化。
             # 探针落盘一致性用 round(,3)，验收合并 CI 用 steps 重算未舍入值 → 双口径差 ~0.003
@@ -793,10 +832,10 @@ def run_probe(
             # weighted_consistency_exact 由它计算；验收一律读精确值，round 仅用于展示。
             "consistency_rate_exact": round(consistency, 6),
             "silence_frac": round(silence_by_var[v] / n_delta, 3),  # S 类占比（D 触发条件 ①）
-            "clamp_frac": round(clamp_frac, 3),         # P0-1：贴边占比（饱和 vs 无写者）
+            "clamp_frac": round(clamp_frac, 3),         # 参考字段（R4c 后不再参与 dead 判定）
             "n_active": len(pairs),
             "sufficient": sufficient,                   # P0-1：n_active≥MIN_N_ACTIVE 才算 pass/fail
-            "dead": m_v < DEAD_M_V and clamp_frac < 0.3,  # P0-1 改判：真无写者才算死，饱和不算
+            "dead": _dead_new,                          # R4c：act_frac<0.10 OR m_v_active<0.002
             "target_scale": 1.0,                        # P1-2 禁用（data 终局：key bug + 2·m_v 自指退化）
             # R3 四字段（qa-r2b blocking #1 / arch 候选② / data-r2 口径对齐）
             "consistency_grv_up": round(cons_up, 3) if cons_up is not None else None,
@@ -807,7 +846,7 @@ def run_probe(
             "a3_bounce_frac": round(a3_bounce_frac, 3),
             "eligible_for_weighted": _eligible_for_weighted({
                 "sufficient": sufficient,
-                "dead": m_v < DEAD_M_V and clamp_frac < 0.3,
+                "dead": _dead_new,
                 "silence_frac": (silence_by_var[v] / n_delta) if n_delta else 1.0,
             }),
             # R4a：S 类 why-no-action 归因（A2 决策路径三分类 + acted_other 残差）
@@ -1051,10 +1090,12 @@ def _print_d_trigger_check(probe: dict):
             flags.append(f"①silence_frac={p['silence_frac']:.0%}>50%")
         if p["active_rate"] < 0.30:
             flags.append(f"②act_frac={p['active_rate']:.0%}<30%")
-        if p["m_v"] < 0.005:
-            flags.append(f"③m_v={p['m_v']}<0.005 死线")
-        elif p["m_v"] < 0.05:
-            flags.append(f"参考线: m_v={p['m_v']}∈[0.025,0.05) 降监控")
+        # R4c：dead 判定改 act_frac<0.10 OR m_v_active<0.002——③参考线用 m_v_active
+        # （行动步幅度），全步 m_v 被零步稀释不可再用作死线参考
+        if p.get("m_v_active", 0.0) < 0.005:
+            flags.append(f"③m_v_active={p.get('m_v_active', 0.0)}<0.005 死线")
+        elif p.get("m_v_active", 0.0) < 0.05:
+            flags.append(f"参考线: m_v_active={p.get('m_v_active', 0.0)}∈[0.025,0.05) 降监控")
         status = " 触发" + " | ".join(flags) if flags else " 未触发"
         print(f"  {v}:{status}")
 
