@@ -6,6 +6,32 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.31b — 2026-08-08 (by WorkBuddy)
+
+**修改理由**：R4a 纯测量/回退段（calib-eps-act-review R3 裁决 + qa-r2b follow-up，2026-08-08）。R3 实证 A2 grv 触发线 0.6 与契约 0.8 在本窗口零差异（(0.3,0.4] 仅 3 个月不可判别）→ 无证据支撑偏离契约，回退 0.8；同时补 S 类 why-no-action 归因测量，为 R4b info_delay 2→1 决策提供数据。
+
+### 修改
+
+- **`core/agents/financial.py`**（CommercialBankAgent._decide_rules）
+  - **R4a 契约回退**：grv 触发线 `* 0.6 → * 0.8`（grv_stress>0.3→>0.4，单行可独立 revert）。0.6 记为"待验证候选"，R4b 修 A2 结构时一并重估
+- **`core/calibrator.py`**
+  - **R4a S 类归因（qa-r2b follow-up，纯测量）**：新增 `classify_a2_state`（冷却/激活门/决策无信号/实际行动残差四分类）与 `per_var[v]['s_class_attribution']`（activation_gate / rate_limit / tighten_signal_false + n_s）——区分"决策规则 level-vs-delta 错配" vs "info_delay 冷却陈旧"两机制；`steps[]` 每步新增 `a2_state`
+  - **R4a grv 窗口统计落盘（qa-r2b advisory ④）**：`grv_window_stats`（n_months / grv_stress_gt_04 / grv_stress_03_04 / grv_stress_le_03）——机读替代散文，防再次凭"感觉"判断触发线改动是否有意义
+  - **R4a target 零膨胀字段（data-r2）**：per_var 新增 `target_nonzero_frac` + `target_sd`（区分"写者失联 vs 稀释"）
+  - **CACHE_VERSION 5→6**：触发线改动宁可 bump（反作弊纪律）；R3 零差异是单窗口结论，不能证明全窗口等价；无法排除 v5 下曾写缓存
+- **`scripts/run_probe_acceptance.py`**
+  - weighted 直接复用探针落盘 `weighted_consistency`（同一函数同一舍入，消除 R3 双口径 0.001 差）
+  - merged 输出显式标注 eligible 池与 N（加权有效样本量，如 N=243 而非名义 400）
+  - 新增 `--read-only` 只读判定模式（防随机重跑覆盖工件）
+  - 硬闸短路也输出 merged/credit_median（FAIL 也带证据）
+  - 汇总落盘 per-var/per-seed `n_active_table` + `rho_target_stats`
+- **`tests/test_calibrator_guards.py`**：新增 classify_a2_state / S 类映射 / 触发线契约回退回归，共 12 组（断言 41 条；原 narrative 11 组不降）
+
+### R4a 验收证据
+
+- seed42 冒烟：S 类归因三分类有输出、`--read-only` 模式可用（读旧工件判定，不重跑）
+- grv 窗口统计：50 月窗口 grv_stress>0.4 共 34 个月、(0.3,0.4] 仅 3 个月——触发线下探不可判别的机读实证
+
 ## v2.0.31 — 2026-08-08 (by WorkBuddy)
 
 **修改理由**：P0——R3 修复 + 验收基建（calib-eps-act-review R2 四方终局 + R3 实现指令，2026-08-08）。加权一致率 0.513<0.60 + credit 真失活（pre-clamp 意图=0 dead=True）+ rho 三 seed 超 |0.3|。裁决：①修 A2 触发线（arch 候选①）②sentiment 政策对冲先调查后豁免（arch 候选②）③rho 结构性共驱动豁免（arch 候选③）④死变量豁免修复（qa-r2b blocking #2）⑤机读验收三合一（qa-r2b 定稿）。
