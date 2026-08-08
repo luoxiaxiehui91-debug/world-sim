@@ -787,7 +787,7 @@ def run_probe(
         # 误判真死，new dead 公式修复：dead = act_frac<0.10 OR m_v_active<0.002。
         _act_ds = [d for d in ds if abs(d) > 0]
         m_v_active = statistics.median([abs(d) for d in _act_ds]) if _act_ds else 0.0
-        _dead_new = _dead_new(active_rate, m_v_active)
+        _dead_flag = _dead_new(active_rate, m_v_active)
         # act∈[0.10,0.30)：非死但活性不足（guard A FAIL + 稀释 p̂ 保守偏 FAIL 的语义带，
         # R4c 双会签定稿——不设独立闸，由 guard A act≥0.30 与 p̂ 稀释共同表达）
         activity_band = _activity_band(active_rate)
@@ -835,7 +835,7 @@ def run_probe(
             "clamp_frac": round(clamp_frac, 3),         # 参考字段（R4c 后不再参与 dead 判定）
             "n_active": len(pairs),
             "sufficient": sufficient,                   # P0-1：n_active≥MIN_N_ACTIVE 才算 pass/fail
-            "dead": _dead_new,                          # R4c：act_frac<0.10 OR m_v_active<0.002
+            "dead": _dead_flag,                          # R4c：act_frac<0.10 OR m_v_active<0.002
             "target_scale": 1.0,                        # P1-2 禁用（data 终局：key bug + 2·m_v 自指退化）
             # R3 四字段（qa-r2b blocking #1 / arch 候选② / data-r2 口径对齐）
             "consistency_grv_up": round(cons_up, 3) if cons_up is not None else None,
@@ -846,7 +846,7 @@ def run_probe(
             "a3_bounce_frac": round(a3_bounce_frac, 3),
             "eligible_for_weighted": _eligible_for_weighted({
                 "sufficient": sufficient,
-                "dead": _dead_new,
+                "dead": _dead_flag,
                 "silence_frac": (silence_by_var[v] / n_delta) if n_delta else 1.0,
             }),
             # R4a：S 类 why-no-action 归因（A2 决策路径三分类 + acted_other 残差）
