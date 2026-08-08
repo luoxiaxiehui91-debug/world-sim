@@ -299,7 +299,12 @@ def apply_bleed_rules(world: MacroWorldState, params: dict = None):
 
 def apply_sentiment_delta(world: MacroWorldState, raw_delta: float):
     s = world.market_sentiment
-    damping = 1.0 / (1.0 + 3.0 * abs(s))
+    # 2026-08-08 A 修复（calib-fix-review 终局）：damping 下限。
+    # 原 1/(1+3|s|) 在 s=-1 时压到 0.25 → 与 MONTHLY_SCALE=0.12 双压，
+    # sentiment 钉死 -1.0 欠响应（46/50 步 floor）根因之一。
+    # 初版 floor 0.5（只放大 |s|≥1/3 极端区）实测仍不足（贴边 54% > 50%，
+    # 正 delta 18% < 20%）→ 按终局裁决授权升 A=1.0（damping 恒 1，恢复不受压缩）。
+    damping = max(1.0, 1.0 / (1.0 + 3.0 * abs(s)))
     world.market_sentiment = max(-1.0, min(1.0, s + raw_delta * damping))
 
 

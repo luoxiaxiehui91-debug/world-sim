@@ -373,8 +373,10 @@ def _call_llm_for_adjustment(
 # ── 三守卫（qa-review 定稿，硬闸）────────────────────────────
 
 # 误差变量写者清单（simulation.py gm 规则核实）：用于守卫 B 参数塌缩检查
+# 2026-08-08 A2 写者补丁：market_sentiment 补 A2（simulation.py:138 EASE_CREDIT 写 -0.08*m，
+# 原清单漏 A2——守卫 B 塌缩判定不受影响，但清单与 gm 规则必须一致）
 ERROR_VAR_WRITERS = {
-    "market_sentiment":       ["A1", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12"],
+    "market_sentiment":       ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12"],
     "bank_credit_tightening": ["A1", "A2", "A11"],
     "liquidity_premium":      ["A2", "A3", "A4", "A5", "A10", "A11", "A12"],
 }
@@ -525,6 +527,8 @@ def run_probe(
     err_by_var   = {v: [] for v in ERROR_WEIGHTS}
     active_pairs = {v: [] for v in ERROR_WEIGHTS}   # (d, t) 仅 T 类
     all_pairs    = {v: [] for v in ERROR_WEIGHTS}   # (d, t) 所有步（ρ 矩阵用）
+    ease_decisions_main = 0   # 主探针顺带观察：A2 选中 EASE_CREDIT 的步数（ship 闸以子探针为准）
+    silence_by_var = {v: 0 for v in ERROR_WEIGHTS}  # S 类计数（D 触发条件 ① silence_frac>50%）
 
     for i, row in enumerate(calibration_data):
         exogenous_inject = {
@@ -533,6 +537,8 @@ def run_probe(
         }
         snapshot = model.step(inject_world=exogenous_inject)
         simulated_values = {k: snapshot.get(k, 0.0) for k in ERROR_WEIGHTS}
+        if snapshot.get("actions", {}).get("A2") == "EASE_CREDIT":
+            ease_decisions_main += 1
 
         prev_row = calibration_data[i - 1] if i > 0 else baseline_row
         endogenous_targets = _derive_endogenous_targets(prev_row, row)
@@ -559,6 +565,7 @@ def run_probe(
                 err_by_var[v].append(abs(d))
             else:  # S
                 err_by_var[v].append(abs(t))
+                silence_by_var[v] += 1
 
     # 统计
     probe = {"steps": probe_steps, "n_delta_steps": len(delta_by_var[list(ERROR_WEIGHTS)[0]]),
@@ -572,12 +579,14 @@ def run_probe(
             sum(1 for d, t in pairs if d * t >= 0) / len(pairs) if pairs else 0.0
         )
         active_rate = len(pairs) / len(ds) if ds else 0.0
+        n_delta = len(ds) if ds else 1
         probe["per_var"][v] = {
             "m_v": round(m_v, 5),                       # median|sim_delta| → 死变量判定/T_v 标定
             "std_delta": round(statistics.pstdev(ds), 5) if len(ds) > 1 else 0.0,
             "p90_error": round(sorted(es)[int(len(es) * 0.9)] if es else 0.0, 4),
             "active_rate": round(active_rate, 3),
             "consistency_rate": round(consistency, 3),
+            "silence_frac": round(silence_by_var[v] / n_delta, 3),  # S 类占比（D 触发条件 ①）
             "n_active": len(pairs),
             "dead": m_v < 0.002,                        # δ_min：死变量走 C3 不标定
             "target_scale": round(2.0 * m_v / max(1e-9, abs(_median_target(v, tgt_by_var[v]))), 3)
@@ -610,6 +619,16 @@ def run_probe(
         sum(ERROR_WEIGHTS[v] * (statistics.mean(err_by_var[v]) if err_by_var[v] else 1.0)
             for v in ERROR_WEIGHTS), 4)
 
+    # EASE 定向探针两级（ship 闸，calib-fix-review 终局）：
+    # 独立子探针强制初始 bank_credit_tightening=0.3（[0,1] clamp 吃 0 起步写入测不出落地），
+    # 测 ①决策层 EASE_CREDIT 可达性 ②写层负 delta 落地。主探针顺带观察决策层。
+    ease_probe = _run_ease_probe(
+        calibration_data, baseline_row, probe_steps, config_path,
+        ease_initial_credit=0.3,
+    )
+    probe["ease_probe"] = ease_probe
+    probe["ease_decisions_main"] = ease_decisions_main  # 主探针窗口顺带观察（ship 闸以子探针为准）
+
     PROBE_PATH.parent.mkdir(parents=True, exist_ok=True)
     PROBE_PATH.write_text(json.dumps(probe, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[calibrator] 探针完成，已写 {PROBE_PATH}")
@@ -618,9 +637,122 @@ def run_probe(
         print(f"  {v}: m_v={p['m_v']} active={p['active_rate']} "
               f"consistency={p['consistency_rate']} p90={p['p90_error']}"
               f"{' [死变量→C3]' if p['dead'] else ''}")
+    # D 触发条件诊断（A+D 修复批次，任一触发→上 D=0.25 已实施；此处对照打印）
+    _print_d_trigger_check(probe)
     # 决策树提示（data R4）
     _print_probe_decision_tree(probe)
     return probe
+
+
+def _run_ease_probe(
+    calibration_data: list[dict],
+    baseline_row: dict,
+    probe_steps: int,
+    config_path: str,
+    ease_initial_credit: float = 0.3,
+) -> dict:
+    """
+    EASE 定向探针两级（ship 闸，calib-fix-review 终局 2026-08-08）：
+    验证 A2 EASE_CREDIT 在引擎中可达且写层落地。校准对 bank_credit_tightening
+    的负向调节依赖 EASE（唯一负写者），若决策层永假或 clamp 吃写入，校准结果不可信。
+
+    两级判定：
+      ① 决策层：EASE_CREDIT 被选中步数 >0（ease_signal ∧ ¬tighten_signal 可达性，
+        financial.py:80-86 if-elif tighten 先判，受压窗口 A3 SHORT/A6 PANIC 可见即挡死 EASE）
+      ② 写层：EASE 选中步中 bank_credit_tightening 快照差 ≤ -0.005 落地
+        （[0,1] clamp 吃 0 起步写入 → 前置初始 bank_credit_tightening>0，默认 0.3）
+
+    ship 闸：①≥1 且 ②≥1 → PASS（EASE 可达，ship 放行）；
+      ①=0 → FAIL（ease_signal 永假，EASE 判据降级——校准不阻塞但 ship 阻塞，拆三条件：
+      spread<200 / tightening<threshold×0.3 / grv_stress<threshold×0.3）；
+      ①≥1 但 ②=0 → FAIL（clamp 截断负写入，[0,1] clamp 吃 0 起步写入）。
+
+    独立子探针：强制初始 bank_credit_tightening=0.3，与主探针同历史窗口，不污染主探针统计。
+    """
+    print(f"[calibrator] EASE 定向探针开始（{probe_steps} 步，初始 credit={ease_initial_credit}）...")
+    agents, _global_cfg = load_agents(config_path)
+    # 校准期 S 类挂起（与 run_probe 主探针同规则）
+    for _aid, _agent in agents.items():
+        if _aid.startswith("S"):
+            _agent.activation_prob = 0.0
+
+    initial_world = make_world_from_history_row(
+        calibration_data[0], baseline_row, label=calibration_data[0]["date"]
+    )
+    initial_world.total_cycles = probe_steps
+    # 前置：EASE 落地需要 level>0（[0,1] clamp 吃 0 起步写入测不出落地）
+    if hasattr(initial_world, "bank_credit_tightening"):
+        initial_world.bank_credit_tightening = ease_initial_credit
+    model = MacroSimModel(initial_world, agents=agents, use_llm=False)
+
+    ease_decisions = 0    # ① 决策层
+    ease_landed = 0       # ② 写层落地
+    ease_deltas: list[float] = []
+    prev_credit = ease_initial_credit
+    for row in calibration_data:
+        exogenous_inject = {
+            k: v for k, v in row.items()
+            if k in EXOGENOUS_VARS and hasattr(model.world, k)
+        }
+        snapshot = model.step(inject_world=exogenous_inject)
+        cur_credit = snapshot.get("bank_credit_tightening", prev_credit)
+        if snapshot.get("actions", {}).get("A2") == "EASE_CREDIT":
+            ease_decisions += 1
+            d = cur_credit - prev_credit
+            ease_deltas.append(round(d, 5))
+            if d <= -0.005:
+                ease_landed += 1
+        prev_credit = cur_credit
+
+    if ease_decisions >= 1 and ease_landed >= 1:
+        gate, advice = "PASS", "EASE 两级可达：校准负向调节有对应机制，ship 放行"
+    elif ease_decisions == 0:
+        gate = "FAIL"
+        advice = ("决策层 EASE=0：ease_signal 永假（financial.py:75-79 三条件 "
+                  "spread<200 ∧ tightening<threshold×0.3 ∧ grv_stress<threshold×0.3，"
+                  "且 tighten 先判挡死受压窗口）。EASE 判据降级——校准不阻塞但 ship 阻塞，"
+                  "拆三条件定位")
+    else:
+        gate = "FAIL"
+        advice = (f"决策层 EASE={ease_decisions} 但写层落地={ease_landed}："
+                  f"[0,1] clamp 截断负写入（credit 贴 0 起步）→ 校准负向调节不可达，ship 阻塞")
+
+    result = {
+        "gate": gate,
+        "ease_decisions": ease_decisions,
+        "ease_landed": ease_landed,
+        "ease_credit_deltas": ease_deltas,
+        "initial_credit": ease_initial_credit,
+        "advice": advice,
+    }
+    print(f"[calibrator] EASE 定向探针：决策层={ease_decisions} 落地={ease_landed} → ship 闸 {gate}")
+    return result
+
+
+def _print_d_trigger_check(probe: dict):
+    """
+    D 触发条件诊断打印（A+D 修复批次终局，2026-08-08）：
+    A 引擎 clamp 口径下任一触发 → 上 D=0.25（本批次已实施 D，此处对照打印留痕）。
+      ① silence_frac > 50%
+      ② act_frac < 30%
+      ③ m_v < 0.005 死线（诊断）；m_v 0.025/0.05 降监控参考线
+        （data-fix 反证：sentiment m_v 在 0.12 保留下恒 0.005~0.010，
+        固定绝对数触发线=变相强制 D，故仅作参考线不自动触发）
+    """
+    print("\n[calibrator] D 触发条件对照（A 引擎 clamp 口径，D=0.25 已实施）：")
+    for v in ERROR_WEIGHTS:
+        p = probe["per_var"][v]
+        flags = []
+        if p["silence_frac"] > 0.50:
+            flags.append(f"①silence_frac={p['silence_frac']:.0%}>50%")
+        if p["active_rate"] < 0.30:
+            flags.append(f"②act_frac={p['active_rate']:.0%}<30%")
+        if p["m_v"] < 0.005:
+            flags.append(f"③m_v={p['m_v']}<0.005 死线")
+        elif p["m_v"] < 0.05:
+            flags.append(f"参考线: m_v={p['m_v']}∈[0.025,0.05) 降监控")
+        status = " 触发" + " | ".join(flags) if flags else " 未触发"
+        print(f"  {v}:{status}")
 
 
 def _median_target(var: str, tgt_list: list[float]) -> float:
