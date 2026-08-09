@@ -101,7 +101,7 @@
 
 ---
 
-## 变更 6：R4h ③-A sentiment 写者 + a2_action 落盘 + CACHE 12 + v2.0.38（commit 待回填）
+## 变更 6：R4h ③-A sentiment 写者 + a2_action 落盘 + CACHE 12 + v2.0.38（commit aa29f6b）
 
 - **裁决来源**：R4h 评审简报 §3 实施 spec（arch-r4h 定稿，qa/data 会签）——③-A 参数 K=1.0（EASE 写
   sentiment 对称 +0.08），与 TIGHTEN -0.08 完全镜像。② vix 治理本轮不做（M6 残差裁决后行）。
