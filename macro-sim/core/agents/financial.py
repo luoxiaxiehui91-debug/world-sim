@@ -86,8 +86,9 @@ class CommercialBankAgent(MacroAgent):
 
         # P0-2（v2.0.30）+ R4d/R4e 方向 EASE：cs 回落（target_dir=="ease"）时 EASE 更易触发
         # ——把"错误收紧步"转"正确 EASE 步"保 n_active。R4d 版 grv 限制 0.4（*0.8）实测挡死
-        # ~70% 转换（cs 回落月 grv 仍高）→ R4e 放宽至 0.6（*1.2，qa-r2b/data-r2 会签）：
-        # EASE 仅写 credit/lp 不写 sentiment（simulation.py:142-147），对 sentiment 零直接副作用。
+        # ~70% 转换（cs 回落月 grv 仍高）→ R4e 放宽至 0.6（*1.2，qa-r2b/data-r2 会签）。
+        # R4h ③-A（v2.0.38）起 EASE 已补写 market_sentiment +0.08×m（simulation.py:148，
+        # 与 TIGHTEN -0.08 完全镜像），不再"对 sentiment 零直接副作用"——本行注释更新非引擎行为。
         # 中性/收紧方向阈值不动（spread<250 / grv<0.25）；layer-1 合成 ctx 无 cs_delta → 中性
         # → 与 P0-2 逐字节同。
         directional_ease = target_dir == "ease"

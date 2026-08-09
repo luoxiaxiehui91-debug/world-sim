@@ -1,10 +1,42 @@
 # Changelog
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-08-08（记录类文档随部署持续更新）
+> 最后核对时间：2026-08-09（记录类文档随部署持续更新）
 
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+
+## v2.0.38 — 2026-08-09 (by arch-r4h2)
+
+**修改理由**：R4h ③-A sentiment 写者实施（R4h 评审简报 §3 实施 spec，qa+arch 推荐参数 A：
+EASE 写 sentiment 对称 +0.08）。sentiment 长期贴 floor（level_mean -0.880 / floor_frac
+0.694）根因之一 = EASE 对 sentiment 零直接副作用（负写者主导 3:1：TIGHTEN -0.08 ×12 步 vs
+EASE 不写 ×4 步，grv_down reverse 0.727）。② vix 豁免治理本轮不做（M6 残差裁决后行）。
+
+### 修改
+
+- **`core/simulation.py`**（gm_resolve_rules EASE_CREDIT 分支）
+  - **R4h ③-A**：补写 `add("A2", "market_sentiment", 0.08 * m)`（K=1.0，m=mag("A2")=1.0），
+    与 TIGHTEN 的 -0.08（L141）完全镜像。clamp [-1,1] 由 apply_sentiment_delta 统一，
+    damping 恒 1；传导放大 A2→A3(0.40)/A10(0.35) 衰减 0.5 → 每步总效果 +0.0275/步 ≥EPS_ACT
+  - **传导路径**：EASE 写 sentiment → 抬离 floor → consecutive_negative_steps 重置 →
+    vix bleed 停（③→② 部分收敛，vix 无 decay 存量不回吐 → ③ 必要不充分）
+- **`core/calibrator.py`**
+  - **a2_action 落盘**（step_record）：`"a2_action": snapshot.get("actions",{}).get("A2","HOLD")`
+    ——决策级 A2 行动（纯测量层，无额外 CACHE bump），服务 qa P1 a2_acted / M4 flip-flop /
+    M1 EASE wrong 同口径
+  - **CACHE_VERSION 11→12**（sentiment 写者改变引擎动力学，反作弊门）
+- **`scripts/run_probe_acceptance.py`**：ARTIFACT_TAG v2030c → v2031（防 era 混淆，R4g 待办落地）
+- **`tests/test_calibrator_guards.py`**：新增 3 项（test_a2_ease_writes_sentiment /
+  test_a2_ease_sentiment_symmetry / test_a2_ease_sentiment_t_class），110 → 113
+- **`docs/r4g-spec-change-registry.md`**：追加变更 6
+- **`core/agents/financial.py`**：L90 过时注释更新（"EASE 仅写 credit/lp 不写 sentiment…
+  零直接副作用"已过时；注释更新非引擎行为）
+
+### 验收口径（qa 独立跑，arch 不自证）
+
+五闸 + M1-M7 + ③ 专项 3 项（M6 残差 / M2 silence diff / S1 sentiment 桶）；weighted 0.60 /
+EPS_TGT 0.03 冻结；断言 113 禁 skip/.only；只读落盘工件。
 
 ## v2.0.35 — 2026-08-08 (by WorkBuddy)
 

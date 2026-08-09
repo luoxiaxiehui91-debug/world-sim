@@ -435,6 +435,45 @@ def test_layer1_ctx_handwritten_constraint():
     assert '"credit_spread": 150.0' in seg, "layer-1 ctx 必须为手写合成 dict（spread=150）"
 
 
+# ── 10) R4h ③-A：EASE sentiment 写者（K=1.0 对称 +0.08）─────────
+
+def _a2_world():
+    """gm_resolve_rules 最小 world 桩：A2 分支 + 正反馈环仅读写 market_sentiment /
+    bank_credit_tightening / consecutive_negative_steps（其余 getattr 均带默认）。"""
+    import types
+    return types.SimpleNamespace(
+        market_sentiment=-0.5,
+        bank_credit_tightening=0.5,
+        consecutive_negative_steps=0,
+    )
+
+
+def test_a2_ease_writes_sentiment():
+    """R4h ③-A：EASE_CREDIT 补写 market_sentiment 正向分量（此前 EASE 分支不写 sentiment，
+    负写者主导 3:1：TIGHTEN -0.08 ×12 步 vs EASE 不写 ×4 步）。"""
+    from core.simulation import gm_resolve_rules
+    delta = gm_resolve_rules({"A2": "EASE_CREDIT"}, _a2_world(), {"A2": _a2()}, {})
+    assert delta.get("market_sentiment", 0.0) > 0, "EASE 必须写 sentiment 正向分量（R4h ③-A）"
+
+
+def test_a2_ease_sentiment_symmetry():
+    """R4h ③-A：EASE 写 sentiment 幅度 == TIGHTEN 幅度（K=1.0 → ±0.08×m，m=1.0 完全镜像）。"""
+    from core.simulation import gm_resolve_rules
+    _w, _ag = _a2_world(), {"A2": _a2()}
+    d_ease = gm_resolve_rules({"A2": "EASE_CREDIT"}, _w, _ag, {})
+    d_tight = gm_resolve_rules({"A2": "TIGHTEN_CREDIT"}, _w, _ag, {})
+    assert abs(d_ease["market_sentiment"] - 0.08) < 1e-12 and abs(d_ease["market_sentiment"] + d_tight["market_sentiment"]) < 1e-12
+
+
+def test_a2_ease_sentiment_t_class():
+    """R4h ③-A：EASE 步 sentiment 意图×MONTHLY_SCALE(0.25) ≥ EPS_ACT(0.005)——
+    EASE 写 sentiment 后该步不再 S 类沉默（|d|<EPS_ACT），进入 T 类可测池（S→T 转移口径）。"""
+    from core.calibrator import EPS_ACT
+    from core.simulation import gm_resolve_rules
+    delta = gm_resolve_rules({"A2": "EASE_CREDIT"}, _a2_world(), {"A2": _a2()}, {})
+    assert delta["market_sentiment"] * MONTHLY_SCALE >= EPS_ACT
+
+
 # ── 主入口 ───────────────────────────────────────────────
 
 def main():
@@ -460,6 +499,9 @@ def main():
     _t("test_ease_block_reason", test_ease_block_reason)
     _t("test_rollback_line_constants", test_rollback_line_constants)
     _t("test_layer1_ctx_handwritten_constraint", test_layer1_ctx_handwritten_constraint)
+    _t("test_a2_ease_writes_sentiment", test_a2_ease_writes_sentiment)
+    _t("test_a2_ease_sentiment_symmetry", test_a2_ease_sentiment_symmetry)
+    _t("test_a2_ease_sentiment_t_class", test_a2_ease_sentiment_t_class)
     print(f"全部通过（{len(_PASSED)} 组，断言 ≥ 12 条）")
     return 0
 
