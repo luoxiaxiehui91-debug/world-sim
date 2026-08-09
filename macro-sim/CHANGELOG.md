@@ -6,7 +6,7 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## v2.0.39 — 2026-08-09 (by arch-r4h2 · commit 待回填)
+## v2.0.39 — 2026-08-09 (by arch-r4h2 · commit 2276b1d)
 
 **修改理由**：R4h ② vix 治理（用户裁决：③ 并入 ② 批次保留不回退；② 是 vix 治理唯一手段）。
 qa ③-A 验收 FAIL（非回归，强度不足）：M6 TIGHTEN wrong 18>17（seed42 +1，100% vix>1.0 豁免）、
@@ -38,16 +38,16 @@ S2 grv_down reverse 0.682 未达 ≤0.60、merged p̂ 0.5094 未过 0.55；data 
 - **`docs/r4g-spec-change-registry.md`**：追加变更 7（含机制选型论证 / 与 ③A1A3 交互 / 回退闸 /
   world_state 涉改范围声明 / 实测数据）
 
-### 预期效果（arch 实测 5 seed，qa 独立验证）
+### 预期效果（容器 v2032b 实测 5 seed，qa 独立验证）
 
-- **M6 TIGHTEN wrong ≤17 裁决闸**：18→**13**（42:3/7:2/123:4/2024:4/777:0）✓——vix 峰值
-  162-238→46.2-53.4，豁免从恒真变部分开（vix>48 步 21-36）
-- **vix 收敛**：vix>48 步 24-38→0-36（部分 seed 清零）；vix_stress_final 4.99→0.94-1.18
-  （存量回吐：vix_last<peak）
-- **M2 silence diff**：42:+0.061（advisory，A3 链副作用）/7:-0.020/123:-0.102/2024:0.000/
-  777:+0.041 —— wrong-silence 结构性 trade-off 最优点
-- **S2 grv_down reverse**：median 0.682→0.667（微改善，warn 档未触发 ≥0.727 硬闸）
-- **merged p̂**：0.5094→0.4956（微降，eligible 池与 ③-A 同：sentiment+lp，credit 掉出为既有态）
+- **M6 TIGHTEN wrong ≤17 裁决闸**：18→**16**（42:4/7:5/123:3/2024:3/777:1）✓——vix 峰值
+  162-238→53.2-53.4，豁免恒真→部分开（vix>48 步 21-36）
+- **M2 silence diff 全 seed ≤+0.041 ✓**（防沉默回归：42:+0.020/7:+0.040/123:+0.020/
+  2024:+0.041/777:0.000）
+- **vix 收敛**：vix_stress_final 4.99→1.13-1.18；存量回吐（vix_last 51.9-52.4 < peak 53.2-53.4）
+- **S2 grv_down reverse**：median 0.682 持平（③-A 0.682，warn 档未触发 ≥0.727 硬闸）
+- **merged p̂**：0.5094→0.4948（微降，eligible 池与 ③-A 同：sentiment+lp；主闸① silence 为
+  R4g 长期基线问题，非 ② 引入/可解）
 
 ## v2.0.38 — 2026-08-09 (by arch-r4h2 · commit aa29f6b)
 
