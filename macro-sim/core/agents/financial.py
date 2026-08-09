@@ -100,15 +100,12 @@ class CommercialBankAgent(MacroAgent):
         # P0-2：EASE 后 2 步冷却防 flip-flop（v2.0.1 振荡史）。EASE 一步后
         # tightening 刚降回 <0.5，若 spread/grv 仍高压，下一步又 TIGHTEN →
         # EASE/TIGHTEN 交替振荡。冷却期跳过 TIGHTEN 分支（允许继续 EASE 或 HOLD）。
-        # R4g（data 实证）：EASE 后第 1 步 target 非零 d=0 占 63.4%、第 2 步 29.3%——
-        # activation_countdown 是主冷却（HOLD 后也锁步，R4g 已条件化），_ease_cooldown
-        # 仅在 2 步内抑制 TIGHTEN。2→1 把 TIGHTEN 挡期缩短 1 步（M4 flip-flop 监测兜底）。
         ease_cooldown = getattr(self, "_ease_cooldown", 0)
 
         if tighten_signal and ease_cooldown == 0:
             return "TIGHTEN_CREDIT"
         if ease_signal:
-            setattr(self, "_ease_cooldown", 1)
+            setattr(self, "_ease_cooldown", 2)
             return "EASE_CREDIT"
         if ease_cooldown > 0:
             setattr(self, "_ease_cooldown", ease_cooldown - 1)
