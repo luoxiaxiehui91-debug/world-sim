@@ -37,7 +37,7 @@ agents:
     # 副作用评估：visible_actions 延迟 2→1 步（hf SHORT/PANIC 感知更及时，略增 tighten 触发，
     # 方向正确）；不影响其他 Agent。
     info_delay: 1
-    activation_prob: 0.70
+    activation_prob: 0.76
     transmission_coefficients:
       to_A3: 0.40   # 信贷收紧对对冲基金流动性的影响
       to_A10: 0.35  # 信贷收紧对散户情绪的传导

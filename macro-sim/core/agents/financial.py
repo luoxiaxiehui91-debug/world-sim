@@ -94,10 +94,16 @@ class CommercialBankAgent(MacroAgent):
         # 中性/收紧方向阈值不动（spread<250 / grv<0.25）；layer-1 合成 ctx 无 cs_delta → 中性
         # → 与 P0-2 逐字节同。
         directional_ease = target_dir == "ease"
+        # R4h ①-A（v2.0.40）：方向闸补挡"cs 上升时放松"（EASE wrong 盲区）——与
+        # tighten_ok（L80）镜像对称；极端豁免（vix_stress>1.0）对称成立兜底。
+        # 被挡步转 HOLD（冷却递减，本函数 ease_cooldown>0 分支 L113-115）：不静默跳过、
+        # 不误转 TIGHTEN（TIGHTEN 分支有 ease_cooldown==0 守卫保 M4 flip==0）——qa 澄清点。
+        ease_ok = (target_dir != "tighten") or vix_stress > p.threshold * 2.0
         ease_signal = (
             spread < (350 if directional_ease else 250)
             and tightening < p.threshold * 1.0
             and grv_stress < (p.threshold * 1.2 if directional_ease else p.threshold * 0.5)
+            and ease_ok
         )
 
         # P0-2：EASE 后 2 步冷却防 flip-flop（v2.0.1 振荡史）。EASE 一步后

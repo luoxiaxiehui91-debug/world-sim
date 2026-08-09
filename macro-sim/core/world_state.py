@@ -260,11 +260,13 @@ BLEED_PARAMS = {
     # R4h ②-A（v2.0.39）：yen_carry bleed 专用封顶——原出血5 无上限（+5.0/步持续到
     # vix 峰值 162-238，vix_stress>1.0 豁免恒真 → TIGHTEN wrong 100% 豁免放行）。
     # 实测 vix 存量主源=yen_carry bleed（sentiment bleed +2.0 从未触发，delta 分布 0/5.0）。
-    # 参数扫描（5 seed 探针，单一 decay 口径）：cap=19 + decay=0.20 → vix 峰值 53.3
+    # R4h ①-C（v2.0.40）：cap 19 → 17（① 引入 act_prob 0.76 后 M6 余量 3：wrong 12≤17）。
+    # ② 参数扫描（5 seed 探针，单一 decay 口径）：cap=19 + decay=0.20 → vix 峰值 53.3
     # （162-238 大幅收敛，vix>48 步 21-36），TIGHTEN wrong 16≤17（裁决闸达标 18→16）、
     # M2 silence diff 全 seed ≤+0.041（防沉默回归）、vix_stress 峰值 1.18>0.35（A2 触发线保持）。
-    # 边界：cap<19 → wrong 少但 M2 超（cap18: wrong14 但 seed2024 +0.062）；cap>19 → wrong 超 17。
-    "vix_yen_carry_bleed_max":  19.0,
+    # 边界（② 口径）：cap<19 → wrong 少但 M2 超（cap18: wrong14 但 seed2024 +0.062）；cap>19 → wrong 超 17。
+    # ① 联合口径（cap17 + act_prob 0.76 + ease_ok）：TIGHTEN wrong 12≤17、EASE wrong 0。
+    "vix_yen_carry_bleed_max":  17.0,
     "grv_bleed_threshold":        0.6,
     "grv_bleed_rate":             0.5,   # 降速：原3.0太猛，50步内推到上限导致路径无差异
     "credit_spread_bleed_rate":   8.0,
