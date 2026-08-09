@@ -324,3 +324,11 @@
     "仅无 A3 soul 环境成立，不代表容器真实部署"（已登记此更正）。
   - **机制层不变**：ease_ok 方向闸（EASE wrong 8→0）、cap17（vix peak 51.3）、M4 flip 0——
     两环境一致，容器验证成立。
+- **✅ 最终裁决（team-lead，2026-08-10 用户确认）**：
+  - **收编 EASE 治理**：① 的 ease_ok 方向闸确认为决策质量修复（EASE wrong 8→0 真实有效），
+    **保持 v2.0.40 / CACHE 14 / ARTIFACT v2033 部署不回退**。
+  - **不通过（挂起）**：credit 回池 / merged p̂ / S2 reverse 三项标记为
+    "方案预期假环境产物（A3 soul 缺失）"，**非本次验收通过项**，转入后续 silence 治理目标。
+  - 验收基准：容器真实部署（/app，A3 soul 完整）实测（见上 L316-317 矩阵）。
+  - 工件标注：acceptance_v2032.json / v2040_a76c17 已补注 A3 soul 缺失环境缺陷
+    （仅本地 rpa 有效，容器不可复现，见工件 header 注记）。
