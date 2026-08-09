@@ -263,7 +263,9 @@ def test_a2_info_delay_r4b():
     cfg = yaml.safe_load(open(os.path.join(_root, "config", "agents.yaml"), encoding="utf-8"))
     a2 = next(a for a in cfg["agents"] if a["id"] == "A2")
     assert a2["info_delay"] == 1, f"A2 info_delay={a2['info_delay']} ≠ 1（R4b 回归！）"
-    assert a2["activation_prob"] == 0.70, "activation 0.70 冻结（R4b 只改 info_delay）"
+    # R4h ①-B（v2.0.40）：activation_prob 0.70 → 0.76（A2 激活微调，降 S 类沉默；
+    # 0.78 时 EASE correct 13<15 触发 qa 防伪线，0.76 为定稿）
+    assert a2["activation_prob"] == 0.76, f"activation 0.76（R4h ①-B 定稿，实测 {a2['activation_prob']}）"
     # 契约参数不动：EPS_TGT 冻结、threshold 0.5
     assert a2["params"]["threshold"] == 0.5
 
@@ -541,6 +543,50 @@ def test_vix_stress_active_band():
     assert (vix_peak - 18.0) / 30.0 > 0.35, "封顶后 vix_stress 必须仍高于 A2 触发线"
 
 
+# ── 12) R4h ①：A2 决策级 ease_ok 方向闸（EASE wrong 根因治理，与 tighten_ok 镜像）──
+
+def test_ease_ok_blocks_cs_rise_low_vix():
+    """R4h ①-A：cs 上升（target_dir=="tighten"）+ 低 vix → EASE 被方向闸挡死（转 HOLD，
+    不静默跳过、不误转 TIGHTEN）。EASE wrong 8 步（42:2/123:3/2024:1/777:2/7:0）的根因修复。"""
+    a2 = _a2()
+    # cs_delta=+10（期望 TIGHTEN）+ 低 vix（0.1<1.0 豁免关）→ ease_ok=False → 挡 EASE → HOLD
+    assert a2._decide_rules(_a2_ctx(spread=200, grv=0.1, vix=0.1, cs_delta=10)) == "HOLD"
+
+
+def test_ease_ok_exemption_high_vix():
+    """R4h ①-A：cs 上升但 vix_stress>1.0（极端危机，与 tighten_ok 对称）→ ease_ok 豁免放行。"""
+    a2 = _a2()
+    # 先 EASE 一次（cs 回落方向）设冷却 cooldown=2
+    assert a2._decide_rules(_a2_ctx(spread=300, cs_delta=-10)) == "EASE_CREDIT"
+    # EASE 冷却中，cs 上升 + vix>1.0 → ease_ok 豁免（target_dir=="tighten" 但 vix>1.0）→ EASE 放行
+    assert a2._decide_rules(_a2_ctx(spread=200, grv=0.1, vix=1.5, cs_delta=10)) == "EASE_CREDIT"
+
+
+def test_ease_ok_normal_ease_cs_le_2_5():
+    """R4h ①-A：cs≤+2.5（neutral / ease 方向）→ ease_ok 恒真，正常 EASE 不受方向闸影响。"""
+    a2 = _a2()
+    # 中性（cs_delta=0）layer-1 生产路径 → EASE 保持（与 P0-2 逐字节同）
+    assert a2._decide_rules(_a2_ctx(spread=200, grv=0.1, vix=0.1, cs_delta=0.0)) == "EASE_CREDIT"
+    # 边界：cs_delta=+2.5 严格 > 才进 tighten 方向（+2.5 → neutral → ease_ok 放行）
+    assert a2._decide_rules(_a2_ctx(spread=200, grv=0.1, vix=0.1, cs_delta=2.5)) == "EASE_CREDIT"
+    # cs 回落（-10）方向 EASE 正常（spread 300 方向线）
+    assert a2._decide_rules(_a2_ctx(spread=300, grv=0.1, cs_delta=-10)) == "EASE_CREDIT"
+
+
+def test_m4_flip_preserved():
+    """R4h ①-A：M4 flip 保持——被挡 EASE 步转 HOLD（冷却递减分支，ease_cooldown>0 守卫
+    挡 TIGHTEN），无 EASE 后 2 步内 TIGHTEN 新增（flip-flop 不引入）。"""
+    a2 = _a2()
+    # EASE 一步 → cooldown=2
+    assert a2._decide_rules(_a2_ctx(spread=300, cs_delta=-10)) == "EASE_CREDIT"
+    # 下一步 cs 上升 + 低 vix 被 ease_ok 挡 → 冷却递减分支 → HOLD（非 EASE 非 TIGHTEN）
+    assert a2._decide_rules(_a2_ctx(spread=200, grv=0.1, vix=0.1, cs_delta=10)) == "HOLD"
+    # 冷却内即使 tighten_signal 真（grv 高压）→ ease_cooldown>0 守卫挡 TIGHTEN（M4 flip 0）
+    a3 = _a2()
+    assert a3._decide_rules(_a2_ctx(spread=300, cs_delta=-10)) == "EASE_CREDIT"
+    assert a3._decide_rules(_a2_ctx(spread=300, grv=0.6, vix=0.8, cs_delta=10)) != "TIGHTEN_CREDIT"
+
+
 # ── 主入口 ───────────────────────────────────────────────
 
 def main():
@@ -575,6 +621,10 @@ def main():
     _t("test_yen_carry_bleed_active_below_cap", test_yen_carry_bleed_active_below_cap)
     _t("test_a2_tighten_exemption_gate", test_a2_tighten_exemption_gate)
     _t("test_vix_stress_active_band", test_vix_stress_active_band)
+    _t("test_ease_ok_blocks_cs_rise_low_vix", test_ease_ok_blocks_cs_rise_low_vix)
+    _t("test_ease_ok_exemption_high_vix", test_ease_ok_exemption_high_vix)
+    _t("test_ease_ok_normal_ease_cs_le_2_5", test_ease_ok_normal_ease_cs_le_2_5)
+    _t("test_m4_flip_preserved", test_m4_flip_preserved)
     print(f"全部通过（{len(_PASSED)} 组，断言 ≥ 12 条）")
     return 0
 
