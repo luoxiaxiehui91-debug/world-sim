@@ -200,7 +200,7 @@ def test_ease_layer1_ctx():
 
 
 def test_classify_a2_state():
-    """R4a S 类归因三分类（纯函数）：冷却/激活门/决策无信号/实际行动残差。"""
+    """R4a S 类归因三分类（纯函数）+ R4g 改动 1 HOLD 语义（HOLD 不计实际行动）。"""
     # 冷却中（countdown>0）→ rate_limit（info_delay 机制）
     assert classify_a2_state(2, False, False) == "rate_limit"
     assert classify_a2_state(1, False, True) == "rate_limit", "冷却优先于一切"
@@ -210,6 +210,19 @@ def test_classify_a2_state():
     assert classify_a2_state(0, False, True) == "tighten_signal_false"
     # 未冷却 + 未行动 + 未通过激活门 → activation_gate（随机门）
     assert classify_a2_state(0, False, False) == "activation_gate"
+
+    # R4g 改动 1（calibrator.py a2_acted 表达式）：HOLD 决策不计"实际行动"。
+    # 旧 bool(actions["A2"]) 把 HOLD 判 True → acted_other 吞掉规则层 HOLD，
+    # tighten_signal_false 死代码恒 0。新表达式与 calibrator.py:699 逐字节一致。
+    def _a2_act(actions):
+        return actions.get("A2") not in (None, "HOLD", "NO_ACTION")
+    assert _a2_act({"A2": "HOLD"}) is False, "HOLD 不算实际行动 → 走 tighten_signal_false"
+    assert _a2_act({"A2": "EASE_CREDIT"}) is True
+    assert _a2_act({"A2": "TIGHTEN_CREDIT"}) is True
+    assert _a2_act({}) is False, "无 A2 条目不算实际行动"
+    assert _a2_act({"A2": "NO_ACTION"}) is False
+    # HOLD 决策步（a2_decided=True + a2_acted=False）→ tighten_signal_false（新语义）
+    assert classify_a2_state(0, _a2_act({"A2": "HOLD"}), True) == "tighten_signal_false"
 
 
 def test_s_class_attribution_mapping():
@@ -233,6 +246,11 @@ def test_s_class_attribution_mapping():
     assert counts["rate_limit"] == 1 and counts["activation_gate"] == 1
     assert counts["tighten_signal_false"] == 1 and counts["acted_other"] == 0
     assert counts["rate_limit"] + counts["activation_gate"] + counts["tighten_signal_false"] == counts["n_s"]
+    # R4g 改动 1：HOLD 决策步的 state 必须是 tighten_signal_false（非 acted_other）——
+    # 统计侧（data-r4g）按此拆分"规则层 HOLD"，与 calibrator a2_state 新语义一致。
+    hold_step = {"d": 0.001, "t": 0.10, "state": "tighten_signal_false"}
+    assert (abs(hold_step["t"]) >= EPS_TGT and abs(hold_step["d"]) < EPS_ACT), "HOLD 步是 S 类"
+    assert hold_step["state"] == "tighten_signal_false", "HOLD 步不得归 acted_other"
 
 
 # ── 7) R4b：A2 info_delay 2→1 配置锁定 ───────────────────
