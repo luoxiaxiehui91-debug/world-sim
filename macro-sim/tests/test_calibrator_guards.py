@@ -474,6 +474,73 @@ def test_a2_ease_sentiment_t_class():
     assert delta["market_sentiment"] * MONTHLY_SCALE >= EPS_ACT
 
 
+# ── 11) R4h ②-A：vix 治理（均值回归 + yen_carry bleed 封顶，M6 残差收敛）──
+
+def _decay_world(vix=27.7, vix_baseline=27.7, **kw):
+    """apply_natural_decay / apply_bleed_rules 最小 world 桩（所有衰减/出血用到的属性）。"""
+    import types
+    base = dict(
+        market_sentiment=-0.5, bank_credit_tightening=0.5, liquidity_premium=0.1,
+        energy_supply_risk=0.1, retail_panic=0.1, yen_carry_risk=0.0,
+        fund_risk_appetite=0.5, em_capital_outflow=0.1, us_fiscal_pressure=0.1,
+        china_credit_impulse=0.1, grv=60.0, grv_baseline=60.0,
+        grv_energy=20.0, grv_energy_baseline=20.0,
+        vix=vix, vix_baseline=vix_baseline,
+        consecutive_negative_steps=0, credit_spread=200.0, t10y2y=-10.0,
+    )
+    base.update(kw)
+    return types.SimpleNamespace(**base)
+
+
+def test_vix_decay_mean_reversion():
+    """R4h ②-A：apply_natural_decay 对 vix 存量均值回归（0.80/0.20）——高位回吐但不过冲。"""
+    from core.world_state import apply_natural_decay
+    w = _decay_world(vix=50.0, vix_baseline=27.7)
+    apply_natural_decay(w)
+    assert 27.7 < w.vix < 50.0, f"vix 应回吐且不越过 baseline（实测 {w.vix:.2f}）"
+
+
+def test_vix_decay_no_drift_at_baseline():
+    """R4h ②-A：vix == baseline 时不漂移（均值回归锚点稳定，防初始值被拉低）。"""
+    from core.world_state import apply_natural_decay
+    w = _decay_world(vix=27.7, vix_baseline=27.7)
+    apply_natural_decay(w)
+    assert abs(w.vix - 27.7) < 1e-9, f"vix 应保持 baseline（实测 {w.vix:.4f}）"
+
+
+def test_yen_carry_bleed_capped():
+    """R4h ②-A：yen_carry bleed 封顶——vix_delta≥19 时不再 +5.0（vix 存量锁边根除）。"""
+    from core.world_state import apply_bleed_rules
+    w = _decay_world(vix=27.7 + 19.0, yen_carry_risk=0.8)
+    apply_bleed_rules(w)
+    assert abs(w.vix - (27.7 + 19.0)) < 1e-9, f"vix 不应 +5（封顶，实测 {w.vix:.2f}）"
+
+
+def test_yen_carry_bleed_active_below_cap():
+    """R4h ②-A：vix_delta<19 时 yen_carry bleed 仍生效（真危机跳变 +5.0 保留）。"""
+    from core.world_state import apply_bleed_rules
+    w = _decay_world(vix=27.7 + 5.0, yen_carry_risk=0.8)
+    apply_bleed_rules(w)
+    assert abs(w.vix - (27.7 + 5.0 + 5.0)) < 1e-9, f"vix 应 +5（未到上限，实测 {w.vix:.2f}）"
+
+
+def test_a2_tighten_exemption_gate():
+    """R4h ②-A M6 收敛机制级断言：② 后 vix_stress<1.0（vix<48 封顶场景）cs 回落时
+    TIGHTEN 被方向闸挡死（豁免关）→ wrong 收敛；vix_stress>1.0 真危机豁免仍保留。"""
+    a2 = _a2()
+    # ② 后峰值 vix≈42.9 → vix_stress≈0.83 <1.0 → 豁免关 → cs 回落时绝不 TIGHTEN
+    assert a2._decide_rules(_a2_ctx(grv=0.6, vix=0.83, cs_delta=-10)) != "TIGHTEN_CREDIT"
+    # 真危机（vix_stress>1.0）豁免保留——非 ② 治理范围
+    assert a2._decide_rules(_a2_ctx(grv=0.6, vix=1.2, cs_delta=-10)) == "TIGHTEN_CREDIT"
+
+
+def test_vix_stress_active_band():
+    """R4h ②-A 防过度压制：封顶后 vix_stress 峰值仍 >0.35（A2 vix 触发线），
+    vix>28.5 触发保持活跃——vix 治理不得把正确 TIGHTEN 也压死（M2 silence 防线）。"""
+    vix_peak = 27.7 + 19.0 * 0.80 + 5.0   # baseline + max*(1-r) + bleed（保守下界）
+    assert (vix_peak - 18.0) / 30.0 > 0.35, "封顶后 vix_stress 必须仍高于 A2 触发线"
+
+
 # ── 主入口 ───────────────────────────────────────────────
 
 def main():
@@ -502,6 +569,12 @@ def main():
     _t("test_a2_ease_writes_sentiment", test_a2_ease_writes_sentiment)
     _t("test_a2_ease_sentiment_symmetry", test_a2_ease_sentiment_symmetry)
     _t("test_a2_ease_sentiment_t_class", test_a2_ease_sentiment_t_class)
+    _t("test_vix_decay_mean_reversion", test_vix_decay_mean_reversion)
+    _t("test_vix_decay_no_drift_at_baseline", test_vix_decay_no_drift_at_baseline)
+    _t("test_yen_carry_bleed_capped", test_yen_carry_bleed_capped)
+    _t("test_yen_carry_bleed_active_below_cap", test_yen_carry_bleed_active_below_cap)
+    _t("test_a2_tighten_exemption_gate", test_a2_tighten_exemption_gate)
+    _t("test_vix_stress_active_band", test_vix_stress_active_band)
     print(f"全部通过（{len(_PASSED)} 组，断言 ≥ 12 条）")
     return 0
 

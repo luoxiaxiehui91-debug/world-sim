@@ -6,7 +6,7 @@ R3 验收脚本（qa-r2b 定稿，三合一）：多 seed 探针 + 机读判定 
 铁律
 ----
 - 验收证据只用新探针多 seed median（禁 calibration_cache；禁 CHANGELOG 散文作判定输入）
-- 判定只读落盘工件：output/calib_probe_seed{seed}_v2031.json + output/baseline_v2030b.json
+- 判定只读落盘工件：output/calib_probe_seed{seed}_v2032.json + output/baseline_v2030b.json
 - fail-fast：任何一步 FAIL → 整体 FAIL，输出 p̂/CI/违规变量名/seed
 
 判定顺序
@@ -66,7 +66,7 @@ import core.calibrator as cal  # noqa: E402
 
 ERROR_WEIGHTS = cal.ERROR_WEIGHTS
 SEEDS = [42, 7, 123, 2024, 777]
-ARTIFACT_TAG = "v2031"
+ARTIFACT_TAG = "v2032"
 OUTPUT_DIR = ROOT / "output"
 BASELINE_PATH = OUTPUT_DIR / "baseline_v2030b.json"
 Z95 = 1.96
@@ -611,7 +611,7 @@ def main() -> int:
         "failures": [{"step": s, "msg": m} for s, m in verdict.failures],
         "warnings": verdict.warnings,
     }
-    (out_dir / "acceptance_v2031.json").write_text(
+    (out_dir / "acceptance_v2032.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print("\n========== R3/R4a 验收判定 ==========")

@@ -6,6 +6,49 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.39 — 2026-08-09 (by arch-r4h2 · commit 待回填)
+
+**修改理由**：R4h ② vix 治理（用户裁决：③ 并入 ② 批次保留不回退；② 是 vix 治理唯一手段）。
+qa ③-A 验收 FAIL（非回归，强度不足）：M6 TIGHTEN wrong 18>17（seed42 +1，100% vix>1.0 豁免）、
+S2 grv_down reverse 0.682 未达 ≤0.60、merged p̂ 0.5094 未过 0.55；data Part2 实测 ③ 对 vix
+存量几乎无效（vix>1.0 步 24→24、vix_stress_final 4.99→4.99）。② 机制选型（三选一实测论证）：
+否决"豁免非连续前提"（wrong 步 vix delta 全 +5.0 即跳变步，前提恒满足）；否决纯 decay / 纯
+封顶；采用**组合（vix 均值回归 + yen_carry bleed 封顶）**——vix 峰值封顶 <48（清 M6）+ 存量
+回吐（治"无 decay"根因）+ 与 ③ 同向联动。
+
+### 修改
+
+- **`core/world_state.py`**
+  - **BLEED_PARAMS**：新增 `vix_yen_carry_bleed_max: 19.0`（yen_carry bleed 专用封顶；实测 vix
+    存量主源=yen_carry bleed +5.0/步无上限，vix 峰值 162-238 完全由此驱动，sentiment bleed
+    从未触发；参数扫描 5 seed 为 M6≤17 ∧ M2≤+0.05 的 Pareto 最优点）
+  - **apply_bleed_rules 出血5**：yen_carry bleed 条件加 `vix_delta_total < vix_yen_carry_bleed_max`
+    （原无上限，vix 存量锁边 → 豁免恒真 → TIGHTEN wrong 100% 豁免放行）
+  - **apply_natural_decay**：补 `world.vix = world.vix*0.80 + world.vix_baseline*0.20`（vix 均值
+    回归——D4 fix 遗漏变量，"无 decay 存量不回吐"的代码证据；与其他 12 变量同语义）
+- **`core/calibrator.py`**：**CACHE_VERSION 12→13**（vix 动力学变更，反作弊门）
+- **`VERSION`**：v2.0.38 → v2.0.39
+- **`scripts/run_probe_acceptance.py`**：ARTIFACT_TAG v2031 → v2032（防 era 混淆）
+- **`core/agents/financial.py`**：L75-77 豁免注释更新（② 后探针窗口 vix 峰值 53.3 略超 48，
+  豁免部分开非恒真；真危机语义保留；A2 决策逻辑零改动）
+- **`tests/test_calibrator_guards.py`**：新增 6 项（test_vix_decay_mean_reversion /
+  test_vix_decay_no_drift_at_baseline / test_yen_carry_bleed_capped /
+  test_yen_carry_bleed_active_below_cap / test_a2_tighten_exemption_gate /
+  test_vix_stress_active_band），113 → 120
+- **`docs/r4g-spec-change-registry.md`**：追加变更 7（含机制选型论证 / 与 ③A1A3 交互 / 回退闸 /
+  world_state 涉改范围声明 / 实测数据）
+
+### 预期效果（arch 实测 5 seed，qa 独立验证）
+
+- **M6 TIGHTEN wrong ≤17 裁决闸**：18→**13**（42:3/7:2/123:4/2024:4/777:0）✓——vix 峰值
+  162-238→46.2-53.4，豁免从恒真变部分开（vix>48 步 21-36）
+- **vix 收敛**：vix>48 步 24-38→0-36（部分 seed 清零）；vix_stress_final 4.99→0.94-1.18
+  （存量回吐：vix_last<peak）
+- **M2 silence diff**：42:+0.061（advisory，A3 链副作用）/7:-0.020/123:-0.102/2024:0.000/
+  777:+0.041 —— wrong-silence 结构性 trade-off 最优点
+- **S2 grv_down reverse**：median 0.682→0.667（微改善，warn 档未触发 ≥0.727 硬闸）
+- **merged p̂**：0.5094→0.4956（微降，eligible 池与 ③-A 同：sentiment+lp，credit 掉出为既有态）
+
 ## v2.0.38 — 2026-08-09 (by arch-r4h2 · commit aa29f6b)
 
 **修改理由**：R4h ③-A sentiment 写者实施（R4h 评审简报 §3 实施 spec，qa+arch 推荐参数 A：

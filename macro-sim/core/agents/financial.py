@@ -73,7 +73,9 @@ class CommercialBankAgent(MacroAgent):
         # R4d v1 曾删除危机豁免（终裁），实测 directional_ease 触发率仅 0.21-0.29 → 70-80%
         # cs 回落步转 HOLD→S 类→silence 0.57>0.50 超线 → 按终裁回退预案启用 vix>1.0 极端豁免：
         # cs 回落时收紧仅限 vix_stress>1.0（vix>48）极端危机；非极端 cs 回落仍挡死。
-        # （vix 经 bleed 漂移可达 vix≈168，极端豁免仍会触发，但占比可控）
+        # R4h ②-A（v2.0.39）起 vix 均值回归 + yen_carry bleed 封顶 → 探针窗口 vix 峰值
+        # 162-238→53.3（vix>48 步 21-36），豁免从"恒真"变"部分开"（真危机步仍放行）——
+        # TIGHTEN wrong 18→13（≤17 裁决闸）。注释更新非引擎行为（A2 决策逻辑零改动）。
         target_dir = "ease" if cs_delta < -2.5 else ("tighten" if cs_delta > 2.5 else "neutral")
         tighten_ok = (target_dir != "ease") or vix_stress > p.threshold * 2.0  # vix_stress>1.0
         tighten_signal = (

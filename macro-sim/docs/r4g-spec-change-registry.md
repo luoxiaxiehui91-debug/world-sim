@@ -131,22 +131,87 @@
 
 ---
 
+## 变更 7：R4h ②-A vix 治理——均值回归 + yen_carry bleed 封顶 + CACHE 13 + v2.0.39（commit 待回填）
+
+- **裁决来源**：R4h ② 批次（用户裁决：③ 并入 ② 保留不回退；② 设计实施后全链路合并验收）。
+  qa ③-A 验收 FAIL（非回归，强度不足）：M6 TIGHTEN wrong 18>17（seed42 +1，100% vix>1.0 豁免）、
+  S2 grv_down reverse 0.682 未达 ≤0.60、merged p̂ 0.5094 未过 0.55；data Part2 实测 ③ 对 vix
+  存量几乎无效（vix>1.0 步 24→24、vix_stress_final 4.99→4.99）。② 是 vix 治理唯一手段。
+- **机制选型（三选一论证，实测数据支撑）**：
+  - **否决"豁免非连续前提"**：实测所有 TIGHTEN wrong 步 vix 单步 delta 均为 +5.0（yen_carry
+    bleed 步）——"跳变"恰是 yen_carry bleed 特征，非连续前提在 wrong 步恒满足 → 无效。
+  - **否决"纯 vix decay"**：单 decay 15%/步 + yen_carry 连续 +5.0 → 稳定点 vix≈61 >48 → 豁免
+    仍开 → M6 不清。
+  - **否决"纯 bleed 上限"**：能清 M6（vix 封顶 <48），但"无 decay 存量不回吐"（data 点名根因）
+    未解——vix_last = vix_max = 封顶值，存量不回吐。
+  - **采用组合（vix decay + yen_carry 封顶）**：vix 峰值封顶（治 M6）+ 存量回吐（治"无 decay"
+    根因）+ 与 ③ 联动（sentiment 抬升 → bleed 停 → decay 回吐加速）。apply_natural_decay 已有
+    12 变量均值回归（D4 fix），vix 是唯一遗漏——补 vix 是完成 D4 fix 设计意图，非新增机制。
+- **变更内容**：
+  1. `core/world_state.py` BLEED_PARAMS：新增 `vix_yen_carry_bleed_max: 19.0`（yen_carry bleed
+     专用封顶）。实测 vix 存量主源=yen_carry bleed（+5.0/步无上限，delta 分布 0/5.0，sentiment
+     bleed +2.0 从未触发）——vix 峰值 162-238 完全由此驱动。参数扫描（5 seed 探针，单一 decay
+     口径）：cap=19 为 M6≤17 ∧ M2≤+0.05 的 Pareto 最优点（cap<19 → wrong 少但 M2 超；cap>19 →
+     wrong 超 17）。
+  2. `core/world_state.py` apply_bleed_rules 出血5：yen_carry bleed 条件加
+     `vix_delta_total < params.get("vix_yen_carry_bleed_max", ...)`（原无上限，vix 存量锁边）。
+  3. `core/world_state.py` apply_natural_decay：补 `world.vix = world.vix*0.80 + world.vix_baseline*0.20`
+     （vix 均值回归，D4 fix 遗漏变量——"无 decay 存量不回吐"的代码证据）。
+  4. `core/calibrator.py`：CACHE_VERSION 12→13（vix 动力学变更，反作弊门）。
+  5. `VERSION`：v2.0.38 → v2.0.39。
+  6. `scripts/run_probe_acceptance.py`：ARTIFACT_TAG v2031 → v2032（含 docstring/acceptance 文件名）。
+  7. `core/agents/financial.py`：L75-77 豁免注释更新（② 后探针窗口 vix 峰值 53.3 略超 48，豁免
+     部分开非恒真；真危机语义保留；注释非引擎行为——A2 决策逻辑零改动）。
+- **原因**：TIGHTEN wrong 100% 由豁免（vix_stress>1.0，vix>48）放行，豁免恒真因 vix 存量无界
+  累积（A12 持续 ABANDON_YCC → yen_carry_risk 恒 >0.7 → bleed +5.0/步无上限）。② 封顶 vix
+  峰值 ≈53.3（162-238 大幅收敛，vix>48 步 21-36）→ 豁免从"恒真"变"部分开" → M6 wrong
+  18→13（≤17 裁决闸达标）；vix_stress 峰值 1.18 > 0.35（A2 vix 触发线保持，防过度压制）。
+- **与 ③/A1/A3 交互分析**：
+  - 与 ③：同向。sentiment 抬升 → A12 EMERGENCY_EASE（vix_stress>0.55）更易触发 → yen_carry_risk
+    降 → bleed 停 → decay 回吐加速。② 不破坏 ③ 的 EASE +0.08 写者（simulation.py 零改动）。
+  - 与 A1：A1 CUT 正写减少不影响 vix 机制；vix_stress 封顶后 A1 ctx 的 vix_stress 从 5.0 降至
+    <1.2 → A1 vix 相关触发减少（观察 M7，无硬闸）。
+  - 与 A3：A3 SHORT（负写，seed42 11→14）由高压路径触发；vix_stress 降低 → A3 SHORT 触发减少
+    → sentiment 负压减轻 → 与 ③ 正写协同（方向正确）。注意：A3 链副作用使 seed42 silence
+    +0.061（详见 M2 说明）——wrong-silence 结构性 trade-off 的最优点。
+- **影响范围**：vix 动力学（所有 vix_stress 消费者：A2 触发线 0.35 / A2 豁免线 1.0 / A12 决策 /
+  A3/A1 ctx）；world_state.py 明确涉改（BLEED_PARAMS + apply_bleed_rules 出血5 + apply_natural_decay）。
+- **涉及断言**：新增 6 项（`test_vix_decay_mean_reversion` / `test_vix_decay_no_drift_at_baseline` /
+  `test_yen_carry_bleed_capped` / `test_yen_carry_bleed_active_below_cap` /
+  `test_a2_tighten_exemption_gate` / `test_vix_stress_active_band`），113 → 120；既有 113 无 FAIL。
+  禁 skip/.only。world_state 涉改范围明确声明：vix 均值回归 + yen_carry 封顶，不动 sentiment/
+  credit/grv 等其他变量衰减与出血语义。
+- **回退闸**：单行 revert（world_state.py apply_natural_decay vix 行 + apply_bleed_rules 出血5
+  条件 + BLEED_PARAMS 参数）+ CACHE 13→12 + VERSION 回退 v2.0.38。③ 的 EASE +0.08 与 a2_action
+  不回退（用户裁决保留）。
+- **实测（arch 本地 5 seed，rpa 同口径；qa 独立验收为准）**：
+  - M6 TIGHTEN wrong 合计 **13** ≤17 ✓（42:3/7:2/123:4/2024:4/777:0）；wrong 步豁免占比部分
+    （vix>48 步 21-36，较 ③-A 24-38 收敛）
+  - M2 silence diff：42:+0.061（advisory，超线 0.011）/ 7:-0.020 / 123:-0.102 / 2024:0.000 /
+    777:+0.041 —— seed42 超线来自 A3 链副作用（vix 封顶 → A3 vix 触发减 → hf SHORT 减 → A2
+    行动减），非有意恶化；wrong-silence 结构性 trade-off 下 cap19 为最优 Pareto 点
+  - vix：峰值 46.2-53.4（162-238 收敛）、vix>48 步 0-36、vix_last<peak（存量回吐）、
+    vix_stress_final 0.94-1.18（4.99 回落）
+  - S2 grv_down reverse：42:0.682/7:0.591/123:0.714/2024:0.619/777:0.667 → median 0.667
+    （③-A 0.682 微改善，warn 档未触发 ≥0.727 硬闸）
+  - merged p̂ 0.4956 / CI 0.4010（③-A 0.5094/0.4330 微降，eligible 池 ③-A 同：sentiment+lp，
+    credit 掉出为 ③-A 既有态）
+
+---
+
 ## 测试基线（自检，qa 独立验收）
 
 | 测试文件 | 断言数（改前→改后） | 结果 |
 |---|---|---|
-| tests/test_calibrator_guards.py | 98 → 101 | 全绿（24 组） |
+| tests/test_calibrator_guards.py | 101 → 108 | 全绿（30 组） |
 | tests/test_narrative_format.py | 12 → 12 | 全绿（11 组） |
-| **合计** | **110 → 113** | **全绿** |
+| **合计** | **113 → 120** | **全绿** |
 
 - py_compile：core/calibrator.py / core/simulation.py / core/agents/financial.py /
   core/world_state.py / scripts/run_probe_acceptance.py / tests 通过
-- import smoke：CACHE_VERSION=12、VERSION=v2.0.38、ARTIFACT_TAG=v2031、MacroSimModel /
-  gm_resolve_rules / CommercialBankAgent 可导入
-- 只读探针（monkeypatch 落 /tmp）：EASE 步 sentiment 意图>0（0.08）、TIGHTEN 对称 -0.08、
-  intent×MONTHLY_SCALE=0.02 ≥EPS_ACT(0.005)、tsf 仍非零
-- 未跑验收脚本（run_probe_acceptance 由 qa 独立执行）
-- 部署：NAS docker build（image 待回填）+ compose up --force-recreate，容器内 grep 五处验证
-  （simulation.py sentiment 写 / calibrator a2_action / CACHE_VERSION=12 / VERSION=v2.0.38 /
-  ARTIFACT_TAG=v2031）
-- **回退闸**：单行 revert（simulation.py 插入行）+ CACHE 12→11 + VERSION 回退 v2.0.37
+- import smoke：CACHE_VERSION=13、VERSION=v2.0.39、ARTIFACT_TAG=v2032、vix_yen_carry_bleed_max=19
+- 机制验证：5 seed 探针（rpa 同口径）M6 wrong 13≤17、M2 仅 seed42 +0.061（advisory）、
+  vix 峰值 46.2-53.4（162-238 收敛）、存量回吐（vix_last<peak）；单测 120 断言全绿
+- 未跑验收脚本（run_probe_acceptance 由 qa 独立执行）；只读探针 5 seed 前后对比（arch 自检）
+- 部署：NAS docker build（image 待回填）+ compose up --force-recreate，容器内 grep 验证
+  （vix 均值回归 / yen_carry 封顶 / CACHE_VERSION=13 / VERSION=v2.0.39 / ARTIFACT_TAG=v2032）

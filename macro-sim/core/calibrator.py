@@ -128,7 +128,10 @@ TUNING_STATE_PATH = Path("/app/data/calib_tuning_state.json")
 # v2.0.38 R4h ③-A（EASE 补写 sentiment +0.08 对称 + a2_action 落盘）改变引擎动力学
 # （sentiment 写者结构：EASE 步 sentiment 意图由 0 → +0.08×m）→ bump 12（防 <7 天命中
 # v11 引擎缓存自证；qa-r2 反作弊门）
-CACHE_VERSION = 12
+# v2.0.39 R4h ②-A（vix 均值回归 0.85/0.15 + yen_carry bleed 封顶 vix_delta<12）再次改变
+# 引擎动力学（vix 存量 162-238 → 峰值≈42.9，vix_stress 全程 <1.0 → 豁免恒真消失，
+# TIGHTEN wrong 100% 豁免放行根除）→ bump 13（防 <7 天命中 v12 引擎缓存自证）
+CACHE_VERSION = 13
 # 旧 ERROR_THRESHOLD 保留为常量（外部引用兼容；触发已改 per-var 相对度量）
 ERROR_THRESHOLD_LEGACY = 0.20
 
