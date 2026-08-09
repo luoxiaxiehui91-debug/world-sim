@@ -63,3 +63,38 @@
 - 部署：docker build 成功（image 66e1bd66a5f0），容器重启后 docker exec 验证
   VERSION=v2.0.36、CACHE_VERSION=11、三处引擎改动行号均生效
 - 未跑验收脚本（run_probe_acceptance 由 qa 独立执行）
+
+---
+
+## 变更 5：revert 引擎实验②③（commit 8180a8a · v2.0.37 · 收尾裁决）
+
+- **裁决来源**：qa-r4g 独立验收 FAIL + 用户确认——revert ②③（引擎实验），保留①（归因映射修复）
+- **变更内容**：
+  - `core/simulation.py`：移除 `if decision.action != "HOLD"` 条件化 → 恢复决策后无条件
+    `agent.activation_countdown = agent.info_delay`（R4e 行为，HOLD 也锁步）
+  - `core/agents/financial.py`：`_ease_cooldown` 1 → 2（R4e 行为）
+  - **保留**：`core/calibrator.py:704` a2_acted HOLD 语义、`CACHE_VERSION=11`、
+    test_classify_a2_state 11 断言 + test_s_class_attribution_mapping 5 断言
+  - `VERSION`：v2.0.36 → v2.0.37（版本只前进不后退）
+- **原因（qa 验收数据）**：
+  - 变更②：HOLD 不锁冷却释放"本步无信号"后的重复掷门机会，rate_limit 仅削 ~15%，却放大 A2
+    决策抖动——seed42 silence 0.49→0.551、seed2024 0.469→0.531（超线转移非消除）、
+    seed7 consistency 0.714→0.429 崩塌。收益/副作用比不成立。
+  - 变更③：_ease_cooldown 2→1 直接打开 EASE 后第 2 步 TIGHTEN 窗口，v2.0.1 振荡史重演——
+    M4 实测 EASE 后 1 步内 TIGHTEN 相邻振荡 2-4 次/seed，credit consistency median 0.5625→0.500。
+- **影响范围**：引擎决策行为回到 R4e 基线；测量层（归因口径）保持 v2.0.36 修复态。
+- **revert 验证（独立探针落盘 /tmp，5 seed）**：
+
+| seed | silence R4e→rev | n_active R4e→rev | act R4e→rev | consistency R4e→rev | tsf R4e→rev | weighted R4e→rev |
+|---|---|---|---|---|---|---|
+| 42   | 0.49→0.49  | 16→16  | 0.327→0.327 | 0.562→0.562 | 0.0→0.0   | 0.456044→0.456044 |
+| 7    | 0.531→0.531| 14→14  | 0.286→0.286 | 0.714→0.714 | 0.0→0.038 | 0.534466→0.534466 |
+| 123  | 0.531→0.531| 14→14  | 0.286→0.286 | 0.5→0.5     | 0.0→0.115 | 0.480932→0.480932 |
+| 2024 | 0.469→0.469| 17→17  | 0.347→0.347 | 0.471→0.471 | 0.0→0.13  | 0.54025→0.54025  |
+| 777  | 0.49→0.49  | 16→16  | 0.327→0.327 | 0.688→0.688 | 0.0→0.125 | 0.47831→0.47831  |
+
+  → 引擎行为逐位回到 R4e 基线；tighten_signal_false 保持非零（seed42 无 HOLD 决策步为 0，
+  其余 seed 0.038-0.13）= 引擎回滚+测量保留的直接证据。
+- **涉及断言**：无断言因回滚 FAIL（测试无 _ease_cooldown/activation_countdown 引用，全量 110 保持全绿）。
+- **ARTIFACT_TAG 待办**：qa 提示 v2030c 复用问题，output/r4e_backup_v2030c/ 已存 R4e 备份；
+  后续部署建议 bump tag（如 v2031）防 era 混淆。
