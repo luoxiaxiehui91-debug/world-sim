@@ -487,7 +487,12 @@ class MacroSimModel:
                 decision = agent.decide_with_decision(ctx, self.use_llm)
                 step_actions[agent_id] = decision.action
                 step_decisions[agent_id] = decision.to_dict()
-                agent.activation_countdown = agent.info_delay  # 行动后冷却
+                # R4g（data 实证）：96 个 rate_limit 步中 14 个前一步是 HOLD——HOLD 是"本步
+                # 无信号"的决策，不应惩罚锁步（activation_countdown 只防实质行动振荡）。
+                # 全 agent 语义统一：仅实质行动（非 HOLD）触发行动后冷却。
+                # flip-flop 主防仍在 _ease_cooldown（A2 专属，EASE 后挡 TIGHTEN）。
+                if decision.action != "HOLD":
+                    agent.activation_countdown = agent.info_delay  # 行动后冷却
             else:
                 step_actions[agent_id] = "NO_ACTION"
 

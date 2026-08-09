@@ -123,7 +123,9 @@ TUNING_STATE_PATH = Path("/app/data/calib_tuning_state.json")
 # v2.0.34 R4d（A2 方向对齐：cs_delta 方向闸 + 方向 EASE，删除危机豁免）改变引擎决策
 # → bump 9（防 <7 天命中 v8 引擎缓存自证；qa-r2 反作弊门）
 # v2.0.35 R4e（方向 EASE grv 限制 0.4→0.6）再次改变引擎决策 → bump 10（同理由）
-CACHE_VERSION = 10
+# v2.0.36 R4g（归因映射 HOLD 语义 + activation_countdown 条件化 + EASE 冷却 2→1）
+# 再次改变引擎决策与归因口径 → bump 11
+CACHE_VERSION = 11
 # 旧 ERROR_THRESHOLD 保留为常量（外部引用兼容；触发已改 per-var 相对度量）
 ERROR_THRESHOLD_LEGACY = 0.20
 
@@ -696,7 +698,10 @@ def run_probe(
         # R4a：A2 本步是否通过激活门（decision_trace 只记通过激活/forced 的 Agent）、
         # 是否实际行动（snapshot actions 只记非 NO_ACTION）。三分类判定（S 类步用）：
         a2_decided = bool(model.decision_trace and "A2" in model.decision_trace[-1])
-        a2_acted = bool(snapshot.get("actions", {}).get("A2"))
+        # R4g：HOLD 不计实际行动（L521 actions 只滤 NO_ACTION，HOLD 也入 actions
+        # → 旧 bool() 把 HOLD 判 True → tighten_signal_false 死代码（恒 0）。
+        # 新语义：HOLD 决策步归 tighten_signal_false（规则层 HOLD），非 acted_other。
+        a2_acted = snapshot.get("actions", {}).get("A2") not in (None, "HOLD", "NO_ACTION")
         a2_state = classify_a2_state(a2_countdown_before, a2_acted, a2_decided)
 
         endogenous_targets = _derive_endogenous_targets(prev_row, row)
