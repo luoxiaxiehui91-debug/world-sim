@@ -6,7 +6,7 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## v2.0.38 — 2026-08-09 (by arch-r4h2)
+## v2.0.38 — 2026-08-09 (by arch-r4h2 · commit aa29f6b)
 
 **修改理由**：R4h ③-A sentiment 写者实施（R4h 评审简报 §3 实施 spec，qa+arch 推荐参数 A：
 EASE 写 sentiment 对称 +0.08）。sentiment 长期贴 floor（level_mean -0.880 / floor_frac
