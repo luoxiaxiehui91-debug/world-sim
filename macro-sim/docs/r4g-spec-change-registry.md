@@ -217,3 +217,91 @@
 - 未跑验收脚本（run_probe_acceptance 由 qa 独立执行）；只读探针 5 seed 前后对比（arch 自检）
 - 部署：NAS docker build（image 待回填）+ compose up --force-recreate，容器内 grep 验证
   （vix 均值回归 / yen_carry 封顶 / CACHE_VERSION=13 / VERSION=v2.0.39 / ARTIFACT_TAG=v2032）
+## 变更 8：R4h ① A2 决策级治理——ease_ok 方向闸 + act_prob 0.76 + cap 17 + CACHE 14 + v2.0.40（commit e636c0c）
+
+- **裁决来源**：R4h ① 批次（用户裁决：①-A/B/C 定稿参数 cap17 + act_prob 0.76 实施）。
+  qa ② 终版 FAIL（credit silence 绝对中位 0.510>0.50 4/5 seed 超、credit 出 merged eligible 池、
+  p̂ 0.4948 未过 partial、S2 warn 0.682）；data Part 4 根因锁定：EASE wrong 8 步全为
+  cs_delta>+2.5（cs 转正仍 EASE）——ease_signal 无方向守卫（TIGHTEN 有 tighten_ok，EASE 无镜像）。
+  **credit silence 与 EASE wrong 同为 A2 决策质量问题**；② 纯 vix 参数空间已穷尽（cap<19 →
+  seed2024 silence +0.062）→ 必须动 A2 决策层。
+- **机制选型（方案 §1-§2，实测数据支撑）**：
+  - **①-A ease_ok 方向闸（核心，修 A2 规则缺陷）**：A2 只有收紧方向闸（tighten_ok，
+    financial.py L80），无放松方向闸。ease_signal 普通分支（spread<250 / grv<0.25 /
+    tightening<0.5）在 target_dir=="tighten"（cs 上升）时仍满足 → EASE 在冷却内反复触发 →
+    方向性错误（应收紧却放松）。补 `ease_ok = (target_dir != "tighten") or vix_stress > p.threshold*2.0`
+    与 tighten_ok 镜像对称（极端豁免 vix>1.0 对称成立兜底）。**被挡步转 HOLD（冷却递减，
+    financial.py L113-115 分支）**：不静默跳过、不误转 TIGHTEN（冷却内分支1 有 ease_cooldown==0
+    守卫保 M4 flip==0）——qa 部署前澄清点。
+  - **①-B activation_prob 0.70→0.76**（config/agents.yaml A2）：silence 的 S 类 activation_gate
+    占 25-40%（A2 每步 30% 概率不激活）；R4g 已证伪"放宽冷却损质量"（flip-flop + consistency 降）
+    ——那是放宽冷却；提高 activation_prob 是"给正确决策更多机会"（配合 ①-A 方向正确性，
+    不引入 flip-flop），方向不同。0.76 非 0.78：0.78 时 EASE correct 13<15 触发 qa 防伪线。
+  - **①-C yen_carry bleed cap 19→17**（world_state.py BLEED_PARAMS）：② 的 cap=19 是
+    M6≤17 ∧ M2≤+0.05 的 Pareto 点（wrong 16 边际 1）；① 引入 act_prob 0.76 后 cap 可降 17：
+    vix 峰值 53.3→51.3（wrong 步更少）→ TIGHTEN wrong 16→14（余量 3），silence 由 act_prob 补偿。
+  - **② P2 修复（qa ② 验收发现，不影响行为）**：
+    - P2-1：calibrator.py CACHE bump 注释参数过期（写"vix 均值回归 0.85/0.15 + vix_delta<12"，
+      实现是 0.80/0.20 + <19 终版）→ ① 实施时更新为最终参数（0.80/0.20 + cap 17 + ease_ok +
+      act_prob 0.76），并追加 ① 的 bump 理由。
+    - P2-2：commit 2276b1d message 不符（写"seed42 silence +0.061"，实测 +0.020——参数扫描
+      中间值残留）→ **本变更回填修正说明**（不改历史 commit）。
+- **变更内容**：
+  1. `core/agents/financial.py`：A2 `_decide_rules` ease_signal 计算处新增
+     `ease_ok = (target_dir != "tighten") or vix_stress > p.threshold * 2.0`，ease_signal
+     末位 `and ease_ok`（与 tighten_ok L80 镜像对称）。被挡步走冷却递减分支转 HOLD
+     （financial.py L113-115），不触碰 M4（无 EASE 后 2 步内 TIGHTEN 新增）。
+  2. `config/agents.yaml`：A2 `activation_prob: 0.70 → 0.76`。
+  3. `core/world_state.py` BLEED_PARAMS：`vix_yen_carry_bleed_max: 19.0 → 17.0` + 注释更新
+     （① 联合口径 TIGHTEN wrong 12≤17、EASE wrong 0）。**涉改仅 cap 参数**（② 已声明范围，
+     ① 不扩散：vix 均值回归 0.80/0.20 保留）。
+  4. `core/calibrator.py`：CACHE_VERSION 13 → 14（A2 决策 + vix 动力学变更，反作弊门）；
+     bump 注释更新为最终参数（P2-1）。
+  5. `VERSION`：v2.0.39 → v2.0.40。
+  6. `scripts/run_probe_acceptance.py`：ARTIFACT_TAG v2032 → v2033（docstring + acceptance 文件名）。
+  7. `tests/test_calibrator_guards.py`：新增 4 断言（ease_ok 3 态：cs 上升低 vix→挡 /
+     cs 上升 vix>1.0 豁免放行 / cs≤+2.5 正常 EASE；M4 保持单测），120 → 124。
+- **原因**：EASE wrong 是决策规则缺陷非阈值问题（ease_signal 无方向约束，与 tighten_ok 不对称）
+  ——补方向闸是修复 A2 决策逻辑的"方向盲区"，属"决策质量"治理非"调参"。① 不直接消 wrong 或
+  silence 单侧，而是修"决策质量"让两侧同时改善：ease_ok 消 EASE wrong（8→0）→ consistency 升
+  （EASE 方向一致率 0.652→1.0）；被挡步转 HOLD（S 类 +8）由 act_prob 0.76 补偿（activation_gate
+  S 类 12→7 seed42）→ silence 0.510→0.490 净抵消；cap 17 降 TIGHTEN wrong（16→12）保 M6 余量。
+- **与 ③/②/A1/A3/M4 交互分析**：
+  - 与 ③（EASE +0.08 sentiment）：ease_ok 挡掉 EASE wrong（8 步）→ 这 8 步的 sentiment +0.08
+    正写消失。**但它们是"错误方向的正写"**（cs 上升时写 sentiment +0.08 助长情绪错误）→ 挡掉
+    更合理；③ 的正确 EASE（cs 回落）不受影响，S2 反而改善（0.682→0.529 达标，EASE 方向一致率升）。
+  - 与 ②（vix 均值回归 + cap）：cap 19→17：vix 峰值 53.3→51.3（豁免略少 → wrong 更少）；
+    ② 的 M6 达标保持（14≤17），vix 存量治理不回退。
+  - 与 A1/A3：① 不动 A1 决策；act_prob 0.76 只改 A2 段；cap 17 → vix 略低 → A3 高压触发略少 →
+    sentiment 负压略减 → 与 ③ 正写协同（reverse 0.529 达标佐证）。
+  - M4 flip：ease_ok 挡 EASE 后转 HOLD（冷却递减），无 EASE 后 2 步内 TIGHTEN 新增 → M4 保持 0。
+  - EASE 冷却：①-A 不碰冷却逻辑（R4g 证伪放宽冷却）；被挡 EASE wrong 步走正常冷却递减。
+- **影响范围**：A2 决策（ease_signal 方向约束 + activation_prob）；vix 动力学（cap 17，
+  所有 vix_stress 消费者）；calibrator CACHE（14）；断言（120→124）。world_state 涉改仅
+  cap 参数（① 声明范围，② 保留）。
+- **涉及断言**：新增 4 项（`test_ease_ok_blocks_cs_rise_low_vix` / `test_ease_ok_exemption_high_vix` /
+  `test_ease_ok_normal_ease_cs_le_2_5` / `test_m4_flip_preserved`），120 → 124；既有 120 无 FAIL。
+  禁 skip/.only。
+- **回退闸（单行 revert 点）**：
+  - financial.py：删 `ease_ok` 行 + `and ease_ok`（L97-104 区域）→ 回退 ①-A。
+  - agents.yaml：act_prob 0.76 → 0.70 → 回退 ①-B。
+  - world_state.py：cap 17.0 → 19.0 → 回退 ①-C。
+  - calibrator.py：CACHE_VERSION 14 → 13。
+  - VERSION：v2.0.40 → v2.0.39。
+  - ③（EASE +0.08）与 ②（vix 回归/cap）**不回退**（用户裁决保留）。
+- **P2-2 回填修正**：commit 2276b1d message 曾写"seed42 silence +0.061"，实测为 **+0.020**
+  （② M2 说明 L191：42:+0.020；+0.061 为参数扫描中间值残留，非 ② 终版实测）。本变更修正，
+  不改历史 commit。
+- **实测（本地 rpa 同口径 5 seed 原型，容器 v2033 工件 qa 独立验收为准）**：
+  - **M6 TIGHTEN wrong 合计 12 ≤17 ✓**（42:4/7:2/123:3/2024:2/777:1；② 16、③-A 18）
+  - **EASE wrong 0 ✓**（② 8 步：42:2/123:3/2024:1/777:2/7:0 → 全 seed 0）
+  - **silence 2/5 seed 超线（qa 硬线 ≤2/5 达标）**：42:0.469/7:0.510/123:0.531/2024:0.490/777:0.490
+    → median 0.490 ≤0.50（② 4/5 超 → ① 2/5 超，最大改善）
+  - **credit 回 merged eligible 池**（Σn=78、median silence 0.490 → 3 变量）
+  - merged p̂ **0.5729 > 0.55（partial 达标）** / CI 0.4877 / N 131.95
+  - **S2 grv_down reverse 0.529 ≤0.60（达标）**（③-A 0.682 大改善）
+  - consistency median **0.789**（② 0.538 大升）
+  - M4 flip 0（保持）
+  - 残余 FAIL（诚实声明）：闸② CI 0.4877<0.55 结构性（sentiment consistency 0.53 + lp 0.42
+    拖累，非 ① 范围）；seed7 0.510/seed123 0.531 超线为参数边界噪声（无组合能 5 seed 全稳定
+    ≤0.50 且 M6≤17，qa 硬线 ≤2/5 达标）；seed123 weighted 0.476<0.50（闸④ FAIL，基线既有）。
