@@ -302,11 +302,25 @@
     （credit 出池）
   - **S2 grv_down reverse median 0.636 >0.60（未达）**（42:0.636/7:0.636/123:0.762/2024:0.591/777:0.727）
   - M4 flip 0（保持）；consistency median 0.778（42:0.786/7:0.692/123:0.778/2024:0.750/777:0.600）
-- **⚠ 参数不一致（blocking，arch 实施中发现）**：方案设计 §3.1/§3.2 声称的"预期"（p̂ 0.5729、
-  silence 2/5 超、credit 回池、reverse 0.529、M6 12、EASE correct 18）**全部来自本地原型
-  A2=0.80 + A3=0.80 配置**（C:/tmp/r4h_data2/config/agents.yaml base config A2=0.80/A3=0.80；
-  本地 param_scan 脚本 re.sub(count=1) 只替换第一个 activation_prob=A1，A2 未被扫描到），
-  **不是任务书定稿 A2=0.76**。arch 已在容器复现验证：A2=0.80+A3=0.80 配置完整复现方案预期
-  （p̂ 0.5729/CI 0.4877/N 131.95/credit 回池/EASE 18/M6 12/sil 2/5 超/reverse 0.529），
-  A2=0.76 部署实测为上述数值。**实施按任务书定稿 A2=0.76 执行（红线不可改），此差异已上报
-  team-lead 裁决**：保持 0.76（接受 silence 4/5 超等实测）或改 0.80（复现方案预期，需用户重裁）。
+- **⚠ 参数不一致 + 假复现更正（blocking，arch 实施中发现 + data-r4h3 反证 2026-08-10）**：
+  方案设计 §3.1/§3.2 声称的"预期"（p̂ 0.5729、silence 2/5 超、credit 回池、reverse 0.529、
+  M6 12、EASE correct 18）**全部来自本地原型 A2=0.80 + A3=0.80 配置，且该数值仅在
+  A3 soul 缺失环境成立**。根因链条（data-r4h3 反证，容器内隔离实验确认）：
+  - **本地 ①-B 精扫（param_scan_1b.py）config 写 `C:/tmp/r4h_data2/config/agents_tmp2.yaml`**，
+    引擎 `load_agents` 的 soul 路径 = `dirname(config_path)/../souls` → 解析到
+    `C:/tmp/r4h_data2/souls`（**不存在**）→ **A3 soul 空 {} → 回退旧 if-else 决策** → 0.5729/credit 回池。
+  - **arch 早期"容器复现"脚本（verify_full_a80.py）config 写 `/tmp/cfg_a80a80.yaml`** → soul 路径解析到
+    `/souls`（不存在）→ 同样 A3 soul 缺失 → **假复现 0.5729**（与本地工件同缺陷，不代表容器真实部署）。
+  - **容器真实部署 `/app/config/agents.yaml`** → soul 路径 `/app/souls`（存在，含 A3_hedge_fund.yaml）
+    → **A3 soul 完整加载**（internal_factions risk_off/contrarian 等）→ 实测：
+    - A2=0.80+A3=0.80：**p̂ 0.4626 / CI 0.3808 / credit 出池 / EASE 15 / M6 20 / sil 4/5 超**
+    - 定稿 A2=0.76+A3=0.75：**p̂ 0.4894 / CI 0.4063 / credit 出池 / EASE 16 / M6 13 / sil 4/5 超**（Part 4 正确）
+  - **决定性证据**：同一 config 文件（md5 17bba346），读 `/tmp/cfg_a80a80.yaml` → 0.5729，
+    读 `/app/config/agents.yaml`（内容字节相同）→ 0.4626；唯一变量 = config 路径 → A3 soul 加载与否。
+    monkeypatch / random.seed 前置隔离实验均不影响（iso3/iso4 两路都 0.5729）。
+  - **结论修正**：A2=0.80 在容器真实环境（A3 soul 完整）**反而更差**（p̂ 0.4626 < 0.4894，
+    M6 20 > 13）——"改 0.80 复现方案预期"**不成立**（0.5729 是 soul 缺失环境的伪预期）。
+    **实施保持任务书定稿 A2=0.76 是唯一正确选择**；方案文档"credit 回池 0.5729"需标注为
+    "仅无 A3 soul 环境成立，不代表容器真实部署"（已登记此更正）。
+  - **机制层不变**：ease_ok 方向闸（EASE wrong 8→0）、cap17（vix peak 51.3）、M4 flip 0——
+    两环境一致，容器验证成立。
