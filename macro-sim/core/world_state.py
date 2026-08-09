@@ -257,6 +257,14 @@ BLEED_PARAMS = {
     "vix_bleed_steps":            3,
     "vix_bleed_rate":             2.0,
     "vix_bleed_max":             20.0,
+    # R4h ②-A（v2.0.39）：yen_carry bleed 专用封顶——原出血5 无上限（+5.0/步持续到
+    # vix 峰值 162-238，vix_stress>1.0 豁免恒真 → TIGHTEN wrong 100% 豁免放行）。
+    # 实测 vix 存量主源=yen_carry bleed（sentiment bleed +2.0 从未触发，delta 分布 0/5.0）。
+    # 参数扫描（5 seed 探针，单一 decay 口径）：cap=19 + decay=0.20 → vix 峰值 53.3
+    # （162-238 大幅收敛，vix>48 步 21-36），TIGHTEN wrong 16≤17（裁决闸达标 18→16）、
+    # M2 silence diff 全 seed ≤+0.041（防沉默回归）、vix_stress 峰值 1.18>0.35（A2 触发线保持）。
+    # 边界：cap<19 → wrong 少但 M2 超（cap18: wrong14 但 seed2024 +0.062）；cap>19 → wrong 超 17。
+    "vix_yen_carry_bleed_max":  19.0,
     "grv_bleed_threshold":        0.6,
     "grv_bleed_rate":             0.5,   # 降速：原3.0太猛，50步内推到上限导致路径无差异
     "credit_spread_bleed_rate":   8.0,
@@ -293,7 +301,11 @@ def apply_bleed_rules(world: MacroWorldState, params: dict = None):
         world.t10y2y -= 5.0
 
     # 出血5（v2）：日元套息平仓 → VIX 跳升（非线性）
-    if world.yen_carry_risk > params["yen_carry_bleed_threshold"]:
+    # R4h ②-A（v2.0.39）：加 vix_delta_total < vix_yen_carry_bleed_max 封顶（原无上限，
+    # vix 存量锁边 162-238 → 豁免恒真 → TIGHTEN wrong 100% 豁免放行）。语义：套息平仓
+    # 仍是"真危机"（vix 单步 +5.0 跳变），但存量受上限约束，不再无界累积。
+    if (world.yen_carry_risk > params["yen_carry_bleed_threshold"]
+            and vix_delta_total < params.get("vix_yen_carry_bleed_max", params["vix_bleed_max"])):
         world.vix += params["yen_carry_vix_impact"]
         world.liquidity_premium = min(1.0, world.liquidity_premium + 0.2)
 
@@ -330,6 +342,13 @@ def apply_natural_decay(world: MacroWorldState):
     # GRV 均值回归
     world.grv = world.grv * 0.97 + world.grv_baseline * 0.03
     world.grv_energy = world.grv_energy * 0.97 + world.grv_energy_baseline * 0.03
+
+    # R4h ②-A（v2.0.39）：vix 均值回归（D4 fix 遗漏变量——无 decay 存量不回吐，
+    # vix 单调漂移锁边 162-238，vix_stress>1.0 豁免恒真 → TIGHTEN wrong 100% 豁免放行）。
+    # 与 D4 其余变量同语义：vix 每步向 baseline 回归 20% 偏离量（0.80/0.20）。
+    # 配合 yen_carry bleed 封顶（vix_delta<19）→ vix 峰值≈53.3（162-238 收敛，豁免部分开），
+    # vix_stress 峰值 1.18 > 0.35（A2 vix 触发线保持活跃，防过度压制）。
+    world.vix = world.vix * 0.80 + world.vix_baseline * 0.20
 
 
 # ── 月度历史数据加载（校准循环用）────────────────────────
