@@ -131,7 +131,7 @@
 
 ---
 
-## 变更 7：R4h ②-A vix 治理——均值回归 + yen_carry bleed 封顶 + CACHE 13 + v2.0.39（commit 待回填）
+## 变更 7：R4h ②-A vix 治理——均值回归 + yen_carry bleed 封顶 + CACHE 13 + v2.0.39（commit 2276b1d）
 
 - **裁决来源**：R4h ② 批次（用户裁决：③ 并入 ② 保留不回退；② 设计实施后全链路合并验收）。
   qa ③-A 验收 FAIL（非回归，强度不足）：M6 TIGHTEN wrong 18>17（seed42 +1，100% vix>1.0 豁免）、
@@ -184,18 +184,20 @@
 - **回退闸**：单行 revert（world_state.py apply_natural_decay vix 行 + apply_bleed_rules 出血5
   条件 + BLEED_PARAMS 参数）+ CACHE 13→12 + VERSION 回退 v2.0.38。③ 的 EASE +0.08 与 a2_action
   不回退（用户裁决保留）。
-- **实测（arch 本地 5 seed，rpa 同口径；qa 独立验收为准）**：
-  - M6 TIGHTEN wrong 合计 **13** ≤17 ✓（42:3/7:2/123:4/2024:4/777:0）；wrong 步豁免占比部分
-    （vix>48 步 21-36，较 ③-A 24-38 收敛）
-  - M2 silence diff：42:+0.061（advisory，超线 0.011）/ 7:-0.020 / 123:-0.102 / 2024:0.000 /
-    777:+0.041 —— seed42 超线来自 A3 链副作用（vix 封顶 → A3 vix 触发减 → hf SHORT 减 → A2
-    行动减），非有意恶化；wrong-silence 结构性 trade-off 下 cap19 为最优 Pareto 点
-  - vix：峰值 46.2-53.4（162-238 收敛）、vix>48 步 0-36、vix_last<peak（存量回吐）、
-    vix_stress_final 0.94-1.18（4.99 回落）
-  - S2 grv_down reverse：42:0.682/7:0.591/123:0.714/2024:0.619/777:0.667 → median 0.667
-    （③-A 0.682 微改善，warn 档未触发 ≥0.727 硬闸）
-  - merged p̂ 0.4956 / CI 0.4010（③-A 0.5094/0.4330 微降，eligible 池 ③-A 同：sentiment+lp，
-    credit 掉出为 ③-A 既有态）
+- **实测（容器 v2032b 工件，qa 独立验收为准）**：
+  - **M6 TIGHTEN wrong 合计 16 ≤17 ✓（裁决闸达标）**（42:4/7:5/123:3/2024:3/777:1；
+    ③-A 18：42:5/7:3/123:4/2024:5/777:1）；wrong 步 vix 单步 delta 部分 +5.0（真危机跳变
+    豁免保留），vix>48 步 21-36（较 ③-A 24-38 收敛）
+  - **M2 silence diff 全 seed ≤+0.041 ✓**（42:+0.020/7:+0.040/123:+0.020/2024:+0.041/777:0.000
+    —— ③-A 基线 0.490/0.531/0.531/0.469/0.490；防沉默回归通过）
+  - vix：峰值 53.2-53.4（162-238 收敛）、vix>48 步 21-36、vix_last 51.9-52.4 < peak（存量回吐）、
+    vix_stress_final 1.13-1.18（4.99 回落）
+  - S2 grv_down reverse：42:0.682/7:0.591/123:0.762/2024:0.619/777:0.714 → median 0.682
+    （③-A 0.682 持平，warn 档未触发 ≥0.727 硬闸；③ 保留的 S2 桶级修复不破坏）
+  - merged p̂ 0.4948 / CI 0.4118（③-A 0.5094/0.4330 微降；eligible 池 sentiment+lp 与 ③-A 同，
+    credit 掉出为 ③-A 既有态——R4g 长期基线问题）
+  - 主闸①（silence 逐 seed≤0.50）4/5 seed >0.50：**长期基线问题**（R4g 终局已证"无过闸方案"，
+    seed7/123 基线 0.531 就 FAIL；② 未引入、非 ② 可解），非 ② 裁决闸
 
 ---
 
