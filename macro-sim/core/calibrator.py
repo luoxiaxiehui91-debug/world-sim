@@ -125,7 +125,10 @@ TUNING_STATE_PATH = Path("/app/data/calib_tuning_state.json")
 # v2.0.35 R4e（方向 EASE grv 限制 0.4→0.6）再次改变引擎决策 → bump 10（同理由）
 # v2.0.36 R4g（归因映射 HOLD 语义 + activation_countdown 条件化 + EASE 冷却 2→1）
 # 再次改变引擎决策与归因口径 → bump 11
-CACHE_VERSION = 11
+# v2.0.38 R4h ③-A（EASE 补写 sentiment +0.08 对称 + a2_action 落盘）改变引擎动力学
+# （sentiment 写者结构：EASE 步 sentiment 意图由 0 → +0.08×m）→ bump 12（防 <7 天命中
+# v11 引擎缓存自证；qa-r2 反作弊门）
+CACHE_VERSION = 12
 # 旧 ERROR_THRESHOLD 保留为常量（外部引用兼容；触发已改 per-var 相对度量）
 ERROR_THRESHOLD_LEGACY = 0.20
 
@@ -729,6 +732,7 @@ def run_probe(
             "t10y2y_delta": round(t10y2y_delta_i, 4),
             "a1": a1_i,
             "a3": a3_i,
+            "a2_action": snapshot.get("actions", {}).get("A2", "HOLD"),  # R4h ③-A：决策级 A2 行动落盘（qa P1 a2_acted / M4 flip-flop / M1 EASE wrong 同口径）
             "a2_state": a2_state,           # R4a：A2 决策路径归因（rate_limit/activation_gate/tighten_signal_false/acted_other）
             "vix": round(vix_before, 2),                        # R4c-B 补验①：决策时 vix（bleed 漂移不可离线复算）
             "vix_stress": round(max(0.0, (vix_before - 18.0) / 30.0), 3),  # 与 get_agent_context 同口径

@@ -145,6 +145,11 @@ def gm_resolve_rules(
         # 原 +0.25 vs -0.18 + decay×0.97 → 恢复比收紧慢 ~3 倍，一旦收紧回不来。
         add("A2", "bank_credit_tightening", -0.25 * m)
         add("A2", "liquidity_premium",       -0.08 * m)
+        # R4h ③-A（v2.0.38）：EASE 补写 market_sentiment 正向分量 +0.08×m（K=1.0），
+        # 与 TIGHTEN 的 -0.08（L141）完全镜像。依据：负写者主导 3:1（EASE 不写 ×4 步
+        # vs TIGHTEN -0.08 ×12 步）、grv_down reverse 0.727（sentiment 恒贴 floor →
+        # 宽松不传导情绪回升）。clamp [-1,1] 由 apply_sentiment_delta 统一，damping 恒 1。
+        add("A2", "market_sentiment",         0.08 * m)
 
     # ── A3 对冲基金 ───────────────────────────────────────
     a3 = actions.get("A3", "HOLD")

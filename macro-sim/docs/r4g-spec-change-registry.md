@@ -98,3 +98,55 @@
 - **涉及断言**：无断言因回滚 FAIL（测试无 _ease_cooldown/activation_countdown 引用，全量 110 保持全绿）。
 - **ARTIFACT_TAG 待办**：qa 提示 v2030c 复用问题，output/r4e_backup_v2030c/ 已存 R4e 备份；
   后续部署建议 bump tag（如 v2031）防 era 混淆。
+
+---
+
+## 变更 6：R4h ③-A sentiment 写者 + a2_action 落盘 + CACHE 12 + v2.0.38（commit 待回填）
+
+- **裁决来源**：R4h 评审简报 §3 实施 spec（arch-r4h 定稿，qa/data 会签）——③-A 参数 K=1.0（EASE 写
+  sentiment 对称 +0.08），与 TIGHTEN -0.08 完全镜像。② vix 治理本轮不做（M6 残差裁决后行）。
+- **变更内容**：
+  1. `core/simulation.py`（gm_resolve_rules EASE_CREDIT 分支，L148-152）：补写
+     `add("A2", "market_sentiment", 0.08 * m)`（m=mag("A2")=1.0，K=1.0）。此前 EASE 只写
+     credit/lp 不写 sentiment（负写者主导 3:1：TIGHTEN -0.08 ×12 步 vs EASE 不写 ×4 步，
+     grv_down reverse 0.727 → sentiment 恒贴 floor）。clamp [-1,1] 由 apply_sentiment_delta
+     统一；damping 恒 1。
+  2. `core/calibrator.py`（step_record，L732 附近）：落盘 `"a2_action":
+     snapshot.get("actions",{}).get("A2","HOLD")`——决策级 A2 行动（纯测量层，无额外 CACHE
+     bump），服务 qa P1 a2_acted 检查 / M4 决策级 flip-flop / M1 EASE wrong 同口径。
+  3. `core/calibrator.py`：CACHE_VERSION 11→12（sentiment 写者改变引擎动力学，反作弊门）。
+  4. `VERSION`：v2.0.37 → v2.0.38。
+  5. `scripts/run_probe_acceptance.py`：ARTIFACT_TAG v2030c → v2031（含 docstring/acceptance
+     文件名同步），防 era 混淆（R4g 变更 5 待办落地）。
+- **原因**：sentiment 长期贴 floor（level_mean -0.880 / floor_frac 0.694）根因之一是 EASE 对
+  sentiment 零直接副作用——宽松不传导情绪回升。补对称正写者后：sentiment 抬离 floor →
+  consecutive_negative_steps 重置 → vix bleed 停（③→② 传导路径），A3 -0.4 边界复激活，
+  方向正确且被三向自限（arch 量化：EASE 正贡献仅占窗口负压总量 3-5%）。
+- **影响范围**：market_sentiment 动力学（所有 sentiment 依赖 agent 决策、vix bleed、soul 层）；
+  传导放大 A2→A3(to_A3=0.40)/A10(to_A10=0.35) 衰减 0.5 → 每步总效果 +0.0275/步 ≥EPS_ACT。
+  S→T 转移：EASE 步 sentiment 意图 0 → +0.08×0.25=0.02（T 类），sentiment n_active 升、
+  eligible 池变 → merged p̂ 结构变化（qa 独立验收 + data 前后对比）。
+- **涉及断言**：新增 3 项（`test_a2_ease_writes_sentiment` / `test_a2_ease_sentiment_symmetry` /
+  `test_a2_ease_sentiment_t_class`），110 → 113；既有 110 无 FAIL。禁 skip/.only。
+
+---
+
+## 测试基线（自检，qa 独立验收）
+
+| 测试文件 | 断言数（改前→改后） | 结果 |
+|---|---|---|
+| tests/test_calibrator_guards.py | 98 → 101 | 全绿（24 组） |
+| tests/test_narrative_format.py | 12 → 12 | 全绿（11 组） |
+| **合计** | **110 → 113** | **全绿** |
+
+- py_compile：core/calibrator.py / core/simulation.py / core/agents/financial.py /
+  core/world_state.py / scripts/run_probe_acceptance.py / tests 通过
+- import smoke：CACHE_VERSION=12、VERSION=v2.0.38、ARTIFACT_TAG=v2031、MacroSimModel /
+  gm_resolve_rules / CommercialBankAgent 可导入
+- 只读探针（monkeypatch 落 /tmp）：EASE 步 sentiment 意图>0（0.08）、TIGHTEN 对称 -0.08、
+  intent×MONTHLY_SCALE=0.02 ≥EPS_ACT(0.005)、tsf 仍非零
+- 未跑验收脚本（run_probe_acceptance 由 qa 独立执行）
+- 部署：NAS docker build（image 待回填）+ compose up --force-recreate，容器内 grep 五处验证
+  （simulation.py sentiment 写 / calibrator a2_action / CACHE_VERSION=12 / VERSION=v2.0.38 /
+  ARTIFACT_TAG=v2031）
+- **回退闸**：单行 revert（simulation.py 插入行）+ CACHE 12→11 + VERSION 回退 v2.0.37
