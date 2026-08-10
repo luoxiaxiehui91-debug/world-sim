@@ -95,7 +95,6 @@ JOBS = [
     ("news_geo_feed", "0715", "1-7", None, [PYTHON, "news_geo_feed.py"]),         # P3-A 新闻坐标（spaCy NER + gdelt_geo_cache）
     ("situation_detect", "0630", "1-7", None, [PYTHON, "situation_detector.py"]),
     ("weekly_synthesis", "2000", "5",  None, [PYTHON, "weekly_synthesis.py"]),       # 周五20:00
-    ("dashboard",    "2030", "1-5", None, [PYTHON, "dashboard.py"]),                  # us_daily+china_daily 结束后刷新
     ("health_push",  "2100", "1-7", None, [PYTHON, "-c",
         "from observability import daily_health_push; daily_health_push()"
     ]),  # 每日健康摘要推送（三数字：GRV时间戳/降级fetcher数/predictions行数）
