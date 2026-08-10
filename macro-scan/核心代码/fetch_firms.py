@@ -133,14 +133,34 @@ def fetch_and_save(date_str=None):
         print(f'  [fetch_firms] {src}: {len(t.splitlines()) - 1} 行')
 
     if not csvs:
-        print('[fetch_firms] 所有源均无数据，跳过写入')
-        # 2026-08-07 fail-loud（红线 #8）：全源失败必须告警，禁止静默跳过（下游读旧文件误以为数据新鲜）
+        print('[fetch_firms] 所有源均无数据，写入 0 值失败文件')
+        # 2026-08-10 加固（D6 静默降级红线 #8）：全源失败必须落 0 值失败文件（明确失败态），
+        # 禁止静默缺文件——否则下游 fetch_climate_signals 读旧文件误以为数据新鲜
+        failed_result = {
+            'fetched_at': datetime.now().isoformat(timespec='seconds')[:19],
+            'date': date_str,
+            'total_hotspots': 0,
+            'high_confidence': 0,
+            'active_fire_regions': [],
+            'source': f'NASA FIRMS {",".join(VIIRS_SOURCES)} (direct)',
+            'upstream_window_days': DAY_COUNT,
+            'status': 'failed',
+            'error': 'all sources returned no data',
+        }
+        os.makedirs(DATA_DIR, exist_ok=True)
+        try:
+            with open(FIRMS_OUTPUT, 'w', encoding='utf-8') as f:
+                json.dump(failed_result, f, ensure_ascii=False, indent=2)
+            print(f'[fetch_firms] 失败态已落盘 {FIRMS_OUTPUT}（status=failed）')
+        except Exception as e:
+            print(f'[fetch_firms] 失败态落盘失败: {e}')
+        # 2026-08-07 fail-loud（红线 #8）：全源失败必须告警，禁止静默跳过
         try:
             from ntfy_utils import push_text
-            push_text("⚠️ FIRMS 数据源异常", f"fetch_firms 全源失败（{VIIRS_SOURCES}），未更新 {FIRMS_OUTPUT}，date={date_str}")
+            push_text("⚠️ FIRMS 数据源异常", f"fetch_firms 全源失败（{VIIRS_SOURCES}），已落 0 值失败文件，date={date_str}")
         except Exception as e:
             print(f'[fetch_firms] fail-loud 告警失败: {e}')
-        return {}
+        return failed_result
 
     total, high_conf, regions = _aggregate(csvs)
 
