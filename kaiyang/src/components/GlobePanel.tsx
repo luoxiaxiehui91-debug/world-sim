@@ -56,8 +56,6 @@ const RING_PERIOD_FAST = 700;
 
 /** 相机飞行动画时长（毫秒）。 */
 const CAMERA_FLY_MS = 900;
-/** 聚焦单点时的相机高度（2026-08-11 视觉重构：1.2→1.8 向 crucix 世界视角靠拢，避免点击贴脸放大）。 */
-const FOCUS_ALTITUDE = 1.8;
 /** 聚焦点的光环周期（毫秒）：明显快于任何常规点，一眼能认出「就是这个」。 */
 const FOCUS_RING_PERIOD = 520;
 
@@ -269,24 +267,10 @@ export function GlobePanel({
   }, [region]);
 
   /**
-   * 单点聚焦（R-P1-03）：相机飞到被选中的点位。
-   * 注意：当前 news 信号没有坐标，`focusPointId` 只可能来自「点击地图点位」这条反向链路；
-   * 等 news_geo feed 就绪后，信号侧带上 focusId 即可自动复用本效果。
+   * 单点聚焦（R-P1-03）：2026-08-11 v1.10.2 起不再飞相机（对齐 crucix：点击只标记不飞）。
+   * 选中态由 rings 聚焦标记表达（isFocus 切换 ring 基径 2.2+2.2w → 3.5+2.2w）；
+   * 相机只在初始加载 / region 切换时定位（上方 region effect）。
    */
-  useEffect(() => {
-    if (!focusPointId) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const world = globeRef.current as any;
-    if (!world || typeof world.pointOfView !== 'function') return;
-    const target = points.find((p) => p.id === focusPointId);
-    if (!target) return;
-    try {
-      world.pointOfView({ lat: target.lat, lng: target.lng, altitude: FOCUS_ALTITUDE }, CAMERA_FLY_MS);
-    } catch {
-      /* 相机 API 异常不影响渲染 */
-    }
-  }, [focusPointId, points]);
-
   // 数据驱动：风险点位 + 光环 + 常驻标签 + 地缘联动弧线
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

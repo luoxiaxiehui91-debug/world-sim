@@ -5,6 +5,22 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.10.2] - 2026-08-11 · 三项修复：反向缩放丢失根治 / globe 点击不飞相机 / 报告分类折叠（by arch-map）
+
+**修改理由**：主理人反馈 ①开关分类选项时所有图标放大（v1.10.1 视觉重构未触及、此前已存在的 bug）；②globe 点击点放大仍在；③宏观分析（报告中心）分类折叠未做。根因：invScale 反向缩放只在 zoom 事件施加，点组/聚焦环重建后丢失 → 缩放态切分类全部按 k 倍渲染；globe 点击点触发相机飞行；ReportsPanel 组头是静态 div 无折叠。
+
+### 修改
+
+- **`FlatMapPanel.tsx` 反向缩放根治**：抽 `applyPointInvScale()`（zoom 事件 + buildPoints 重建后 + 聚焦环重建后三调用点统一施加 `scale(1/k)` 于 `.fm-point-group`/`.fm-focus-ring`/`.fm-site-star`）。任意缩放态下切分类/点击点，点视觉尺寸恒定，无全分类放大、无超大聚焦环
+- **`GlobePanel.tsx` 去点击飞相机**：删除聚焦点 `pointOfView({altitude})` 相机飞行（对齐 crucix：点击只标记不飞）；选中态由 rings 聚焦标记表达（isFocus 切换 ring 基径 2.2+2.2w → 3.5+2.2w 保留）；相机仅初始加载/region 切换定位；移除 `FOCUS_ALTITUDE` 常量
+- **`ReportsPanel.tsx` 分类折叠**：新增 `collapsedTypes` state + 组头 div 改 button（`▾/▸` chevron + `aria-expanded`），点击切换该 type 报告列表折叠/展开，折叠保留数量徽标；默认全部展开；数据层零改动（groupReports 不动）
+
+### 验证
+
+- `npm test` 14 files / 311 tests 全绿；`vite build` 本地构建成功（新 bundle `index-C5O0u3uk.js` / `index-ITF8Jrwl.css`）
+- scp 原地覆盖 + `chmod -R a+rX`，dist 无 data/ 子目录；nginx 新 bundle js/css 200；18/18 feed 200
+- 视觉项由主理人浏览器复核：flat 模式缩放后切分类点不变大；globe 点击点不飞相机；报告中心宏观分析组可折叠
+
 ## [1.10.1] - 2026-08-11 · 事件点视觉重构（crucix 化）：中心实体 + 外侧薄弧光贴附（by arch-map）
 
 **修改理由**：主理人反馈事件点图标"太大"、点击后放大倍率更大、实心+一大圈弧光不合理。参考 crucix（NAS `Crucix/dashboard/public/jarvis.html`，AGPL，仅参考视觉不抄代码）ACLED 冲突点形态重构——中心半透明小实体 + 外侧薄描边环贴附，严重度用中心大小区分，脉冲只动外环。详见调研纪要（arch-map 消息 2026-08-11）。
