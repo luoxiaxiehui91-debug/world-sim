@@ -97,7 +97,7 @@
 | GPR 指数 | `fetch_gpr` (#2) | ✅ | 专用指数 |
 | 防务 / 冲突新闻 | `fetch_defense_rss` (#21) | ✅ | Al Jazeera/Defense One/WotR |
 | 军备背景 (SIPRI) | `fetch_sipri_backdrop` (#22) | ✅ | 本地手工维护 |
-| GDELT 全球事件 | `fetch_rss_news` (#23 RSSHub) | ⚠️ | **GDELT 无独立 fetcher**，经 RSSHub 路由间接覆盖；当前部分依赖 crucix 注入。需评估是否新增专用 `fetch_gdelt`。 |
+| GDELT 全球事件 | `fetch_gdelt_geo`（独立 fetcher，08-06 落地） | ✅ | **独立 fetcher 已落地**（scheduler 注册 gdelt_geo I15 事件档，产出 news_geo.jsonl + news_geo_clusters.json），与 RSSHub 路由互为补充 |
 
 ### 2.5 航运 / 航空
 | crucix 维度 | 天枢对应 | 状态 | 备注 / 独立运行动作 |
@@ -146,8 +146,8 @@
 ## 4. 整合状态汇总
 
 ### 4.1 分档统计
-- ✅ **已有等价 fetcher（crucix 对应维度可独立运行）**：新闻、利率、汇率、加密、商品、制裁、GPR、能源/EIA、地震、灾害、FIRMS(锚点)、HDX、FAO、气候/ONI、GPR、防务 RSS、SIPRI、BDI、OpenSky(限频)、air
-- ⚠️ **部分覆盖（需 D2 决策）**：GDELT(间接)、`gscpi` 供应链压力、`nuke` 军事/核、`sdr`
+- ✅ **已有等价 fetcher（crucix 对应维度可独立运行）**：新闻、利率、汇率、加密、商品、制裁、GPR、能源/EIA、地震、灾害、FIRMS(锚点)、GDELT geo、HDX、FAO、气候/ONI、GPR、防务 RSS、SIPRI、BDI、OpenSky(限频)、air
+- ⚠️ **部分覆盖（需 D2 决策）**：`gscpi` 供应链压力、`nuke` 军事/核、`sdr`（GDELT 已于 08-06 独立 fetcher 落地，移出部分覆盖）
 - — **非缺口非阻塞**：ACLED（crucix 已放弃）
 
 ### 4.2 关键缺口 / 部分覆盖项（供 D2 重点讨论）
@@ -155,7 +155,7 @@
 |----|------|------|
 | `gscpi` 供应链压力 | ⚠️ | 评估新增 `fetch_gscpi`（NY Fed 公开序列）或接受 FAO/能源/HDX/GDELT 间接代理 |
 | `nuke` 军事/核 | ⚠️ | SIPRI + Defense RSS 已部分覆盖；如世界推演需核态势专信号，评估新增源 |
-| GDELT 独立 fetcher | ⚠️ | 当前经 RSSHub 间接；如需稳定 GDELT 事件流，评估新增 `fetch_gdelt` |
+| GDELT 独立 fetcher | ✅ 08-06 已落地 | `fetch_gdelt_geo.py`（I15 事件档，news_geo.jsonl + news_geo_clusters.json；天枢 fetcher 实况核对） |
 | `sdr` 特殊提款权 | ⚠️ | 可由 FRED/World Bank 宏观代理，优先级低 |
 
 ---
@@ -165,7 +165,7 @@
 1. **FIRMS（已完成）**：`fetch_firms` 纯重写直连已落地，crucix 火点维度退为过渡兜底，可率先独立运行。
 2. **新闻 / 金融 / 灾害 / 气候**：天枢已全覆盖且有等价 fetcher，**crucix 对应维度独立运行无阻塞**。
 3. **航空（OpenSky）**：天枢已等价，但受匿名 400 credits/日限额锁定为日档（绝不可提频）——独立运行无影响，因天枢已独立且频率本就日档。
-4. **部分覆盖项（gscpi / nuke / GDELT / sdr）**：D2 需拍板是否新增专用 fetcher，或接受间接代理。若接受间接代理，则 crucix 对应维度可完全由天枢承接；若要求专用信号，则先行补齐再承接。
+4. **部分覆盖项（gscpi / nuke / sdr）**：D2 需拍板是否新增专用 fetcher，或接受间接代理。若接受间接代理，则 crucix 对应维度可完全由天枢承接；若要求专用信号，则先行补齐再承接。
 5. **ACLED**：非阻塞，忽略。
 
-> **总体判断**：crucix 绝大多数"信息收集能力"天枢已通过 24 个 fetcher 等价或覆盖；仅 `gscpi`/`nuke`/GDELT 为部分覆盖，不构成独立运行的硬阻塞。当前 crucix 与天枢**过渡期共存**（`crucix-crucix-1` healthy，30/30 sweep 通过），D2 可按"各维度逐步独立、部分覆盖项接受间接代理"推进，或视世界推演精度需求择机补齐。
+> **总体判断**：crucix 绝大多数"信息收集能力"天枢已通过 27 个 fetcher（实况核对）等价或覆盖；仅 `gscpi`/`nuke`/`sdr` 为部分覆盖，不构成独立运行的硬阻塞。当前 crucix 与天枢**过渡期共存**（`crucix-crucix-1` healthy，30/30 sweep 通过），D2 可按"各维度逐步独立、部分覆盖项接受间接代理"推进，或视世界推演精度需求择机补齐。
