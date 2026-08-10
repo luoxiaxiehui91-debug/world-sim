@@ -16,9 +16,12 @@ world-sim/
 ├── macro-ji/                天玑（验证层）macro-ji v1.0.0（独立容器）
 ├── docs/
 │   ├── overview.md          系统总览（功能/架构/运维一页通）
-│   └── tianji-design.md     天玑（验证层）设计文档 v1.0
+│   ├── tianji-design.md     天玑（验证层）设计文档 v1.0
+│   └── calib/               校准评审实录（calib-*.md，08-10 同步）
 ├── deploy.sh                统一部署脚本
 ├── ROADMAP.md               项目内权威 todo（时间门控任务 + 天玑路线图）
+├── STATUS.md                实时交接状态（镜像自 WorkBuddy 工作区，08-10 同步）
+├── 项目导航.md              项目导航（镜像自 WorkBuddy 工作区，08-10 同步）
 ├── AGENTS.md                AI 工作入口
 └── README.md                本文件
 ```
