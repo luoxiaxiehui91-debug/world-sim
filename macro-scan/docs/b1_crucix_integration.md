@@ -68,7 +68,7 @@
 ### 2.1 新闻 / 信号聚合
 | crucix 维度 | 天枢对应 | 状态 | 备注 / 独立运行动作 |
 |------------|---------|------|---------------|
-| 新闻 Feed 聚合 | `fetch_news` (#12) + `fetch_rss_news` (#23 RSSHub) + `fetch_defense_rss` (#21) | ✅ | 三源覆盖通用新闻 + 路由聚合 + 防务垂直；crucix 新闻 Feed 维度已由天枢等价覆盖（过渡期共存） |
+| 新闻 Feed 聚合 | `fetch_news` (#12) + `fetch_rss_news` (#23 RSSHub) + `fetch_defense_rss` (#21) | ✅ | 三源覆盖通用新闻 + 路由聚合 + 防务垂直。**注（08-10 复核）**：scan_weak_signals.py L1178 `fetch_crucix_news()` 仍直拉 crucix API 做新闻频率分析（依赖点 D5）；news_db.py L7 归档 crucix 文章（D4）——见 crucix-dependency-analysis-2026-08-10.md |
 
 ### 2.2 金融信号
 | crucix 维度 | 天枢对应 | 状态 | 备注 / 独立运行动作 |
@@ -108,9 +108,9 @@
 ### 2.6 crucix 专有注入信号（来自信息源手册 #97-101）
 | crucix 信号 | 天枢对应 | 状态 | 备注 / 独立运行动作 |
 |------------|---------|------|---------------|
-| `gscpi`（供应链压力） | 无专用 fetcher | ⚠️ | 部分可由 `fetch_fao`(粮供应链) + `fetch_energy`/`fetch_energy_eia`(能源供应) + `fetch_hdx`(中断) + GDELT/Defense RSS(事件) **间接覆盖**；无独立 gscpi 序列。需决策：新增 `fetch_gscpi` 或接受间接代理 |
-| `nuke`（军事 / 核） | `fetch_sipri_backdrop`(#22) + `fetch_defense_rss`(#21) | ⚠️ | 部分覆盖军备/核态势；crucix `nuke` 信号无对等专用 fetcher |
-| `sdr` | 无独立信号，相关宏观由 #1/#3/#4 覆盖 | ⚠️ | 特殊提款权类信号无专用 fetcher；可由 FRED/World Bank 宏观代理 |
+| `gscpi`（供应链压力） | **data_fetcher.py L747 注入 `_crucix.gscpi`（D1）** + regime_detector.py L280 消费（D2） | ⚠️依赖 | **非缺口而是消费点**：天枢已实时消费 crucix gscpi（快照 `_crucix` 键），无独立生产者。需决策：新增 `fetch_gscpi`（NY Fed 月度）摘除，或维持 crucix 供给 |
+| `nuke`（军事 / 核） | **data_fetcher.py L738 注入 `_crucix.nuke`（D1）** + narrative_processor.py L68 映射 taiwan_strait（D3） | ⚠️依赖 | 天枢已实时消费 crucix nuke；无开原生产源，需定代理方案（SIPRI + Defense RSS 间接） |
+| `sdr` | **data_fetcher.py L738 注入 `_crucix.sdr`（D1）** + narrative_processor.py L70 映射 sanctions_risk（D3） | ⚠️依赖 | 天枢已实时消费 crucix sdr；FRED/World Bank 可代理，优先级低 |
 | `air`（航空） | `fetch_airtraffic_opensky` (#17) | ✅ | 等价，受 §3 限额约束 |
 | 内部 EIA / FIRMS | #18 / #24 | ✅ | 同源已等价，FIRMS 已完成替代 |
 | ACLED（冲突事件） | 无 | — | **crucix 自身已放弃**（需 edu/org/gov 授权）；天枢亦无，但 **非独立运行阻塞项、非缺口** |
@@ -153,7 +153,7 @@
 ### 4.2 关键缺口 / 部分覆盖项（供 D2 重点讨论）
 | 项 | 状态 | 建议 |
 |----|------|------|
-| `gscpi` 供应链压力 | ⚠️ | 评估新增 `fetch_gscpi`（NY Fed 公开序列）或接受 FAO/能源/HDX/GDELT 间接代理 |
+| `gscpi` 供应链压力 | ⚠️依赖 | **消费点**（`_crucix.gscpi`）：评估新增 `fetch_gscpi`（NY Fed）摘除或维持 crucix 供给 |
 | `nuke` 军事/核 | ⚠️ | SIPRI + Defense RSS 已部分覆盖；如世界推演需核态势专信号，评估新增源 |
 | GDELT 独立 fetcher | ✅ 08-06 已落地 | `fetch_gdelt_geo.py`（I15 事件档，news_geo.jsonl + news_geo_clusters.json；天枢 fetcher 实况核对） |
 | `sdr` 特殊提款权 | ⚠️ | 可由 FRED/World Bank 宏观代理，优先级低 |
@@ -165,7 +165,7 @@
 1. **FIRMS（已完成）**：`fetch_firms` 纯重写直连已落地，crucix 火点维度退为过渡兜底，可率先独立运行。
 2. **新闻 / 金融 / 灾害 / 气候**：天枢已全覆盖且有等价 fetcher，**crucix 对应维度独立运行无阻塞**。
 3. **航空（OpenSky）**：天枢已等价，但受匿名 400 credits/日限额锁定为日档（绝不可提频）——独立运行无影响，因天枢已独立且频率本就日档。
-4. **部分覆盖项（gscpi / nuke / sdr）**：D2 需拍板是否新增专用 fetcher，或接受间接代理。若接受间接代理，则 crucix 对应维度可完全由天枢承接；若要求专用信号，则先行补齐再承接。
+4. **依赖点（gscpi / nuke / sdr）**：08-10 复核定性修正——非缺口而是**消费点**（data_fetcher 注入 `_crucix` → regime_detector/narrative_processor 消费）。摘除动作见 crucix-dependency-analysis-2026-08-10.md §4（D1-D3 硬依赖优先）。
 5. **ACLED**：非阻塞，忽略。
 
 > **总体判断**：crucix 绝大多数"信息收集能力"天枢已通过 27 个 fetcher（实况核对）等价或覆盖；仅 `gscpi`/`nuke`/`sdr` 为部分覆盖，不构成独立运行的硬阻塞。当前 crucix 与天枢**过渡期共存**（`crucix-crucix-1` healthy，30/30 sweep 通过），D2 可按"各维度逐步独立、部分覆盖项接受间接代理"推进，或视世界推演精度需求择机补齐。
