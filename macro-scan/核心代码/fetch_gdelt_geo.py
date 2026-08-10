@@ -87,6 +87,16 @@ FIXTURE_PATH: str = os.path.join(
     "sample_gdelt_row.txt",
 )
 
+# ── news_geo.json 导出配置（路线 A；架构文档 arg-map-arch-2026-08-11 §4.2）──
+# 开阳事件图层改由本文件直接派生 news_geo.json（§2.7 契约 NewsGeoEvent[]），
+# news_geo_feed.py（NER 空转链）已停止调度。全部阈值走环境变量，默认值见 ADR-map-4。
+NEWS_GEO_JSON_PATH: str = os.path.join(DATA_DIR, "news_geo.json")
+NEWS_GEO_WINDOW_HOURS: int = int(os.environ.get("NEWS_GEO_WINDOW_HOURS", "24"))
+NEWS_GEO_MIN_MENTIONS: int = int(os.environ.get("NEWS_GEO_MIN_MENTIONS", "15"))
+NEWS_GEO_MAX_EVENTS: int = int(os.environ.get("NEWS_GEO_MAX_EVENTS", "1800"))
+NEWS_GEO_AGGREGATE: bool = os.environ.get("NEWS_GEO_AGGREGATE", "0") in ("1", "true", "True")
+NEWS_GEO_SCHEMA_VERSION: str = "1.0"
+
 
 # ── 业务函数实现（T02）─────────────────────────────────────────────────────
 
@@ -127,8 +137,9 @@ def _parse_export(content: bytes) -> List[Dict[str, str]]:
 
     用 csv 模块（delimiter='\t'）+ quoting=csv.QUOTE_NONE 解析；
     列索引 → 字段名映射：GLOBALEVENTID=0, SQLDATE=1, Actor1Code=5, Actor2Code=15,
-    EventCode=26, Goldstein=30, NumMentions=31, NumSources=32, ActionGeo_Type=51,
-    ActionGeo_FullName=52, ActionGeo_CountryCode=53, Lat=56, Long=57, SOURCEURL=60。
+    EventCode=26, EventRootCode=28, Goldstein=30, NumMentions=31, NumSources=32,
+    ActionGeo_Type=51, ActionGeo_FullName=52, ActionGeo_CountryCode=53,
+    Lat=56, Long=57, SOURCEURL=60。
 
     Returns:
         每行一个 dict（缺失字段为空串）；行数 < 1 → []
@@ -151,6 +162,7 @@ def _parse_export(content: bytes) -> List[Dict[str, str]]:
                     "Actor1Code": cols[5] if len(cols) > 5 else "",
                     "Actor2Code": cols[15] if len(cols) > 15 else "",
                     "EventCode": cols[26] if len(cols) > 26 else "",
+                    "EventRootCode": cols[28] if len(cols) > 28 else "",
                     "Goldstein": cols[30] if len(cols) > 30 else "",
                     "NumMentions": cols[31] if len(cols) > 31 else "",
                     "NumSources": cols[32] if len(cols) > 32 else "",
@@ -286,6 +298,12 @@ def _map_event(row: Mapping[str, str]) -> Dict[str, Any]:
     except (ValueError, TypeError):
         sources = 0
 
+    # CAMEO 事件码持久化（Route A 前提：news_geo.json 的 event_type / M-3 冲突筛选）
+    raw_ec = row.get("EventCode", "")
+    event_code = str(raw_ec).strip() if raw_ec else ""
+    raw_rc = row.get("EventRootCode", "")
+    root_code = str(raw_rc).strip() if raw_rc else ""
+
     return {
         "lat": lat,
         "lng": lng,
@@ -299,6 +317,8 @@ def _map_event(row: Mapping[str, str]) -> Dict[str, Any]:
         "sql_date": row.get("SQLDATE", ""),
         "actor1_code": row.get("Actor1Code", ""),
         "actor2_code": row.get("Actor2Code", ""),
+        "event_code": event_code,
+        "root_code": root_code,
         "source_url": row.get("SOURCEURL", ""),
         "schema_version": SCHEMA_VERSION,
         "fetched_at": int(time.time()),
@@ -394,7 +414,8 @@ def _merge_jsonl(path: str, new_events: List[Mapping[str, Any]], key: str = "eve
     """加载现有 jsonl + 去重 + 追加新事件 + 原子写回。
 
     Returns:
-        {"before": int, "added": int, "after": int, "deduped": int}
+        {"before": int, "added": int, "after": int, "deduped": int, "rows": List}
+        rows 为合并后全量行（供 run_incremental 末尾派生 news_geo.json，零边际读成本）。
     """
     seen: set = set()
     rows: List[Mapping[str, Any]] = []
@@ -433,7 +454,261 @@ def _merge_jsonl(path: str, new_events: List[Mapping[str, Any]], key: str = "eve
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     os.replace(tmp, path)
-    return {"before": before, "added": added, "after": len(rows), "deduped": deduped}
+    return {"before": before, "added": added, "after": len(rows), "deduped": deduped, "rows": rows}
+
+
+# ── news_geo.json 导出（路线 A：开阳事件图层直接消费 jsonl）────────────────────
+#
+# 架构文档 arg-map-arch-2026-08-11 §4：news_geo_feed.py 的 NER 空转链已停调度，
+# 开阳事件图层改为直接消费 GDELT 事件（自带坐标）。本段在 run_incremental 末尾
+# 从合并后的全量行生成 news_geo.json（DATA_CONTRACT §2.7 NewsGeoEvent[]）。
+
+# CAMEO EventRootCode → 开阳四类枚举（设计文档 fetch_gdelt_geo_design.md §5.2）。
+# 本 feed 结构上不产 disaster（CAMEO 无灾害根码，§5.3）。
+_CAMEO_ROOT_PROTEST: str = "14"                      # Protest
+_CAMEO_ROOT_CONFLICT: frozenset = frozenset({        # Exhibit Force/Assault/Fight/Unconventional Mass Violence
+    "15", "18", "19", "20",
+})
+
+_HTML_ESCAPE_TABLE = str.maketrans({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+})
+
+
+def _html_escape(value: Any) -> str:
+    """HTML 实体转义（XSS 防线一：news_geo.json 输出侧转义）。"""
+    if value is None:
+        return ""
+    return str(value).translate(_HTML_ESCAPE_TABLE)
+
+
+def _map_event_type(root_code: Any) -> str:
+    """CAMEO EventRootCode → 开阳四类枚举；缺失 → 'unknown'（前端降级中性色）。"""
+    rc = str(root_code or "").strip()
+    if not rc:
+        return "unknown"
+    if rc == _CAMEO_ROOT_PROTEST:
+        return "protest"
+    if rc in _CAMEO_ROOT_CONFLICT:
+        return "conflict"
+    return "political"
+
+
+def _norm_intensity(goldstein: Any, mentions: Any) -> int:
+    """事件显著度 0-100（设计文档 §5.4）：0.6*烈度 + 0.4*传播广度，整数，下限 1。
+
+    g = min(|Goldstein|, 10) / 10；m = min(log1p(mentions) / log1p(50), 1.0)。
+    注意：intensity 是显著度不是风险度，方向由 event_type 表达。
+    """
+    try:
+        g = float(goldstein) if goldstein is not None else 0.0
+    except (TypeError, ValueError):
+        g = 0.0
+    try:
+        m = float(mentions) if mentions is not None else 0.0
+    except (TypeError, ValueError):
+        m = 0.0
+    g_norm = min(abs(g), 10.0) / 10.0
+    m_norm = min(math.log1p(m) / math.log1p(50.0), 1.0)
+    raw = 0.6 * g_norm + 0.4 * m_norm
+    return max(1, min(100, round(raw * 100)))
+
+
+def _seen_slot_ts(ev: Mapping[str, Any]) -> Optional[int]:
+    """事件抓取时刻（UTC unix）：优先 seen_slot(YYYYMMDDHHmmss)，回退 fetched_at。"""
+    slot = str(ev.get("seen_slot") or "").strip()
+    if len(slot) == 14 and slot.isdigit():
+        try:
+            return int(datetime.strptime(slot, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc).timestamp())
+        except ValueError:
+            pass
+    fetched = ev.get("fetched_at")
+    if isinstance(fetched, (int, float)):
+        return int(fetched)
+    return None
+
+
+def _map_to_news_geo_event(ev: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    """jsonl 事件行 → NewsGeoEvent（契约 §2.7）；坐标/地理精度不合规返回 None。
+
+    必填字段：id(gdelt-前缀)/lat/lng(4位小数)/event_type/intensity/country；
+    可选字段有值即填：mention_count/location_name(HTML 转义)/event_date；
+    source_url 为扩展字段（契约未列，前端忽略；HTML 转义后供出处展示/审计）。
+    """
+    try:
+        lat = float(ev["lat"])
+        lng = float(ev["lng"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not (math.isfinite(lat) and math.isfinite(lng)):
+        return None
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0):
+        return None
+
+    geo_type = ev.get("type")
+    try:
+        gt = int(geo_type) if geo_type not in (None, "") else 0
+    except (TypeError, ValueError):
+        gt = 0
+    if gt in (0, 1):
+        return None  # 国家质心 / 无效精度 → 丢弃（过滤链第 2 步）
+
+    evt: Dict[str, Any] = {
+        "id": "gdelt-" + str(ev.get("event_id", "")),
+        "lat": round(lat, COORD_DECIMALS),
+        "lng": round(lng, COORD_DECIMALS),
+        "event_type": _map_event_type(ev.get("root_code")),
+        "intensity": _norm_intensity(ev.get("intensity"), ev.get("mentions")),
+        "country": str(ev.get("country_iso", "")),
+    }
+    mentions = ev.get("mentions")
+    try:
+        m = int(mentions) if mentions not in (None, "") else None
+    except (TypeError, ValueError):
+        m = None
+    if m is not None:
+        evt["mention_count"] = m
+    loc = _html_escape(ev.get("full_name", ""))
+    if loc:
+        evt["location_name"] = loc
+    url = _html_escape(ev.get("source_url", ""))
+    if url:
+        evt["source_url"] = url
+    sql_date = str(ev.get("sql_date", "")).strip()
+    if len(sql_date) == 8 and sql_date.isdigit():
+        evt["event_date"] = f"{sql_date[0:4]}-{sql_date[4:6]}-{sql_date[6:8]}"
+    return evt
+
+
+def _aggregate_news_geo(events: List[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    """同坐标聚合（聚合键 (round(lat,2), round(lng,2), event_type)，约 1km 桶）。
+
+    intensity=max、mention_count=sum、id/location_name/country/source_url 取
+    intensity 最大者为代表（并列取 mention_count 更大者，再并列取 id 较小者，
+    保证确定性）；event_date 取组内最新。
+    """
+    buckets: Dict[Tuple[float, float, str], List[Dict[str, Any]]] = {}
+    for e in events:
+        key = (round(float(e["lat"]), 2), round(float(e["lng"]), 2), str(e["event_type"]))
+        buckets.setdefault(key, []).append(e)
+
+    out: List[Dict[str, Any]] = []
+    for (lat, lng, etype), bucket in buckets.items():
+        # 代表事件：intensity 降序 → mention_count 降序 → id 升序（确定性）
+        best = sorted(
+            bucket,
+            key=lambda e: (-e["intensity"], -e.get("mention_count", 0), e["id"]),
+        )[0]
+        merged: Dict[str, Any] = {
+            "id": best["id"],
+            "lat": lat,
+            "lng": lng,
+            "event_type": etype,
+            "intensity": best["intensity"],
+            "country": best["country"],
+        }
+        total = sum(e.get("mention_count", 0) for e in bucket)
+        if total:
+            merged["mention_count"] = total
+        if best.get("location_name"):
+            merged["location_name"] = best["location_name"]
+        if best.get("source_url"):
+            merged["source_url"] = best["source_url"]
+        dates = [e["event_date"] for e in bucket if e.get("event_date")]
+        if dates:
+            merged["event_date"] = max(dates)
+        out.append(merged)
+    return out
+
+
+def _build_news_geo_events(rows: List[Mapping[str, Any]], now: datetime) -> List[Dict[str, Any]]:
+    """全量 jsonl 行 → news_geo.json events[]（过滤链 §4.2 + 可选聚合 + 容量护栏）。
+
+    过滤顺序：时间窗 → mentions 阈值 → 坐标/精度映射（_map_to_news_geo_event 内）。
+    AGGREGATE=on 时先聚合再护栏；超 MAX_EVENTS 按 intensity 降序截断（不静默）。
+    """
+    window_start = int(now.timestamp()) - NEWS_GEO_WINDOW_HOURS * 3600
+    filtered: List[Dict[str, Any]] = []
+    for ev in rows:
+        seen_ts = _seen_slot_ts(ev)
+        if seen_ts is None or seen_ts < window_start:
+            continue  # 时间窗（seen_slot 优先 / fetched_at 兜底）
+        mentions = ev.get("mentions")
+        try:
+            m = int(mentions) if mentions not in (None, "") else 0
+        except (TypeError, ValueError):
+            m = 0
+        if m < NEWS_GEO_MIN_MENTIONS:
+            continue
+        mapped = _map_to_news_geo_event(ev)
+        if mapped is not None:
+            filtered.append(mapped)
+
+    if NEWS_GEO_AGGREGATE:
+        filtered = _aggregate_news_geo(filtered)
+
+    if len(filtered) > NEWS_GEO_MAX_EVENTS:
+        log.warning(
+            "[news_geo.json] 过滤后 %d 条超过 MAX_EVENTS=%d，按 intensity 降序截断",
+            len(filtered), NEWS_GEO_MAX_EVENTS,
+        )
+        filtered.sort(
+            key=lambda e: (e["intensity"], e.get("mention_count", 0), e["id"]),
+            reverse=True,
+        )
+        filtered = filtered[:NEWS_GEO_MAX_EVENTS]
+    return filtered
+
+
+def _write_news_geo_json(events: List[Mapping[str, Any]]) -> bool:
+    """原子写 news_geo.json（同目录 tmp + os.replace）。失败或空 events 保留上次好文件。"""
+    if not events:
+        log.warning("[news_geo.json] 窗口内无满足条件事件，保留上次好文件（不覆写空壳）")
+        return False
+    output = {
+        "schema_version": NEWS_GEO_SCHEMA_VERSION,
+        "updated": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "events": [dict(e) for e in events],
+    }
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        tmp = NEWS_GEO_JSON_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(output, f, ensure_ascii=False, separators=(",", ":"))
+        os.replace(tmp, NEWS_GEO_JSON_PATH)
+        log.info("[news_geo.json] 写出 %s（%d 条）", NEWS_GEO_JSON_PATH, len(events))
+        return True
+    except Exception as exc:
+        log.error("[news_geo.json] 写出失败（保留上次好文件）: %s", exc)
+        return False
+
+
+def _run_export_json() -> None:
+    """独立导出入口：读 news_geo.jsonl → 过滤/映射 → 落盘 news_geo.json（首启/验证用）。"""
+    events: List[Dict[str, Any]] = []
+    if os.path.exists(OUTPUT_PATH):
+        with open(OUTPUT_PATH, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    events.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    now = datetime.now(timezone.utc)
+    out = _build_news_geo_events(events, now)
+    written = _write_news_geo_json(out)
+    print("export_json=" + json.dumps({
+        "rows_read": len(events),
+        "events": len(out),
+        "written": written,
+        "path": NEWS_GEO_JSON_PATH,
+    }, ensure_ascii=False, default=str))
 
 
 # ── T04 占位（聚合）─────────────────────────────────────────────────────────
@@ -632,6 +907,15 @@ def run_incremental(num_slots: int = 4) -> Dict[str, Any]:
     state[STATE_KEY_SCHEMA] = STATE_SCHEMA_VERSION
     _save_state(state_path, state)
 
+    # Route A：从合并后全量行生成 news_geo.json（架构文档 arg-map-arch-2026-08-11 §4）。
+    # 复用 _merge_jsonl 已载入内存的行，零边际读成本；异常不阻断增量主流程。
+    try:
+        export_events = _build_news_geo_events(merge.get("rows", []), now)
+        export_written = _write_news_geo_json(export_events)
+    except Exception as exc:
+        log.error("[news_geo.json] 生成异常（不阻断增量主流程）: %s", exc)
+        export_events, export_written = [], False
+
     result = {
         "status": "ok" if slots_ok else "all_failed",
         "slots_pulled": slots_ok,
@@ -647,6 +931,9 @@ def run_incremental(num_slots: int = 4) -> Dict[str, Any]:
         "urls_attempted": len(new_slots),
         "urls_ok": urls_ok,
         "fetched_kb": total_bytes // 1024,
+        "news_geo_json_path": NEWS_GEO_JSON_PATH,
+        "news_geo_json_events": len(export_events),
+        "news_geo_json_written": export_written,
     }
     print("incremental=" + json.dumps(result, ensure_ascii=False, default=str))
     return result
@@ -745,6 +1032,7 @@ def _load_fixture_row() -> Optional[Dict[str, str]]:
         "Actor1Code": cols[5],
         "Actor2Code": cols[15],
         "EventCode": cols[26],
+        "EventRootCode": cols[28] if len(cols) > 28 else "",
         "Goldstein": cols[30],
         "NumMentions": cols[31],
         "NumSources": cols[32],
@@ -794,6 +1082,14 @@ def run_selftest() -> int:
         "_merge_jsonl",
         "_utcnow_ts",
         "_slot_from_url",
+        "_map_event_type",
+        "_norm_intensity",
+        "_html_escape",
+        "_seen_slot_ts",
+        "_map_to_news_geo_event",
+        "_aggregate_news_geo",
+        "_build_news_geo_events",
+        "_write_news_geo_json",
         "main",
         "run_selftest",
         "run_demo",
@@ -866,6 +1162,43 @@ def run_selftest() -> int:
     else:
         print("  [SKIP] fixture filter/map 断言（WATCH_FIPS 为空，alert_config 不可导入）")
 
+    # 6. Route A 映射/强度/转义单元测试（架构文档 arg-map-arch-2026-08-11 §4）
+    # 6.1 CAMEO root → 四类枚举
+    assert _map_event_type("14") == "protest"
+    assert _map_event_type("19") == "conflict"
+    assert _map_event_type("15") == "conflict"
+    assert _map_event_type("18") == "conflict"
+    assert _map_event_type("20") == "conflict"
+    assert _map_event_type("01") == "political"
+    assert _map_event_type("16") == "political"
+    assert _map_event_type("") == "unknown"
+    assert _map_event_type(None) == "unknown"
+    # 6.2 intensity 公式（§5.4）：烈度满 + 传播满 → 100；双零 → 下限 1
+    assert _norm_intensity(-10, 50) == 100
+    assert _norm_intensity(10, 50) == 100
+    assert _norm_intensity(0, 0) == 1
+    assert _norm_intensity(-5, 0) == 30   # 0.6*0.5 + 0 = 0.3 → 30
+    assert 1 <= _norm_intensity("bad", "bad") <= 100
+    # 6.3 HTML 转义（XSS 防线一）
+    assert _html_escape('<a href="x">&') == "&lt;a href=&quot;x&quot;&gt;&amp;"
+    assert _html_escape("") == ""
+    # 6.4 _map_to_news_geo_event：必填字段 + 可选字段 + 精度过滤
+    e_ok = _map_to_news_geo_event({
+        "lat": 31.4167, "lng": 73.0833, "type": 4, "country_iso": "PAK",
+        "full_name": "Faisalabad, Punjab, Pakistan", "intensity": -10.0, "mentions": 6,
+        "event_id": "1317639648", "sql_date": "20260810",
+        "root_code": "19", "source_url": "https://example.com/a?x=<&",
+    })
+    assert e_ok is not None
+    assert e_ok["id"] == "gdelt-1317639648"
+    assert e_ok["event_type"] == "conflict"
+    assert e_ok["country"] == "PAK"
+    assert e_ok["event_date"] == "2026-08-10"
+    assert "&lt;" in e_ok["location_name"] or "<" not in e_ok["location_name"]
+    assert "&amp;" in e_ok["source_url"]  # 转义生效
+    assert _map_to_news_geo_event({"lat": 0.0, "lng": 0.0, "type": 1, "country_iso": "USA", "full_name": "X"}) is None  # type=1 国家质心丢弃
+    assert _map_to_news_geo_event({"lat": 91.0, "lng": 0.0, "type": 4}) is None  # 越界丢弃
+
     print("=== fetch_gdelt_geo.py selftest: PASS ===")
     print(f"  [FIXTURE] {FIXTURE_PATH}")
     print(f"  [WATCH_FIPS size] {len(WATCH_FIPS)}")
@@ -884,6 +1217,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--demo", action="store_true", help="真拉数据 demo（覆盖式）")
     ap.add_argument("--incremental", action="store_true", help="增量拉取（state 滚动窗口）")
     ap.add_argument("--aggregate", action="store_true", help="从 news_geo.jsonl 聚合并落盘 news_geo_clusters.json")
+    ap.add_argument("--export-json", action="store_true",
+                    help="从 news_geo.jsonl 生成 news_geo.json（只读 jsonl，不触发抓取；验证/首启用）")
     args = ap.parse_args(argv)
     if args.selftest:
         return run_selftest()
@@ -895,6 +1230,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     if args.aggregate:
         run_aggregate()
+        return 0
+    if args.export_json:
+        _run_export_json()
         return 0
     ap.print_help()
     return 0
@@ -922,6 +1260,11 @@ __all__ = [
     "DATA_DIR",
     "OUTPUT_PATH",
     "FIXTURE_PATH",
+    "NEWS_GEO_JSON_PATH",
+    "NEWS_GEO_WINDOW_HOURS",
+    "NEWS_GEO_MIN_MENTIONS",
+    "NEWS_GEO_MAX_EVENTS",
+    "NEWS_GEO_AGGREGATE",
     "_fetch_gdelt_export",
     "_parse_export",
     "_validate_columns",
@@ -931,6 +1274,14 @@ __all__ = [
     "_aggregate",
     "run_aggregate",
     "_write_news_geo",
+    "_map_event_type",
+    "_norm_intensity",
+    "_html_escape",
+    "_seen_slot_ts",
+    "_map_to_news_geo_event",
+    "_aggregate_news_geo",
+    "_build_news_geo_events",
+    "_write_news_geo_json",
     "run_selftest",
     "run_demo",
     "run_incremental",
