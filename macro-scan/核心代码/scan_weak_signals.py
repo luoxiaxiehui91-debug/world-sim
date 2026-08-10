@@ -2,7 +2,7 @@
 模块03（v2）：弱信号扫描器
 修复：
   - 路径改用 config.py，推送改用 push_utils
-  - 新增 Crucix API 集成（通过 Gateway，与 neodata skill 同一模式）
+  - 新闻源切 RSS-only（fetch_rss_news 8 路由 + defense_rss；不再拉取 crucix 新闻）
   - 预警去重：同一指标同一天只记录一次
   - FRED 调用加速：一次性拉所有历史，减少 API 轮次
   - Z-score 计算缺数据时优雅降级（不报错）
@@ -26,7 +26,7 @@ except ImportError:
 from optim_config import (WEAK_SIGNAL_LOG, FRED_API_KEY,
                     ZSCORE_WARN_THRESHOLD, ZSCORE_ALERT_THRESHOLD,
                     NEWS_FREQ_WARN_RATIO, NEWS_FREQ_ALERT_RATIO,
-                    AUTH_GATEWAY_PORT, CRUCIX_REMOTE_URL)
+                    AUTH_GATEWAY_PORT)
 from alert_config import ALERT_KEYWORDS, _WATCH_COUNTRIES, _ACTOR_REL_ETH, _ACTOR_REGIME, _ACTOR_CULTURE
 
 # ── 监控指标 ──────────────────────────────────────────────────────────────────
@@ -1088,7 +1088,7 @@ def get_gdelt_geo_modifier(scores: dict = None) -> dict:
     return mod
 
 
-# ── GDELT 降级备份：从 Crucix 新闻提取地缘信号 ───────────────────────────────
+# ── GDELT 降级备份：从 RSS 新闻提取地缘信号 ─────────────────────────────────
 _GEO_FALLBACK_KWS = {
     "地缘-军事冲突": [
         "war", "invasion", "airstrike", "military strike", "missile attack",
@@ -1113,13 +1113,13 @@ _GEO_FALLBACK_KWS = {
 
 
 def _gdelt_fallback_from_news(articles: list) -> list:
-    """GDELT 失败时，用 Crucix 新闻关键词频率生成地缘预警（降级备份）。
+    """GDELT 失败时，用 RSS 新闻关键词频率生成地缘预警（降级备份）。
 
     算法与 scan_news() 相同（7天/90天频率比），但使用专门的地缘关键词，
     并在 alert source 中标注降级来源，区别于正常 GDELT 分数。
     """
     if not articles:
-        print("  [GDELT降级] Crucix 新闻为空，无法备份地缘扫描")
+        print("  [GDELT降级] RSS 新闻为空，无法备份地缘扫描")
         return []
 
     today = date.today()
@@ -1159,56 +1159,19 @@ def _gdelt_fallback_from_news(articles: list) -> list:
         level = "[警报]" if ratio >= NEWS_FREQ_ALERT_RATIO else "[注意]"
         alerts.append({
             "date": today.isoformat(),
-            "source": "Crucix地缘(GDELT降级)",
+            "source": "RSS地缘(GDELT降级)",
             "indicator": cat,
             "current": round(c7 / 7, 2),
             "baseline": round(c90 / 90, 2),
             "ratio": round(ratio, 1),
             "level": level,
-            "desc": f"GDELT不可用，Crucix新闻频率是基线的{ratio:.1f}倍",
+            "desc": f"GDELT不可用，RSS新闻频率是基线的{ratio:.1f}倍",
         })
-        print(f"  {level} {cat}（Crucix备份）: 频率是基线的{ratio:.1f}倍")
+        print(f"  {level} {cat}（RSS备份）: 频率是基线的{ratio:.1f}倍")
 
     if not alerts:
-        print("  [GDELT降级] Crucix新闻未检测到地缘关键词异常")
+        print("  [GDELT降级] RSS新闻未检测到地缘关键词异常")
     return alerts
-
-
-# ── Crucix 新闻获取 ───────────────────────────────────────────────────────────
-def fetch_crucix_news(days: int = 90) -> list[dict]:
-    """
-    直接拉取 Crucix 最新新闻（与 run_macro_analysis.py 相同模式）。
-    若失败则返回空列表，让扫描器继续运行（新闻部分降级）。
-    """
-    try:
-        resp = requests.get(CRUCIX_REMOTE_URL, timeout=8)
-        if resp.status_code == 200:
-            data = resp.json()
-            # Crucix 返回 'news' 或 'newsFeed' 字段
-            articles = data.get("news") or data.get("newsFeed") or []
-            # 截取最近N天
-            if days:
-                cutoff = date.today() - timedelta(days=days)
-                filtered = []
-                for art in articles:
-                    try:
-                        d = art.get("date", "")
-                        if d:
-                            # 解析 RFC 格式日期 (e.g., "Sun, 17 May 2026 13:48:00 GMT")
-                            d_clean = d.split(",")[1].strip() if "," in d else d
-                            pub_date = datetime.strptime(d_clean[:25], "%d %b %Y %H:%M:%S")
-                            if pub_date.date() >= cutoff:
-                                filtered.append(art)
-                    except:
-                        filtered.append(art)  # 解析失败的也保留
-                articles = filtered
-            print(f"  [Crucix] 获取 {len(articles)} 篇文章（最近{days}天）")
-            return articles
-        else:
-            print(f"  [Crucix] API 返回 {resp.status_code}，跳过新闻扫描。")
-    except Exception as e:
-        print(f"  [Crucix] 获取失败: {e}，跳过新闻扫描。")
-    return []
 
 
 def scan_news(articles: list[dict]) -> list[dict]:
@@ -1262,7 +1225,7 @@ def scan_news(articles: list[dict]) -> list[dict]:
         level = "[警报]" if ratio >= NEWS_FREQ_ALERT_RATIO else "[注意]"
         alerts.append({
             "date": today.isoformat(),
-            "source": "Crucix新闻",
+            "source": "RSS新闻",
             "indicator": f"关键词：{cat}",
             "current": round(c7 / 7, 2),
             "baseline": round(c90 / 90, 2),
@@ -1537,12 +1500,9 @@ def run_scan():
         print(f"  [news.db] 初始化/宏观快照写入失败（非阻断）: {_e}")
     # ─────────────────────────────────────────────────────────────────────────
 
-    print("拉取 Crucix 新闻...")
-    articles = fetch_crucix_news(days=90)
-
+    print("拉取 RSS 新闻...")
     from fetch_rss_news import fetch_rss_news
-    rss_articles = fetch_rss_news()
-    articles = articles + rss_articles
+    articles = fetch_rss_news()
 
     # ── news.db：文章入库 + 打标签 ───────────────────────────────────────────
     if _db_ctx_id is not None and articles:
@@ -1562,7 +1522,7 @@ def run_scan():
         if gdelt_scores:
             _save_gdelt_scores(gdelt_scores)
     except Exception as e:
-        print(f"  [警告] GDELT 扫描失败: {e}，切换 Crucix 地缘关键词备份扫描")
+        print(f"  [警告] GDELT 扫描失败: {e}，切换 RSS 地缘关键词备份扫描")
         gdelt_alerts = _gdelt_fallback_from_news(articles)
 
     news_alerts = scan_news(articles)
