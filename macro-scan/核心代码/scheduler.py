@@ -83,6 +83,9 @@ JOBS = [
     ("morning",     "0730", "1-5", None, [PYTHON, "run_macro_analysis.py", "--country", "both", "--depth", "quick"]),
     ("us_daily",    "2000", "1-5", None, [PYTHON, "run_macro_analysis.py", "--country", "us", "--depth", "standard"]),
     ("china_daily", "2015", "1-5", None, [PYTHON, "run_macro_analysis.py", "--country", "china", "--depth", "standard"]),
+    # R-1 开阳报告索引（报告产出后 5 分钟触发：晨报 0730 后 / 晚报 2000-2015 后）
+    ("reports_index","0735", "1-5", None, [PYTHON, "generate_reports_index.py"]),
+    ("reports_index","2035", "1-7", None, [PYTHON, "generate_reports_index.py"]),
     ("verify",      "0900", "1-7", 1,    [PYTHON, "verify_predictions.py"]),
     ("kb_update",   "0905", "1-7", 1,    [PYTHON, "update_kb_numbers.py"]),
     ("firms",       "0908", "1-7", None, [PYTHON, "fetch_firms.py"]),           # NASA FIRMS 火点直连（crucix 退场前置，先于 climate 0910）
@@ -158,6 +161,7 @@ LOG_FILES = {
     "market_quotes":   f"{LOG_DIR}/market_quotes.log",
     "compute_probit":  f"{LOG_DIR}/compute_probit.log",
     "tianji_trigger": f"{LOG_DIR}/tianji_trigger.log",
+    "reports_index": f"{LOG_DIR}/reports_index.log",
 }
 
 def log(msg):

@@ -96,8 +96,10 @@
 ## 6. 数据契约（摘要，详见 DATA_CONTRACT.md）
 
 - 读取根 `DATA_BASE_URL`，默认 `./data/`（含 `public/data` 开发快照），部署改指向 NAS 只读挂载。
-- 8 个 feed 注册于 `src/config/dataSources.ts` 的 `FEEDS`：`grv` / `news` / `simTrigger` / `fred` / `nuclearSites` / `news_geo` / `market_quotes` / `spacetrack`，schema 均 `1.0`（详见 DATA_CONTRACT.md §1 注册表）。
-- **事件触发告警柱**：`grv_latest.json` 可选 `events[]`（`GrvEvent`：id / type / label / lat / lng / value / note）。气候 / 灾害类维度（`renderBar:false`）的地图呈现改由 `events[]` 承担，平时缺省不渲染。
+- 17 个 feed 注册于 `src/config/dataSources.ts` 的 `FEEDS`：`grv` / `news` / `simTrigger` / `fred` / `nuclearSites` / `news_geo` / `market_quotes` / `spacetrack` / `reports_index` / `fci_latest` / `gscpi` / `climate_signals` / `disaster_signals` / `earthquake_risk` / `energy_risk` / `hdx_risk` / `news_risk`，schema 均 `1.0`（FCI 为 `fci-1.1`，详见 DATA_CONTRACT.md §1 注册表）。
+- **事件触发告警柱**：`grv_latest.json` 可选 `events[]`（`GrvEvent`：id / type / label / lat / lng / value / note）。气候 / 灾害类维度（`renderBar:false`）的地图呈现改由 `events[]` 承担，平时缺省不渲染。R-4 风险信号面板沿用该色阶语义渲染事件告警行。
+- **R-1 报告模块（1.10.0）**：`ReportsPanel` 按类型分组（宏观分析/月度简报/假设推演/演化仿真/预测追踪）展示天枢报告清单，点击阅读 markdown（`src/lib/markdown.ts` 轻量渲染器，先转义后排版）。
+- **R-3 金融条件（1.10.0）**：`FinancialPanel` 展示 FCI（`fci_latest.json` + `fci_daily.csv` 趋势）+ GSCPI（月度 CSV）。
 - 当前上游真实文件与文档契约存在偏差（上游缺 lat/lng、缺不确定区间、news 实为 `latest_news.json`），已由适配层 + 状态条降级渲染，不破、不白屏。
 
 ## 7. 部署

@@ -36,6 +36,13 @@ export function useFeed<T = unknown>(feedName: string): FeedState<T> {
         const data: unknown = cfg.type === 'csv' ? await fetchCsv(cfg.path) : await fetchJson(cfg.path);
         if (cancelled) return;
 
+        // csv 类型返回 FredPoint[] 数组，无 schema_version 字段（数组不做 schema 校验）
+        const isObject = typeof data === 'object' && data !== null && !Array.isArray(data);
+        if (!isObject) {
+          setState({ data: data as T, loading: false, error: null });
+          return;
+        }
+
         const obj = data as { schema_version?: string; _schema_version?: string; updated?: unknown; gdelt_updated?: unknown };
         // schema_version 校验：兼容带下划线前缀（_schema_version）和不带（schema_version）两种写法
         const sv = obj.schema_version ?? obj._schema_version;

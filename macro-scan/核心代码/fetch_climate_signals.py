@@ -183,6 +183,7 @@ def fetch_and_save() -> dict:
             "高" if risk_score >= 50 else
             "中" if risk_score >= 25 else "低"
         ),
+        "_schema_version": "1.0",  # 开阳 R-4 契约：feed 需带 schema_version
     }
 
     os.makedirs(DATA_DIR, exist_ok=True)

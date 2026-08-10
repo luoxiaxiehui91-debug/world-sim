@@ -40,6 +40,15 @@
 | `news_geo` | `news_geo.json` | json | `1.0` | GDELT 地理新闻事件（**已上线**，见 §2.7） |
 | `market_quotes` | `market_quotes.json` | json | `1.0` | 底部行情报价（**已上线**，前端 60s 轮询） |
 | `spacetrack` | `spacetrack.json` | json | `1.0` | 太空活动 / 空间目标（**已注册上线**） |
+| `reports_index` | `reports_index.json` | json | `1.0` | 开阳报告索引（R-1，见 §2.8；天枢 `generate_reports_index.py` 产物） |
+| `fci_latest` | `fci_latest.json` | json | `fci-1.1` | 金融条件指数 FCI（R-3，见 §2.9；`compute_fci.py` 产物） |
+| `gscpi` | `fred_history/GSCPI.csv` | csv | `1.0` | 纽约联储全球供应链压力指数 GSCPI（R-3，月度 CSV；`fetch_gscpi.py` 产物） |
+| `climate_signals` | `climate_signals.json` | json | `1.0` | 气候风险信号（R-4，见 §2.10） |
+| `disaster_signals` | `disaster_signals.json` | json | `1.0` | 自然灾害风险信号（R-4，见 §2.10） |
+| `earthquake_risk` | `earthquake_risk.json` | json | `1.0` | 地震风险信号（R-4，见 §2.10） |
+| `energy_risk` | `energy_risk.json` | json | `1.0` | 能源 / 电网风险信号（R-4，见 §2.10） |
+| `hdx_risk` | `hdx_risk.json` | json | `1.0` | 人道危机风险信号（R-4，见 §2.10） |
+| `news_risk` | `news_risk.json` | json | `1.0` | 新闻风险信号（R-4，见 §2.10） |
 
 > 新增 feed：仅在 `src/config/dataSources.ts` 的 `FEEDS` 登记一项，读取层（`useFeed` / `readLayer`）**无需改动**。
 
@@ -306,8 +315,66 @@
 
 ---
 
-## 3. 扩展标准（用户硬性要求，已预埋）
+### 2.8 `reports_index.json`（报告索引，R-1 **已上线**）
 
+> **状态：已上线（1.10.0）。** 天枢 `generate_reports_index.py` 产出（扫描 `docs/分析报告` + `docs/仿真报告`，复制 .md 到 `data/reports/`，nginx 容器只读挂载 `macro-scan/data` → `/usr/share/nginx/html/data`，开阳浏览器可直接 fetch）。
+
+| 顶层字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `schema_version` | string | ✅ | `1.0` |
+| `updated` | string(ISO) | ✅ | 索引生成时间（状态条显示数据新鲜度） |
+| `reports` | ReportMeta[] | ✅ | 报告清单，**最新置顶**（按日期降序） |
+
+**ReportMeta**：
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `id` | string | ✅ | 唯一 id（天枢按源路径 sha1 派生） |
+| `type` | string | ✅ | 报告类型：`宏观分析` \| `月度简报` \| `假设推演` \| `演化仿真` \| `预测追踪` |
+| `title` | string | ✅ | 展示标题（天枢从文件名派生） |
+| `filename` | string | ✅ | 原文件名（含 `.md`） |
+| `path` | string | ✅ | **相对 DATA_BASE_URL 的 markdown 路径**（如 `reports/xxx.md`），开阳据此 fetch 正文 |
+| `updated` | string | ✅ | 报告日期 `YYYY-MM-DD`（从文件名 / mtime 派生） |
+
+> 面板按 `type` 分组展示（固定顺序），组内最新置顶；点击条目 fetch `path` 渲染 markdown。
+> 天枢侧调度：scheduler 07:35（晨报后）/ 20:35（晚报后）各跑一次。
+
+### 2.9 金融条件（FCI / GSCPI，R-3 **已上线**）
+
+`fci_latest.json` 顶层字段（天枢 `compute_fci.py` 产物）：
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `schema_version` | string | ✅ | `fci-1.1` |
+| `date` | string | ✅ | 数据日期 `YYYY-MM-DD` |
+| `as_of` / `data_vintage` | string | ⬜ | 生成时间 / 底层数据谱系 |
+| `fci_revised` | number | ✅ | 全样本重估 FCI（标准差，**越高 = 金融条件越紧**；含 look-ahead，仅可 nowcast/dashboard） |
+| `fci_pit` | number | ⬜ | 扩展窗 FCI（无 look-ahead，可 backtest/verification） |
+| `interpretation` / `components[]` / `sanity_vs_nfci` | - | ⬜ | 说明 / 成分分解 / 与 Chicago NFCI 一致性校验 |
+
+`fred_history/GSCPI.csv`：`date,value` 月度 CSV（`fetch_gscpi.py` 产物，尾行 = 最新值）。
+
+> 开阳 FinancialPanel 另直接读取 `fci_daily.csv`（`date,fci_revised,fci_pit,...` 日频）绘制 FCI 趋势；
+> 该文件列为非常规（多列），不经 FEEDS 注册表，面板内 `fetchText` + 本地解析。
+
+### 2.10 风险信号（六类，R-4 **已上线**）
+
+六类信号文件均带 `_schema_version`（`1.0`）与 `updated`；`status` 取值 `ok` / `unavailable`。开阳 RiskSignalsPanel 逐卡展示评分条 + 事件告警行；**缺失 / 不可用一律降级占位，不白屏**。
+
+| feed | 文件 | 关键字段 |
+| --- | --- | --- |
+| `climate_signals` | `climate_signals.json` | `climate_risk_score`(0-100) / `risk_level` / `oni{value,status,date,interpretation}`（厄尔尼诺指数） / `firms{total_hotspots,high_confidence}` |
+| `disaster_signals` | `disaster_signals.json` | `disaster_risk_score`(0-100) / `risk_level` / `event_count_24h` / `alerts[]` |
+| `earthquake_risk` | `earthquake_risk.json` | `seismic_risk`(0-100) / `event_count_24h` / `count_m45|m55|m65` / `max_mag` / `top_events[]{magnitude,place,time_utc}` |
+| `energy_risk` | `energy_risk.json` | `grid_carbon_risk`(0-100) / `uk_grid{intensity_forecast,intensity_index,fossil_share_pct}` |
+| `hdx_risk` | `hdx_risk.json` | `status`（常为 unavailable）+ `reason` |
+| `news_risk` | `news_risk.json` | `status`（常为 unavailable，缺 API key）+ `reason` |
+
+> 地震 `top_events` 以「震级 → 0-100」归一化着色（M4→0，M8→100），复用 Wave1 `events[]` 告警柱色阶语义。
+
+---
+
+## 3. 扩展标准（用户硬性要求，已预埋）
 1. **统一读取层** `useFeed(feedName)`：`src/hooks/useFeed.ts` + `src/lib/readLayer.ts`。所有数据经此层；新增 feed 不改读取层。
 2. **面板注册表** `panelRegistry`：`src/panels/registry.ts`。每面板 = 组件 + 注册项（`id/title/feed/order/visible/className`）；新增面板只加注册项，布局（App.tsx 网格）无需改动。
 3. **字段容错**：缺失字段降级渲染（「数据缺失」占位，不白屏/不崩），缺失项记入顶部状态条。

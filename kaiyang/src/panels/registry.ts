@@ -10,6 +10,9 @@ import { NuclearWatchPanel } from '@/components/NuclearWatchPanel';
 import { SpaceWatchPanel } from '@/components/SpaceWatchPanel';
 import { MacroSnapshotPanel } from '@/components/MacroSnapshotPanel';
 import { MarketsPanel } from '@/components/MarketsPanel';
+import { ReportsPanel } from '@/components/ReportsPanel';
+import { FinancialPanel } from '@/components/FinancialPanel';
+import { RiskSignalsPanel } from '@/components/RiskSignalsPanel';
 
 /** 面板注册项（扩展标准 #2）：新增面板只加一项，布局无需改动。 */
 export interface PanelRegistration {
@@ -117,5 +120,21 @@ export const PANELS: PanelRegistration[] = [
     id: 'markets', title: 'MACRO + MARKETS', feed: 'market_quotes', order: 11, visible: true,
     className: 'lg:col-span-6', component: MarketsPanel,
     defaultLayout: { w: 6, h: 7, minW: 4, minH: 5 },
+  },
+  // ── 1.10.0 追加（开阳补全第一批：报告 / 金融条件 / 风险信号）──
+  {
+    id: 'reports', title: '报告中心', feed: 'reports_index', order: 12, visible: true,
+    className: 'lg:col-span-7', component: ReportsPanel,
+    defaultLayout: { w: 7, h: 7, minW: 4, minH: 4 },
+  },
+  {
+    id: 'financial', title: '金融条件 FCI / GSCPI', feed: 'fci_latest', order: 13, visible: true,
+    className: 'lg:col-span-5', component: FinancialPanel,
+    defaultLayout: { w: 5, h: 7, minW: 3, minH: 4 },
+  },
+  {
+    id: 'risk-signals', title: '风险信号', feed: 'climate_signals', order: 14, visible: true,
+    className: 'lg:col-span-12', component: RiskSignalsPanel,
+    defaultLayout: { w: 12, h: 5, minW: 6, minH: 3 },
   },
 ];
