@@ -93,6 +93,10 @@ sources:
     primary: sanctions_risk
     tau: 24
     type: osint
+  kiwisdr_sdr:
+    primary: global_composite
+    tau: 24
+    type: osint
   akshare_china:
     primary: us_china_strategic
     tau: 240
