@@ -140,6 +140,33 @@ export function FlatMapPanel({
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
 
+  /** 统一对现有点位 / 聚焦环 / 星标施加 zoom 反向缩放（视觉尺寸恒定）。
+   *
+   * 2026-08-11 v1.10.2 根治「缩放态下切分类 → 全部放大」：
+   * invScale 此前只在 zoom 事件里施加；点组/聚焦环重建（切分类/点击）后新建元素
+   * 不含反向缩放，而 .fm-root 的 zoom transform 仍在 → 按 k 倍渲染。现在 zoom 事件、
+   * buildPoints 重建后、聚焦环重建后三个调用点共用本函数。
+   */
+  const applyPointInvScale = useCallback(() => {
+    const t = transformRef.current;
+    if (!gRef.current) return;
+    const invScale = t && t.k > 0 ? 1 / t.k : 1;
+    const root = d3sel.select(gRef.current);
+    // 星标：字号反向缩放
+    root.selectAll<SVGTextElement, unknown>('.fm-site-star').each(function() {
+      const el = d3sel.select(this);
+      const base = parseFloat(el.attr('data-fs') || '14');
+      el.attr('font-size', base * invScale);
+    });
+    // 点位 group + 聚焦环：translate(cx,cy) scale(invScale)
+    root.selectAll<SVGGElement, unknown>('.fm-point-group, .fm-focus-ring').each(function() {
+      const el = d3sel.select(this);
+      const cx = el.attr('data-cx');
+      const cy = el.attr('data-cy');
+      el.attr('transform', `translate(${cx},${cy}) scale(${invScale})`);
+    });
+  }, []);
+
   /* ── 容器尺寸监听 ────────────────────────────────────────── */
 
   useEffect(() => {
@@ -183,25 +210,8 @@ export function FlatMapPanel({
         const t = event.transform;
         transformRef.current = t;
         d3sel.select(gRef.current).attr('transform', t.toString());
-        const invScale = 1 / t.k;
-        // 星标 + 点位 group 反向缩放，保持视觉尺寸固定
-        d3sel.select(gRef.current).selectAll<SVGTextElement, unknown>('.fm-site-star').each(function() {
-          const el = d3sel.select(this);
-          const base = parseFloat(el.attr('data-fs') || '14');
-          el.attr('font-size', base * invScale);
-        });
-        d3sel.select(gRef.current).selectAll<SVGGElement, unknown>('.fm-point-group').each(function() {
-          const el = d3sel.select(this);
-          const cx = el.attr('data-cx');
-          const cy = el.attr('data-cy');
-          el.attr('transform', `translate(${cx},${cy}) scale(${invScale})`);
-        });
-        d3sel.select(gRef.current).selectAll<SVGGElement, unknown>('.fm-focus-ring').each(function() {
-          const el = d3sel.select(this);
-          const cx = el.attr('data-cx');
-          const cy = el.attr('data-cy');
-          el.attr('transform', `translate(${cx},${cy}) scale(${invScale})`);
-        });
+        // 星标 + 点位 group + 聚焦环反向缩放，保持视觉尺寸固定（v1.10.2 抽公共函数）
+        applyPointInvScale();
         setZoomLevel(Math.round(t.k * 10) / 10);
       });
     zoomRef.current = zoom;
@@ -476,7 +486,9 @@ export function FlatMapPanel({
         .on('mouseleave', () => setTooltip(null))
         .on('click', () => onPointClick?.(p));
     }
-  }, [points, dims, onPointClick]);
+    // v1.10.2：重建后的新点组补上 zoom 反向缩放（根治缩放态切分类 → 全部放大）
+    applyPointInvScale();
+  }, [points, dims, onPointClick, applyPointInvScale]);
 
   useEffect(() => {
     buildPoints();
@@ -561,8 +573,10 @@ export function FlatMapPanel({
         .attr('stroke-dasharray', '3 3')
         .attr('pointer-events', 'none')
         .attr('class', 'animate-pulseSoft');
+    // v1.10.2：聚焦环重建后补上 zoom 反向缩放（根治缩放态点击 → 超大聚焦环）
+    applyPointInvScale();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusPointId, points, dims]);
+  }, [focusPointId, points, dims, applyPointInvScale]);
 
   /* ── active=false 时清 tooltip ───────────────────────────── */
 

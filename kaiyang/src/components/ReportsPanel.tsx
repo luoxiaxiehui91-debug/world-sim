@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFeed } from '@/hooks/useFeed';
 import { fetchText } from '@/lib/readLayer';
 import { renderMarkdown } from '@/lib/markdown';
@@ -68,6 +68,17 @@ export function ReportsPanel() {
   // 侧栏：默认 40% 宽；可拖拽（14%~55%）；可折叠成 36px 窄条
   const [sidebarPct, setSidebarPct] = useState(40);
   const [collapsed, setCollapsed] = useState(false);
+  // v1.10.2 分类折叠：按报告 type 折叠/展开（默认全部展开；与 LayerTreePanel openPhases 同模式）
+  const [collapsedTypes, setCollapsedTypes] = useState<ReadonlySet<string>>(new Set());
+
+  const toggleTypeCollapsed = useCallback((type: string) => {
+    setCollapsedTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  }, []);
   const dragRef = useRef<{ startX: number; startPct: number } | null>(null);
 
   function onDragStart(e: React.MouseEvent) {
@@ -176,41 +187,52 @@ export function ReportsPanel() {
             <div className="shrink-0 overflow-y-auto pr-0.5" style={{ width: `${sidebarPct}%` }}>
               {groups.map((g) => {
                 const c = typeColor(g.type);
+                const typeOpen = !collapsedTypes.has(g.type);
                 return (
                   <div key={g.type} className="mb-1.5">
-                    <div
-                      className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold tracking-widest"
+                    {/* v1.10.2 分类折叠：组头可点击切换展开/收起（同 LayerTreePanel 模式） */}
+                    <button
+                      type="button"
+                      onClick={() => toggleTypeCollapsed(g.type)}
+                      aria-expanded={typeOpen}
+                      title={typeOpen ? `收起 ${g.type}` : `展开 ${g.type}`}
+                      className="mb-1 flex w-full items-center gap-1.5 text-left text-[10px] font-semibold tracking-widest transition-opacity hover:opacity-70"
                       style={{ color: withAlpha(c, 0.9) }}
                     >
+                      <span className="w-2 shrink-0 text-[9px] leading-none text-white/35" aria-hidden="true">
+                        {typeOpen ? '▾' : '▸'}
+                      </span>
                       <span
-                        className="inline-block h-1.5 w-1.5 rounded-full"
+                        className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
                         style={{ background: c, boxShadow: `0 0 6px ${withAlpha(c, 0.6)}` }}
                       />
                       {g.type}
                       <span className="text-white/25">{g.items.length}</span>
-                    </div>
-                    <div className="space-y-0.5">
-                      {g.items.map((r) => {
-                        const active = selected?.id === r.id;
-                        return (
-                          <button
-                            key={r.id}
-                            type="button"
-                            onClick={() => setSelected(r)}
-                            className="block w-full rounded-md border px-2 py-1 text-left transition-colors"
-                            style={{
-                              borderColor: active ? withAlpha(c, 0.5) : 'rgba(255,255,255,0.06)',
-                              background: active ? withAlpha(c, 0.10) : 'rgba(255,255,255,0.02)',
-                            }}
-                          >
-                            <div className="truncate text-[11px] leading-snug" style={{ color: active ? withAlpha(PALETTE.text, 0.95) : withAlpha(PALETTE.text, 0.72) }}>
-                              {r.title}
-                            </div>
-                            <div className="text-[9px] text-white/30">{r.updated}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    </button>
+                    {typeOpen && (
+                      <div className="space-y-0.5">
+                        {g.items.map((r) => {
+                          const active = selected?.id === r.id;
+                          return (
+                            <button
+                              key={r.id}
+                              type="button"
+                              onClick={() => setSelected(r)}
+                              className="block w-full rounded-md border px-2 py-1 text-left transition-colors"
+                              style={{
+                                borderColor: active ? withAlpha(c, 0.5) : 'rgba(255,255,255,0.06)',
+                                background: active ? withAlpha(c, 0.10) : 'rgba(255,255,255,0.02)',
+                              }}
+                            >
+                              <div className="truncate text-[11px] leading-snug" style={{ color: active ? withAlpha(PALETTE.text, 0.95) : withAlpha(PALETTE.text, 0.72) }}>
+                                {r.title}
+                              </div>
+                              <div className="text-[9px] text-white/30">{r.updated}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
