@@ -1074,9 +1074,9 @@ def run_hypothesis(
                 "仅列出此情景下最关键的3个不确定因素，每个用一句话描述，格式：\n"
                 "1. [因素名称]：[描述]\n2. ...\n3. ...\n不需要其他内容。"
             )
-            factors_text = call_llm_fn(round1_prompt, mode="local") or ""
-            if not factors_text.strip():
-                raise ValueError("第一轮因素识别返回空，降级为标准模式")
+            factors_text = call_llm_fn(round1_prompt, mode="auto") or ""
+            if not factors_text.strip() or factors_text.startswith("[LLM"):
+                raise ValueError("第一轮因素识别返回空或 LLM 不可用，降级为标准模式")
             print(f"  [deep] 关键因素：{factors_text[:200]}")
 
             # 第二轮：对每个因素估计概率区间
@@ -1087,9 +1087,9 @@ def run_hypothesis(
                 "请为每个因素给出：悲观概率（%）/ 基准概率（%）/ 乐观概率（%），格式：\n"
                 "1. 悲观XX% / 基准XX% / 乐观XX%\n不需要其他解释。"
             )
-            probs_text = call_llm_fn(round2_prompt, mode="local") or ""
-            if not probs_text.strip():
-                raise ValueError("第二轮概率估计返回空，降级为标准模式")
+            probs_text = call_llm_fn(round2_prompt, mode="auto") or ""
+            if not probs_text.strip() or probs_text.startswith("[LLM"):
+                raise ValueError("第二轮概率估计返回空或 LLM 不可用，降级为标准模式")
             print(f"  [deep] 概率分布：{probs_text[:200]}")
 
             # 第三轮：综合推演
@@ -1100,12 +1100,12 @@ def run_hypothesis(
                 f"**概率分布估计**：\n{probs_text}\n\n"
                 "请在以上分析基础上，综合给出最终推演结论和情景树（乐观/基准/悲观三条路径）。"
             )
-            report = call_llm_fn(prompt + deep_suffix, mode="local")
+            report = call_llm_fn(prompt + deep_suffix, mode="auto")
         except Exception as _deep_e:
             print(f"  [deep] 多步推理中断：{_deep_e}，降级为标准模式")
-            report = call_llm_fn(prompt, mode="local")
+            report = call_llm_fn(prompt, mode="auto")
     else:
-        report = call_llm_fn(prompt, mode="local")
+        report = call_llm_fn(prompt, mode="auto")
 
     # 降级链
     if not report or not report.strip():
