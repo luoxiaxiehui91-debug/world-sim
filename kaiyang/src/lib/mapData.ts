@@ -182,9 +182,31 @@ export function buildRiskArcs(dims: GrvDimension[]): RiskArc[] {
   return arcs;
 }
 
+/** HTML 实体转义（XSS 防线：所有进入 tooltip HTML 的外部文本统一在此转义）。
+ * 渲染层唯一转义点——避免与适配层再转义造成双重转义。 */
+function escapeHtml(value: unknown): string {
+  return String(value ?? '').replace(
+    /[&<>"']/g,
+    (ch) =>
+      ch === '&'
+        ? '&amp;'
+        : ch === '<'
+          ? '&lt;'
+          : ch === '>'
+            ? '&gt;'
+            : ch === '"'
+              ? '&quot;'
+              : '&#39;',
+  );
+}
+
 /** 统一的点位提示气泡 HTML（globe.gl pointLabel 与平面地图 tooltip 共用；事件点走告警文案）。 */
 export function pointTooltipHtml(p: RiskPoint): string {
   const val = p.value === null ? '数据缺失' : fmtNum(p.value);
+  const label = escapeHtml(p.label);
+  const group = escapeHtml(p.group);
+  const rawMetric = escapeHtml(p.rawMetric);
+  const note = escapeHtml(p.note);
   const shell =
     `<div style="font:12px/1.5 ui-sans-serif,system-ui,'PingFang SC',sans-serif;` +
     `background:rgba(6,11,22,0.92);border:1px solid ${withAlpha(p.color, 0.55)};` +
@@ -192,17 +214,17 @@ export function pointTooltipHtml(p: RiskPoint): string {
     `padding:6px 10px;border-radius:8px;white-space:nowrap;">`;
 
   // 类别行：告诉用户「这个色相代表哪一层」，是 D1 双轴的可读性兜底
-  const catLine = `<span style="opacity:.6">图层类别 ${categoryLabel(p.category)}</span>`;
+  const catLine = `<span style="opacity:.6">图层类别 ${escapeHtml(categoryLabel(p.category))}</span>`;
   // 原生度量行：仅在构建函数显式提供时出现（如核读数 "0.12 µSv/h"），不参与任何计算
-  const rawLine = p.rawMetric ? `<br/><span style="opacity:.6">原始读数 ${p.rawMetric}</span>` : '';
+  const rawLine = rawMetric ? `<br/><span style="opacity:.6">原始读数 ${rawMetric}</span>` : '';
 
   if (p.isEvent) {
-    const noteLine = p.note ? `<br/><span style="opacity:.6">详情：${p.note}</span>` : '';
+    const noteLine = note ? `<br/><span style="opacity:.6">详情：${note}</span>` : '';
     return (
       shell +
-      `<b style="color:${p.color}">⚠ ${p.label}</b>` +
-      `<span style="opacity:.5;margin-left:6px">事件类型：${p.group}</span><br/>` +
-      `事件严重度 <b>${val}</b> · 等级 ${p.severity}<br/>` +
+      `<b style="color:${p.color}">⚠ ${label}</b>` +
+      `<span style="opacity:.5;margin-left:6px">事件类型：${group}</span><br/>` +
+      `事件严重度 <b>${val}</b> · 等级 ${escapeHtml(p.severity)}<br/>` +
       catLine +
       rawLine +
       noteLine +
@@ -216,12 +238,12 @@ export function pointTooltipHtml(p: RiskPoint): string {
       : `±${fmtNum(p.uncertainty)}${p.uncertaintyEstimated ? '（估算）' : ''}`;
   return (
     shell +
-    `<b style="color:${p.color}">${p.label}</b>` +
-    `<span style="opacity:.5;margin-left:6px">${p.group}</span><br/>` +
-    `风险值 <b>${val}</b> · 等级 ${p.severity}<br/>` +
+    `<b style="color:${p.color}">${label}</b>` +
+    `<span style="opacity:.5;margin-left:6px">${group}</span><br/>` +
+    `风险值 <b>${val}</b> · 等级 ${escapeHtml(p.severity)}<br/>` +
     catLine +
     rawLine +
-    `<br/><span style="opacity:.6">不确定区间 ${unc}</span>` +
+    `<br/><span style="opacity:.6">不确定区间 ${escapeHtml(unc)}</span>` +
     `</div>`
   );
 }

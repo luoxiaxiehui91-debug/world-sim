@@ -53,11 +53,21 @@ describe('adaptNewsGeo: 类别 / 形状 / id 命名空间', () => {
     ],
   };
 
-  it('category 强制为 "news"，shape 取 layerCategories（circle）', () => {
+  it('event_type=conflict → category 归入 "conflict"，shape 取 layerCategories（circle）', () => {
     const pts = adaptNewsGeo(sample);
     expect(pts).toHaveLength(1);
-    expect(pts[0].category).toBe('news');
+    expect(pts[0].category).toBe('conflict');
     expect(pts[0].shape).toBe('circle');
+  });
+
+  it('event_type 非 conflict → category 仍为 "news"', () => {
+    const pts = adaptNewsGeo({
+      events: [
+        { id: 'p', lat: 0, lng: 0, event_type: 'protest', intensity: 30, country: 'X' },
+        { id: 'u', lat: 1, lng: 1, event_type: 'unknown', intensity: 30, country: 'X' },
+      ],
+    });
+    expect(pts.every((p) => p.category === 'news')).toBe(true);
   });
 
   it('id 必须带 "newsgeo:" 命名空间前缀（K2，多图层合并防撞车）', () => {
@@ -67,10 +77,17 @@ describe('adaptNewsGeo: 类别 / 形状 / id 命名空间', () => {
     expect(pts[0].id.startsWith('newsgeo:')).toBe(true);
   });
 
-  it('着新闻类别色（青 cyan）且 status=ok', () => {
-    const pts = adaptNewsGeo(sample);
-    expect(pts[0].color).toBe(CATEGORY_PALETTE.news);
-    expect(pts[0].status).toBe('ok');
+  it('conflict 事件着 conflict 类别色（红 red）；非 conflict 着 news 色（青 cyan），均 status=ok', () => {
+    const conflictPts = adaptNewsGeo(sample);
+    expect(conflictPts[0].color).toBe(CATEGORY_PALETTE.conflict);
+    expect(conflictPts[0].status).toBe('ok');
+    const newsPts = adaptNewsGeo({
+      events: [
+        { id: 'p', lat: 0, lng: 0, event_type: 'protest', intensity: 30, country: 'X' },
+      ],
+    });
+    expect(newsPts[0].color).toBe(CATEGORY_PALETTE.news);
+    expect(newsPts[0].status).toBe('ok');
   });
 
   it('合法事件：value=intensity，weight=value/100 夹到 [0,1]，severity="高"（>66）', () => {
@@ -288,5 +305,58 @@ describe('adaptNewsGeo: 与图层体系的契约', () => {
     });
     expect(pts[0].weight).toBe(1);
     expect(pts[0].severity).toBe('高');
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* XSS 输入消毒（2026-08-11 路线 A 防线二）                              */
+/* ------------------------------------------------------------------ */
+describe('adaptNewsGeo: XSS 输入消毒', () => {
+  it('location_name 超长 → 截断到 120 字符并补省略号，label 不含原始尾段', () => {
+    const longName = 'A'.repeat(200);
+    const pts = adaptNewsGeo({
+      events: [
+        { id: 'a', lat: 0, lng: 0, event_type: 'x', intensity: 30, country: 'X', location_name: longName },
+      ],
+    });
+    expect(pts[0].label).toHaveLength(121); // 120 + '…'
+    expect(pts[0].label).toContain('…');
+  });
+
+  it('location_name 含控制字符 → 剥离控制字符（保留可见文本）', () => {
+    const dirty = 'Tehran\u0000\u0001Iran';
+    const pts = adaptNewsGeo({
+      events: [
+        { id: 'a', lat: 0, lng: 0, event_type: 'x', intensity: 30, country: 'X', location_name: dirty },
+      ],
+    });
+    expect(pts[0].label).toBe('TehranIran');
+  });
+
+  it('theme 为空字符串 / 纯空白 → 降级 undefined，不进 rawMetric', () => {
+    const pts = adaptNewsGeo({
+      events: [
+        { id: 'a', lat: 0, lng: 0, event_type: 'x', intensity: 30, country: 'X', theme: '   ' },
+      ],
+    });
+    expect(pts[0].rawMetric).toBeUndefined();
+  });
+
+  it('HTML 转义由渲染层 pointTooltipHtml 统一完成（此处不清洗 <>& 等字符，避免双重转义）', () => {
+    const pts = adaptNewsGeo({
+      events: [
+        {
+          id: 'a',
+          lat: 0,
+          lng: 0,
+          event_type: 'x',
+          intensity: 30,
+          country: 'X',
+          location_name: '<img src=x onerror=alert(1)>',
+        },
+      ],
+    });
+    // 适配层保留原文（渲染层 escapeHtml 负责转义）
+    expect(pts[0].label).toBe('<img src=x onerror=alert(1)>');
   });
 });

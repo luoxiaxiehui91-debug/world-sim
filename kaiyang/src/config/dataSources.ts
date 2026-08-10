@@ -85,9 +85,12 @@ export const FEEDS: Record<string, FeedConfig> = {
     description: 'SafeCast 6 核电站 CPM 读数（CC0 公开 API，历史归档均值，I60 采集）',
   },
   // ── 1.6.0 追加（地理新闻读取层骨架）：见 docs/DATA_CONTRACT.md §2.7 ──
+  // 2026-08-11 路线 A：news_geo.json 已由天枢 I15 派生（gdelt_geo --incremental），
+  // 补 refreshMs 轮询实现近实时刷新（与 market_quotes 同模式）。
   news_geo: {
     name: 'news_geo',
     path: 'news_geo.json',
+    refreshMs: 60_000,
     type: 'json',
     schemaVersion: '1.0',
     description: 'GDELT 地理化新闻事件（actor 坐标 + 强度；详细字段见 §2.7）',
