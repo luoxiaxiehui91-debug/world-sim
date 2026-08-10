@@ -15,7 +15,7 @@
 | 天枢 | macro-scan | SSH 直改运行区 py（热挂载即生效）；scheduler.py 等长驻进程改动 → `docker compose restart` | 开发者 + 变更记录；rsync 整目录仅 lead | `compileall` + import smoke | `DATA_DIR==/workspace/data` 断言 |
 | 天璇 | macro-sim | deploy.sh 仓库直构（运行区归档） | lead | 仓库 sha256 基线 + 构建成功 | 容器 image ID == 构建 ID + health |
 | 天玑 | macro-ji（tianji） | 仓库 `docker build -t macro-tianji:latest` → `docker compose up -d --build` | lead | 构建成功 | 容器运行 + compose healthcheck 通过 |
-| 开阳 | kaiyang（nginx） | scp dist → `chmod -R a+rX` → `docker restart kaiyang`（只覆盖不清理） | lead | 本地 build（禁 SMB 构建） | HTTP 200 + dist/index.html 实际引用 bundle 存在 |
+| 开阳 | kaiyang（nginx） | scp dist → `chmod -R a+rX` → `docker restart macro-scan-kaiyang-1`（只覆盖不清理） | lead | 本地 build（禁 SMB 构建） | HTTP 200 + dist/index.html 实际引用 bundle 存在 |
 
 ---
 
@@ -25,7 +25,7 @@
 
 - **通道**：运行区 `/vol2/1000/software/macro-scan/核心代码/`（容器内 `/app` 热挂载，改 py 即生效）。单文件改动走 SSH 直改；scheduler.py 等长驻进程改动后必须 `docker compose restart` 才生效。
 - **授权**：开发者 + 变更记录（记入 CHANGELOG/operations）；批量/整目录同步走 rsync，仅 lead 授权。
-- **部署前验证**：`python3 -m compileall <改动的 py>` + import smoke（`docker exec macro-scan python3 -c "import <module>"`）。
+- **部署前验证**：`python3 -m compileall <改动的 py>` + import smoke（`docker exec macro-scan-macro-scan-1 python3 -c "import <module>"`）。
 - **部署后验证**：断言 `DATA_DIR == /workspace/data`（防 `__file__` 推非持久路径，案例 4 已修）；scheduler 改动后确认 trigger 按预期写入。
 - **实例**：案例 2 根因（scheduler.py L48 `dom=1` 笔误）即经此通道修复闭环（commit 6ba35ab）——改 scheduler.py → restart → 复验 trigger 次日写入。
 
@@ -46,10 +46,10 @@
 
 ### 2.4 开阳（kaiyang / nginx）— scp dist + chmod + restart
 
-- **通道**：本地构建 dist → scp 到 `/vol2/1000/software/kaiyang/dist/` → `chmod -R a+rX`（nginx uid 101 读不了 640）→ `docker restart kaiyang`。**只覆盖不清理**：清旧 bundle 动态取自 dist/index.html 实际引用，禁按文件名猜测清理。
+- **通道**：本地构建 dist → scp 到 `/vol2/1000/software/kaiyang/dist/` → `chmod -R a+rX`（nginx uid 101 读不了 640）→ `docker restart macro-scan-kaiyang-1`。**只覆盖不清理**：清旧 bundle 动态取自 dist/index.html 实际引用，禁按文件名猜测清理。
 - **授权**：仅 lead。
 - **部署前验证**：本地 build 成功（禁 SMB 构建；NAS 侧一切操作走 SSH）。
-- **部署后验证**：`curl -s -o /dev/null -w '%{http_code}' http://<host>:8080` == 200 + dist/index.html 引用的每个 bundle 文件存在（`docker exec kaiyang ls` 校验）。
+- **部署后验证**：`curl -s -o /dev/null -w '%{http_code}' http://<host>:8080` == 200 + dist/index.html 引用的每个 bundle 文件存在（`docker exec macro-scan-kaiyang-1 ls` 校验）。
 
 ---
 
