@@ -21,6 +21,11 @@
 - scp 原地覆盖 + `chmod -R a+rX`，dist 无 data/ 子目录；nginx 新 bundle js/css 200；18/18 feed 200
 - 视觉项由主理人浏览器复核：flat 模式缩放后切分类点不变大；globe 点击点不飞相机；报告中心宏观分析组可折叠
 
+### 部署卫生（2026-08-11，无独立 commit）
+
+- dist/assets 清理：动态核对 `index.html` 引用清单后删除 2 个最旧残留 `index-Bt_hmYiG.js` + `index-cRvpZC8e.css`（08-11 00:25 构建，已被取代），保留 v1.10.0/1.10.1/1.10.2 三版 6 个 bundle 供回滚；删后 index.html/活动 bundle/18 feed 全 200。
+- 部署规范首次落地：新建 `docs/DEPLOYMENT.md`（构建禁 SMB / scp 原地覆盖禁 mv / dist 清理规则：保留 3 版、删前动态核对 index.html 引用、禁硬编码 hash、禁全量 rm）。
+
 ## [1.10.1] - 2026-08-11 · 事件点视觉重构（crucix 化）：中心实体 + 外侧薄弧光贴附（by arch-map）
 
 **修改理由**：主理人反馈事件点图标"太大"、点击后放大倍率更大、实心+一大圈弧光不合理。参考 crucix（NAS `Crucix/dashboard/public/jarvis.html`，AGPL，仅参考视觉不抄代码）ACLED 冲突点形态重构——中心半透明小实体 + 外侧薄描边环贴附，严重度用中心大小区分，脉冲只动外环。详见调研纪要（arch-map 消息 2026-08-11）。
