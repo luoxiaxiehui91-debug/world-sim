@@ -60,6 +60,7 @@ JOBS = [
     # ── 新接入 P0+P1 源（fetcher_base 适配层；常驻进程、独立时间槽、互不阻塞）──
     # 喂 GRV 的源（earthquake / energy）排在大盘 grv_update 06:10 之前，保证当天先落盘
     ("earthquake",  "I15", "1-7", None, [PYTHON, "fetch_earthquake.py"]),   # P0 USGS 地震（事件档 每15分；喂 seismic_risk）
+    ("safecast_nuke", "I60", "1-7", None, [PYTHON, "fetch_safecast_nuke.py"]), # SafeCast 核电站辐射 CPM（事件档 每60分；历史归档均值 2016-2023，低频拉取避免刷免费 API）
     ("gdelt_geo",   "I15", "1-7", None, [PYTHON, "fetch_gdelt_geo.py", "--incremental"]),  # P1 GDELT 地理事件点（事件档 每15分；产出 news_geo.jsonl + news_geo_clusters.json）
     ("energy",      "0608", "1-7", None, [PYTHON, "fetch_energy.py"]),       # P1 电网/能源（喂 energy_grid_risk）
     # 以下不喂 GRV，仅落盘交叉验证/事件源，错峰在 grv_update 之后
@@ -86,6 +87,7 @@ JOBS = [
     ("kb_update",   "0905", "1-7", 1,    [PYTHON, "update_kb_numbers.py"]),
     ("firms",       "0908", "1-7", None, [PYTHON, "fetch_firms.py"]),           # NASA FIRMS 火点直连（crucix 退场前置，先于 climate 0910）
         ("climate",     "0910", "1-7", None, [PYTHON, "fetch_climate_signals.py"]),
+    ("kiwisdr",     "0602", "1-7", None, [PYTHON, "fetch_kiwisdr.py"]),          # KiwiSDR 目录（sdr_summary.json；日更1-2次；错峰 weak_signal 0600，先于 narrative_proc 0710 消费）
     ("daily_narrative", "0700", "1-7", None, [PYTHON, "daily_narrative.py"]),
     ("news_export",  "0705", "1-7", None, [PYTHON, "news_exporter.py"]),         # macro-sim JSON 导出
     ("narrative_proc","0710", "1-7", None, [PYTHON, "narrative_processor.py"]),  # 天玑 叙事预处理（叙事块写入+密度监测）
