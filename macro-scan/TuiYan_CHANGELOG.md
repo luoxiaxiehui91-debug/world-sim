@@ -6,6 +6,29 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.8.17 — 2026-08-11 (by arch-map)
+
+**修改理由**：开阳地图空渲染根治（路线 A）。`news_geo_feed.py`（spaCy NER + gdelt_geo_cache）空转链停止调度——该 cache 全 repo 无写入方，feed 恒输出空壳；改为 `fetch_gdelt_geo.py --incremental`（I15）在合并后全量行基础上直接派生 `news_geo.json`（§2.7 契约 `events[]`），事件自带 GDELT 坐标/强度/国家。详见 `docs/arg-map-arch-2026-08-11.md`。
+
+### 修改
+- **`核心代码/fetch_gdelt_geo.py`**：
+  - `_parse_export` 补 `EventRootCode`(col 28)；`_map_event` 持久化 `event_code`/`root_code`（向后兼容，schema_version 不变）
+  - `run_incremental` 末尾生成 `news_geo.json`（复用 `_merge_jsonl` 内存行，零边际读成本）
+  - 过滤链：排除 ActionGeo_Type∈{0,1} → 24h 时间窗(seen_slot/fetched_at) → mentions≥15 → root_code 四枚举(缺失→unknown) → MAX_EVENTS=1800 护栏 → AGGREGATE 聚合开关（env: NEWS_GEO_WINDOW_HOURS/MIN_MENTIONS/MAX_EVENTS/AGGREGATE）
+  - intensity 公式 0.6*烈度+0.4*传播 → 1-100 整数（设计稿 §5.4）；location_name/source_url HTML 转义（XSS 防线一）；原子写 tmp+os.replace，空/失败保留上次好文件
+  - 新增 `--export-json` 独立导出；selftest 补 CAMEO 映射/强度/转义/映射单元测试
+- **`核心代码/scheduler.py`**：`news_geo_feed`(0715) 停调度 + LOG_FILES 摘除；gdelt_geo 注释更正（产 jsonl+派生 json）
+- **`核心代码/tests/fixtures/sample_gdelt_row.txt`**：补真实 GDELT 61 列行 fixture（设计稿 §4.3 固化要求，此前缺失导致 selftest 恒失败）
+- **产物**：`data/news_geo_clusters.json` 已删除（`--aggregate` 从未调度，停更 08-01）
+
+### 验证
+- 容器内 `python /app/fetch_gdelt_geo.py --selftest` PASS（含新增 6.1~6.4 单元测试）
+- `--export-json` 实测 129,964 行读入 → 516 events 落盘；nginx `curl /data/news_geo.json` 200（172KB）
+- 新槽位抓取样本：182/182 条含 `root_code`（event_code=014/root_code=01）
+- scheduler.py 双侧（运行区+仓库）同步；`docker restart macro-scan-macro-scan-1` 已生效（news_geo_feed job 移除）
+
+---
+
 ## v3.8.16 — 2026-08-08 (by Claude)
 
 **修改理由**：hypothesis_engine.py 5 处硬编码 `mode="local"` 绕过 MiniMax-M3 降级链直调 Qwen3.5-27B（CF-18 切主力时遗漏）。改为 `mode="auto"` 对齐 ADR-0001 三级降级链决策。deep 模式 round1/round2 加占位文本检测（`startswith("[LLM")`）防止 auto 超时返回的占位文本被当有效内容连锁喂给下一轮。
