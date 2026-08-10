@@ -6,6 +6,7 @@
 **/Thumbs.db
 
 # 数据目录（各子项目运行时产生，不纳入版本控制）
+data/
 macro-scan/data/
 macro-scan/logs/
 macro-scan/docs/分析报告/
