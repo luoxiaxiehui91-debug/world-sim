@@ -170,6 +170,35 @@ export interface NuclearSitesRaw {
 }
 
 /* ------------------------------------------------------------------ */
+/* 核辐射实时读数（safecast_nuke.json，2.0.0 新增，天枢 fetch_safecast_nuke.py）*/
+/* ------------------------------------------------------------------ */
+
+/** SafeCast 单站点读数（CC0 公开 API，历史归档均值非实时流）。 */
+export interface SafecastSite {
+  /** 站点 key（zaporizhzhia / chernobyl / bushehr / yongbyon / fukushima / dimona） */
+  key: string;
+  /** 站点显示名 */
+  site?: string;
+  /** 平均 CPM；null = 源无数据 */
+  avgCPM: number | null;
+  /** 有效测量样本数 */
+  n: number;
+  /** avgCPM > 100 → true（历史归档均值语义，非实时告警） */
+  anom: boolean;
+  /** 源测量时间戳（历史归档日，如 2023-07-18；防误读为实时） */
+  latest_captured_at: string | null;
+}
+
+/** safecast_nuke.json 顶层。 */
+export interface SafecastNukeRaw {
+  fetched_at?: string;
+  source?: string;
+  sites?: SafecastSite[];
+  /** true = 整轮拉取降级（重试耗尽），sites 为空 */
+  degraded?: boolean;
+}
+
+/* ------------------------------------------------------------------ */
 /* 地理化新闻事件（news_geo.json，1.6.0 新增，详见 docs/DATA_CONTRACT.md §2.7）*/
 /* ------------------------------------------------------------------ */
 

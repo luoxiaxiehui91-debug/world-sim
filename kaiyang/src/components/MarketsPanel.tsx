@@ -119,7 +119,8 @@ function PriceTile({ q, valueSize = 16, isCrypto }: TileProps) {
   const crude  = isCrudeOil(q.key);
 
   const brandColor  = isCrypto ? cryptoBrandColor(q.key) : null;
-  const changeColor = isUp ? '#34d399' : isDown ? '#f87171' : 'rgba(255,255,255,0.45)';
+  // A股习惯：红涨绿跌
+  const changeColor = isUp ? '#f87171' : isDown ? '#34d399' : 'rgba(255,255,255,0.45)';
   const valueColor  = brandColor ?? (pct !== null ? changeColor : 'rgba(255,255,255,0.88)');
   const sparkColor  = brandColor ?? changeColor;
   const pctArrow    = isUp ? '▲' : isDown ? '▼' : '';
@@ -127,9 +128,9 @@ function PriceTile({ q, valueSize = 16, isCrypto }: TileProps) {
 
   // Left accent bar via inset box-shadow (does not affect layout)
   const leftBarColor = isUp
-    ? 'rgba(52,211,153,0.80)'
-    : isDown
     ? 'rgba(248,113,113,0.80)'
+    : isDown
+    ? 'rgba(52,211,153,0.80)'
     : 'rgba(255,255,255,0.07)';
 
   const brandGlow = brandColor
@@ -309,7 +310,7 @@ function Section({ title, items, cols = 3, isCrypto, valueSize }: SectionProps) 
  *   - 标签 10px uppercase tracking-widest
  *   - 数值：指数/加密 20px，商品 16px，宏观 14px
  *   - 涨跌% 13px bold，单独一行
- *   - 卡片左侧 2px inset bar：涨绿跌红
+ *   - 卡片左侧 2px inset bar：涨红跌绿（A股习惯）
  *   - 原油（WTI/Brent）下跌时红色底纹（重要信号）
  *   - BTC=#f7931a  ETH=#627eea
  */

@@ -117,6 +117,12 @@ export function FinancialPanel() {
           connectNulls: true,
           lineStyle: { color: PALETTE.cyan, width: 1.5 },
           areaStyle: { color: withAlpha(PALETTE.cyan, 0.08) },
+          // 隐约参考带：±0.5σ（fciReg 松紧边界，>0.5 偏紧 / <-0.5 偏松）
+          markArea: {
+            silent: true,
+            itemStyle: { color: 'rgba(255,255,255,0.045)' },
+            data: [[{ yAxis: -0.5 }, { yAxis: 0.5 }]],
+          },
         },
         {
           name: 'GSCPI',
@@ -126,6 +132,14 @@ export function FinancialPanel() {
           showSymbol: true,
           symbolSize: 3,
           lineStyle: { color: PALETTE.amber, width: 1.2 },
+          // 阈值参考线：1.5（天枢 gscpi_warn 触发阈值）
+          markLine: {
+            silent: true,
+            symbol: 'none',
+            lineStyle: { color: 'rgba(248,113,113,0.35)', type: 'dashed', width: 1 },
+            label: { show: true, color: 'rgba(248,113,113,0.65)', fontSize: 8, formatter: '阈值 1.5' },
+            data: [{ yAxis: 1.5 }],
+          },
         },
       ],
     };
@@ -139,7 +153,7 @@ export function FinancialPanel() {
       <div className="panel-title flex items-center justify-between">
         <span>💰 金融条件 · FCI / GSCPI</span>
         <span className="text-[10px] font-normal text-white/30">
-          更新 {fmtRelative(fci?.as_of ?? fci?.date)}
+          FCI 日频 · 更新 {fmtRelative(fci?.as_of ?? fci?.date)}
         </span>
       </div>
 

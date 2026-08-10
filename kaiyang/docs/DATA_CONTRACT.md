@@ -49,6 +49,7 @@
 | `energy_risk` | `energy_risk.json` | json | `1.0` | 能源 / 电网风险信号（R-4，见 §2.10） |
 | `hdx_risk` | `hdx_risk.json` | json | `1.0` | 人道危机风险信号（R-4，见 §2.10） |
 | `news_risk` | `news_risk.json` | json | `1.0` | 新闻风险信号（R-4，见 §2.10） |
+| `safecast_nuke` | `safecast_nuke.json` | json | `1.0` | SafeCast 6 核电站 CPM 读数（fetch_safecast_nuke.py，I60，历史归档均值） |
 
 > 新增 feed：仅在 `src/config/dataSources.ts` 的 `FEEDS` 登记一项，读取层（`useFeed` / `readLayer`）**无需改动**。
 
