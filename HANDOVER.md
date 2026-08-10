@@ -5,7 +5,26 @@
 
 ---
 
-## 当前状态（2026-08-07 晚，by WorkBuddy）— 最新
+## 当前状态（2026-08-10 午，by WorkBuddy）— 最新
+
+> 交接职责说明：08-10 起实时交接由 repo 根 `STATUS.md` 接替（08-10 同步入 repo）；本文件保留为历史快照链（append-only）。
+
+| 子系统 | 版本（as-of 08-10） | 状态 |
+|---|---|---|
+| macro-scan（天枢）| v3.8.16 | ✅ **已部署 NAS，运行中**（08-08 部署超前改动 08-10 补录 commit 985905b，漂移审计确认）|
+| macro-sim（天璇）| **v2.0.40** | ✅ **已部署 NAS，运行中**（R4 系列 08-07→08-10 十轮迭代；R4h ① ease_ok 方向闸收编，CACHE 14 / ARTIFACT v2033 / commit e636c0c）|
+| macro-ji（天玑）| v1.0.0 | ✅ **独立容器 macro-scan-tianji-1 运行中（healthy）**|
+| kaiyang（开阳）| v1.9.0 | ✅ **已部署 NAS，:8080 可访问**|
+
+- Git 分支：`main`，最新 commit：`d1427ee`（08-10 日志补救：关键文档入 repo + 天璇 operations 日志新建）
+- **08-08~08-10 主线 = 天璇校准引擎 R4 系列**：R4a→R4h① 十轮（v2.0.31b→v2.0.40）；R4h ① 结案——ease_ok 方向闸收编（EASE wrong 8→0 / M6 13≤17）；credit 回池（silence 0.531）· p̂ 0.4894 · S2 0.636 **挂起转 silence 治理**。实录：`docs/calib/` 评审存档 + `macro-sim/docs/operations/` 操作日志 + `macro-sim/docs/r4g-spec-change-registry.md`（变更 1-8）
+- **P0 教训（08-10 实锤）**：探针 config 放 /tmp 会静默丢 A3 soul（soul 加载路径依赖 config 目录）→ 假复现 0.5729 **勿再引用**；容器真实 0.4894/0.4626。一切探针 config 放容器真实目录 `/app/config`
+- **文档治理（08-10）**：日志完整性审计两缺口已补——① STATUS/项目导航/calib×9 同步入 repo（docs/calib/）② 天璇 operations 日志新建（macro-sim/docs/operations/）
+- 遗留（08-10）：① **silence 治理立项**（credit 回池 / p̂ 过 0.55 / S2≤0.60；seed123 残余弱项）② news_geo 图层空渲染（P3-A：拆文件/补 NER）③ FRED 上游停更根因（BAA10Y/DTWEXBGS）④ 天璇 sim_log.db 仿真记录修复（P0）⑤ 天璇运行区 .archive-20260806 确认无引用后 08-13 后删
+
+---
+
+## 当前状态（2026-08-07 晚，by WorkBuddy）
 
 | 子系统 | 版本（as-of 08-07） | 状态 |
 |---|---|---|
