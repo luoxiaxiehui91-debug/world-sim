@@ -42,6 +42,7 @@ JOBS = [
     # name,         hhmm,   weekdays(1-5=Mon-Fri, 1-7=all), dom(day-of-month, None=any), command
     ("disaster",    "I30", "1-7", None, [PYTHON, "fetch_disaster_signals.py"]),  # 自然灾害信号（事件档 每30分）
     ("fred_fetch",  "0530", "1-7", None, [PYTHON, "fetch_fred_history.py"]),
+    ("gscpi",       "0532", "1-7", None, [PYTHON, "fetch_gscpi.py"]),          # NY Fed GSCPI（落盘 GSCPI.csv；ADR-01 门禁重定义；错峰 fred_fetch 0530，morning 0730 前落盘）
     ("compute_fci", "0535", "1-7", None, [PYTHON, "compute_fci.py"]),  # L1 FCI 双轨（依赖 fred_fetch 刷新 fred_history）
     ("fred_freshness", "0540", "1-7", None, [PYTHON, "fred_freshness.py", "--all"]),  # data-freshness：FRED 新鲜度闸 + stale + FCI 探针（依赖 fred_fetch 0530 + compute_fci 0535）
     ("compute_probit", "0540", "1-7", None, [PYTHON, "compute_probit.py"]),  # L3 probit
