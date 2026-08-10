@@ -19,6 +19,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+import time
 
 try:
     import requests
@@ -132,6 +133,14 @@ def fetch_and_save(date_str=None):
         csvs.append(t)
         print(f'  [fetch_firms] {src}: {len(t.splitlines()) - 1} 行')
 
+    if not csvs:
+        print('[fetch_firms] 首次全源失败，240s 后补偿重试（防间歇性下载失败假阴性）...')
+        time.sleep(240)
+        for src in VIIRS_SOURCES:
+            t = _fetch_source_csv(date_str, src)
+            if t:
+                csvs.append(t)
+                print(f'  [fetch_firms] 补偿重试 {src}: {len(t.splitlines()) - 1} 行')
     if not csvs:
         print('[fetch_firms] 所有源均无数据，写入 0 值失败文件')
         # 2026-08-10 加固（D6 静默降级红线 #8）：全源失败必须落 0 值失败文件（明确失败态），
