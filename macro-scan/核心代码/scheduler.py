@@ -92,7 +92,7 @@ JOBS = [
         ("climate",     "0910", "1-7", None, [PYTHON, "fetch_climate_signals.py"]),
     ("kiwisdr",     "0602", "1-7", None, [PYTHON, "fetch_kiwisdr.py"]),          # KiwiSDR 目录（sdr_summary.json；日更1-2次；错峰 weak_signal 0600，先于 narrative_proc 0710 消费）
     ("daily_narrative", "0700", "1-7", None, [PYTHON, "daily_narrative.py"]),
-    ("news_export",  "0705", "1-7", None, [PYTHON, "news_exporter.py"]),         # macro-sim JSON 导出
+    ("news_export",  "I15", "1-7", None, [PYTHON, "news_exporter.py"]),         # macro-sim JSON 导出
     ("narrative_proc","0710", "1-7", None, [PYTHON, "narrative_processor.py"]),  # 天玑 叙事预处理（叙事块写入+密度监测）
     ("defense_rss",   "0712", "1-7", None, [PYTHON, "fetch_defense_rss.py"]),     # T1-3 防务RSS（Al Jazeera/Defense One/WotR）
     ("news_geo_feed", "0715", "1-7", None, [PYTHON, "news_geo_feed.py"]),         # P3-A 新闻坐标（spaCy NER + gdelt_geo_cache）
