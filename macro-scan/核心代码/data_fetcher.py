@@ -729,7 +729,7 @@ def get_current_snapshot() -> Dict:
     else:
         print("  [SKIP] 萨姆规则: 计算失败（失业率历史数据不足）")
 
-    # Crucix 实时数据（gscpi / nuke / sdr / air）注入 _crucix 键
+    # Crucix 实时数据（gscpi / nuke / sdr）注入 _crucix 键（air 已摘除）
     try:
         from optim_config import CRUCIX_REMOTE_URL as _CRUCIX_URL
         _cx_resp = requests.get(_CRUCIX_URL, timeout=8)
@@ -739,7 +739,6 @@ def get_current_snapshot() -> Dict:
                 "gscpi":    _cx.get("gscpi"),
                 "nuke":     _cx.get("nuke"),
                 "sdr":      _cx.get("sdr"),
-                "air":      _cx.get("air"),
                 "markets":  {
                     "vix": (_cx.get("markets") or {}).get("vix"),
                 },

@@ -2672,12 +2672,6 @@ def run_macro_analysis(
         for _n in _nuke:
             if _n.get("anom"):
                 _cx_lines.append(f"- ⚠️ 核辐射异常：{_n.get('site', '未知站点')} CPM={_n.get('cpm', '?')}")
-        _air = _cx.get("air") or []
-        for _a in _air:
-            _region = _a.get("region") or _a.get("label", "")
-            _total  = _a.get("total", 0)
-            if _region in ("Taiwan Strait", "South China Sea", "Middle East", "Ukraine") and _total:
-                _cx_lines.append(f"- 航空活动（{_region}）= {_total} 架次")
         crucix_context = ("\n## Crucix 实时多源信号\n" + "\n".join(_cx_lines)) if _cx_lines else ""
         if crucix_context:
             print(f"  [Crucix] 注入 {len(_cx_lines)} 条实时信号到 prompt")
