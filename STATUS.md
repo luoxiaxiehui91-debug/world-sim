@@ -1,8 +1,16 @@
 # STATUS — world-sim 实时交接文件
 
-> 冷启动：先读 `项目导航.md`，再读本文件。最后更新：2026-08-10 08:30 GMT+8。
+> 冷启动：先读 `项目导航.md`，再读本文件。最后更新：2026-08-10 19:30 GMT+8。
 
 ## 当前状态
+
+**08-10 下午-晚间：crucix 退场论证 + 实施（当前主线，11 commit 闭合，观察窗中）**：
+- **论证**：4 视角（arch/data/qa/devops）round1 + R2 复核闭合——文档 `macro-scan/docs/arg-round1-*.2026-08-10.md`（qa/arch/data/devops 四份）+ 工作区 `crucix-retire-round1-交叉检查-2026-08-10.md`；ADR-01~10 定稿
+- **核心结论**：gscpi 唯一硬依赖（NY Fed xlsx 替代已落地）/ nuke SafeCast 复刻保留（CC0 公开源）/ sdr KiwiSDR 接入 narrative 弱信号（用户拍板）/ D3 死配置删 / news RSS-only 独立 / climate 兜底删
+- **实施 11 commit 全闭合**（a65c998→65666b8）：G0 climate dom=1 恢复 + gscpi fetcher(100e544) + ADR-08 死代码删(a8ffb34) + gscpi 调度(b29c8da) + climate 兜底删(7ac6b48) + safecast(611cc6b) + kiwisdr 接线(c38a2b0) + 调度注册(260a173) + RSS-only(5bba73e) + air 删 + gscpi_warn None 防护(65666b8)
+- **qa 中期检查**（midcheck 落盘）：P0=0 / P1=2（gscpi_warn None→TypeError 已修 65666b8；firms 连续 5 天 0 行已查清=间歇性下载失败，源活 39993 热点实证）/ P2=6 观察
+- **观察窗（代码活已完，等门禁）**：08-11 晨 gscpi 05:32 / kiwisdr 06:02 / climate 09:10 首跑 + firms 09:08 复核；**G0 判 08-12 / G1 判 08-15** → WP-2.1b gscpi 切换 + WP-2.2 nuke 改读 → WP-3.1/3.2 清理 → WP-4.x 容器停用
+- crucix 容器：独立运行中（退场实施中，依赖摘除完成前不动作；摘除 6 项已完成 5 项：gscpi/nuke/sdr/news/climate，剩 _crucix 注入整体清理归 WP-3.2）
 
 **08-04：6 异常全量修复闭环**（P0-A/B/C/D + data-freshness + P1，验收 13/13，question 归档，活跃 9→3）。
 
@@ -22,7 +30,7 @@
 - 版本线：v2.0.37（R4g 收尾，引擎回 R4e 基线+归因测量修复）→ v2.0.38（R4h ③ sentiment 写者，CACHE 12/v2031）→ v2.0.39（R4h ② vix 豁免治理，CACHE 13/v2032）→ **v2.0.40（R4h ① ease_ok 方向闸收编，CACHE 14/v2033）**
 - 08-10 R4h ① 结案：**收编 EASE 治理**（EASE wrong 8→0 真实有效）；credit 回池/p̂ 0.4894/S2 0.636 不通过、挂起转 silence 治理；方案预期 0.5729 系假复现（A3 soul 缺失），见下节红线
 
-- 版本现状：macro-scan **v3.8.15** / macro-sim **v2.0.40**（CACHE 14 / ARTIFACT v2033）/ macro-ji v1.0.0 / kaiyang **v1.9.0**
+- 版本现状：macro-scan **v3.8.16** / macro-sim **v2.0.40**（CACHE 14 / ARTIFACT v2033）/ macro-ji v1.0.0 / kaiyang **v1.9.0**
 
 ## R4 系列（天璇校准引擎治理主线，08-07→08-10）
 
