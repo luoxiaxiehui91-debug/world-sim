@@ -67,6 +67,20 @@
 
 ---
 
+## crucix 退场实施（08-10 启动，观察窗中）
+
+> 状态声明：论证（round1 四视角 + R2）已闭合，P0+P1 实施 11 commit 全闭合（a65c998→65666b8）。
+> 实录：（macro-scan/docs）+ 工作区 。
+
+| 阶段 | 状态 | 内容 |
+|------|:--:|------|
+| 论证（round1+R2） | ✅ | gscpi 唯一硬依赖 / nuke SafeCast 复刻 / sdr KiwiSDR 接入 / D3 死配置 / news RSS-only |
+| P0+P1 实施 | ✅ | 11 commit：climate 恢复、gscpi fetcher+调度、safecast/kiwisdr、兜底删、RSS-only、air 删、G2 防护、ADR-08 |
+| 观察窗 | 🔄 | G0 判 08-12 / G1 判 08-15（gscpi 05:32 双轨 5 天） |
+| WP-2.1b/2.2 | 🔲 | gscpi 切换 + nuke 改读 （G1 后） |
+| WP-3.1/3.2 | 🔲 | D3 映射删 +  残留整体清（门禁后） |
+| WP-4.x | 🔲 | crucix 容器停用（devops A/B/C/D，P3 后） |
+
 ## 天璇校准引擎 R4 系列（08-07→08-10，当前主线）
 
 > 意图/实录二分：本表为状态声明；实录（commit/版本/验收数据）见 `macro-sim/CHANGELOG.md` + `docs/calib/` 评审存档 + `macro-sim/docs/operations/` 操作日志。

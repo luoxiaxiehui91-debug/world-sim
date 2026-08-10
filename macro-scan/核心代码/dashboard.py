@@ -361,7 +361,7 @@ def generate_dashboard():
 <body>
   <h1>宏观推演系统 Dashboard</h1>
   <p class="subtitle">更新时间：{datetime.now().strftime('%Y-%m-%d %H:%M')} |
-     数据源：FRED + NeoData + Crucix</p>
+     数据源：FRED + NeoData + 自建多源</p>
   {outlook_panel}
   {summary_html}
   {''.join(f'<div class="chart-card">{div}</div>' for div in chart_divs)}
