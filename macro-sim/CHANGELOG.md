@@ -1,10 +1,53 @@
 # Changelog
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-08-09（记录类文档随部署持续更新）
+> 最后核对时间：2026-08-10（记录类文档随部署持续更新）
 
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+
+## v2.0.40 — 2026-08-10 (by arch-r4h · commit e636c0c)
+
+**修改理由**：R4h ① A2 决策级治理（用户裁决：①-A/B/C 定稿参数 cap17 + act_prob 0.76 实施）。
+qa ② 终版 FAIL（credit silence 绝对中位 0.510>0.50 4/5 seed 超、credit 出 merged eligible 池、
+p̂ 0.4948 未过 partial、S2 warn 0.682）；data Part 4 根因锁定：EASE wrong 8 步全为
+cs_delta>+2.5（cs 转正仍 EASE）——ease_signal 无方向守卫（TIGHTEN 有 tighten_ok，EASE 无镜像）。
+**credit silence 与 EASE wrong 同为 A2 决策质量问题**；② 纯 vix 参数空间已穷尽 → 必须动 A2 决策层。
+
+### 修改
+
+- **`core/agents/financial.py`**：A2 `_decide_rules` ease_signal 新增
+  `ease_ok = (target_dir != "tighten") or vix_stress > p.threshold * 2.0`（与 tighten_ok L80 镜像对称，
+  极端豁免 vix>1.0 对称兜底）；被挡步走冷却递减分支转 HOLD（L113-115），不触碰 M4（无 EASE 后
+  2 步内 TIGHTEN 新增）
+- **`config/agents.yaml`**：A2 `activation_prob 0.70 → 0.76`（0.78 时 EASE correct 13<15 触发 qa 防伪线）
+- **`core/world_state.py`** BLEED_PARAMS：`vix_yen_carry_bleed_max 19.0 → 17.0`（vix 峰值 53.3→51.3，
+  TIGHTEN wrong 16→14 余量 3）；② 的 vix 均值回归 0.80/0.20 保留不回退
+- **`core/calibrator.py`**：CACHE_VERSION 13 → 14（A2 决策 + vix 动力学变更）；bump 注释更新为终版参数（P2-1）
+- **`scripts/run_probe_acceptance.py`**：ARTIFACT_TAG v2032 → v2033（docstring + acceptance 文件名）
+- **`tests/test_calibrator_guards.py`**：新增 4 断言（ease_ok 3 态：cs 上升低 vix→挡 / cs 上升
+  vix>1.0 豁免放行 / cs≤+2.5 正常 EASE；M4 保持单测），120 → 124
+- **`docs/r4g-spec-change-registry.md`**：追加变更 8（含 P2-2 假复现更正 + 最终裁决登记）
+
+### 实测（容器 v2033 工件，A2=0.76 定稿部署；qa 独立验收为准）
+
+- **M6 TIGHTEN wrong 13 ≤17 ✓**（42:1/7:4/123:2/2024:2/777:4）；**EASE wrong 8→0 ✓**；
+  **EASE correct 16 ≥15 ✓（防伪线）**
+- **silence 4/5 seed >0.50**（42:0.531/7:0.551/123:0.633/2024:0.490/777:0.510，median 0.531；
+  qa 硬线 ≤2/5 超 FAIL）；**merged p̂ 0.4894 <0.55（partial 未达）** / CI 0.4063；pool 仅
+  sentiment+lp（credit 出池）；**S2 grv_down reverse median 0.636 >0.60（未达）**
+- M4 flip 0（保持）；consistency median 0.778
+- **⚠ 假复现更正（data-r4h3 反证 2026-08-10）**：方案设计 §3.1/3.2 声称的 p̂ 0.5729 / silence
+  2/5 超 / credit 回池 / reverse 0.529 全部来自本地原型 A2=0.80+A3=0.80 配置，且**仅在 A3 soul
+  缺失环境成立**（config 路径解析到不存在 souls 目录 → A3 soul 空 {} → 回退旧 if-else 决策）；
+  容器真实部署（/app/config/agents.yaml → /app/souls 完整加载）实测 A2=0.80 反而更差
+  （p̂ 0.4626 / M6 20），实施保持任务书定稿 A2=0.76 是唯一正确选择。机制层不变：ease_ok 方向闸
+  （EASE wrong 8→0）、cap17（vix peak 51.3）、M4 flip 0——两环境一致。
+- **✅ 最终裁决（team-lead，2026-08-10 用户确认）**：收编 EASE 治理，**保持 v2.0.40 / CACHE 14 /
+  ARTIFACT v2033 部署不回退**；credit 回池 / merged p̂ / S2 reverse 三项标记为"方案预期假环境产物
+  （A3 soul 缺失）"，**非本次验收通过项**，转入后续 silence 治理目标。
+
+---
 
 ## v2.0.39 — 2026-08-09 (by arch-r4h2 · commit 2276b1d)
 
@@ -80,6 +123,58 @@ EASE 不写 ×4 步，grv_down reverse 0.727）。② vix 豁免治理本轮不�
 
 五闸 + M1-M7 + ③ 专项 3 项（M6 残差 / M2 silence diff / S1 sentiment 桶）；weighted 0.60 /
 EPS_TGT 0.03 冻结；断言 113 禁 skip/.only；只读落盘工件。
+
+## v2.0.37 — 2026-08-09 (by arch-r4h · commit 8180a8a)
+
+**修改理由**：R4g 收尾裁决（qa-r4g 独立验收 FAIL + 用户确认）——**revert 引擎实验②③，保留①**
+（归因映射修复）。变更② HOLD 不锁冷却释放"本步无信号"后的重复掷门机会，rate_limit 仅削 ~15%
+却放大 A2 决策抖动——seed42 silence 0.49→0.551、seed2024 0.469→0.531（超线转移非消除）、
+seed7 consistency 0.714→0.429 崩塌；变更③ _ease_cooldown 2→1 直接打开 EASE 后第 2 步 TIGHTEN
+窗口，v2.0.1 振荡史重演（M4 相邻振荡 2-4 次/seed，credit consistency median 0.5625→0.500）。
+收益/副作用比不成立 → revert ②③。
+
+### 修改
+
+- **`core/simulation.py`**：移除 `if decision.action != "HOLD"` 条件化 → 恢复决策后无条件
+  `agent.activation_countdown = agent.info_delay`（R4e 行为，HOLD 也锁步）
+- **`core/agents/financial.py`**：`_ease_cooldown` 1 → 2（R4e 行为）
+- **保留**：`core/calibrator.py` a2_acted HOLD 语义、`CACHE_VERSION=11`、test_classify_a2_state
+  11 断言 + test_s_class_attribution_mapping 5 断言
+- **`VERSION`**：v2.0.36 → v2.0.37（版本只前进不后退）
+- **revert 验证（独立探针 /tmp，5 seed）**：silence / n_active / act_frac / consistency /
+  weighted 与 R4e 基线逐位一致；tighten_signal_false 保持非零（seed7 0.038/123 0.115/
+  2024 0.13/777 0.125）= **引擎回滚 + 测量保留的直接证据**
+- **ARTIFACT_TAG 待办**：qa 提示 v2030c 复用问题，建议后续 bump tag（如 v2031）防 era 混淆
+
+---
+
+## v2.0.36 — 2026-08-09 (by arch-r4h · commit e1d1832)
+
+**修改理由**：R4g 阶段二实施（team-lead 下发，三方裁决已确认）。data-r4g 阶段一归因——
+S 类 92% 激活机制（cooldown 61.8% + activation_gate 30.1%）、rule_hold 仅 8.1%。
+
+### 修改
+
+- **`core/calibrator.py`**（run_probe a2_acted 判定）：`a2_acted = snapshot.get("actions",{})
+  .get("A2") not in (None, "HOLD", "NO_ACTION")`（旧 `bool(...)` 把 HOLD 决策步误判 acted_other
+  → tighten_signal_false 分支不可达死代码恒 0；修复后 HOLD 步归 tighten_signal_false，五 seed
+  该字段恒 0 → 约 8%）。仅归因字段语义，不改变引擎决策
+- **`core/simulation.py`**（step 激活门分支）：activation_countdown 仅 `decision.action != "HOLD"`
+  才设（HOLD 不触发冷却；HOLD 是"本步无信号"决策，不应惩罚锁步）
+- **`core/agents/financial.py`**：`_ease_cooldown` 2 → 1（配合变更2 释放 EASE 后第 2 步 TIGHTEN
+  机会；EASE 后挡期 2 步缩至 1 步）
+- **`core/calibrator.py`**：CACHE_VERSION 10 → 11（改引擎必 bump 反作弊门）
+- **`VERSION`**：v2.0.35 → v2.0.36
+- **`tests/test_calibrator_guards.py`**：断言 102 → 110（+6 HOLD 语义断言 +1 S 类归因断言）
+- **`docs/r4g-spec-change-registry.md`**：变更 1-4 登记
+
+### 测试基线（自检，qa 独立验收）
+
+- test_calibrator_guards 90→98、test_narrative_format 12→12，合计 102→110 全绿
+- 部署：docker build（image 66e1bd66a5f0），容器重启后 docker exec 验证 VERSION=v2.0.36、
+  CACHE_VERSION=11 生效
+
+---
 
 ## v2.0.35 — 2026-08-08 (by WorkBuddy)
 
