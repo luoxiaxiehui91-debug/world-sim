@@ -879,7 +879,7 @@ def _save_gdelt_scores(scores: dict) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(
-                {"updated": datetime.now(timezone.utc).isoformat()[:19], "scores": scores},
+                {"updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "scores": scores},
                 f, ensure_ascii=False, indent=2,
             )
         print(f"  [GDELT] 分数已存 gdelt_scores.json")

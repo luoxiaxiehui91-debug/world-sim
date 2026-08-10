@@ -575,7 +575,7 @@ def compute_grv() -> dict:
     else:
         source_quality = "stub"
 
-    now = datetime.datetime.now().isoformat(timespec="seconds")
+    now = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
 
     # ── 接入气候信号（climate_risk）────────────────────────────
     climate_risk = None

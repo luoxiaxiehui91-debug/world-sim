@@ -140,7 +140,7 @@ class EarthquakeFetcher(FetcherBase):
             "magnitude": round(m, 1),
             "place": p,
             "time_utc": datetime.datetime.fromtimestamp(
-                t / 1000, datetime.timezone.utc).isoformat()[:19],
+                t / 1000, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         } for m, p, t in recent[:5]]
 
         self.logger.info(
