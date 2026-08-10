@@ -160,9 +160,9 @@ def run():
     # 4. 写出 news_geo.json
     output = {
         "_schema_version": "1.0",
-        "generated_at":    datetime.datetime.now().isoformat(timespec="seconds"),
+        "generated_at":    datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         # P2 修复（news-geo-contract-drift）：顶层 updated 供 useFeed.ts:62 拾取时间戳
-        "updated":         datetime.datetime.now().isoformat(timespec="seconds"),
+        "updated":         datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "articles":        geo_articles,
     }
     tmp = OUTPUT_FILE + ".tmp"

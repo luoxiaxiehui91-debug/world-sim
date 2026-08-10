@@ -175,7 +175,7 @@ def fetch_and_save() -> dict:
     risk_score = _compute_climate_risk_score(oni, firms)
 
     result = {
-        "fetched_at": datetime.now().isoformat()[:19],
+        "fetched_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "oni": oni,
         "firms": firms,
         "climate_risk_score": round(risk_score, 1),

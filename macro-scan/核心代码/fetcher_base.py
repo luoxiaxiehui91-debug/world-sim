@@ -156,7 +156,7 @@ class FetcherBase:
             )
             payload["status"] = Status.UNAVAILABLE
         payload.setdefault(
-            "updated", datetime.datetime.now().isoformat(timespec="seconds")
+            "updated", datetime.datetime.now().astimezone().isoformat(timespec="seconds")
         )
         path = os.path.join(self.data_dir, filename)
         tmp = path + ".tmp"

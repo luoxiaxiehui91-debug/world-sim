@@ -135,7 +135,7 @@ def _fetch_usgs(url: str, timeout: int = 15) -> list[dict]:
                 "id":         f.get("id", ""),
                 "time_utc":   datetime.fromtimestamp(
                                 props.get("time", 0) / 1000, tz=timezone.utc
-                              ).isoformat()[:19],
+                              ).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "magnitude":  round(mag, 1),
                 "depth_km":   round(depth, 1),
                 "lat":        round(lat, 3),
@@ -221,7 +221,7 @@ def fetch_and_save() -> dict:
     summary = _summarize(events)
 
     result = {
-        "fetched_at":          datetime.now(timezone.utc).isoformat()[:19],
+        "fetched_at":          datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "disaster_risk_score": summary["disaster_risk_score"],
         "risk_level":          summary["risk_level"],
         "event_count_24h":     summary["event_count_24h"],

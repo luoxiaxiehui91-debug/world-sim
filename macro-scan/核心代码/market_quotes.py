@@ -52,7 +52,7 @@ def _last_csv_value(filename: str):
 
 
 def build_market_quotes():
-    now = datetime.datetime.now().isoformat(timespec="seconds")[:19]  # 本地时间（容器 TZ=Asia/Shanghai）；勿用 timezone.utc——无后缀 UTC 会被前端按北京时间解析差 8h
+    now = datetime.datetime.now().astimezone().isoformat(timespec="seconds")  # 本地时间显式 +08:00（容器 TZ=Asia/Shanghai）；勿用 timezone.utc——无后缀 UTC 会被前端按北京时间解析差 8h
 
     # ── 商品/股市快照 ──────────────────────────────────────
     cy = _load_json(os.path.join(DATA_DIR, "commodity_yahoo.json")) or {}
