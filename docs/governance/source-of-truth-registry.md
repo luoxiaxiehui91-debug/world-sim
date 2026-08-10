@@ -16,7 +16,7 @@
 | 天璇 macro-sim | COPY（真相 = 容器 ≡ 仓库 HEAD；宿主运行区为僵尸副本） | 容器内 `/app/macro_data` ≡ 仓库 `/vol2/1000/software/world-sim` | macro-sim | `data`→`/app/macro_data` (rw) |
 | 天玑 macro-tianji | COPY（仓库 build → compose up） | 容器内 `/app/macro_data` | macro-scan-tianji-1 | `data`→`/app/macro_data` (rw)；`config`→`/app/config` (rw) |
 | 开阳 kaiyang | nginx 静态（真相 = 运行区 dist） | `/vol2/1000/software/kaiyang/dist/` | macro-scan-kaiyang-1 | 静态目录（scp 覆盖，不清理） |
-| 仓库 world-sim | 源码真相（GitHub 单 repo；NAS `/vol2/1000/software/world-sim` 为部署拉取副本） | `/vol2/1000/software/world-sim`，HEAD=`6ba35ab` | — | — |
+| 仓库 world-sim | 源码真相（GitHub 单 repo；NAS `/vol2/1000/software/world-sim` 为部署拉取副本） | `/vol2/1000/software/world-sim`，HEAD=`bd4bb31`（as-of 2026-08-10；`6ba35ab` 为其历史 commit） | — | — |
 
 **数据挂载分叉**：天枢数据在 `/workspace/data`（= 宿主 `macro-scan/data`）；天璇/天玑共享同一宿主文件 `macro-scan/data/forecast_tracker.db`（同 inode，见 §2.2-4/6 实测）。
 

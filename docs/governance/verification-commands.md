@@ -2,7 +2,7 @@
 
 **项目**：world-sim（world-deduction）
 **创建**：2026-08-06 14:45 UTC+8 by qa-governance（严过关）；**v2 对齐 A 表**：14:55；**v3 哈希校正**：15:05
-**基线**：repo HEAD `6ba35ab` / macro-scan v3.8.15 / GRV `_schema_version=1.0`
+**基线**：repo HEAD `bd4bb31`（2026-08-10 复验，as-of 更新；`6ba35ab` 为其历史 commit）/ macro-scan v3.8.15→3.8.16 / GRV `_schema_version=1.0`
 **状态**：✅ 8/8 实跑通过（A 表 14:42 + 本表 14:44 独立复跑一致）；v3 已按 A 表 v1.1 同步
 
 > **与 A 表的关系（v3）**：A 表 `source-of-truth-registry.md` 已升级 v1.1（arch-governance 纳入 C2b/C7 为 §2.2-2b/7b，并补 A§2.2-2 陷阱说明）。按团队约定，**本表命令列直接引用 A 表 §2.2 命令列，不重写命令全文**——避免同一对象出现两个命令版本的新漂移。
