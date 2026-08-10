@@ -6,6 +6,21 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.8.16 — 2026-08-08 (by Claude)
+
+**修改理由**：hypothesis_engine.py 5 处硬编码 `mode="local"` 绕过 MiniMax-M3 降级链直调 Qwen3.5-27B（CF-18 切主力时遗漏）。改为 `mode="auto"` 对齐 ADR-0001 三级降级链决策。deep 模式 round1/round2 加占位文本检测（`startswith("[LLM")`）防止 auto 超时返回的占位文本被当有效内容连锁喂给下一轮。
+
+### 修改
+- **`核心代码/hypothesis_engine.py`** L1077/1090/1103/1106/1108：5 处 `mode="local"` → `mode="auto"`
+- **`核心代码/hypothesis_engine.py`** L1078/1091：占位文本检测 `factors_text.startswith("[LLM")` / `probs_text.startswith("[LLM")` → raise 触发 except 降级
+
+### 验证
+- 容器内 grep：mode=auto ×5、mode=local ×0
+- 占位检测：2 处 startswith("[LLM" 确认
+- 热挂载，无需重建镜像
+
+---
+
 ## v3.8.15 — 2026-08-05 (by WorkBuddy)
 
 **修改理由**：开阳全链路时间审计（用户观察宏观面板 8-3）——6 问题修复：manifest 孤儿 / news 假时刻 / FCI 闸断裂 / sim_trigger 字段缺失 / news_geo 契约漂移 / freshness status 语义误导。详见 docs/operations/20260805-world-deduction-time-audit-fixed.md。
