@@ -5,6 +5,24 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.10.1] - 2026-08-11 · 事件点视觉重构（crucix 化）：中心实体 + 外侧薄弧光贴附（by arch-map）
+
+**修改理由**：主理人反馈事件点图标"太大"、点击后放大倍率更大、实心+一大圈弧光不合理。参考 crucix（NAS `Crucix/dashboard/public/jarvis.html`，AGPL，仅参考视觉不抄代码）ACLED 冲突点形态重构——中心半透明小实体 + 外侧薄描边环贴附，严重度用中心大小区分，脉冲只动外环。详见调研纪要（arch-map 消息 2026-08-11）。
+
+### 修改（`FlatMapPanel.tsx` / `FlatMapPanel.css` / `GlobePanel.tsx`）
+
+- **中心大小收敛**：`core` 由 `(2.6+weight×3.4)×1.25×1.5`（事件点最大 ≈18px 半径）→ `clamp(3, 9, 3+weight×6)`，删除 ×1.25×1.5 双重放大（事件/高风险改由外环脉冲区分）
+- **弧光薄环化**：删除旧两层实心大圆（`halo=core×3.2` op0.14 / `core×1.8` op0.22）→ 新三层：外环 `r=core×2.2` 薄描边 `stroke-width=1.2` op0.6（贴附外侧）；内层过渡 `r=core×1.35` 淡光晕 op0.10；中心 `fill-opacity 0.75`（"不太透明"）+ 白描边降为 0.35/0.5px
+- **脉冲只动外环**：新增 `.fm-ring-pulse` 动画（opacity 0.4↔0.9 + stroke-width 1.0↔1.8 呼吸，周期随 weight），中心稳定；菱形点（核设施）保留原 `.fm-point-pulse` 整点呼吸
+- **点击放大收敛**：2D 聚焦环 `halo×1.35≈46px` → `core×2.4≈24px`；3D `FOCUS_ALTITUDE 1.2→1.8`（避免贴脸）、聚焦环基径 `6.5+3w→3.5+2.2w`、传播速度 `2.6→1.8`；普通环基径 `3+3w→2.2+2.2w`、速度 `1.2→1.0`
+
+### 验证
+
+- `npm test` 14 files / 311 tests 全绿（渲染尺寸无测试覆盖面，无破坏）
+- `vite build` 本地构建成功（新 bundle `index-Cuu3f83h.js` / `index-rAzF3Foj.css`）；scp 原地覆盖 + `chmod -R a+rX`，dist 无 data/ 子目录
+- nginx：index.html 引用新 bundle 200；18/18 feed 全部 HTTP 200
+- 视觉截图留档由主理人浏览器复核（实现侧无截图工具）
+
 ## [1.10.0] - 2026-08-11 · 地图深化路线 A——GDELT 事件图层实时化 + 冲突层 + XSS 双保险（by arch-map）
 
 **修改理由**：① `news_geo_feed.py`（NER）空转链停用，天枢 `fetch_gdelt_geo.py --incremental`（I15）直接派生 `news_geo.json`（`events[]`，§2.7 契约），空渲染根治；② 地图新增事件实时刷新；③ 冲突事件（CAMEO root 15/18/19/20）归入已登记的 `conflict` 类别色，可独立开关；④ 地图点外部字段 XSS 消毒。详见 `macro-scan/docs/arg-map-arch-2026-08-11.md`。

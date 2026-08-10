@@ -56,8 +56,8 @@ const RING_PERIOD_FAST = 700;
 
 /** 相机飞行动画时长（毫秒）。 */
 const CAMERA_FLY_MS = 900;
-/** 聚焦单点时的相机高度（比地区取景更近一档）。 */
-const FOCUS_ALTITUDE = 1.2;
+/** 聚焦单点时的相机高度（2026-08-11 视觉重构：1.2→1.8 向 crucix 世界视角靠拢，避免点击贴脸放大）。 */
+const FOCUS_ALTITUDE = 1.8;
 /** 聚焦点的光环周期（毫秒）：明显快于任何常规点，一眼能认出「就是这个」。 */
 const FOCUS_RING_PERIOD = 520;
 
@@ -344,9 +344,9 @@ export function GlobePanel({
           .ringColor((p: RiskPoint) => (t: number) =>
             withAlpha(p.color, Math.max(0, 1 - t) * (isFocus(p) ? 0.85 : 0.55)),
           )
-          .ringMaxRadius((p: RiskPoint) => (isFocus(p) ? 6.5 : 3) + p.weight * 3)
+          .ringMaxRadius((p: RiskPoint) => (isFocus(p) ? 3.5 : 2.2) + p.weight * 2.2)
           // 强度 = 脉冲速率：weight 越高，扩散越快、周期越短
-          .ringPropagationSpeed((p: RiskPoint) => (isFocus(p) ? 2.6 : 1.2) + p.weight * 1.2)
+          .ringPropagationSpeed((p: RiskPoint) => (isFocus(p) ? 1.8 : 1.0) + p.weight * 1.2)
           .ringRepeatPeriod((p: RiskPoint) =>
             isFocus(p)
               ? FOCUS_RING_PERIOD

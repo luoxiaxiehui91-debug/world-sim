@@ -399,13 +399,14 @@ export function FlatMapPanel({
       const [cx, cy] = px;
 
       const missing = p.status === 'missing';
-      const core = (2.6 + p.weight * 3.4) * (p.isEvent ? 1.25 : 1) * 1.5;
-      const halo = core * 3.2;
+      // 2026-08-11 视觉重构（crucix 化）：中心大小 clamp[3,9]，删除 ×1.25×1.5 双重放大；
+      // 事件/高风险由外环脉冲区分，不再靠加大 core。
+      const core = Math.min(9, Math.max(3, 3 + p.weight * 6));
       const highlight = !missing && ((p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent === true);
       const pulseSec = (PULSE_SLOW_S - p.weight * (PULSE_SLOW_S - PULSE_FAST_S)).toFixed(2);
       const fillColor = missing ? withAlpha(p.color, 0.18) : p.color;
-      const strokeColor = missing ? p.color : withAlpha('#ffffff', 0.5);
-      const strokeW = missing ? 1 : 0.6;
+      const strokeColor = missing ? p.color : withAlpha('#ffffff', 0.35);
+      const strokeW = missing ? 1 : 0.5;
 
       const grp = layer.append('g')
         .attr('class', 'fm-point-group')
@@ -431,28 +432,36 @@ export function FlatMapPanel({
           poly.attr('class', 'fm-point-pulse').style('--ky-pulse-duration', `${pulseSec}s`);
         }
       } else {
-        // 光环（非缺失）
+        // 弧光（2026-08-11 视觉重构 crucix 化）：薄描边环贴附外侧 + 内层淡光晕 + 中心实体。
+        // 替换旧「实心大圆 ×2 叠成一大圈」形态；脉冲只动外环，中心稳定。
         if (!missing) {
+          // 外环：薄描边环贴附（crucix ACLED 冲突点式），脉冲仅此层
+          const ring = grp.append('circle')
+            .attr('cx', 0).attr('cy', 0).attr('r', core * 2.2)
+            .attr('fill', 'none')
+            .attr('stroke', withAlpha(p.color, 0.6))
+            .attr('stroke-width', 1.2)
+            .attr('pointer-events', 'none');
+          if (highlight) {
+            ring.attr('class', 'fm-ring-pulse').style('--ky-pulse-duration', `${pulseSec}s`);
+          }
+          // 内层过渡：很淡的贴附光晕（非实心大圈）
           grp.append('circle')
-            .attr('cx', 0).attr('cy', 0).attr('r', halo)
-            .attr('fill', p.color).attr('fill-opacity', 0.14)
-            .attr('stroke', 'none').attr('pointer-events', 'none');
-          grp.append('circle')
-            .attr('cx', 0).attr('cy', 0).attr('r', core * 1.8)
-            .attr('fill', p.color).attr('fill-opacity', 0.22)
-            .attr('stroke', 'none').attr('pointer-events', 'none');
+            .attr('cx', 0).attr('cy', 0).attr('r', core * 1.35)
+            .attr('fill', withAlpha(p.color, 0.10))
+            .attr('stroke', 'none')
+            .attr('pointer-events', 'none');
         }
 
         const circle = grp.append('circle')
           .attr('cx', 0).attr('cy', 0).attr('r', core)
           .attr('fill', fillColor).attr('stroke', strokeColor).attr('stroke-width', strokeW)
-          .attr('fill-opacity', 0.85);
+          .attr('fill-opacity', 0.75);
 
         if (missing) {
           circle.attr('stroke-dasharray', '2.5 2').attr('stroke-opacity', 0.85).attr('fill-opacity', 0.18);
-        } else if (highlight) {
-          circle.attr('class', 'fm-point-pulse').style('--ky-pulse-duration', `${pulseSec}s`);
         }
+        // 中心稳定：核心不加脉冲（脉冲只动外环）
       }
 
       grp
@@ -535,9 +544,9 @@ export function FlatMapPanel({
     if (!px) return;
     const [cx, cy] = px;
 
-    const core = (2.6 + target.weight * 3.4) * (target.isEvent ? 1.25 : 1) * 1.5;
-    const halo = core * 3.2;
-    const focusR = Math.max(halo * 1.35, 12);
+    // 2026-08-11 视觉重构：聚焦环收敛到 core×2.4（旧 halo×1.35≈46px 过大）
+    const core = Math.min(9, Math.max(3, 3 + target.weight * 6));
+    const focusR = Math.max(core * 2.4, 12);
 
     layer.append('g')
       .attr('class', 'fm-focus-ring')
