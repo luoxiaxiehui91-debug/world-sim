@@ -61,7 +61,7 @@ JOBS = [
     # 喂 GRV 的源（earthquake / energy）排在大盘 grv_update 06:10 之前，保证当天先落盘
     ("earthquake",  "I15", "1-7", None, [PYTHON, "fetch_earthquake.py"]),   # P0 USGS 地震（事件档 每15分；喂 seismic_risk）
     ("safecast_nuke", "I60", "1-7", None, [PYTHON, "fetch_safecast_nuke.py"]), # SafeCast 核电站辐射 CPM（事件档 每60分；历史归档均值 2016-2023，低频拉取避免刷免费 API）
-    ("gdelt_geo",   "I15", "1-7", None, [PYTHON, "fetch_gdelt_geo.py", "--incremental"]),  # P1 GDELT 地理事件点（事件档 每15分；产出 news_geo.jsonl + news_geo_clusters.json）
+    ("gdelt_geo",   "I15", "1-7", None, [PYTHON, "fetch_gdelt_geo.py", "--incremental"]),  # P1 GDELT 地理事件点（事件档 每15分；产出 news_geo.jsonl + 派生 news_geo.json，供开阳事件图层）
     ("energy",      "0608", "1-7", None, [PYTHON, "fetch_energy.py"]),       # P1 电网/能源（喂 energy_grid_risk）
     # 以下不喂 GRV，仅落盘交叉验证/事件源，错峰在 grv_update 之后
     ("crypto_extra","I15", "1-7", None, [PYTHON, "fetch_crypto_extra.py"]), # P1 Binance/Kraken 冗余行情（事件档 每15分）
@@ -95,7 +95,7 @@ JOBS = [
     ("news_export",  "I15", "1-7", None, [PYTHON, "news_exporter.py"]),         # macro-sim JSON 导出
     ("narrative_proc","0710", "1-7", None, [PYTHON, "narrative_processor.py"]),  # 天玑 叙事预处理（叙事块写入+密度监测）
     ("defense_rss",   "0712", "1-7", None, [PYTHON, "fetch_defense_rss.py"]),     # T1-3 防务RSS（Al Jazeera/Defense One/WotR）
-    ("news_geo_feed", "0715", "1-7", None, [PYTHON, "news_geo_feed.py"]),         # P3-A 新闻坐标（spaCy NER + gdelt_geo_cache）
+    # news_geo_feed（P3-A NER）已于 2026-08-11 停调度：gdelt_geo --incremental 直接派生 news_geo.json（路线 A）
     ("situation_detect", "0630", "1-7", None, [PYTHON, "situation_detector.py"]),
     ("weekly_synthesis", "2000", "5",  None, [PYTHON, "weekly_synthesis.py"]),       # 周五20:00
     ("health_push",  "2100", "1-7", None, [PYTHON, "-c",
@@ -154,7 +154,6 @@ LOG_FILES = {
     "news_export": f"{LOG_DIR}/news_export.log",
     "narrative_proc":  f"{LOG_DIR}/narrative_proc.log",
     "defense_rss":     f"{LOG_DIR}/defense_rss.log",
-    "news_geo_feed":   f"{LOG_DIR}/news_geo_feed.log",
     "slow_vars":       f"{LOG_DIR}/slow_vars.log",
     "health_push":     f"{LOG_DIR}/health_push.log",
     "spacetrack":      f"{LOG_DIR}/spacetrack.log",
