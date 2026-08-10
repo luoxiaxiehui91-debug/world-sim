@@ -203,48 +203,6 @@ def ingest_article(
 
 # ── 批量摄取：从现有 JSON 数据文件 ───────────────────────────────────────────
 
-def ingest_from_news_db():
-    """从 news.db 摄取最近48小时新闻（天枢调度后调用）。"""
-    news_db = os.path.join(DATA_DIR, "news.db")
-    if not os.path.exists(news_db):
-        print("[narrative_processor] news.db 不存在，跳过")
-        return 0
-
-    cutoff = (datetime.utcnow() - timedelta(hours=48)).isoformat()
-    conn_news = sqlite3.connect(news_db)
-    try:
-        rows = conn_news.execute("""
-            SELECT source, title, summary, published_at
-            FROM articles
-            WHERE published_at >= ?
-            ORDER BY published_at DESC
-            LIMIT 500
-        """, (cutoff,)).fetchall()
-    except Exception as e:
-        print(f"[narrative_processor] news.db 读取失败: {e}")
-        return 0
-    finally:
-        conn_news.close()
-
-    source_map = load_source_map()
-    count = 0
-    for row in rows:
-        source, title, summary, pub_at = row
-        content = f"{title}\n{summary or ''}".strip()
-        if len(content) < 20:
-            continue
-        result = ingest_article(
-            source_id=source or "unknown",
-            content=content,
-            timestamp=pub_at,
-            source_map=source_map,
-        )
-        if result["status"] == "ok":
-            count += 1
-
-    print(f"[narrative_processor] 摄取新闻 {count} 条")
-    return count
-
 
 def ingest_from_json_file(json_path: str, source_id: str, content_field: str = "content"):
     """从 fetcher 输出的 JSON 文件摄取文章（通用入口）。"""
@@ -421,9 +379,6 @@ def run_daily_narrative_processing():
     """scheduler.py 在日采完成后调用。"""
     print("[narrative_processor] 开始叙事预处理...")
 
-    # 1. 从 news.db 摄取
-    count_news = ingest_from_news_db()
-
     # 2. 从各 fetcher JSON 摄取（列举关键文件）
     json_sources = [
         (os.path.join(DATA_DIR, "sanctions_risk.json"),     "opensanctions",  "description"),
@@ -440,7 +395,7 @@ def run_daily_narrative_processing():
     update_density_flags()
 
     flagged = get_flagged_dimensions()
-    print(f"[narrative_processor] 完成：新闻{count_news}条，JSON{count_json}条")
+    print(f"[narrative_processor] 完成：JSON{count_json}条")
     if flagged:
         print(f"[narrative_processor] 叙事密度突增维度: {list(flagged.keys())}")
     else:
