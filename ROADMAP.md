@@ -2,6 +2,7 @@
 
 > **此文件是项目内权威 todo 文件，随源代码同行。**  
 > 文档类别：意图（INTENT）· 状态标记（未实施/进行中/已实施）。**✅ 行 = 已实施，其实录（commit hash + 验证命令）见各子系统 CHANGELOG**，本文件仅声明意图与状态，不断言细节。  
+> WorkBuddy 工作区有同源摘要版（08-10 同步，含 R4 系列状态）；本文件为权威完整版。
 > 跨项目视角的补充积压见：`S:\docs\backlog\world-deduction.md`  
 > 运维 SOP 与部署规范见：`S:\world-sim\AGENTS.md`
 
@@ -63,6 +64,22 @@
 | **V2 自动提取** | V1 稳定后 | LLM 自动解析 macro-sim 报告，提取可验证主张写入 ledger；无需人工逐条录入 | 约 1 天 |
 | **V3 自动验证** | 2026-09+ | 月度 cron 自动对到期预测评分；生成准确率面板（port 8899 新增 `/accuracy` 路由，或独立 8900 端口） | 约 1 天 |
 | **V4 校准闭环** | N3 解锁（2027-05-23） | `suggested_weight_adjustments` 写回 macro-scan 信号权重；系统形成自我进化闭环 | 约 2 天 |
+
+---
+
+## 天璇校准引擎 R4 系列（08-07→08-10，当前主线）
+
+> 意图/实录二分：本表为状态声明；实录（commit/版本/验收数据）见 `macro-sim/CHANGELOG.md` + `docs/calib/` 评审存档 + `macro-sim/docs/operations/` 操作日志。
+
+| 批次 | 状态 | 引擎版本 | 验收摘要 |
+|------|:--:|----------|----------|
+| R4a-e | ✅ | — | 归因/方向闸/豁免五轮迭代；credit 失活根因 = info_delay 限流 |
+| R4f | ✅ | — | 三案否决，零改动 |
+| R4g | ✅ | v2.0.37 | 归因修正（rate_limit 高估 / tighten_signal_false 死代码）+ 冷却证伪回滚 |
+| R4h ③ | ✅ | v2.0.38 | sentiment 写者（EASE 对称 TIGHTEN） |
+| R4h ② | ✅ | v2.0.39 | vix 豁免治理（均值回归 + yen_carry cap 19） |
+| R4h ① | ✅ 收编 | **v2.0.40** | ease_ok 方向闸 + act_prob 0.76 + cap 17；EASE wrong 8→0 |
+| silence 治理 | 🔲 挂起待立项 | — | credit 回池 / p̂ 过 0.55 / S2≤0.60（R4h ① 挂起项） |
 
 ---
 

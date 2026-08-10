@@ -6,10 +6,10 @@
 
 ## 三个子系统
 
-| 子系统 | 定位 | 容器模式 | 版本（as-of 2026-08-07） | NAS 运行目录 |
+| 子系统 | 定位 | 容器模式 | 版本（as-of 2026-08-10） | NAS 运行目录 |
 |:-------|:-----|:---------|:-----|:-------------|
-| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 维度向量（18 项，含 global_composite 汇总 + 4 GDELT 国别推导维度 + gpr_twn_raw，08-07 实测） | **热挂载**（改代码即生效；scheduler.py 改动需 restart） | v3.8.15 · [CHANGELOG](macro-scan/TuiYan_CHANGELOG.md) | `/vol2/1000/software/macro-scan` |
-| `macro-sim`  | 仿真引擎层：**17个 Agent**（12 金融 + 5 主权 S1-S5，08-07 A 类激活），Monte Carlo×100，月度时间步长 | **COPY 模式**（改代码需 rebuild 镜像；deploy.sh 仓库直构） | **v2.0.25** · [CHANGELOG](macro-sim/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-sim` |
+| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 维度向量（18 项，含 global_composite 汇总 + 4 GDELT 国别推导维度 + gpr_twn_raw，08-07 实测） | **热挂载**（改代码即生效；scheduler.py 改动需 restart） | v3.8.16 · [CHANGELOG](macro-scan/TuiYan_CHANGELOG.md) | `/vol2/1000/software/macro-scan` |
+| `macro-sim`  | 仿真引擎层：**17个 Agent**（12 金融 + 5 主权 S1-S5，08-07 A 类激活），Monte Carlo×100，月度时间步长 | **COPY 模式**（改代码需 rebuild 镜像；deploy.sh 仓库直构） | **v2.0.40** · [CHANGELOG](macro-sim/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-sim` |
 | `macro-ji`   | 验证层（天玑）：读天枢 data 做推演验证/反哺（T2 共享触发文件驱动，2026-08-04 独立容器上线） | **COPY 模式**（macro-ji/ 目录 rebuild） | v1.0.0 · [CHANGELOG](macro-ji/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-ji` |
 | `kaiyang`    | 可视化操作面板：只读展示天枢数据 + 控制台（:8080，control API :8900） | nginx 静态站（MOCK_ENABLED=false，A3a 已接入，index.html no-cache） | v1.9.0 · [CHANGELOG](kaiyang/CHANGELOG.md) | `/vol2/1000/software/kaiyang` |
 
@@ -22,10 +22,11 @@
 按顺序读取，每步均需完整阅读：
 
 1. **本文件**（根 `AGENTS.md`）— 了解系统全貌和操作约束
-2. **`S:\docs\INDEX.md` "活跃问题"节**（从"## 活跃问题"到"## Backlogs"之间，约30行）— 扫描当前所有 P1/P2 活跃问题；若 `S:\docs\` 不可达（非 NAS 环境），改读 `ROADMAP.md` 的时间门控任务表
-3. **`macro-scan/TuiYan_CHANGELOG.md` 前 80 行** — 了解 macro-scan 最新变更状态
-4. **`macro-sim/CHANGELOG.md` 前 80 行** — 了解 macro-sim 最新变更状态
-5. 按任务分支：
+2. **`STATUS.md`**（repo 根）— 实时交接状态（部署拓扑/R4 主线/已知坑），08-10 起为实时交接权威（HANDOVER.md 为 08-07 历史快照）
+3. **`S:\docs\INDEX.md` "活跃问题"节**（从"## 活跃问题"到"## Backlogs"之间，约30行）— 扫描当前所有 P1/P2 活跃问题；若 `S:\docs\` 不可达（非 NAS 环境），改读 `ROADMAP.md` 的时间门控任务表
+4. **`macro-scan/TuiYan_CHANGELOG.md` 前 80 行** — 了解 macro-scan 最新变更状态
+5. **`macro-sim/CHANGELOG.md` 前 80 行** — 了解 macro-sim 最新变更状态
+6. 按任务分支：
    - 处理 macro-scan / 天枢任务 → 读 `macro-scan/AGENTS.md`（完整工作指南）
    - 处理 macro-sim / 天璇任务 → 读 `macro-sim/AGENTS.md`（完整工作指南）
    - 处理 kaiyang / 开阳任务 → 读 `kaiyang/AGENTS.md`（完整工作指南）
@@ -45,6 +46,9 @@
 | deploy.sh macro-scan | 只做 rsync + `docker compose restart`（不重建镜像） |
 | 改前必读 | 改任何文件前先读对应子系统的 CHANGELOG（两个系统都有各自铁律） |
 | 改后必追加 | 追加 CHANGELOG + bump VERSION + 按联动矩阵更新联动文档 |
+| R4 治理红线 | 校准引擎：接受线/EPS_TGT/weighted 0.60 冻结禁调；断言数不降禁 skip/.only；CACHE 每轮 bump；验收以容器实测为准 |
+| soul 路径 P0 | 探针/实验 config 必须放容器真实目录 `/app/config`（`load_agents` 的 soul 路径 = `dirname(config_path)/../souls`，放 /tmp 会静默丢 A3 soul → 假复现，结果可差 0.11） |
+| 校准评审实录 | `docs/calib/`（calib-*.md 评审/裁决/验收存档）+ `macro-sim/docs/operations/`（天璇操作日志，按日追加） |
 
 ---
 
@@ -60,7 +64,7 @@ macro-scan 每日按时写入，macro-sim 只读消费，kaiyang 只读展示：
 | `data/sim_trigger.json` | 触发时 | L3+ GRV 告警后写入，触发 macro-sim 仿真 |
 | `data/scheduler_state.json` | 每60s | scheduler 运行状态落盘，control_server（:8900）读取 |
 
-**当前接口兼容版本**：macro-scan v3.8.15+ ↔ macro-sim **v2.0.25+**（grv v1.0 / news v1.0，as-of 2026-08-07）
+**当前接口兼容版本**：macro-scan v3.8.16+ ↔ macro-sim **v2.0.40+**（grv v1.0 / news v1.0，as-of 2026-08-10）
 
 接口 schema 变更规则：同时改两边 AGENTS.md 的接口契约节 → 两边 CHANGELOG 各追加 → 先升 macro-scan 验证输出 → 再升 macro-sim。
 
@@ -77,6 +81,7 @@ macro-scan 每日按时写入，macro-sim 只读消费，kaiyang 只读展示：
 ## 人类文档导航（非 AI 用）
 
 - **系统总览**（推荐入口）→ [`docs/overview.md`](docs/overview.md)
-- **当前状态与待部署** → [`HANDOVER.md`](HANDOVER.md)
+- **实时交接状态** → [`STATUS.md`](STATUS.md)（08-10 起权威；[`HANDOVER.md`](HANDOVER.md) 为 08-07 历史快照）
 - **时间门控路线图** → [`ROADMAP.md`](ROADMAP.md)
+- **校准评审实录** → [`docs/calib/`](docs/calib/)（calib-*.md）+ 天璇操作日志 `macro-sim/docs/operations/`
 - **架构裁定（2026-08-02）** → [`docs/arch_review_20260802.md`](docs/arch_review_20260802.md)
