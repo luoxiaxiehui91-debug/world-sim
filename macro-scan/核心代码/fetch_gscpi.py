@@ -144,6 +144,12 @@ def fetch_and_save() -> dict:
         for d, v in ordered:
             w.writerow([d, v])
     os.replace(tmp, OUT_CSV)
+    # kaiyang nginx 容器（uid 101）经只读挂载读本 CSV；容器 umask 会落 660，
+    # 强制世界可读，否则 :8080 对该文件返回 403（R-3 feed 必修）
+    try:
+        os.chmod(OUT_CSV, 0o644)
+    except OSError:
+        pass
 
     print(f"[OK] GSCPI 写入 {len(ordered)} 行，尾行 {last_date} = {last_value:.3f}")
     return {"date": last_date, "value": last_value, "updated": True, "rows": len(ordered)}

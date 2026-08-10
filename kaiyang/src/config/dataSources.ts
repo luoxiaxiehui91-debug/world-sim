@@ -101,6 +101,73 @@ export const FEEDS: Record<string, FeedConfig> = {
     schemaVersion: '1.0',
     description: 'Space-Track.org 在轨卫星统计（天枢每日06:15采集）',
   },
+  // ── 1.10.0 追加（开阳补全第一批）──────────────────────────────────
+  // R-1 报告模块：天枢 generate_reports_index.py 产物 + 复制到 data/reports/（nginx 只读挂载）
+  reports_index: {
+    name: 'reports_index',
+    path: 'reports_index.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '开阳报告索引（天枢扫描 分析报告/仿真报告 生成）',
+  },
+  // R-3 金融条件：FCI（compute_fci.py 双轨）+ GSCPI（fetch_gscpi.py，月度 CSV）
+  fci_latest: {
+    name: 'fci_latest',
+    path: 'fci_latest.json',
+    type: 'json',
+    schemaVersion: 'fci-1.1',
+    description: '金融条件指数 FCI（全样本 revised / 扩展窗 pit，越高越紧）',
+  },
+  gscpi: {
+    name: 'gscpi',
+    path: 'fred_history/GSCPI.csv',
+    type: 'csv',
+    schemaVersion: '1.0',
+    description: '纽约联储全球供应链压力指数 GSCPI（月度）',
+  },
+  // R-4 风险信号面板（六类信号，天枢日频/高频采集）
+  climate_signals: {
+    name: 'climate_signals',
+    path: 'climate_signals.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '气候风险信号（ONI 厄尔尼诺 / FIRMS 火点 / 综合评分）',
+  },
+  disaster_signals: {
+    name: 'disaster_signals',
+    path: 'disaster_signals.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '自然灾害风险信号（24h 事件计数 / 综合评分）',
+  },
+  earthquake_risk: {
+    name: 'earthquake_risk',
+    path: 'earthquake_risk.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '地震风险（USGS 24h 事件 / 最高震级）',
+  },
+  energy_risk: {
+    name: 'energy_risk',
+    path: 'energy_risk.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '能源/电网风险（UK 碳强度）',
+  },
+  hdx_risk: {
+    name: 'hdx_risk',
+    path: 'hdx_risk.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '人道危机风险（HDX 数据更新指数）',
+  },
+  news_risk: {
+    name: 'news_risk',
+    path: 'news_risk.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '新闻风险信号（MarketAux/Currents 聚合）',
+  },
 };
 
 // 仅用于类型推导的占位（避免未使用导入告警）。

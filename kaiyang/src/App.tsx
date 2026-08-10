@@ -31,6 +31,10 @@ function buildDefaultLayout(): Layout[] {
     'space-watch':    { x: 0,  y: 20 },
     'macro-snapshot': { x: 3,  y: 20 },
     'markets':        { x: 0,  y: 25 },
+    // 1.10.0 追加（补全第一批）：报告 / 金融条件 / 风险信号
+    'reports':        { x: 0,  y: 32 },
+    'financial':      { x: 7,  y: 32 },
+    'risk-signals':   { x: 0,  y: 39 },
   };
 
   const panels = PANELS.filter((p) => p.visible).sort((a, b) => a.order - b.order);

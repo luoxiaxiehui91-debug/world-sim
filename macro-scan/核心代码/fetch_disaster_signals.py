@@ -227,6 +227,7 @@ def fetch_and_save() -> dict:
         "event_count_24h":     summary["event_count_24h"],
         "significant_events":  summary["significant_events"],
         "alerts":              summary["alerts"],
+        "_schema_version":     "1.0",  # 开阳 R-4 契约：feed 需带 schema_version
         "latest_significant":  summary["significant_events"][0]
                                if summary["significant_events"] else None,
     }

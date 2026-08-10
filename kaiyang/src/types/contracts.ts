@@ -229,3 +229,143 @@ export interface MarketQuotesRaw {
   updated?: string;
   quotes?: MarketQuote[];
 }
+
+/* ------------------------------------------------------------------ */
+/* 报告索引（reports_index.json，R-1 新增）                              */
+/* ------------------------------------------------------------------ */
+
+/** 单份报告元数据（reports_index.json 的 reports[]）。 */
+export interface ReportMeta {
+  /** 报告唯一 id（天枢 sha1 派生） */
+  id: string;
+  /** 报告类型：宏观分析 / 月度简报 / 假设推演 / 演化仿真 / 预测追踪 */
+  type: string;
+  /** 展示标题（天枢从文件名派生） */
+  title: string;
+  /** 原文件名（含 .md） */
+  filename: string;
+  /** 相对 DATA_BASE_URL 的 markdown 路径（如 reports/xxx.md） */
+  path: string;
+  /** 报告日期 YYYY-MM-DD（天枢从文件名/mtime 派生） */
+  updated: string;
+}
+
+/** reports_index.json 顶层。 */
+export interface ReportsIndexRaw {
+  schema_version?: string;
+  updated?: string;
+  reports?: ReportMeta[];
+}
+
+/* ------------------------------------------------------------------ */
+/* 金融条件（fci_latest.json + fci_daily.csv + GSCPI.csv，R-3 新增）      */
+/* ------------------------------------------------------------------ */
+
+/** fci_latest.json 顶层（天枢 compute_fci.py 产物）。 */
+export interface FciLatestRaw {
+  schema_version?: string;
+  /** 数据日期 YYYY-MM-DD */
+  date?: string;
+  as_of?: string;
+  data_vintage?: string;
+  /** 全样本重估 FCI（标准差，越高越紧） */
+  fci_revised?: number | null;
+  /** 扩展窗（无 look-ahead）FCI */
+  fci_pit?: number | null;
+  interpretation?: string;
+  sanity_vs_nfci?: { status?: string; [k: string]: unknown };
+  components?: Array<{ series_id?: string; name?: string; orient?: number; [k: string]: unknown }>;
+  [key: string]: unknown;
+}
+
+/** fci_daily.csv 单行（date + fci_revised + fci_pit 等列，R-3 面板直接解析）。 */
+export interface FciDailyPoint {
+  date: string;
+  /** 全样本重估 FCI */
+  revised: number | null;
+  /** 扩展窗 FCI；na（未到 burn-in）时为 null */
+  pit: number | null;
+}
+
+/* ------------------------------------------------------------------ */
+/* 风险信号（R-4 新增：climate/disaster/earthquake/energy/hdx/news）     */
+/* ------------------------------------------------------------------ */
+
+/** 风险信号通用壳（各文件顶层均有 _schema_version/updated/status）。 */
+export interface RiskSignalBase {
+  _schema_version?: string;
+  schema_version?: string;
+  updated?: string;
+  /** 'ok' | 'unavailable' 等 */
+  status?: string;
+  [key: string]: unknown;
+}
+
+/** climate_signals.json（气候：ONI / FIRMS 火点 / 综合评分）。 */
+export interface ClimateSignalsRaw extends RiskSignalBase {
+  fetched_at?: string;
+  oni?: {
+    value?: number | null;
+    status?: string;
+    date?: string;
+    interpretation?: string;
+    [k: string]: unknown;
+  } | null;
+  firms?: {
+    total_hotspots?: number;
+    high_confidence?: number;
+    active_fire_regions?: unknown[];
+    date?: string;
+    [k: string]: unknown;
+  } | null;
+  climate_risk_score?: number | null;
+  risk_level?: string;
+}
+
+/** disaster_signals.json（自然灾害：评分 + 事件计数）。 */
+export interface DisasterSignalsRaw extends RiskSignalBase {
+  fetched_at?: string;
+  disaster_risk_score?: number | null;
+  risk_level?: string;
+  event_count_24h?: number | null;
+  significant_events?: unknown[];
+  alerts?: unknown[];
+  latest_significant?: unknown;
+}
+
+/** earthquake_risk.json（USGS 地震：评分 + 近 24h 事件）。 */
+export interface EarthquakeRiskRaw extends RiskSignalBase {
+  seismic_risk?: number | null;
+  event_count_24h?: number | null;
+  count_m45?: number | null;
+  count_m55?: number | null;
+  count_m65?: number | null;
+  max_mag?: number | null;
+  window_hours?: number | null;
+  top_events?: Array<{ magnitude?: number; place?: string; time_utc?: string; [k: string]: unknown }>;
+}
+
+/** energy_risk.json（电网/能源：碳强度风险）。 */
+export interface EnergyRiskRaw extends RiskSignalBase {
+  grid_carbon_risk?: number | null;
+  uk_grid?: {
+    status?: string;
+    intensity_forecast?: number | null;
+    intensity_index?: string;
+    fossil_share_pct?: number | null;
+    [k: string]: unknown;
+  } | null;
+  national_grid_eso?: {
+    status?: string;
+    reason?: string;
+    note?: string;
+    [k: string]: unknown;
+  } | null;
+  source?: string;
+}
+
+/** hdx_risk.json / news_risk.json（多为 unavailable，保留状态展示）。 */
+export interface UnavailableRiskRaw extends RiskSignalBase {
+  reason?: string;
+  source?: string;
+}
