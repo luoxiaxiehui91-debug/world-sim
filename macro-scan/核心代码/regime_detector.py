@@ -330,9 +330,17 @@ def get_regime_info(indicators: dict) -> dict:
         "history_quarters": n,
         "is_nber_recession": current_quarter() in NBER_RECESSIONS,
         "coefficients": get_coefficients(regime),
-        "gscpi_warn": ((indicators.get("_crucix") or {}).get("gscpi") or {}).get("value", 0) > 1.5,
+        # G2 门禁修复（2026-08-10）：value=None 时 .get("value",0) 返回 None → None>1.5 抛 TypeError。
+        # 与 detect_regime L281-283 同款防护：仅在有值且 >1.5 时触发。
+        "gscpi_warn": _gscpi_val_gt_15(indicators),
         "gscpi_value": ((indicators.get("_crucix") or {}).get("gscpi") or {}).get("value"),
     }
+
+def _gscpi_val_gt_15(indicators: dict) -> bool:
+    """GSCPI 值安全取用并判断是否 > 1.5（None 安全）。"""
+    _g = (indicators.get("_crucix") or {}).get("gscpi") or {}
+    _v = _g.get("value") if isinstance(_g, dict) else None
+    return _v is not None and _v > 1.5
 
 def get_current_zscores() -> dict:
     """返回当前最新Z-score值（供外部日志使用）。"""
