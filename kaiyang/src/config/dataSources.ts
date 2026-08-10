@@ -76,6 +76,14 @@ export const FEEDS: Record<string, FeedConfig> = {
     schemaVersion: '1.0',
     description: '核设施站点与辐射读数（缺失时回落前端静态种子）',
   },
+  // ── 2.0.0 追加：SafeCast 核辐射实时读数（fetch_safecast_nuke.py，I60 每 60 分钟）──
+  safecast_nuke: {
+    name: 'safecast_nuke',
+    path: 'safecast_nuke.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: 'SafeCast 6 核电站 CPM 读数（CC0 公开 API，历史归档均值，I60 采集）',
+  },
   // ── 1.6.0 追加（地理新闻读取层骨架）：见 docs/DATA_CONTRACT.md §2.7 ──
   news_geo: {
     name: 'news_geo',
