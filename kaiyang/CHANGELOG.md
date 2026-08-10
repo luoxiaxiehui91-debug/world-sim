@@ -5,6 +5,21 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.10.0] - 2026-08-11 · 地图深化路线 A——GDELT 事件图层实时化 + 冲突层 + XSS 双保险（by arch-map）
+
+**修改理由**：① `news_geo_feed.py`（NER）空转链停用，天枢 `fetch_gdelt_geo.py --incremental`（I15）直接派生 `news_geo.json`（`events[]`，§2.7 契约），空渲染根治；② 地图新增事件实时刷新；③ 冲突事件（CAMEO root 15/18/19/20）归入已登记的 `conflict` 类别色，可独立开关；④ 地图点外部字段 XSS 消毒。详见 `macro-scan/docs/arg-map-arch-2026-08-11.md`。
+
+### 新增
+
+- **news_geo 实时刷新**：`dataSources.ts` news_geo 补 `refreshMs: 60_000`（与 market_quotes 同模式），I15 数据近实时上图
+- **冲突事件层**：`newsGeoAdapter` 将 `event_type==='conflict'` 的点归入 `conflict` 类别（红，`CATEGORY_PALETTE.conflict`），可经 LayerTree 独立开关；其余事件走 `news`（青）
+- **XSS 双保险**：适配层 `sanitizeText` 清洗外部文本（控制字符剥离 + 长度上限，防线二）；`pointTooltipHtml` 对 label/group/rawMetric/note 统一 HTML 实体转义（防线三，globe.gl 与平面地图共用）
+
+### 修复
+
+- 地理新闻图层空渲染根治（契约 §2.7 `events[]` 已由天枢产出；空数组合法降级不白屏）
+- tooltip 注入面：`dangerouslySetInnerHTML` 上游一律转义，外部地名/URL 无法注入脚本
+
 ## [1.9.0] - 2026-08-05 · 开阳实时化 + 时间审计全量修复（by WorkBuddy）
 
 **修改理由**：① 用户反馈"MACRO + MARKETS 一天一刷新不合理"→ 数据层 I15 + 前端轮询实时化；

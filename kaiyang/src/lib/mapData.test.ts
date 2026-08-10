@@ -406,6 +406,27 @@ describe('pointTooltipHtml: 事件/常驻文案区分', () => {
     expect(() => pointTooltipHtml(weird)).not.toThrow();
     expect(pointTooltipHtml(weird)).toContain('not-a-layer');
   });
+
+  it('XSS 防线三：label/group/rawMetric/note 中的 HTML 原样字符被转义', () => {
+    const evil: RiskPoint = {
+      ...normalPt,
+      isEvent: true, // note 仅在事件点分支渲染，需要 isEvent 才能验证 note 转义
+      label: '<img src=x onerror=alert(1)>',
+      group: '"><script>alert(2)</script>',
+      rawMetric: "x' & y",
+      note: '<b>note</b>',
+    };
+    const html = pointTooltipHtml(evil);
+    // 原始危险序列不得原样出现在 tooltip HTML 中
+    expect(html).not.toContain('<img src=x');
+    expect(html).not.toContain('<script>');
+    expect(html).not.toContain('<b>note</b>');
+    // 转义后的实体出现
+    expect(html).toContain('&lt;img src=x');
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).toContain('&amp;');
+    expect(html).toContain('&lt;b&gt;note&lt;/b&gt;');
+  });
 });
 
 /* ------------------------------------------------------------------ */

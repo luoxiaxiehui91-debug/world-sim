@@ -16,8 +16,13 @@ import type { NewsGeoEvent, NewsGeoRaw } from '@/types/contracts';
  * - `intensity` 0~100 已由天枢归一（DATA_CONTRACT §2.7），开阳不自行折算；
  * - 每个导出函数第一行就是入参 nullish 检查，任何降级路径不抛异常（K5 红线）。
  *
- * 图层类别：恒为 `'news'`（与 `news_export.json` 同类别，但本批未消费 RSS；
- * 图例计数走 `news_geo` + `news` 天然合并通道）。id 命名空间 `'newsgeo:'`（K2）。
+ * 图层类别：GDELT 事件按 `event_type` 归入 `'news'`（默认）或 `'conflict'`（冲突事件，
+ * 2026-08-11 路线 A：与 layerCategories.ts 已登记的 conflict 类别色对齐，可独立开关）。
+ * 其余事件走 `'news'`（与 `news_export.json` 同类别）。id 命名空间 `'newsgeo:'`（K2）。
+ *
+ * XSS 防线二（2026-08-11）：`location_name` / `theme` / `country` / `event_type` 等
+ * 外部字段一律经 `sanitizeText` 清洗（trim / 控制字符剥离 / 长度上限），渲染层
+ * `pointTooltipHtml` 再统一 HTML 转义——双保险，防 GDELT 地名/URL 注入。
  */
 
 /** 有限数守卫：NaN / Infinity / null / undefined / 字符串一律判否。 */
@@ -28,6 +33,18 @@ function finiteOrNull(input: unknown): number | null {
 /** 非空字符串守卫（trim 后非空）。 */
 function textOrNull(input: unknown): string | null {
   return typeof input === 'string' && input.trim() !== '' ? input.trim() : null;
+}
+
+/** 外部文本消毒（XSS 防线二）：trim + 剥离控制字符 + 长度上限。
+ * 用于 location_name/theme/country/event_type/event_date 等进入 tooltip 的字段；
+ * HTML 转义统一由渲染层 pointTooltipHtml 完成，此处不做转义以避免双重转义。 */
+function sanitizeText(input: unknown, maxLen = 120): string | null {
+  const t = textOrNull(input);
+  if (!t) return null;
+  // 剥离 C0/C1 控制字符（保留 \t 之外的可见文本），并做长度截断
+  const clean = t.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
+  if (clean === '') return null;
+  return clean.length > maxLen ? `${clean.slice(0, maxLen)}…` : clean;
 }
 
 /** 强度归一化：夹取到 [0,100]；浮点毛刺归整到 2 位小数（与 nuclearData 对齐）。 */
@@ -46,7 +63,8 @@ function isValidCoord(lat: unknown, lng: unknown): boolean {
   return la >= -90 && la <= 90 && ln >= -180 && ln <= 180;
 }
 
-/** 校验并规整一条 GeoEvent；不合法返回 null（跳过该条，不画到 (0,0)）。 */
+/** 校验并规整一条 GeoEvent；不合法返回 null（跳过该条，不画到 (0,0)）。
+ * 外部文本字段经 sanitizeText 消毒（XSS 防线二）。 */
 function normalizeEvent(raw: unknown): NewsGeoEvent | null {
   if (!raw || typeof raw !== 'object') return null;
   const e = raw as Partial<NewsGeoEvent>;
@@ -55,12 +73,12 @@ function normalizeEvent(raw: unknown): NewsGeoEvent | null {
   if (!isValidCoord(e.lat, e.lng)) return null;
   const intensity = normalizeIntensity(e.intensity);
   if (intensity === null) return null;
-  const eventType = textOrNull(e.event_type) ?? 'unknown';
-  const country = textOrNull(e.country) ?? '未知';
+  const eventType = sanitizeText(e.event_type, 40) ?? 'unknown';
+  const country = sanitizeText(e.country, 40) ?? '未知';
   const mentionCount = finiteOrNull(e.mention_count);
-  const eventDate = textOrNull(e.event_date) ?? undefined;
-  const theme = textOrNull(e.theme) ?? undefined;
-  const locationName = textOrNull(e.location_name) ?? undefined;
+  const eventDate = sanitizeText(e.event_date, 40) ?? undefined;
+  const theme = sanitizeText(e.theme, 60) ?? undefined;
+  const locationName = sanitizeText(e.location_name, 120) ?? undefined;
   return {
     id,
     lat: e.lat as number,
@@ -88,13 +106,13 @@ function normalizeArticlePoint(raw: unknown): RiskPoint | null {
     source?: unknown;
     published_at?: unknown;
   };
-  const title = textOrNull(a.title);
+  const title = sanitizeText(a.title, 160);
   if (!title) return null;
   if (!isValidCoord(a.lat, a.lng)) return null;
-  const url = textOrNull(a.url);
+  const url = sanitizeText(a.url, 200);
   const id = url ?? title.slice(0, 64);
-  const src = textOrNull(a.source);
-  const published = textOrNull(a.published_at);
+  const src = sanitizeText(a.source, 60);
+  const published = sanitizeText(a.published_at, 60);
   return {
     id: `news:${id}`,
     label: title,
@@ -169,6 +187,9 @@ export function adaptNewsGeo(
     // intensity 已是 0~100 归一值（D1：归一为视觉强度 weight）
     const value = norm.intensity;
     const status: PointStatus = resolvePointStatus(undefined, value);
+    // 2026-08-11 路线 A：event_type==='conflict' 归入已登记的 conflict 类别（独立开关 + 红系配色），
+    // 其余事件走 'news' 类别。categoryLabel/图例计数随 category 自动对齐。
+    const category: 'news' | 'conflict' = norm.event_type === 'conflict' ? 'conflict' : 'news';
     const displayLabel = norm.location_name ?? norm.country;
     out.push({
       id: `newsgeo:${norm.id}`,
@@ -182,11 +203,11 @@ export function adaptNewsGeo(
       group: `${norm.event_type} · ${norm.country}`,
       status,
       // intensity=null 不会走到这里（normalizeIntensity 已拦截），强制 'ok'
-      color: categoryColor('news', status),
+      color: categoryColor(category, status),
       severity: severityLabel(value),
       weight: value === null ? 0 : Math.min(1, Math.max(0, value / 100)),
-      category: 'news',
-      shape: categoryShape('news'),
+      category,
+      shape: categoryShape(category),
       // 原始度量原样传入 tooltip（不参与计算）
       rawMetric:
         norm.mention_count !== undefined
