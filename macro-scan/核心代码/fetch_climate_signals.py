@@ -4,12 +4,12 @@ fetch_climate_signals.py — 自然环境信号采集（Phase 2A）
 数据源：
   - NOAA CPC 厄尔尼诺指数（ONI，月度）
   - NOAA GISS 全球温度异常（年度）
-  - FIRMS 卫星火点（已由 Crucix 接入，本模块汇总统计）
+  - FIRMS 卫星火点（fetch_firms.py 直连产物 firms_fire.json，D6 后唯一源）
 
 输出：data/climate_signals.json
       含 oni（厄尔尼诺指数）/ temp_anomaly / fire_hotspot_summary
 
-调用：每月1日 09:15（scheduler.py 加入后生效）
+调用：每日 09:10（scheduler.py climate job；G0 修复后 2026-08-11 起生效）
 """
 import json
 import os
@@ -24,11 +24,10 @@ except ImportError:
     _REQ_OK = False
 
 try:
-    from optim_config import DATA_DIR, WORKSPACE, CRUCIX_REMOTE_URL
+    from optim_config import DATA_DIR, WORKSPACE
 except ImportError:
     WORKSPACE = Path(__file__).parent.parent
     DATA_DIR = str(Path(WORKSPACE) / "data")
-    CRUCIX_REMOTE_URL = os.environ.get("CRUCIX_REMOTE_URL", "http://192.168.31.108:3117/api/data")
 
 CLIMATE_OUTPUT = os.path.join(DATA_DIR, "climate_signals.json")
 FRED_PROXY = os.environ.get("FRED_PROXY", "")
@@ -96,58 +95,38 @@ def _fetch_oni() -> dict:
         return {}
 
 
-# ── FIRMS 火点汇总（2026-08-06 修复：双路取数 + 字段契约对齐）──
-# 路径1：fetch_firms.py 直连产物 firms_fire.json（crucix 退场后的唯一源，但全球 CSV 下载慢问题待修）
-# 路径2：crucix thermal 兜底（crucix 仍活跃期间可用）——字段契约修正：
-#   crucix thermal 实际字段 = region / det（检测数）/ night / hc（高置信）/ fires[]
-#   原代码读 hotspots/high_confidence 键不存在 → 恒 0（08-01 实证 climate_signals.json firms=0）
+# ── FIRMS 火点汇总（2026-08-06 双路取数 → 2026-08-10 D6 摘除 crucix 兜底，仅消费 firms_fire.json）──
+# 唯一源：fetch_firms.py 直连产物 firms_fire.json（每日 0908 落盘）
+# 失败态语义：文件存在但 total_hotspots=0 / status=failed → 明确失败/空态（0 值文件，非静默缺文件）
 def _fetch_firms_summary() -> dict:
-    """优先读 fetch_firms.py 直连产物；crucix thermal（det/hc）兜底。"""
-    # ── 路径1：firms_fire.json（fetch_firms 直连产物）──
+    """仅消费 fetch_firms.py 直连产物 firms_fire.json；失败/空态透传明确 0 值。"""
+    # ── 唯一源：firms_fire.json（fetch_firms.py 直连产物，D6 后无 crucix 兜底）──
     try:
         firms_path = os.path.join(DATA_DIR, "firms_fire.json")
-        if os.path.exists(firms_path):
-            with open(firms_path, encoding="utf-8") as f:
-                d = json.load(f)
-            if d.get("fetched_at") and d.get("total_hotspots", 0) > 0:
-                summary = {
-                    "total_hotspots": d.get("total_hotspots", 0),
-                    "high_confidence": d.get("high_confidence", 0),
-                    "active_fire_regions": d.get("active_fire_regions", []),
-                    "date": d.get("date", datetime.now().strftime("%Y-%m-%d")),
-                }
-                print(f"  [climate] FIRMS(直连): 总热点={summary['total_hotspots']}, 高置信={summary['high_confidence']}")
-                return summary
-            print("  [climate] FIRMS: firms_fire.json 为 0（直连下载未产出，回退 crucix）")
-    except Exception as e:
-        print(f"  [climate] FIRMS: firms_fire.json 读取失败，回退 crucix: {e}")
-
-    # ── 路径2：crucix thermal 兜底（字段 det/hc——2026-08-06 契约修正，原 hotspots/high_confidence 恒 0）──
-    if not _REQ_OK:
-        return {}
-    try:
-        resp = requests.get(CRUCIX_REMOTE_URL, timeout=8)
-        if resp.status_code != 200:
+        if not os.path.exists(firms_path):
+            print("  [climate] FIRMS: firms_fire.json 不存在（fetch_firms 未产出），firms 记为缺失")
             return {}
-        data = resp.json()
-        thermal = data.get("thermal", [])
-        if not thermal:
+        with open(firms_path, encoding="utf-8") as f:
+            d = json.load(f)
+        if not d.get("fetched_at"):
+            print("  [climate] FIRMS: firms_fire.json 无 fetched_at（损坏/空文件），firms 记为缺失")
             return {}
-
-        total_hotspots = sum(t.get("det", 0) for t in thermal)
-        high_frp_count = sum(t.get("hc", 0) for t in thermal)
-        regions = [t.get("region", "unknown") for t in thermal if t.get("det", 0) > 500]
-
+        # 明确失败/空态也透传（0 值文件 = 明确失败态，非静默缺文件）
         summary = {
-            "total_hotspots": total_hotspots,
-            "high_confidence": high_frp_count,
-            "active_fire_regions": regions,
-            "date": datetime.now().strftime("%Y-%m-%d"),
+            "total_hotspots": d.get("total_hotspots", 0),
+            "high_confidence": d.get("high_confidence", 0),
+            "active_fire_regions": d.get("active_fire_regions", []),
+            "date": d.get("date", datetime.now().strftime("%Y-%m-%d")),
         }
-        print(f"  [climate] FIRMS(crucix): 总热点={total_hotspots}, 高置信={high_frp_count}, 活跃区域={regions}")
+        if d.get("status"):
+            summary["status"] = d["status"]   # fetch_firms 失败态透传（failed）
+        if d.get("error"):
+            summary["error"] = d["error"]
+        print(f"  [climate] FIRMS(firms_fire.json): 总热点={summary['total_hotspots']}, 高置信={summary['high_confidence']}"
+              f"{', status=' + summary['status'] if summary.get('status') else ''}")
         return summary
     except Exception as e:
-        print(f"  [climate] FIRMS读取失败: {e}")
+        print(f"  [climate] FIRMS: firms_fire.json 读取失败: {e}")
         return {}
 
 
