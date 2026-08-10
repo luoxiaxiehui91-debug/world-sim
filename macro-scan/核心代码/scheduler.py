@@ -84,7 +84,7 @@ JOBS = [
     ("verify",      "0900", "1-7", 1,    [PYTHON, "verify_predictions.py"]),
     ("kb_update",   "0905", "1-7", 1,    [PYTHON, "update_kb_numbers.py"]),
     ("firms",       "0908", "1-7", None, [PYTHON, "fetch_firms.py"]),           # NASA FIRMS 火点直连（crucix 退场前置，先于 climate 0910）
-        ("climate",     "0910", "1-7", 1,    [PYTHON, "fetch_climate_signals.py"]),
+        ("climate",     "0910", "1-7", None, [PYTHON, "fetch_climate_signals.py"]),
     ("daily_narrative", "0700", "1-7", None, [PYTHON, "daily_narrative.py"]),
     ("news_export",  "0705", "1-7", None, [PYTHON, "news_exporter.py"]),         # macro-sim JSON 导出
     ("narrative_proc","0710", "1-7", None, [PYTHON, "narrative_processor.py"]),  # 天玑 叙事预处理（叙事块写入+密度监测）
