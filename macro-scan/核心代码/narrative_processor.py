@@ -68,6 +68,7 @@ DEFAULT_SOURCE_MAP = {
     "crucix_nuke":      {"primary": "taiwan_strait",         "tau": 24,  "type": "osint"},
     "crucix_air":       {"primary": "taiwan_strait",         "tau": 24,  "type": "osint"},
     "crucix_sdr":       {"primary": "sanctions_risk",        "tau": 24,  "type": "osint"},
+    "kiwisdr_sdr":     {"primary": "global_composite",     "tau": 24,  "type": "osint"},
     # 中国宏观
     "akshare_china":    {"primary": "us_china_strategic",    "tau": 240, "type": "official_data"},
     "akshare_world":    {"primary": "global_composite",      "tau": 240, "type": "official_data"},
@@ -386,6 +387,7 @@ def run_daily_narrative_processing():
         (os.path.join(DATA_DIR, "disaster_signals.json"),   "gdacs",          "description"),
         (os.path.join(DATA_DIR, "hdx_latest.json"),         "hdx",            "description"),
         (os.path.join(DATA_DIR, "climate_signals.json"),    "climate_signals","summary"),
+        (os.path.join(DATA_DIR, "sdr_summary.json"),      "kiwisdr_sdr",   "description"),
     ]
     count_json = 0
     for path, src_id, field in json_sources:
