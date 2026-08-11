@@ -421,7 +421,8 @@ export function FlatMapPanel({
       const missing = p.status === 'missing';
       // 2026-08-11 视觉重构（crucix 化）：中心大小 clamp[2.4,7.2]（v1.10.6 ×0.8 收窄），
       // 删除 ×1.25×1.5 双重放大；事件/高风险由外环脉冲区分，不再靠加大 core。
-      const core = Math.min(7.2, Math.max(2.4, 2.4 + p.weight * 4.8));
+      // v1.10.7：再收窄 ×0.63 → clamp[1.6,4.6]（主理人"图标偏大"反馈第二轮；降噪目标 2D 普通点 ≤5px）
+      const core = Math.min(4.6, Math.max(1.6, 1.6 + p.weight * 3.0));
       const highlight = !missing && ((p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent === true);
       const pulseSec = (PULSE_SLOW_S - p.weight * (PULSE_SLOW_S - PULSE_FAST_S)).toFixed(2);
       const fillColor = missing ? withAlpha(p.color, 0.18) : p.color;
@@ -457,7 +458,7 @@ export function FlatMapPanel({
         if (!missing) {
           // 外环：薄描边环贴附（crucix ACLED 冲突点式），脉冲仅此层
           const ring = grp.append('circle')
-            .attr('cx', 0).attr('cy', 0).attr('r', core * 1.8)
+            .attr('cx', 0).attr('cy', 0).attr('r', core * 1.5)
             .attr('fill', 'none')
             .attr('stroke', withAlpha(p.color, 0.5))
             .attr('stroke-width', 1.0)
@@ -467,7 +468,7 @@ export function FlatMapPanel({
           }
           // 内层过渡：很淡的贴附光晕（非实心大圈）
           grp.append('circle')
-            .attr('cx', 0).attr('cy', 0).attr('r', core * 1.35)
+            .attr('cx', 0).attr('cy', 0).attr('r', core * 1.2)
             .attr('fill', withAlpha(p.color, 0.10))
             .attr('stroke', 'none')
             .attr('pointer-events', 'none');
@@ -567,8 +568,9 @@ export function FlatMapPanel({
     const [cx, cy] = px;
 
     // 2026-08-11 视觉重构：聚焦环收敛到 core×2.4（旧 halo×1.35≈46px 过大）；v1.10.6 core ×0.8
-    const core = Math.min(7.2, Math.max(2.4, 2.4 + target.weight * 4.8));
-    const focusR = Math.max(core * 2.4, 12);
+    // v1.10.7：core 同步普通点新公式（1.6+3w），聚焦环乘数 ×2.0 下限 8（与普通点环/星标同量级）
+    const core = Math.min(4.6, Math.max(1.6, 1.6 + target.weight * 3.0));
+    const focusR = Math.max(core * 2.0, 8);
 
     layer.append('g')
       .attr('class', 'fm-focus-ring')

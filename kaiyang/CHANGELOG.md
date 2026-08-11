@@ -510,3 +510,19 @@ docs/operations/20260805-world-deduction-time-audit-fixed.md。
 
 - 前端：npm test 14 files / 311 tests 全绿；vite build 本地构建（新 bundle index-BxnJs6nn.js / index-S7YTSnTj.css）；scp 原地覆盖 + chmod；bundle + feed 200
 - 后端：热挂载生效 + 容器内 _map_event_type 单测（-6→conflict/0→political/14→protest/15→conflict）+ --export-json 实测 news_geo.json 612 events unknown=0
+
+## [1.10.7] - 2026-08-11 · 视觉降噪（vis-fe 评估 + lead 仲裁落地）——点/环再收窄 + Top-80 标签 + 6 空层默认关
+
+**修改理由**：主理人两轮反馈「图标依旧大」「内容看着还是乱」。vis-fe/vis-fe-2 双评估（docs/vis-eval-2026-08-11-arbitration.md 仲裁）：真凶不是点本身（3D 点仅 1-3px）而是 46% 点带常驻标签+外环互相遮挡 + 同地点无聚合。
+
+### 修改（10 项，合并仲裁版）
+
+- FlatMapPanel.tsx：core clamp[2.4,7.2] → clamp[1.6,4.6]（1.6+3w）；外环 core×1.8→×1.5；内层 halo ×1.35→×1.2；聚焦环 core×2.4/12 → core×2.0/8
+- GlobePanel.tsx：pointRadius 0.32+0.2w → 0.22+0.14w（缺失 0.18）；ringMaxRadius (2.8/1.76)+1.76w → (1.9/1.2)+1.1w；ringPropagationSpeed (1.8/1.0)+1.2w → (1.5/0.8)+0.8w；**常驻标签 Top-80 截断**（intensity 降序，聚焦点恒首位，悬停 tooltip 不受影响）
+- mapData.ts：HIGHLIGHT_THRESHOLD 55 → 70（281→~110 个标签，与 SEVERITY_THRESHOLD.high=66 对齐）
+- layerCategories.ts：air/thermal/maritime/space/health/sdr 六个 P2 空占位层 defaultVisible true→false（news/conflict 保持可见，lead 仲裁：开阳核心新闻图层不默认关）
+
+### 验证
+
+- npm test 14 files / 311 tests 全绿；vite build 本地构建（新 bundle index-oJgF4qMk.js / css 沿用 S7YTSnTj）
+- scp 原地覆盖 + chmod -R a+rX；root/js/css/news_geo 200；旧 bundle 按 DEPLOYMENT 规范留 3 版清理（v1.10.0-1.10.4 共 9 个删除）

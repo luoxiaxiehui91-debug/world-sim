@@ -73,8 +73,12 @@ export interface RiskArc {
   intensity: number;
 }
 
-/** 高严重度阈值（用于常驻标签 / 光环）。 */
-export const HIGHLIGHT_THRESHOLD = 55;
+/**
+ * 高严重度阈值（用于常驻标签 / 光环）。
+ * v1.10.7：55 → 70（视觉降噪：默认 news_geo 613 点中 ≥55 的 281 个、≥70 的约 110 个，
+ * 阈值上调 60% 减少常驻标签与脉冲动画的密度；与 SEVERITY_THRESHOLD.high=66 语义对齐）。
+ */
+export const HIGHLIGHT_THRESHOLD = 70;
 
 /**
  * 由维度列表构建地图点位（自动过滤 composite 与缺坐标项）。
