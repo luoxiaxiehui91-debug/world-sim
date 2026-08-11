@@ -9,6 +9,7 @@
 **项目位置**（防迷路，全部关键路径）：
 - WorkBuddy 工作区（本文档 + 项目导航 + calib 评审权威）：`C:\Users\luoxi\WorkBuddy\世界推演系统\`
 - **NAS Git repo = 真相**：`/vol2/1000/software/world-sim/` → GitHub `luoxiaxiehui91-debug/world-sim`（push 走代理 `http://192.168.31.108:7890`）
+- **`S:\world-sim` = NAS repo 的 SMB 挂载视角**（`\\192.168.31.108\software\world-sim`，与 `/vol2/1000/software/world-sim` 同一份文件、同一 git 树）：仅作 Windows 侧浏览参考，**读写都不可信**（展示过期幻影/写不到容器）——判脏/部署/同步一律 `ssh nas` + `docker exec`
 - NAS 运行区：天枢热挂载 `/vol2/1000/software/macro-scan/核心代码/`（改 .py 即生效，scheduler.py 需 docker restart）；开阳 `/vol2/1000/software/kaiyang/dist`；crucix `/vol2/1000/software/Crucix/`（禁抄源码，AGPL）
 - 容器：`macro-scan-macro-scan-1`（天枢）/ `macro-sim`（天璇，COPY 模式）/ `macro-scan-tianji-1`（天玑）/ `macro-scan-kaiyang-1`（开阳 :8080）
 - SSH：`ssh nas`（**必须 Git 自带 ssh，Windows OpenSSH 已坏**）；NAS 操作走 SSH + docker exec，**禁信 SMB 挂载**
