@@ -1,157 +1,68 @@
-# 世界推演系统 — ROADMAP
+# ROADMAP
 
-> **此文件是项目内权威 todo 文件，随源代码同行。**  
-> 文档类别：意图（INTENT）· 状态标记（未实施/进行中/已实施）。**✅ 行 = 已实施，其实录（commit hash + 验证命令）见各子系统 CHANGELOG**，本文件仅声明意图与状态，不断言细节。  
-> WorkBuddy 工作区有同源摘要版（08-10 同步，含 R4 系列状态）；本文件为权威完整版。
-> 跨项目视角的补充积压见：`S:\docs\backlog\world-deduction.md`  
-> 运维 SOP 与部署规范见：`S:\world-sim\AGENTS.md`
+> 工作区摘要版（2026-08-10，08-11 更新）：repo 权威完整版见 `/vol2/1000/software/world-sim/ROADMAP.md`（时间门控任务/迁移状态/天玑路线图全量）。本文件为 R4 系列 + crucix 退场 + 开阳补全的摘要，状态与 repo 版同步。
+> 最后更新：2026-08-11
 
----
+## Sprint-0 已完成
 
-## 时间门控任务
+| 模块 | 产出 |
+|------|------|
+| Probit 止血线 | 13.92%，调度 05:40 |
+| FCI | fci-1.1 双轨 PCA，vs NFCI +0.828 |
+| FIRMS 直连 | 替代 crucix 火点，调度 09:08 |
+| 采集频率矩阵 | 24 源审核，地震 I15/灾害 I30/加密 I15 |
+| GDELT geo feed | T01 设计→T04 聚合，197 clusters / 643 events |
+| FT/BBC 路由 | fetch_rss_news.py v1.1 |
+| A1 日档回填 | RetryOnMissingMixin + world_macro 试点 |
+| I1 Pydantic | contracts.py |
 
-| 状态 | 完成/预计时间 | 任务 | 说明 |
-|------|--------------|------|------|
-| ✅ | 2026-07-10 | **C线切 Live + R07 启用** | C线由 mock 切换 Live 数据；R07（气候风险）信号 `enabled: true` |
-| ✅ | 2026-07-25（v3.5.61） | **situation_detector 阈值 2.0→1.5** | 降低告警触发门槛，改善中度地缘压力下的信号灵敏度 |
-| ✅ | 2026-07-25（v3.5.62） | **R09/R10 启用** | social_stress / cultural_friction 积累基线后正式 `enabled: true`；v3.5.62 修复相关 bug 后完成 |
-| ⏳ | 2026-08-25 复评（08-06 已核实） | **R11/R12 开启** | 气候/多域信号积累基线后启用；前置条件：climate_risk 和跨域维度各积累 ≥3 周有效数据。**08-06 SSH 实测（grv_history.jsonl 534 点）**：climate_risk = 36 点/34 天（07-02 起）✅ 达标；跨域维度 social_stress/cultural_friction = 仅 3 点（08-04 起，v3.5.62 新增）⚠️ 不足 3 周；religious_conflict/regime_change = 0 点 ❌ 无数据。**结论：R12 不达标，维持 ⏳；预计 08-25 后跨域达 3 周再复评**（climate 采集为每月 1 号 dom=1 有意设计，非笔误——数据源 ONI 月度，见 fetch_climate_signals.py 头注） |
-| ✅ | 2026-08-04 | **signal_synthesizer Staging→Live 切换** | `docker-compose.yml` 加 `STAGING_MODE=0` + `force-recreate`；切后 R09/R10 真正调 LLM + 推 ntfy；08-04 已落地（news.db 53 天 ≥30 天，两层守门均满足）|
-| ⏳ | 2026-09-10 | **GDELT scale 校准** | 校准 `religious_conflict` / `regime_change` / `social_stress` / `cultural_friction` 的 scale 参数（含 2026-07-25 v3.5.62 新增两个维度，scale=200 为估算值需实测验证）；GDELT 信号量级与 GRV 其他维度对齐 |
-| ✅ | 2026-08-05（08-06 复核） | **天枢叙事摄取跑通** | narrative_chunks 已 181 条（目标≥50 已达成 ✅），scheduler 任务 narrative_proc 实际写入确认；覆盖维度较测试期 3 条基线大幅扩展 |
-| ✅ | 2026-08-05（v2.0.22） | **慢变量 slow_variables.json 产出** | 慢变量接入 MacroWorldState 已落地（v2.0.22）：irp/ucri/gci 字段注入，load_from_macro_scan 读 slow_variables.json |
-| ✅ | 2026-08-04（基础设施） | **天玑验证层上线** | P0-B 修复：天玑独立容器 macro-scan-tianji-1（macro-ji/）上线，trigger→watchdog→tianji_verifier 全链路跑通；V1 数据录入（prediction_ledger.db + 首批预测评分）待 2026-09-30 首批预测到期 |
-| ⏳ | 2026-11-19 | **N2 新闻库第二阶段** | news.db 架构第二阶段；扩展信号采集覆盖范围，配套 synthesis_log 验证 |
-| ⏳ | 2027-05-23 | **N3 信号月度校验** | 月度信号校验闭环全面激活；解锁天玑 V4 校准闭环 |
-| ⏳ | 真实地缘事件发生后 | **M2-4 校准闭环激活** | 利用实际发生的重大地缘事件对 macro-sim M2-M4 校准参数做后验核查 |
-| ⏳ | 推演后验准确率 ≥60% 且 ≥10 条样本后 | **M3 开放量化区间** | 天玑准确率面板达标后解锁；允许 macro-sim 对 GRV 方向性预测给出置信区间 |
+## 天璇校准引擎 R4 系列（08-07→08-10，已结案）
 
----
+| 批次 | 状态 | 版本 |
+|------|:--:|------|
+| R4a-e | 归因/方向闸/豁免五轮迭代 | ✅ | — |
+| R4f | 三案否决 | ✅ | — |
+| R4g | 归因修正 + 冷却证伪回滚 | ✅ | v2.0.37 |
+| R4h ③ sentiment 写者 | 已验收 | ✅ | v2.0.38 |
+| R4h ② vix 豁免治理 | 已验收 | ✅ | v2.0.39 |
+| R4h ① ease_ok 方向闸 | **收编 EASE 治理** | ✅ | v2.0.40 |
+| silence 治理（credit 回池/p̂/S2） | 挂起待立项 | 🔲 | — |
 
-## 新架构迁移状态（2026-07-30 SSH 实测）
-
-> 基于 `S:\20260729\16_世界推演系统_架构总文档_v1.0.md` 定义的新架构，v3.7.0 部署后的真实状态。
-
-| 模块 | 声称状态 | 实测状态 | 关键缺口 |
-|------|---------|---------|---------|
-| 天枢调度（GRV/FRED/GDELT/新闻） | Live | ✅ 真实运行，今日22 job 正常触发 | — |
-| narrative_chunks 叙事摄取 | 骨架已接入 | ⚠️ 只有 3 行，未稳定产出 | scheduler 任务是否真正写入待验证（注：08-06 复核已 181 条，见「时间门控任务」表） |
-| slow_variables（IRP/UCRI/GCI） | IRP 已上线 | ❌ slow_variables.json 不存在 | 月度 cron 08-01 首触发；UCRI/GCI 手工评估节点未准备 |
-| predictions / reasoning_trace | 天玑独立容器已上线（08-04） | ⚠️ predictions=1（测试数据） | 验证链路已跑通（trigger→watchdog→verifier exit=0）；V1 数据录入待首批预测到期 |
-| weight_update_log | — | ❌ 0 行 | 玉衡未运转 |
-| narrative_density_flags | — | ❌ 0 行，json 不存在 | — |
-| sim_trigger.json | GRV 告警自动触发天璇 | ❌ 空文件 | 路径A从未触发 |
-| 天璇 macro-sim | v2.0.13 运行 | ⚠️ 旧版 Monte Carlo，新架构 B+A/Agent 体系未重写 | 最大空白 |
-| grv_weights.yaml | 19 源 1254 条 | ✅ 1281 行，正常 | — |
-| source_dimension_map.yaml | 完整性校验 | ✅ 2157 bytes，存在 | 启动校验逻辑是否真正执行待查 |
-
----
-
-## 天玑（macro-ji）实施路线图
-
-> 天玑 = 验证层，在天枢（macro-scan）+ 天璇（macro-sim）之上，对推演结果做事后验证和校准闭环。  
-> 详细设计见：`S:\world-sim\docs\tianji-design.md`
-
-```
-天枢（macro-scan）── 每日观测 ──> 天璇（macro-sim）── 推演路径 ──> 天玑（macro-ji）
-   ↑                                                                     |
-   └───────────── 校准权重更新（N3 月度校验，2027-05-23 解锁）─────────────┘
-```
-
-| 阶段 | 解锁条件 | 核心内容 | 预估工作量 |
-|------|---------|---------|-----------|
-| **V1 手动存档** | 建议 2026-09-30（首批预测到期） | 建 `prediction_ledger.db`；手动从历史仿真报告录入可验证预测主张；对 GRV 方向性预测用 `grv_history.jsonl` 评分；输出第一份准确率报告 | 2-3h |
-| **V2 自动提取** | V1 稳定后 | LLM 自动解析 macro-sim 报告，提取可验证主张写入 ledger；无需人工逐条录入 | 约 1 天 |
-| **V3 自动验证** | 2026-09+ | 月度 cron 自动对到期预测评分；生成准确率面板（port 8899 新增 `/accuracy` 路由，或独立 8900 端口） | 约 1 天 |
-| **V4 校准闭环** | N3 解锁（2027-05-23） | `suggested_weight_adjustments` 写回 macro-scan 信号权重；系统形成自我进化闭环 | 约 2 天 |
-
----
-
-## crucix 退场实施（08-10 启动，观察窗中）
-
-> 状态声明：论证（round1 四视角 + R2）已闭合，P0+P1 实施 11 commit 全闭合（a65c998→65666b8）。
-> 实录：macro-scan/docs/arg-round1-*.2026-08-10.md + 工作区 crucix-retire-round1-交叉检查-2026-08-10.md。
+## crucix 退场（08-10 论证 → 08-11 实施闭合，观察窗中）
 
 | 阶段 | 状态 | 内容 |
 |------|:--:|------|
-| 论证（round1+R2） | ✅ | gscpi 唯一硬依赖 / nuke SafeCast 复刻 / sdr KiwiSDR 接入 / D3 死配置 / news RSS-only |
-| P0+P1 实施 | ✅ | 11 commit：climate 恢复、gscpi fetcher+调度、safecast/kiwisdr、兜底删、RSS-only、air 删、G2 防护、ADR-08 |
-| 观察窗 | 🔄 | G0 判 08-12 / G1 判 08-15（gscpi 05:32 双轨 5 天） |
-| WP-2.1b/2.2 | 🔲 | gscpi 切换 + nuke 改读 snapshot["_safecast"]["nuke"]（G1 后） |
-| WP-3.1/3.2 | 🔲 | D3 映射删 + _crucix 键残留整体清（门禁后） |
+| 论证（round1 四视角 + R2） | ✅ | gscpi 唯一硬依赖 / nuke SafeCast 复刻 / sdr KiwiSDR 接入 / D3 死配置 / news RSS-only（ADR-01~10） |
+| 实施（14 commit 闭合至 ab8b1f7） | ✅ | climate 恢复 / gscpi fetcher+调度 / safecast / kiwisdr / 兜底删 / RSS-only / air 删 / G2 防护 / firms 补偿重试 / 时区修复 |
+| 观察窗 | 🔄 | **G0 判 08-12 / G1 判 08-15**（gscpi 05:32 双轨 5 天）；news_geo 48h 判定 08-13（自动化） |
+| WP-2.1b/2.2 | 🔲 | gscpi 切换 + nuke 改读 `_safecast.nuke`（G1 后） |
+| WP-3.1/3.2 | 🔲 | D3 映射删 + `_crucix` 残留整体清（门禁后） |
 | WP-4.x | 🔲 | crucix 容器停用（devops A/B/C/D，P3 后） |
 
-## 天璇校准引擎 R4 系列（08-07→08-10，当前主线）
+## 开阳补全（08-10 规划 → 08-11 实施，v1.9.0→v1.10.8）
 
-> 意图/实录二分：本表为状态声明；实录（commit/版本/验收数据）见 `macro-sim/CHANGELOG.md` + `docs/calib/` 评审存档 + `macro-sim/docs/operations/` 操作日志。
+| 批 | 内容 | 状态 |
+|----|------|:--:|
+| 第一批：报告中心 / FCI+GSCPI / 风险面板 / dashboard 停 / news_export I15 | ✅ | 45 份报告双触发、6 风险 feed、FCI 日频+参考带 |
+| M-1：news_geo 事件图层（路线 A：GDELT jsonl 派生） | ✅ | 137B→527 事件，CAMEO event_code，XSS 双保险；验收观察窗中（08-13 48h 判定） |
+| 视觉系列：crucix 化 / 缩放半补偿 / 事件弹框 / 同新闻合并 / Top-80 降噪 / **同地点聚合** | ✅ | v1.10.1~1.10.8，628→208 点一城一点 |
+| 第二批：地图深化（M-2 chokepoints / M-3 conflict 层） | 🔲 | M-3 conflict 已随 M-1 附带；M-2 待排 |
+| 航班走廊线（air 图层 B 完整版） | 🔲 待拍板 | 天枢区域级航班统计 + 开阳区域走廊线 |
+| 第三批：控制面（天璇/天玑/玉衡 tab） | 🔲 | 后端控制 API 扩展，crucix 退场后 |
 
-| 批次 | 状态 | 引擎版本 | 验收摘要 |
-|------|:--:|----------|----------|
-| R4a-e | ✅ | — | 归因/方向闸/豁免五轮迭代；credit 失活根因 = info_delay 限流 |
-| R4f | ✅ | — | 三案否决，零改动 |
-| R4g | ✅ | v2.0.37 | 归因修正（rate_limit 高估 / tighten_signal_false 死代码）+ 冷却证伪回滚 |
-| R4h ③ | ✅ | v2.0.38 | sentiment 写者（EASE 对称 TIGHTEN） |
-| R4h ② | ✅ | v2.0.39 | vix 豁免治理（均值回归 + yen_carry cap 19） |
-| R4h ① | ✅ 收编 | **v2.0.40** | ease_ok 方向闸 + act_prob 0.76 + cap 17；EASE wrong 8→0 |
-| silence 治理 | 🔲 挂起待立项 | — | credit 回池 / p̂ 过 0.55 / S2≤0.60（R4h ① 挂起项） |
+## 待做
 
----
+| # | 任务 | 状态 |
+|---|------|:--:|
+| 1 | **silence 治理**（credit 回池 / p̂ 过 0.55 / S2≤0.60；seed123 残余弱项） | 🔲 |
+| 2 | news_geo 浏览器复核 17 项（主理人，清单见 arg-map-qa-acceptance） | ⏳ |
+| 3 | FRED 上游停更根因（BAA10Y/DTWEXBGS） | 🔍 |
+| 4 | 天璇 sim_log.db 仿真记录修复（P0） | 🔴 |
+| 5 | 时区 OPEN 3 条（news.db 展示层 / grv-history 边界 / 纯日期键） | 🔲 |
+| 6 | 航班走廊线（air 图层）拍板 + 排期 | 🔲 |
 
-## macro-sim 待改进（按优先级）
+## 延后
 
-| 优先级 | 项目 | 说明 |
-|--------|------|------|
-| **P2** | **A 类主权国家 Agent 激活（路径分叉治本）** | ✅ **08-07 已实施**（commit 4aaa5fde）：S1-S5 五主权 Agent 上线（soul 驱动派系决策 + grv_dimensions + Board + red_line_triggers）+ 完整验证（100 MC×24 步，真实场景分叉达成 A95%/B5%，迭代 3 轮参数定稿 act 0.35/sent 0.20/boost 1.3）。**待收尾**：GRV=80 高压仍单路径（选项 A 接受语义/B 继续调参/C 实施 B2 聚类判据，待用户拍板）+ B 类 4 个 / C 类完整链后续阶段。详见 `macro-sim/docs/a-class-sovereign-activation.md` §3.5/§6 + operations 20260807 两份 |
-| Low | **校准参数/预测参数分离** | 当前 M1（校准阶段，前50步）和 M2（预测阶段）共用部分参数，应明确隔离，便于天玑 V4 写回时精准作用 |
-| Low | **B 类非国家 Agent（4 个）** | taxonomy 蓝图后续阶段：跨国组织/宗教网络/武装非国家——A 类激活稳定后再启动 |
-
----
-
-## 活跃问题
-
-来源：`S:\docs\questions\world-deduction\`
-
-> **编号约定**：表格「编号」列 P2 / P3 / P4 为**顺序问题编号**（沿用 question 文档命名，相当于工单号），**并非优先级等级**。优先级档位另见 `S:\docs\backlog\world-sim-optimization-proposal.md`（P0=阻塞 … P3=暂缓，共 4 档）。勿将「P4 编号」误读为「最低优先级」。
-
-| 编号 | 状态 | 问题 | 来源文件 | 说明 |
-|------|------|------|---------|------|
-| P3 | ✅ 已修复 | **报告叙事分隔符脆弱（B1）** | `20260718-world-deduction-report-narrative-separator-fragile.md` | v2.0.12 归一化+prompt 诚实化；v2.0.13 抽 format_narrative 纯函数+11 用例回归测试；2026-07-28 部署验证通过 |
-| P4 | ⏸ 观察（降级） | **GDELT 全0信号（疑似）** | `20260627-world-deduction-gdelt-normalization-zero.md` | 2026-07-28 抽 NAS 实测 GDELT 当前**非全0**（管线健康），原「本期立项」假设失效；防御补全并入 2026-09-10 GDELT scale 校准任务，不单独占本期。实际严重度低（观测层低风险增强），编号 P4 为工单号非优先级 |
-| P2 | ⏸ 暂缓 | **路径多样性低** | `20260714-world-deduction-low-path-diversity-high-grv.md` | 高 GRV 下路径多样性下降为正常系统特征；待天玑积累数据后重新评估是否真实问题 |
-| G5a | ✅ 已完成（2026-07-28） | **联动矩阵补 README.md** | macro-sim/AGENTS.md | 天璇 macro-sim 联动矩阵补充同步目标 macro-sim/README.md；零代码风险，防版本漏同步（B1 收尾曾漏改 README）；已落 NAS，VERSION 不 bump |
-
----
-
-## 积压（无时间门控）
-
-以下为已识别但暂未排期的架构级改进：
-
-| 优先级 | 方向 | 说明 |
-|--------|------|------|
-| **P0** | **GRV 数据源修复（仅剩 BDI→sanctions_risk）** | 详见 `docs/grv_datasource_fix.md`；middle_east_energy（GED v26.1+WTI）、energy_grid_risk（天然气期货 NG）、fetch_fx→world_state.py 均已落地（08-06 复核 ✅）；仅剩 BDI→sanctions_risk 待做 |
-| **P1** | **B+A/NOVEL 天璇重写** | 设计蓝图见 `macro-sim/docs/agent_taxonomy.md`；18个 Agent（A类8+B类4+C类6）；必须先读 `docs/archive/17_天璇Agent交互协议_v1.0.md` 确认世界模型边界，再动代码 |
-| ✅ | ~~**GRV GDELT P95 基准校准**~~ | **已由 v3.8.11 运行时动态化取代**：GDELT P95 改为运行时动态计算（样本<100 fallback 硬编码），消除中美/台海维度归一化差距；见 `docs/grv_datasource_fix.md` §4 |
-| P2 | **causal_assumptions.md 理论升级落地** | 已有文档骨架（`macro-scan/config/causal_assumptions.md`）；下一步：接入 FSI 凝聚力维度、cultural_friction 接入 Hofstede CSV、引入 WUI 作为第三信号 |
-| P2 | **置信度衰减机制** | 假说置信度应随时间衰减（无新信号支撑则降低），当前为静态累积 |
-| P2 | **多路径交叉干扰** | 多条推演路径共享部分中间态时，路径间干扰未建模，可能导致概率分布失真 |
-| P3 | **非洲/南亚传导路径** | 当前 GRV 维度对非洲次大陆和南亚次区域的传导路径覆盖不足 |
-| P3 | **L4 极端尾部场景** | 极低概率高影响事件（核威慑升级、全球性金融危机）缺乏独立建模路径 |
-| P3 | **假阳性率回测框架** | 对历史 GRV 告警做回测，量化假阳性率；为调整 situation_detector 阈值提供数据依据 |
-| P2 | **月度调用配额计数器** | fetcher_base.py 加 `monthly_call_limit` 类属性 + `data/fetch_quota.json` 计数，超限返回 SKIPPED；子类声明上限即可（如 CoinGecko 免费版月限10000的50% = 5000）。现有防线仅靠调度频率，无数值验证 |
-| P2 | **IRP 扩充历史标注期** | 补充朝鲜战争通胀（1950-06/1951-12）、越战通胀（1966-01/1970-12）、金融危机前后（2003-01/2009-12），样本从~170条增至~450条；同时补 DFII10 近似中性利率差特征 |
-| P2 | **仿真引入历史 VAR 基准轨道** | Agent 轨道（定性方向）+ VAR 轨道（历史统计量级）并行，Agent 只提供相对基准的偏离量；适合 B+A/NOVEL 重写 Sprint 一并处理 |
-| P2 | **天枢 MC 与天璇 Agent 仿真协同** | 目前两套完全独立：天枢统计 MC 出"衰退概率35%"、天璇 Agent 出"情绪崩溃路径"，无法互相校准。改进方向：天璇启动时从天枢 mc_engine 结果读取基准轨道（GDP/通胀/利率的统计期望路径），Agent 冲击叠加在此基准上而非凭空生成绝对数值；两套输出进入同一个 predictions 表对比 |
-| P2 | **清理 mc_engine.py 废代码** | `mc_engine.run_monte_carlo()` 原版函数已无调用方（全部切到 monte_carlo_v2），保留只会误导维护者；清理后 mc_engine 职责变为：中国路径封装 + 压力测试 + 情景比较，定位清晰 |
-| P1 | **hypothesis_engine 从 Staging 切 Live** | signal_synthesizer 已 08-04 切 Live（STAGING_MODE=0 + news.db ≥30天）；hypothesis_engine 尚待同样条件满足后切换，确认 NAS 容器内 news.db 实际积累天数 |
-| P2 | **GM 规则量级实证校准** | 用 FRED+历史事件数据做事件研究，对每条 GM 规则（如 CUT_50BP→sentiment+0.35）验证量级合理性，写回 agents.yaml 的 magnitude |
-| ✅ | ~~**慢变量接入 MacroWorldState**~~ | **已完成（v2.0.22）**：world_state.py 已加 irp/ucri/gci 三字段，load_from_macro_scan() 读取 slow_variables.json 注入；Agent _decide_rules() 据此调整阈值 |
-
----
-
-## 较大工程（需外部资源）
-
-| 项目 | 前置条件 | 说明 |
-|------|---------|------|
-| **ACLED 武装冲突数据接入** | 申请 `acleddata.com` API key | ACLED 提供实时武装冲突事件数据；GED v26.1 年度快照已接入（`etl_ged.py` 产物在 `data/ged/`，含 GCI 历史锚点），ACLED 用于提升实时信号质量 |
-| **天玑 GCI 面效度验证函数** | GED 锚点已生成（`data/ged/gci_anchors.json`，PASS） | 实现 `check_gci_validity()`，月度对比当前 GCI 分数与历史锚点的相关性；预计天玑 V1 周期实施 |
-
+- 天璇预测引擎（本 Sprint 不建，未来整体重做）
+- 天玑/玉衡（天玑已上线 healthy，权重矩阵/审批待深化）
+- 开阳第三批控制面（天璇/天玑/玉衡 tab，crucix 退场收尾后）

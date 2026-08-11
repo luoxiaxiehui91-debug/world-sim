@@ -1,0 +1,63 @@
+{
+  "snapshot_id": "arg-map-baseline-2026-08-11",
+  "captured_at": "2026-08-11T06:15:30+08:00",
+  "captured_by": "data-map (kaiyang-map-arg)",
+  "purpose": "开阳第二批地图深化 - 部署前数据基线快照（对比 arch-map 改 fetch_gdelt_geo.py 部署后）",
+  "host": "ssh nas + docker exec macro-scan-macro-scan-1 (只读)",
+  "files": {
+    "news_geo.jsonl": {
+      "path": "/workspace/data/news_geo.jsonl",
+      "lines": 129786,
+      "size_bytes": 60458633,
+      "size_human": "60.46 MB",
+      "mtime": "2026-08-11T06:15:23+08:00",
+      "fetched_at_min": "2026-08-01T16:38:17+08:00",
+      "fetched_at_max": "2026-08-11T06:00:10+08:00",
+      "fetched_at_window_hours": 229.36,
+      "sql_date_max": "20260810",
+      "sql_date_max_count": 16551,
+      "schema_version": "news-geo-1.0"
+    },
+    "news_geo_state.json": {
+      "path": "/workspace/data/news_geo_state.json",
+      "schema_version": "news-geo-state-1.0",
+      "last_success_slot_ts": "20260810214500",
+      "last_success_run_at": 1786400123,
+      "last_success_run_at_human": "2026-08-11T06:15:23+08:00",
+      "total_slots_pulled": 856,
+      "total_events_persisted": 129786,
+      "run_count": 719,
+      "consecutive_fail_slots": 0
+    },
+    "scheduler_state.json": {
+      "path": "/workspace/data/scheduler_state.json",
+      "gdelt_geo": {
+        "schedule": "I15",
+        "last_run_ts": 1786400109.5797546,
+        "last_run_ts_human": "2026-08-11T06:15:09+08:00",
+        "last_ok": true
+      },
+      "news_geo_feed": {
+        "schedule": "0715",
+        "last_run_ts": 1786317308.466732,
+        "last_run_ts_human": "2026-08-10T07:15:08+08:00",
+        "last_ok": false
+      }
+    },
+    "news_geo.json": {
+      "path": "/workspace/data/news_geo.json",
+      "exists": true,
+      "size_bytes": 137,
+      "mtime": "2026-08-10T23:25:17+08:00",
+      "status": "EMPTY_SHELL",
+      "articles_count": 0,
+      "content": "{\n  \"_schema_version\": \"1.0\",\n  \"generated_at\": \"2026-08-10T23:25:17+08:00\",\n  \"updated\": \"2026-08-10T23:25:17+08:00\",\n  \"articles\": []\n}"
+    },
+    "gdelt_geo_cache.json": {
+      "exists": false,
+      "note": "全 repo 无写入逻辑，文件不存在（与 arg-map-data-2026-08-11.md 结论一致）"
+    }
+  },
+  "root_cause_chain_known": "news_geo_feed.py 依赖 gdelt_geo_cache.json（无人写）→ articles=[] → 开阳空渲染；clusters 停更因 --aggregate 分支永不触发（见 arg-map-data-2026-08-11.md）",
+  "notes": "部署前基线：news_geo.json 必须为空壳 137B/articles=[]。部署后对比点：news_geo.json 应含 100-2000 点、intensity 0-100、event_code/root_code 出现在 jsonl 新行。"
+}
