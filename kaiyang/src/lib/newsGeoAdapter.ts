@@ -47,6 +47,19 @@ function sanitizeText(input: unknown, maxLen = 120): string | null {
   return clean.length > maxLen ? `${clean.slice(0, maxLen)}…` : clean;
 }
 
+/** URL 消毒（XSS 防线，href 专用）：仅放行 http/https 绝对地址，防 javascript:/data: 伪协议注入。
+ * 返回 undefined 表示不可信 URL（渲染层应隐藏链接而非渲染）。 */
+export function sanitizeUrl(input: unknown): string | undefined {
+  const t = textOrNull(input);
+  if (!t) return undefined;
+  try {
+    const u = new URL(t);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** 强度归一化：夹取到 [0,100]；浮点毛刺归整到 2 位小数（与 nuclearData 对齐）。 */
 function normalizeIntensity(raw: unknown): number | null {
   const v = finiteOrNull(raw);
@@ -90,6 +103,7 @@ function normalizeEvent(raw: unknown): NewsGeoEvent | null {
     event_date: eventDate,
     theme,
     location_name: locationName,
+    source_url: sanitizeUrl(e.source_url),
   };
 }
 
@@ -214,6 +228,8 @@ export function adaptNewsGeo(
           ? `提及 ${norm.mention_count} 次${norm.theme ? ` · ${norm.theme}` : ''}`
           : norm.theme ?? undefined,
       note: norm.event_date,
+      // v1.10.5：来源 URL 透传（已 sanitizeUrl 消毒，弹框「查看新闻原文」用）
+      sourceUrl: norm.source_url,
     });
   }
   return out;

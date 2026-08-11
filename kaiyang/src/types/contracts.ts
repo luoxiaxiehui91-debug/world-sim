@@ -223,6 +223,8 @@ export interface NewsGeoEvent {
   location_name?: string;
   /** 事件日期（GDELT SQLDATE），用于时间窗筛选 */
   event_date?: string;
+  /** 事件来源新闻 URL（GDELT SOURCEURL；v1.10.5 正式化，点击弹框跳转原文） */
+  source_url?: string;
 }
 
 /** news_geo.json 顶层（events 必填；空数组是合法业务态）。 */
