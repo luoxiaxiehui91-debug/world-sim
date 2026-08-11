@@ -1,6 +1,26 @@
-# STATUS — world-sim 实时交接文件
+# STATUS — world-sim 实时交接文件（新 session 冷启动第一入口）
 
-> 冷启动：先读 `项目导航.md`，再读本文件。最后更新：2026-08-11 15:00 GMT+8。
+## 新 session 冷启动（3 分钟，防迷路）
+
+> 任何新会话先读本区块，再读 `项目导航.md`（结构/待办概览）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-11 15:25 GMT+8。
+
+**项目是什么**：world-sim 世界推演系统——个人内部宏观推演系统（非商业产品）。逻辑 5 层：天枢（观测采集）→ 天璇（仿真，17 Agent）→ 天玑（验证）→ 玉衡（权重，未运转）→ 开阳（展示）；横切 crucix 信号总线（AGPL，退场实施中）+ 摇光 SRE。
+
+**项目位置**（防迷路，全部关键路径）：
+- WorkBuddy 工作区（本文档 + 项目导航 + calib 评审权威）：`C:\Users\luoxi\WorkBuddy\世界推演系统\`
+- **NAS Git repo = 真相**：`/vol2/1000/software/world-sim/` → GitHub `luoxiaxiehui91-debug/world-sim`（push 走代理 `http://192.168.31.108:7890`）
+- NAS 运行区：天枢热挂载 `/vol2/1000/software/macro-scan/核心代码/`（改 .py 即生效，scheduler.py 需 docker restart）；开阳 `/vol2/1000/software/kaiyang/dist`；crucix `/vol2/1000/software/Crucix/`（禁抄源码，AGPL）
+- 容器：`macro-scan-macro-scan-1`（天枢）/ `macro-sim`（天璇，COPY 模式）/ `macro-scan-tianji-1`（天玑）/ `macro-scan-kaiyang-1`（开阳 :8080）
+- SSH：`ssh nas`（**必须 Git 自带 ssh，Windows OpenSSH 已坏**）；NAS 操作走 SSH + docker exec，**禁信 SMB 挂载**
+
+**当前主线（08-11）**：
+1. **crucix 退场**——论证+实施 14 commit 全闭合（eff0d8c 为止），**观察窗中**：G0 判 08-12 / G1 判 08-15（自动化）；之后 WP-2.1b gscpi 切换 → WP-3.x 清理 → WP-4.x 停容器
+2. **开阳补全**——v1.9.0→v1.10.8（报告中心/FCI/风险面板/news_geo 事件图层/视觉 crucix 化/同地点聚合），news_geo 验收观察窗（08-13 06:35 自动化判定）
+3. 挂起待拍板：**航班走廊线（air 图层 B 完整版）**
+
+**必读顺序**：本文件 → 项目导航.md → .workbuddy/memory/MEMORY.md（红线）→ 按需 worldsim-review-synthesis.md（架构设计）；详细待办见下文「待做/已知遗留」节。
+
+---
 
 ## 当前状态
 
@@ -76,6 +96,7 @@
 7. **工作区历史遗留 M**：多为 CRLF 幻影，判脏须 `git diff --ignore-all-space`
 8. **天璇 sim_log.db 空目录**（bind 宿主空目录，仿真记录功能损坏，P0 未修）；天璇 /app/output 校准产物随重建丢失（已知）
 9. **时区 OPEN 3 条**：news.db ingested_at/last_scan 展示层未统一（web_server /status）；web_server.py:530 /grv-history 本地↔UTC 混合比较边界差 8h；gdelt_history.date 纯日期键维持 UTC 语义（低优先）
+10. **firms 09:08 连续 0 行需人工介入（08-11 晨检发现）**：补偿重试（77f6711）未救回；19:08 手动触发 39993 热点=源活 → 疑 09:08 调度时段源端/网络持续异常，建议改调度时间或查该时段出网（qa midcheck P1#2 延伸）
 
 ## 关键决策
 
