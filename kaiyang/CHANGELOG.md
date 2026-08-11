@@ -5,6 +5,26 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.10.3] - 2026-08-11 · 视觉微调：地缘要地图标 +20% / 事件点弧光收窄（by arch-map）
+
+**修改理由**：主理人浏览器复核后两项微调——①地缘（战略要地/chokepoint）星标图标偏小；②事件点弧光仍显"圈太大、太粗、太亮"，需更贴附中心。
+
+### 修改
+
+- **地缘要地图标加大 20%**（菱形/星形形态与类别色不变）：
+  - 2D `FlatMapPanel.tsx`：`SITE_STAR_FONT` 14 → **16.8**（×1.2，乘 siteScale 后 importance 1/2/3 → 16.8/21/25.2px）
+  - 3D `GlobePanel.tsx`：要地星标精灵 `3.2 → 3.84`（×1.2）
+- **事件点弧光收窄**（`FlatMapPanel.tsx` / `FlatMapPanel.css`）：
+  - 外环半径 `core×2.2 → core×1.8`（更贴附中心）
+  - 描边 `stroke-width 1.2 → 1.0`、透明度 `opacity 0.6 → 0.5`
+  - 脉冲环宽呼吸 `1.0↔1.8 → 0.8↔1.4`（幅度同步收窄）；内过渡层 1.35/0.10 保持不动
+
+### 验证
+
+- `npm test` 14 files / 311 tests 全绿；`vite build` 本地构建成功（新 bundle `index-H9wpMDHi.js` / `index-DiS3fCd9.css`）
+- scp 原地覆盖 + `chmod -R a+rX`，dist 无 data/ 子目录；nginx 新 bundle js/css 200；18/18 feed 200
+- 视觉项由主理人浏览器复核：地缘星标更大、事件点弧光贴附更细更淡
+
 ## [1.10.2] - 2026-08-11 · 三项修复：反向缩放丢失根治 / globe 点击不飞相机 / 报告分类折叠（by arch-map）
 
 **修改理由**：主理人反馈 ①开关分类选项时所有图标放大（v1.10.1 视觉重构未触及、此前已存在的 bug）；②globe 点击点放大仍在；③宏观分析（报告中心）分类折叠未做。根因：invScale 反向缩放只在 zoom 事件施加，点组/聚焦环重建后丢失 → 缩放态切分类全部按 k 倍渲染；globe 点击点触发相机飞行；ReportsPanel 组头是静态 div 无折叠。

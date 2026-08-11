@@ -53,14 +53,15 @@
 }
 
 /* 圆形事件点外环脉冲（2026-08-11 视觉重构 crucix 化）：
-   仅薄描边环动（透明度 + 环宽呼吸），中心实体稳定 */
+   仅薄描边环动（透明度 + 环宽呼吸），中心实体稳定。
+   v1.10.3 环宽呼吸收窄 0.8↔1.4（弧光整体收窄联动）。 */
 .fm-ring-pulse {
   animation: fm-ring-breathe var(--ky-pulse-duration, 2.2s) ease-in-out infinite;
 }
 
 @keyframes fm-ring-breathe {
-  0%, 100% { opacity: 0.4; stroke-width: 1.0; }
-  50%      { opacity: 0.9; stroke-width: 1.8; }
+  0%, 100% { opacity: 0.4; stroke-width: 0.8; }
+  50%      { opacity: 0.9; stroke-width: 1.4; }
 }
 
 /* ── 缩放级别指示器 ────────────────────────────────────── */
