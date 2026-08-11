@@ -77,8 +77,9 @@ function isValidCoord(lat: unknown, lng: unknown): boolean {
 }
 
 /** 校验并规整一条 GeoEvent；不合法返回 null（跳过该条，不画到 (0,0)）。
- * 外部文本字段经 sanitizeText 消毒（XSS 防线二）。 */
-function normalizeEvent(raw: unknown): NewsGeoEvent | null {
+ * 外部文本字段经 sanitizeText 消毒（XSS 防线二）。
+ * v1.10.8：导出供 geoAggregate（同地点聚合）复用。 */
+export function normalizeEvent(raw: unknown): NewsGeoEvent | null {
   if (!raw || typeof raw !== 'object') return null;
   const e = raw as Partial<NewsGeoEvent>;
   const id = textOrNull(e.id);

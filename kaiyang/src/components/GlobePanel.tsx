@@ -318,7 +318,13 @@ export function GlobePanel({
         .pointAltitude((p: RiskPoint) => (p.status === 'missing' ? 0.01 : 0.03 + p.weight * 0.17))
         // v1.10.6 ×0.8 收窄：0.4+0.25w → 0.32+0.2w（主理人"图标偏大"反馈）
         // v1.10.7 再收窄 ×0.68：0.32+0.2w → 0.22+0.14w（与 2D 新公式同量级；缺失 0.18）
-        .pointRadius((p: RiskPoint) => (p.status === 'missing' ? 0.18 : 0.22 + p.weight * 0.14))
+        // v1.10.8 聚合点：radius 按 log2(count) 放大（0.34~0.58 度，hover tooltip 显示「N 条事件」）
+        .pointRadius((p: RiskPoint) => {
+          if ((p.aggCount ?? 0) > 1) {
+            return 0.34 + Math.min(0.24, Math.log2(p.aggCount ?? 1) * 0.08);
+          }
+          return p.status === 'missing' ? 0.18 : 0.22 + p.weight * 0.14;
+        })
         .pointLabel((p: RiskPoint) => pointTooltipHtml(p))
         .arcsData(arcs)
         .arcStartLat('startLat')

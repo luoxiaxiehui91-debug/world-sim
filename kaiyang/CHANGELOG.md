@@ -526,3 +526,22 @@ docs/operations/20260805-world-deduction-time-audit-fixed.md。
 
 - npm test 14 files / 311 tests 全绿；vite build 本地构建（新 bundle index-oJgF4qMk.js / css 沿用 S7YTSnTj）
 - scp 原地覆盖 + chmod -R a+rX；root/js/css/news_geo 200；旧 bundle 按 DEPLOYMENT 规范留 3 版清理（v1.10.0-1.10.4 共 9 个删除）
+
+## [1.10.8] - 2026-08-11 · 同地点聚合：一城一点 + 计数徽标 + 弹框列全部事件
+
+**修改理由**：主理人反馈「同一地点事件是分开的，比如北京不止一条」——GDELT 对同一地点用城市中心坐标，但 location_name 存在拼写变体（Beijing/Peking、Washington/White House/Lincoln Memorial），同城新闻被拆成多个点。
+
+### 修改
+
+- lib/geoAggregate.ts（新建，<300 行）：`aggregateNewsGeo`——聚合主键 = 坐标格（0.1° ≈ 11km，城市级；实测同城同坐标，Peking/Beijing 自动合并、深圳/香港不误并）；代表事件 = mention 最高；聚合点强度 = 组内最严重事件（max intensity）；提及数求和；返回 childrenByPointId 供弹框
+- lib/mapData.ts：RiskPoint 增 `aggCount?`（>1 = 聚合点）
+- components/WorldPanel.tsx：newsGeoPoints 改用聚合；弹框事件源 = 聚合组 children（替代 location_name 过滤，更准）；点击仅 news/conflict 弹框（GRV/核设施只聚焦）；标题 emoji 移除（P0 红线）
+- components/FlatMapPanel.tsx：聚合点 core = clamp(5,9,4+log2(count)*1.3) + 中心白色计数徽标（pointer-events none）；聚焦环对齐聚合尺寸
+- components/GlobePanel.tsx：聚合点 pointRadius 0.34+log2(count)*0.08（hover tooltip 显示「N 条事件」）
+- lib/newsGeoAdapter.ts：normalizeEvent 导出（供聚合复用）
+- lib/geoAggregate.test.ts（新建）：9 用例（降级/同格合并/异格不并/求和/最大强度/单点 children/脏数据去重/articles 兼容）
+
+### 验证
+
+- npm test 15 files / 320 tests 全绿（+9）；vite build 本地构建（新 bundle index-CIMgkt7C.js / css 沿用 S7YTSnTj）
+- scp 原地覆盖 + chmod -R a+rX；root/js/css/news_geo/grv 200；v1.10.5 旧 bundle 按 DEPLOYMENT 规范清理

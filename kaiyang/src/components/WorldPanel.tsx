@@ -9,8 +9,8 @@ import { useFeed } from '@/hooks/useFeed';
 import { useStatus } from '@/state/StatusContext';
 import { useSelection } from '@/state/SelectionContext';
 import { adaptGrv } from '@/lib/grvAdapter';
+import { aggregateNewsGeo } from '@/lib/geoAggregate';
 import { buildEventBars, buildRiskArcs, buildRiskPoints, type RiskPoint } from '@/lib/mapData';
-import { adaptNewsGeo } from '@/lib/newsGeoAdapter';
 import { buildNuclearPoints, mergeNuclear } from '@/lib/nuclearData';
 import {
   ALL_CATEGORIES,
@@ -152,8 +152,12 @@ export function WorldPanel() {
   const arcs = useMemo(() => buildRiskArcs(model.geographic), [model]);
   // 事件触发式告警柱（气候 / 灾害事件）：无事件时为空数组，地图上什么都不画
   const eventPoints = useMemo(() => buildEventBars(data?.events), [data]);
-  // 地理新闻（GDELT ActionGeo 派生；1.6.0 新增；category='news' 与 RSS 合并计数）
-  const newsGeoPoints = useMemo(() => adaptNewsGeo(newsGeoRaw ?? null), [newsGeoRaw]);
+  // v1.10.8 同地点聚合：GDELT 同城事件（含拼写变体 Beijing/Peking）合并为一个聚合点，
+  // 返回聚合 RiskPoint[]（aggCount>1 带计数徽标）+ childrenByPointId（弹框展示同地点全部事件）
+  const { points: newsGeoPoints, childrenByPointId } = useMemo(
+    () => aggregateNewsGeo(newsGeoRaw ?? null),
+    [newsGeoRaw],
+  );
   // 核设施：feed 缺失时 mergeNuclear 回落静态种子，读数为空 ⇒ 灰色虚线菱形（不白屏、不编数）
   const nuclearRows = useMemo(() => mergeNuclear(nuclearRaw ?? null), [nuclearRaw]);
   const nuclearPoints = useMemo(() => buildNuclearPoints(nuclearRows), [nuclearRows]);
@@ -284,24 +288,19 @@ export function WorldPanel() {
   const regionLabel = regionDef(region)?.label ?? '全球';
   // v1.10.5 弹框：点击地图点位 → 聚焦 + 弹框（同地点事件列表）
   const [popupPoint, setPopupPoint] = useState<RiskPoint | null>(null);
-  // 同地点事件列表：从当前 feed 原始 events 按 location_name 过滤（label = location_name ?? country）
-  const relatedEvents = useMemo(() => {
-    if (!popupPoint || !newsGeoRaw) return [];
-    const label = popupPoint.label;
-    return (newsGeoRaw.events ?? [])
-      .filter(
-        (e) =>
-          (e.location_name && e.location_name === label) ||
-          (!e.location_name && e.country === label),
-      )
-      .sort((a, b) => String(b.event_date ?? '').localeCompare(String(a.event_date ?? '')));
-  }, [popupPoint, newsGeoRaw]);
-  // 点击地图点位 → 反向写回聚焦态（信号侧无 key 可给，故第一参传 null）
+  // v1.10.8 弹框事件源：直接取聚合组的 children（比 location_name 过滤更准——聚合 key 已含拼写变体合并）
+  const popupChildren = useMemo(() => {
+    if (!popupPoint) return [];
+    return childrenByPointId.get(popupPoint.id) ?? [];
+  }, [popupPoint, childrenByPointId]);
+  // 点击地图点位 → 反向写回聚焦态（信号侧无 key 可给，故第一参传 null）；
+  // 仅新闻/冲突类别弹框（GRV/核设施点只聚焦，v1.10.8 明确边界）
   const handlePointClick = useCallback(
     (p: RiskPoint) => {
       const willFocus = focusPointId !== p.id;
       selectSignal(null, willFocus ? p.id : null);
-      setPopupPoint(willFocus ? p : null);
+      const isNewsPoint = p.category === 'news' || p.category === 'conflict';
+      setPopupPoint(willFocus && isNewsPoint ? p : null);
     },
     [selectSignal, focusPointId],
   );
@@ -310,7 +309,7 @@ export function WorldPanel() {
     <div className="glass-panel scanlines flex h-full min-h-[560px] flex-col">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <div className="panel-title mb-0">
-          {mode === 'globe' ? '🌐 全球风险地球' : '🗺️ 全球风险平面图'}
+          {mode === 'globe' ? '全球风险地球' : '全球风险平面图'}
         </div>
         <span
           className="chip text-white/45"
@@ -424,11 +423,11 @@ export function WorldPanel() {
             </div>
           )}
 
-          {/* v1.10.5 事件弹框：点击地理新闻点显示详情 + 同地点事件列表 */}
+          {/* v1.10.5 事件弹框：点击地理新闻点显示详情 + 同地点事件列表（v1.10.8 源 = 聚合组 children） */}
           {popupPoint && (
             <EventPopup
               point={popupPoint}
-              related={relatedEvents}
+              related={popupChildren}
               onClose={() => setPopupPoint(null)}
             />
           )}

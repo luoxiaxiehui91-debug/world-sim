@@ -57,6 +57,8 @@ export interface RiskPoint {
   note?: string;
   /** 事件来源新闻 URL（v1.10.5：已消毒，供弹框「查看新闻原文」跳转） */
   sourceUrl?: string;
+  /** 同地点聚合计数（v1.10.8：>1 = 聚合点，渲染计数徽标；未设 = 单事件点） */
+  aggCount?: number;
 }
 
 export interface RiskArc {

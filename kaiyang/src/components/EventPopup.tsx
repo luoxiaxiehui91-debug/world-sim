@@ -28,13 +28,14 @@ function CloseIcon() {
 interface EventPopupProps {
   /** 选中的事件点（RiskPoint 已含 sourceUrl 消毒值） */
   point: RiskPoint;
-  /** 同地点事件列表（WorldPanel 已按 location_name 过滤，原始 NewsGeoEvent） */
+  /** 同地点事件列表（v1.10.8 起 = 聚合组 children，WorldPanel 按聚合 key 匹配，含拼写变体合并） */
   related: NewsGeoEvent[];
   onClose: () => void;
 }
 
 /**
  * v1.10.5 事件弹框：点击地图事件点后展示详情 + 同地点事件列表。
+ * v1.10.8 聚合语义：related = 同地点全部事件（同新闻按 source_url 去重，dup 徽标 ×N）。
  * 安全：所有文本经 React 默认转义渲染；链接 href 经 sanitizeUrl 消毒（仅 http/https）。
  */
 export function EventPopup({ point, related, onClose }: EventPopupProps) {
