@@ -1,16 +1,16 @@
 # STATUS — world-sim 实时交接文件
 
-> 冷启动：先读 `项目导航.md`，再读本文件。最后更新：2026-08-10 19:30 GMT+8。
+> 冷启动：先读 `项目导航.md`，再读本文件。最后更新：2026-08-11 15:00 GMT+8。
 
 ## 当前状态
 
-**08-10 下午-晚间：crucix 退场论证 + 实施（当前主线，11 commit 闭合，观察窗中）**：
-- **论证**：4 视角（arch/data/qa/devops）round1 + R2 复核闭合——文档 `macro-scan/docs/arg-round1-*.2026-08-10.md`（qa/arch/data/devops 四份）+ 工作区 `crucix-retire-round1-交叉检查-2026-08-10.md`；ADR-01~10 定稿
-- **核心结论**：gscpi 唯一硬依赖（NY Fed xlsx 替代已落地）/ nuke SafeCast 复刻保留（CC0 公开源）/ sdr KiwiSDR 接入 narrative 弱信号（用户拍板）/ D3 死配置删 / news RSS-only 独立 / climate 兜底删
-- **实施 11 commit 全闭合**（a65c998→65666b8）：G0 climate dom=1 恢复 + gscpi fetcher(100e544) + ADR-08 死代码删(a8ffb34) + gscpi 调度(b29c8da) + climate 兜底删(7ac6b48) + safecast(611cc6b) + kiwisdr 接线(c38a2b0) + 调度注册(260a173) + RSS-only(5bba73e) + air 删 + gscpi_warn None 防护(65666b8)
-- **qa 中期检查**（midcheck 落盘）：P0=0 / P1=2（gscpi_warn None→TypeError 已修 65666b8；firms 连续 5 天 0 行已查清=间歇性下载失败，源活 39993 热点实证）/ P2=6 观察
-- **观察窗（代码活已完，等门禁）**：08-11 晨 gscpi 05:32 / kiwisdr 06:02 / climate 09:10 首跑 + firms 09:08 复核；**G0 判 08-12 / G1 判 08-15** → WP-2.1b gscpi 切换 + WP-2.2 nuke 改读 → WP-3.1/3.2 清理 → WP-4.x 容器停用
-- crucix 容器：独立运行中（退场实施中，依赖摘除完成前不动作；摘除 6 项已完成 5 项：gscpi/nuke/sdr/news/climate，剩 _crucix 注入整体清理归 WP-3.2）
+**08-11：crucix 退场实施全部闭合（观察窗中）+ 开阳大规模补全（v1.9.0→v1.10.8）+ 时区统一修复**：
+- **crucix 退场实施（08-10 晚启动，全 commit 闭合至 ab8b1f7）**：G0 climate 恢复（a65c998）/ gscpi fetcher+调度（100e544/b29c8da，NY Fed xlsx 尾行 0.805）/ ADR-08 死代码删（a8ffb34）/ climate 兜底删+firms 加固（7ac6b48）/ safecast nuke 6 站 MATCH（611cc6b）/ kiwisdr 接线（c38a2b0）/ 双调度注册（260a173）/ RSS-only articles 断供排除（5bba73e）/ air 删+ gscpi_warn None 防护（65666b8）/ firms 补偿重试（77f6711）/ 时区修复 10 处显式后缀（a7c6e42）
+- **观察窗（等门禁，自动化接管）**：gscpi 05:32 / kiwisdr 06:02 / climate 09:10 已首跑；**G0 判 08-12 / G1 判 08-15** → WP-2.1b gscpi 切换 + WP-2.2 nuke 改读 → WP-3.x 清理 → WP-4.x 停容器（crucix 容器独立运行中，等门禁）
+- **开阳补全（v1.9.0→v1.10.8）**：第一批报告中心（45 份）+ FCI/GSCPI 面板 + 风险信号面板 + dashboard 停生成（2dff1a6）+ news_export 提频 I15（3c30723）；**M-1 news_geo 事件图层**（8e6aaf3/a86fbbe/ddb17b0：137B 空壳→527 事件，CAMEO event_code 落盘，XSS 双保险）→ 视觉 crucix 化（a63bd65）→ 缩放半补偿（da464f5）→ 事件弹框+原文链接（84464dd）→ 同新闻合并+unknown 清零（c4659f4）→ 视觉降噪 Top-80 标签（a3b0561）→ **同地点聚合 v1.10.8（ab8b1f7：628→208 点，一城一点+计数徽标）**
+- **news_geo 验收**：数据侧 9/9 + qa 16 PASS + XSS 实测不可注入；48h 判定 08-13 06:35 自动化（unknown<5%）；浏览器复核 17 项待主理人
+- **事故治本（37dda5a）**：开阳部署触发嵌套挂载断链（mv dist 换 inode → html/data 子挂载丢失 + 删 dist/data 容器起不来）→ data 挂载独立到 `/usr/share/nginx/data` + nginx alias（嵌套挂载红线升级，见坑节）
+- 时区：全系统落盘时间戳统一显式后缀（UTC→Z / 本地→+08:00），前端 parseTs 契约无后缀=北京时间，10 处修复 + OPEN 3 条（news.db 展示层 / grv-history 边界 / 纯日期键）
 
 **08-04：6 异常全量修复闭环**（P0-A/B/C/D + data-freshness + P1，验收 13/13，question 归档，活跃 9→3）。
 
@@ -30,7 +30,7 @@
 - 版本线：v2.0.37（R4g 收尾，引擎回 R4e 基线+归因测量修复）→ v2.0.38（R4h ③ sentiment 写者，CACHE 12/v2031）→ v2.0.39（R4h ② vix 豁免治理，CACHE 13/v2032）→ **v2.0.40（R4h ① ease_ok 方向闸收编，CACHE 14/v2033）**
 - 08-10 R4h ① 结案：**收编 EASE 治理**（EASE wrong 8→0 真实有效）；credit 回池/p̂ 0.4894/S2 0.636 不通过、挂起转 silence 治理；方案预期 0.5729 系假复现（A3 soul 缺失），见下节红线
 
-- 版本现状：macro-scan **v3.8.16** / macro-sim **v2.0.40**（CACHE 14 / ARTIFACT v2033）/ macro-ji v1.0.0 / kaiyang **v1.9.0**
+- 版本现状：macro-scan **v3.8.17** / macro-sim **v2.0.40**（CACHE 14 / ARTIFACT v2033）/ macro-ji v1.0.0 / kaiyang **v1.10.8**
 
 ## R4 系列（天璇校准引擎治理主线，08-07→08-10）
 
@@ -68,13 +68,14 @@
 ## 待做 / 已知遗留
 
 1. **R4h ① 挂起项（转 silence 治理立项）**：credit 回池（silence 0.531>0.50）、p̂ 过 partial 0.55、S2≤0.60 三项未达成。seed123（silence 0.633 / n_active 9<12）为容器残余弱项；已证 0.80 参数无收益、方案预期 0.5729 为假复现（勿再引用）。qa/data 已表态可参与下一轮方案评审与验收预置
-2. **news_geo 图层空渲染（架构遗留，非 bug）**：news_geo_feed（P3-A，spaCy NER 未装）07:15 写空 articles 覆盖；GDELT events（jsonl I15 活跃）从不进 news_geo.json——拆文件/补 NER 属 P3-A 架构工作另行规划
+2. **news_geo 空渲染 ✅ 已解决（08-11 M-1）**：路线 A 落地——news_geo.json 由 fetch_gdelt_geo.py I15 派生（137B→527 事件），旧 NER 链退役；验收 48h 判定 08-13 自动化。**浏览器复核 17 项待主理人**（事件点渲染/性能/XSS/时间戳/图例/降级/聚合观感等，清单见 arg-map-qa-acceptance）
 3. **FRED 上游源停更（观察中）**：DCOILWTICO 卡 07-27 / ICSA 07-25（经代理实测，非本地问题）；fresh=False 已暴露 + ntfy 告警覆盖；BAA10Y/DTWEXBGS 卡 07-31 根因待查
-4. **kaiyang/public 静态 manifest** 冻 06-28，待同步运行区生成版
+4. **航班走廊线（air 图层）待拍板**：P2 路线图已排（CRUCIX_UPGRADE air=空域活动三角+航迹弧）；天枢 airtraffic_opensky 日跑已有全球快照（8529 架），画 crucix 式区域走廊需天枢按战略区域加工（增量）；建议 news_geo 验收后做 B 完整版
 5. **天璇 deploy.sh macro-sim 目标内部 ssh 密码验证失败**：重建改手动 docker build（脚本本身无 bug，NAS 自身 ssh 配置问题）
 6. **天玑 weight_update_log 仍 0 为正常**：MIN_TRIGGER_N=8，当前 predictions=1，链路已验证可跑
 7. **工作区历史遗留 M**：多为 CRLF 幻影，判脏须 `git diff --ignore-all-space`
 8. **天璇 sim_log.db 空目录**（bind 宿主空目录，仿真记录功能损坏，P0 未修）；天璇 /app/output 校准产物随重建丢失（已知）
+9. **时区 OPEN 3 条**：news.db ingested_at/last_scan 展示层未统一（web_server /status）；web_server.py:530 /grv-history 本地↔UTC 混合比较边界差 8h；gdelt_history.date 纯日期键维持 UTC 语义（低优先）
 
 ## 关键决策
 
@@ -91,6 +92,7 @@
 - tianji_db.py 必须 TIANJI_DATA_DIR env 指向挂载卷（OPENCLAW_WORKSPACE 推导会落 /app/data 镜像内）
 - 容器重建后 control_server 不自动拉起——compose 必须挂载运行区 entrypoint.sh（保持可执行位）
 - pip 的 pycdc 是冒名包；真 pycdc 需 gcc+cmake 编译（容器 apt 可用，中科大源）
+- **嵌套挂载红线（08-11 事故升级，P0）**：docker 嵌套 bind mount（子挂载点在父挂载源目录内，如 `dist→html:ro` + `data→html/data`）= 高危——父挂载源 mv/rm 丢子挂载；ro 父挂载内无法建挂载点（删 dist/data 容器起不来）；**治本 = 子挂载独立路径 + nginx alias（kaiyang 已按 37dda5a 修复）**；部署 dist 禁 mv 换 inode、禁 rm dist 子目录，只原地覆盖文件；部署后 `docker exec kaiyang ls -id /usr/share/nginx/data` == 宿主 `macro-scan/data` inode
 - 目录 bind mount + mv 换 inode = 容器锁旧 inode——部署 dist 禁 mv 原目录，须 restart
 - scp 部署静态产物后必须 chmod -R a+rX（640 → nginx 403）
 - 清旧 bundle 排除名单必须动态取自 index.html 实际引用，禁硬编码 hash（误删 CSS 白底事故）
