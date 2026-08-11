@@ -28,6 +28,12 @@ const PULSE_FAST_S = 1.1;
  *  v1.10.3：14→16.8（×1.2）地缘要地图标加大。 */
 const SITE_STAR_FONT = 16.8;
 
+/** zoom 反向补偿指数（v1.10.4，crucix 半补偿：点随 zoom 按 1/√k 微缩放）。
+ *  指数 1 = 完全恒定（旧行为：缩小后图标不缩小）；指数 0.5 = 半补偿
+ *  （缩小后图标变小但比地图慢、保持可读；放大后变大但比地图慢、不膨胀）。
+ *  观感不合适时调此常量即可。 */
+const INV_SCALE_EXP = 0.5;
+
 /** 大圆弧采样点数 */
 const ARC_SAMPLES = 56;
 
@@ -141,17 +147,20 @@ export function FlatMapPanel({
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
 
-  /** 统一对现有点位 / 聚焦环 / 星标施加 zoom 反向缩放（视觉尺寸恒定）。
+  /** 统一对现有点位 / 聚焦环 / 星标施加 zoom 反向补偿（v1.10.4 半补偿：1/√k）。
    *
    * 2026-08-11 v1.10.2 根治「缩放态下切分类 → 全部放大」：
-   * invScale 此前只在 zoom 事件里施加；点组/聚焦环重建（切分类/点击）后新建元素
+   * 反向缩放此前只在 zoom 事件里施加；点组/聚焦环重建（切分类/点击）后新建元素
    * 不含反向缩放，而 .fm-root 的 zoom transform 仍在 → 按 k 倍渲染。现在 zoom 事件、
    * buildPoints 重建后、聚焦环重建后三个调用点共用本函数。
+   *
+   * v1.10.4：指数 1（完全恒定）→ INV_SCALE_EXP=0.5（crucix 半补偿，点随 zoom 微缩放）——
+   * 缩小后图标变小（比地图慢、保持可读），放大后变大（比地图慢、不膨胀）。
    */
   const applyPointInvScale = useCallback(() => {
     const t = transformRef.current;
     if (!gRef.current) return;
-    const invScale = t && t.k > 0 ? 1 / t.k : 1;
+    const invScale = t && t.k > 0 ? 1 / Math.pow(t.k, INV_SCALE_EXP) : 1;
     const root = d3sel.select(gRef.current);
     // 星标：字号反向缩放
     root.selectAll<SVGTextElement, unknown>('.fm-site-star').each(function() {
