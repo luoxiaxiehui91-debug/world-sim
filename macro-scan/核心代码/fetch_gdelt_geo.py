@@ -486,11 +486,21 @@ def _html_escape(value: Any) -> str:
     return str(value).translate(_HTML_ESCAPE_TABLE)
 
 
-def _map_event_type(root_code: Any) -> str:
-    """CAMEO EventRootCode → 开阳四类枚举；缺失 → 'unknown'（前端降级中性色）。"""
+def _map_event_type(root_code: Any, goldstein: Any = None) -> str:
+    """CAMEO EventRootCode → 开阳四类枚举。
+
+    缺失 root_code（2026-08-11 前落盘的旧行）→ 启发式兜底消除 'unknown' 标题
+    （主理人 08-11 反馈）：Goldstein <= -4 归 'conflict'（GDELT 负分语义 = 冲突/敌对），
+    其余归 'political'（中性政治/外交）。标注：启发式非 CAMEO 权威，随窗口滑动
+    自然被带 root_code 的新行替换。
+    """
     rc = str(root_code or "").strip()
     if not rc:
-        return "unknown"
+        try:
+            g = float(goldstein) if goldstein is not None else 0.0
+        except (TypeError, ValueError):
+            g = 0.0
+        return "conflict" if g <= -4.0 else "political"
     if rc == _CAMEO_ROOT_PROTEST:
         return "protest"
     if rc in _CAMEO_ROOT_CONFLICT:
@@ -561,7 +571,7 @@ def _map_to_news_geo_event(ev: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
         "id": "gdelt-" + str(ev.get("event_id", "")),
         "lat": round(lat, COORD_DECIMALS),
         "lng": round(lng, COORD_DECIMALS),
-        "event_type": _map_event_type(ev.get("root_code")),
+        "event_type": _map_event_type(ev.get("root_code"), ev.get("intensity")),
         "intensity": _norm_intensity(ev.get("intensity"), ev.get("mentions")),
         "country": str(ev.get("country_iso", "")),
     }

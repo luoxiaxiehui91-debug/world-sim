@@ -493,3 +493,20 @@ docs/operations/20260805-world-deduction-time-audit-fixed.md。
 
 - npm test 14 files / 311 tests 全绿；vite build 本地构建成功（新 bundle index-BUiWhYtr.js / index-C6xX4dKN.css）
 - scp 原地覆盖 + chmod -R a+rX；nginx 新 bundle 200；18/18 feed 200；v1.10.2 旧 bundle 按 DEPLOYMENT 规范清理
+
+## [1.10.6] - 2026-08-11 · 图标整体收窄 ×0.8 + 弹框同新闻合并 + event_type 启发式（unknown 清零）
+
+**修改理由**：主理人复核三项——①展示图图标仍偏大需缩小；②同地点新闻多条是同一篇（GDELT 一篇报道拆多事件）；③事件标题大量 unknown 不可读。
+
+### 修改
+
+- 前端尺寸收窄（×0.8，2D/3D 联动）：
+  - FlatMapPanel.tsx：中心 core clamp[3,9] → clamp[2.4,7.2]（3+6w → 2.4+4.8w，两处：点渲染 + 聚焦环）
+  - GlobePanel.tsx：pointRadius 0.4+0.25w → 0.32+0.2w；ringMaxRadius (3.5/2.2)+2.2w → (2.8/1.76)+1.76w
+- EventPopup.tsx 同新闻合并：按 source_url 去重（GDELT 一篇报道常拆成多条事件），保留 mention 最高条目，dup 徽标 ×N；列表标题显示「去重后 N」
+- 后端 fetch_gdelt_geo.py `_map_event_type` 启发式兜底：缺失 root_code 的旧行 Goldstein<=-4 → conflict、其余 → political（消除 unknown 标题；标注启发式非 CAMEO 权威，随窗口滑动被带码新行替换）。实测分布：unknown 597→0、conflict 123、political 489
+
+### 验证
+
+- 前端：npm test 14 files / 311 tests 全绿；vite build 本地构建（新 bundle index-BxnJs6nn.js / index-S7YTSnTj.css）；scp 原地覆盖 + chmod；bundle + feed 200
+- 后端：热挂载生效 + 容器内 _map_event_type 单测（-6→conflict/0→political/14→protest/15→conflict）+ --export-json 实测 news_geo.json 612 events unknown=0

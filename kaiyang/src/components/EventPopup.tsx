@@ -38,10 +38,25 @@ interface EventPopupProps {
  * 安全：所有文本经 React 默认转义渲染；链接 href 经 sanitizeUrl 消毒（仅 http/https）。
  */
 export function EventPopup({ point, related, onClose }: EventPopupProps) {
+  // v1.10.6 同新闻去重：同 source_url（GDELT 一篇报道常拆成多条事件）合并为一条，
+  // 保留 mention_count 最高的条目，dup 标注合并数；无 URL 的按 id 保留。
   const items = useMemo(() => {
-    return related
-      .filter((e) => e.id !== point.id.replace(/^newsgeo:/, ''))
-      .slice(0, 10);
+    const map = new Map<string, NewsGeoEvent & { dup: number }>();
+    for (const e of related) {
+      if (e.id === point.id.replace(/^newsgeo:/, '')) continue;
+      const url = sanitizeUrl(e.source_url);
+      const key = url ?? `id:${e.id}`;
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, { ...e, dup: 1 });
+      } else {
+        existing.dup += 1;
+        if ((e.mention_count ?? 0) > (existing.mention_count ?? 0)) {
+          existing.mention_count = e.mention_count;
+        }
+      }
+    }
+    return [...map.values()].slice(0, 10);
   }, [related, point]);
 
   return (
@@ -85,9 +100,9 @@ export function EventPopup({ point, related, onClose }: EventPopupProps) {
             <div className="mb-2 text-[10px] text-white/25">无原文链接</div>
           )}
 
-          {/* 同地点事件列表 */}
+          {/* 同地点事件列表（同新闻已合并） */}
           <div className="mb-1 text-[10px] font-semibold tracking-widest text-white/45">
-            同地点事件 · {related.length}
+            同地点事件 · {related.length}（去重后 {items.length}）
           </div>
           {items.length === 0 ? (
             <div className="text-[10px] text-white/25">无其他事件</div>
@@ -106,6 +121,14 @@ export function EventPopup({ point, related, onClose }: EventPopupProps) {
                       <span className="truncate text-[10px]" style={{ color: withAlpha(c, 0.9) }}>
                         {e.event_type}
                       </span>
+                      {e.dup > 1 && (
+                        <span
+                          className="shrink-0 rounded bg-white/8 px-1 text-[8px] text-white/40"
+                          title={`同新闻 ${e.dup} 条事件已合并`}
+                        >
+                          ×{e.dup}
+                        </span>
+                      )}
                       <span className="ml-auto shrink-0 text-[9px] text-white/30">{e.event_date}</span>
                     </div>
                     <div className="mt-0.5 flex items-center justify-between gap-2">

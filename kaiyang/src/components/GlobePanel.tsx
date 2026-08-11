@@ -289,7 +289,8 @@ export function GlobePanel({
         // 缺失点压扁、缩小：与 C2-A 的「灰 + 无光环 + 无标签」一起，
         // 把「无数据」和「低风险」在视觉上彻底区分开
         .pointAltitude((p: RiskPoint) => (p.status === 'missing' ? 0.01 : 0.03 + p.weight * 0.17))
-        .pointRadius((p: RiskPoint) => (p.status === 'missing' ? 0.3 : 0.4 + p.weight * 0.25))
+        // v1.10.6 ×0.8 收窄：0.4+0.25w → 0.32+0.2w（主理人“图标偏大”反馈）
+        .pointRadius((p: RiskPoint) => (p.status === 'missing' ? 0.24 : 0.32 + p.weight * 0.2))
         .pointLabel((p: RiskPoint) => pointTooltipHtml(p))
         .arcsData(arcs)
         .arcStartLat('startLat')
@@ -328,7 +329,8 @@ export function GlobePanel({
           .ringColor((p: RiskPoint) => (t: number) =>
             withAlpha(p.color, Math.max(0, 1 - t) * (isFocus(p) ? 0.85 : 0.55)),
           )
-          .ringMaxRadius((p: RiskPoint) => (isFocus(p) ? 3.5 : 2.2) + p.weight * 2.2)
+          // v1.10.6 ring ×0.8 收窄（与 pointRadius 联动，主理人“图标偏大”反馈）
+          .ringMaxRadius((p: RiskPoint) => (isFocus(p) ? 2.8 : 1.76) + p.weight * 1.76)
           // 强度 = 脉冲速率：weight 越高，扩散越快、周期越短
           .ringPropagationSpeed((p: RiskPoint) => (isFocus(p) ? 1.8 : 1.0) + p.weight * 1.2)
           .ringRepeatPeriod((p: RiskPoint) =>
