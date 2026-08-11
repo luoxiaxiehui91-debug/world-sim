@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Globe from 'globe.gl';
 import * as THREE from 'three';
 import { MAP_THEME, PALETTE, withAlpha } from '@/config/theme';
@@ -141,6 +141,33 @@ export function GlobePanel({
   // 相机拉远时隐藏要地标签；用 ref 去抖，避免 onZoom 每帧触发 setState
   const [siteLabelsOn, setSiteLabelsOn] = useState(true);
   const siteLabelsOnRef = useRef(true);
+
+  // v1.10.7 Top-80 标签截断：常驻标签按 intensity 降序只保留前 80 个点标签
+  // （聚焦点恒在首位，即使它 intensity 低也要可见；悬停 tooltip 由 pointLabel 提供，不受截断影响）。
+  // 降噪根因：默认视图 281 个 ≥HIGHLIGHT 的标签互相遮挡，截断到 Top-80 后标签云消散。
+  const labeledPoints = useMemo<GlobeHtmlDatum[]>(() => {
+    return points
+      .filter(
+        (p) =>
+          p.status !== 'missing' &&
+          (focusPointId !== null && p.id === focusPointId ||
+            (p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent),
+      )
+      .map((p) => ({
+        kind: 'point' as const,
+        lat: p.lat,
+        lng: p.lng,
+        alt: 0.06 + p.weight * 0.17,
+        point: p,
+      }))
+      .sort((a, b) => {
+        const aFocus = a.point.id === focusPointId ? 1 : 0;
+        const bFocus = b.point.id === focusPointId ? 1 : 0;
+        if (aFocus !== bFocus) return bFocus - aFocus; // 聚焦点最前
+        return (b.point.value ?? 0) - (a.point.value ?? 0); // 其余 intensity 降序
+      })
+      .slice(0, 80);
+  }, [points, focusPointId]);
 
   // 初始化 3D 地球。带显式尺寸、ResizeObserver 兜底与错误可见化。
   useEffect(() => {
@@ -289,8 +316,9 @@ export function GlobePanel({
         // 缺失点压扁、缩小：与 C2-A 的「灰 + 无光环 + 无标签」一起，
         // 把「无数据」和「低风险」在视觉上彻底区分开
         .pointAltitude((p: RiskPoint) => (p.status === 'missing' ? 0.01 : 0.03 + p.weight * 0.17))
-        // v1.10.6 ×0.8 收窄：0.4+0.25w → 0.32+0.2w（主理人“图标偏大”反馈）
-        .pointRadius((p: RiskPoint) => (p.status === 'missing' ? 0.24 : 0.32 + p.weight * 0.2))
+        // v1.10.6 ×0.8 收窄：0.4+0.25w → 0.32+0.2w（主理人"图标偏大"反馈）
+        // v1.10.7 再收窄 ×0.68：0.32+0.2w → 0.22+0.14w（与 2D 新公式同量级；缺失 0.18）
+        .pointRadius((p: RiskPoint) => (p.status === 'missing' ? 0.18 : 0.22 + p.weight * 0.14))
         .pointLabel((p: RiskPoint) => pointTooltipHtml(p))
         .arcsData(arcs)
         .arcStartLat('startLat')
@@ -329,10 +357,11 @@ export function GlobePanel({
           .ringColor((p: RiskPoint) => (t: number) =>
             withAlpha(p.color, Math.max(0, 1 - t) * (isFocus(p) ? 0.85 : 0.55)),
           )
-          // v1.10.6 ring ×0.8 收窄（与 pointRadius 联动，主理人“图标偏大”反馈）
-          .ringMaxRadius((p: RiskPoint) => (isFocus(p) ? 2.8 : 1.76) + p.weight * 1.76)
+          // v1.10.6 ring ×0.8 收窄（与 pointRadius 联动，主理人"图标偏大"反馈）
+          // v1.10.7 再收窄：1.76+1.76w → 1.2+1.1w（普通）/ 2.8 → 1.9（聚焦），与 2D 新环同量级
+          .ringMaxRadius((p: RiskPoint) => (isFocus(p) ? 1.9 : 1.2) + p.weight * 1.1)
           // 强度 = 脉冲速率：weight 越高，扩散越快、周期越短
-          .ringPropagationSpeed((p: RiskPoint) => (isFocus(p) ? 1.8 : 1.0) + p.weight * 1.2)
+          .ringPropagationSpeed((p: RiskPoint) => (isFocus(p) ? 1.5 : 0.8) + p.weight * 0.8)
           .ringRepeatPeriod((p: RiskPoint) =>
             isFocus(p)
               ? FOCUS_RING_PERIOD
@@ -371,20 +400,9 @@ export function GlobePanel({
 
       // 常驻标签层（CSS2D，能力探测）：高风险 / 事件点标签 + 战略要地标签共用一层。
       // 决策 C2-A：缺失点不出常驻标签，避免屏幕上出现一排「—」噪声。
+      // v1.10.7：点标签 = labeledPoints（Top-80 降序截断，聚焦点恒在列）；悬停 tooltip 走 pointLabel 不受影响。
       if (typeof world.htmlElementsData === 'function') {
-        const labeled: GlobeHtmlDatum[] = points
-          .filter(
-            (p) =>
-              p.status !== 'missing' &&
-              (isFocus(p) || (p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent),
-          )
-          .map((p) => ({
-            kind: 'point' as const,
-            lat: p.lat,
-            lng: p.lng,
-            alt: 0.06 + p.weight * 0.17,
-            point: p,
-          }));
+        const labeled: GlobeHtmlDatum[] = labeledPoints;
         // 拉远时只隐藏要地标签，风险点标签不受影响（两者取舍标准不同）
         const siteLabels: GlobeHtmlDatum[] = siteLabelsOn
           ? sites.map((s) => ({
@@ -429,7 +447,7 @@ export function GlobePanel({
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [points, arcs, sites, siteLabelsOn, focusPointId, onPointClick]);
+  }, [points, arcs, sites, siteLabelsOn, focusPointId, onPointClick, labeledPoints]);
 
   return (
     <div ref={containerRef} className="globe-stage relative h-full w-full overflow-hidden rounded-xl">
