@@ -24,8 +24,9 @@ import './FlatMapPanel.css';
 const PULSE_SLOW_S = 3.2;
 const PULSE_FAST_S = 1.1;
 
-/** 战略要地星形基准字体大小（px），再乘 siteScale(importance)。 */
-const SITE_STAR_FONT = 14;
+/** 战略要地星形基准字体大小（px），再乘 siteScale(importance)。
+ *  v1.10.3：14→16.8（×1.2）地缘要地图标加大。 */
+const SITE_STAR_FONT = 16.8;
 
 /** 大圆弧采样点数 */
 const ARC_SAMPLES = 56;
@@ -443,14 +444,14 @@ export function FlatMapPanel({
         }
       } else {
         // 弧光（2026-08-11 视觉重构 crucix 化）：薄描边环贴附外侧 + 内层淡光晕 + 中心实体。
-        // 替换旧「实心大圆 ×2 叠成一大圈」形态；脉冲只动外环，中心稳定。
+        // v1.10.3 弧光收窄：外环 r 2.2→1.8 更贴附、线宽 1.2→1.0、透明度 0.6→0.5。
         if (!missing) {
           // 外环：薄描边环贴附（crucix ACLED 冲突点式），脉冲仅此层
           const ring = grp.append('circle')
-            .attr('cx', 0).attr('cy', 0).attr('r', core * 2.2)
+            .attr('cx', 0).attr('cy', 0).attr('r', core * 1.8)
             .attr('fill', 'none')
-            .attr('stroke', withAlpha(p.color, 0.6))
-            .attr('stroke-width', 1.2)
+            .attr('stroke', withAlpha(p.color, 0.5))
+            .attr('stroke-width', 1.0)
             .attr('pointer-events', 'none');
           if (highlight) {
             ring.attr('class', 'fm-ring-pulse').style('--ky-pulse-duration', `${pulseSec}s`);

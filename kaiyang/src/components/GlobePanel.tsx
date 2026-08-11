@@ -355,7 +355,8 @@ export function GlobePanel({
               depthWrite: false,
             });
             const sprite = new THREE.Sprite(material);
-            const size = 3.2 * siteScale(s.importance);
+            // v1.10.3：3.2→3.84（×1.2）地缘要地图标加大（与 2D 星标联动）
+            const size = 3.84 * siteScale(s.importance);
             sprite.scale.set(size, size, 1);
             return sprite;
           })
