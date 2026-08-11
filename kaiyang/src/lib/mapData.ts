@@ -55,6 +55,8 @@ export interface RiskPoint {
   isEvent?: boolean;
   /** 事件补充说明（仅 isEvent 点可能存在） */
   note?: string;
+  /** 事件来源新闻 URL（v1.10.5：已消毒，供弹框「查看新闻原文」跳转） */
+  sourceUrl?: string;
 }
 
 export interface RiskArc {

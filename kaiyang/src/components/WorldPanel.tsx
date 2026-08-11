@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { EventPopup } from '@/components/EventPopup';
 import { FlatMapPanel } from '@/components/FlatMapPanel';
 import { GlobePanel } from '@/components/GlobePanel';
 import { LayerLegend, type LayerCountMap } from '@/components/LayerLegend';
@@ -281,9 +282,27 @@ export function WorldPanel() {
   // 事件计数随地区收敛（与图例计数同口径）
   const regionEventCount = regionPoints.filter((p) => p.category === 'event').length;
   const regionLabel = regionDef(region)?.label ?? '全球';
+  // v1.10.5 弹框：点击地图点位 → 聚焦 + 弹框（同地点事件列表）
+  const [popupPoint, setPopupPoint] = useState<RiskPoint | null>(null);
+  // 同地点事件列表：从当前 feed 原始 events 按 location_name 过滤（label = location_name ?? country）
+  const relatedEvents = useMemo(() => {
+    if (!popupPoint || !newsGeoRaw) return [];
+    const label = popupPoint.label;
+    return (newsGeoRaw.events ?? [])
+      .filter(
+        (e) =>
+          (e.location_name && e.location_name === label) ||
+          (!e.location_name && e.country === label),
+      )
+      .sort((a, b) => String(b.event_date ?? '').localeCompare(String(a.event_date ?? '')));
+  }, [popupPoint, newsGeoRaw]);
   // 点击地图点位 → 反向写回聚焦态（信号侧无 key 可给，故第一参传 null）
   const handlePointClick = useCallback(
-    (p: RiskPoint) => selectSignal(null, focusPointId === p.id ? null : p.id),
+    (p: RiskPoint) => {
+      const willFocus = focusPointId !== p.id;
+      selectSignal(null, willFocus ? p.id : null);
+      setPopupPoint(willFocus ? p : null);
+    },
     [selectSignal, focusPointId],
   );
 
@@ -403,6 +422,15 @@ export function WorldPanel() {
             <div className="absolute left-2 top-2 z-10 rounded-md border border-amber-400/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-300">
               GRV 读取失败：{error.message}
             </div>
+          )}
+
+          {/* v1.10.5 事件弹框：点击地理新闻点显示详情 + 同地点事件列表 */}
+          {popupPoint && (
+            <EventPopup
+              point={popupPoint}
+              related={relatedEvents}
+              onClose={() => setPopupPoint(null)}
+            />
           )}
         </div>
       </div>

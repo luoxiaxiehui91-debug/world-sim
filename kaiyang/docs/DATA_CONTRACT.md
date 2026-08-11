@@ -306,6 +306,7 @@
 | `theme` | string | ⬜ | GKG 主题标签（如 `TAX_FNCACT`）。可选，天枢若未关联 GKG 表则整字段省略 |
 | `location_name` | string | ⬜ | **已拍板保留（2026-08-01）**：`ActionGeo_FullName` 地名文本（如 `Tehran, Iran`），用于地图标签与 tooltip 首行。GDELT 原始行已含该列（`FullName=38`），导出成本近似为零；缺失时开阳回落显示 `country` |
 | `event_date` | string(ISO) \| string(YYYYMMDD) | ⬜ | **已拍板保留（2026-08-01）**：事件日期（GDELT `SQLDATE`），用于时间窗筛选与「近 N 小时」口径；缺失时开阳一律按 `updated` 处理 |
+| `source_url` | string(URL) | ✅ | **v1.10.5 正式化**：事件来源新闻 URL（GDELT `SOURCEURL`），开阳弹框「查看新闻原文」跳转；开阳仅放行 http/https（`sanitizeUrl`），不可信值隐藏链接 |
 
 **统一要求**：本 feed 沿用 §2.6.4 全部 5 条（`FEEDS` 登记 / 本文档补字段 / 带 `schema_version` / 点位 4 位小数 / 空数组与文件缺失合法降级），**无例外**。文件路径为相对 data 根的 `news_geo.json`，禁止绝对路径。
 

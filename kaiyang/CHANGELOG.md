@@ -476,3 +476,20 @@ docs/operations/20260805-world-deduction-time-audit-fixed.md。
 
 - npm test 14 files / 311 tests 全绿；vite build 本地构建成功（新 bundle index-BPRw4Zr7.js）
 - scp 原地覆盖 + chmod -R a+rX；nginx 新 bundle 200；18/18 feed 200
+
+## [1.10.5] - 2026-08-11 · 事件弹框：点击事件点查看详情 + 同地点新闻列表（by lead 实施）
+
+**修改理由**：主理人反馈“现在只能看到提到次数，不知发生了什么”——点击事件点应能列出该地点新闻。
+
+### 修改
+
+- 数据契约：DATA_CONTRACT §2.7 NewsGeoEvent 正式增补 source_url（GDELT SOURCEURL；此前为隐性扩展字段）
+- lib/newsGeoAdapter.ts：新增导出 sanitizeUrl（仅放行 http/https，防 javascript: 伪协议注入，XSS 防线）；normalizeEvent 透传 source_url；RiskPoint 生成填充 sourceUrl
+- lib/mapData.ts：RiskPoint 增可选 sourceUrl 字段
+- components/EventPopup.tsx（新建）：点击事件点弹固定位弹框——选中点详情（地点/国家/类型/时间/强度）+「查看新闻原文」链接 + 同地点事件列表（按 location_name 过滤当前 feed，最多 10 条，含各自原文链接）；关闭按钮 SVG（禁 emoji）；全字段 React 默认转义 + href sanitizeUrl 双保险
+- components/WorldPanel.tsx：popupPoint state + relatedEvents 过滤 + handlePointClick 联动（聚焦 + 弹框同步开闭）+ 渲染 EventPopup
+
+### 验证
+
+- npm test 14 files / 311 tests 全绿；vite build 本地构建成功（新 bundle index-BUiWhYtr.js / index-C6xX4dKN.css）
+- scp 原地覆盖 + chmod -R a+rX；nginx 新 bundle 200；18/18 feed 200；v1.10.2 旧 bundle 按 DEPLOYMENT 规范清理
