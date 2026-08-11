@@ -419,9 +419,9 @@ export function FlatMapPanel({
       const [cx, cy] = px;
 
       const missing = p.status === 'missing';
-      // 2026-08-11 视觉重构（crucix 化）：中心大小 clamp[3,9]，删除 ×1.25×1.5 双重放大；
-      // 事件/高风险由外环脉冲区分，不再靠加大 core。
-      const core = Math.min(9, Math.max(3, 3 + p.weight * 6));
+      // 2026-08-11 视觉重构（crucix 化）：中心大小 clamp[2.4,7.2]（v1.10.6 ×0.8 收窄），
+      // 删除 ×1.25×1.5 双重放大；事件/高风险由外环脉冲区分，不再靠加大 core。
+      const core = Math.min(7.2, Math.max(2.4, 2.4 + p.weight * 4.8));
       const highlight = !missing && ((p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent === true);
       const pulseSec = (PULSE_SLOW_S - p.weight * (PULSE_SLOW_S - PULSE_FAST_S)).toFixed(2);
       const fillColor = missing ? withAlpha(p.color, 0.18) : p.color;
@@ -566,8 +566,8 @@ export function FlatMapPanel({
     if (!px) return;
     const [cx, cy] = px;
 
-    // 2026-08-11 视觉重构：聚焦环收敛到 core×2.4（旧 halo×1.35≈46px 过大）
-    const core = Math.min(9, Math.max(3, 3 + target.weight * 6));
+    // 2026-08-11 视觉重构：聚焦环收敛到 core×2.4（旧 halo×1.35≈46px 过大）；v1.10.6 core ×0.8
+    const core = Math.min(7.2, Math.max(2.4, 2.4 + target.weight * 4.8));
     const focusR = Math.max(core * 2.4, 12);
 
     layer.append('g')
