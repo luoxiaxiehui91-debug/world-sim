@@ -462,3 +462,17 @@ docs/operations/20260805-world-deduction-time-audit-fixed.md。
 - Wave 2：接入天璇（D.hypothesis）/ macro-sim（D.sim）/ 天玑（D.verification）新格式，新增面板 = 只加 `panelRegistry` 注册项。
 - SSE / 实时推送：Wave1 静态 + 前端加载，实时机制留待后续。
 - NAS 部署（:3118 只读挂载）与 world-sim git 纳管：待用户在 NAS 主机侧执行。
+## [1.10.4] - 2026-08-11 · 缩放半补偿：缩小后图标随地图缩小（crucix 式）（by arch-map + lead 收尾）
+
+**修改理由**：主理人反馈“地图缩小后所有图标仍偏大”——2D 完全恒定补偿 scale(1/k) 使点视觉尺寸不随 zoom 变化，缩小后图标不缩小。
+
+### 修改
+
+- FlatMapPanel.tsx：抽常量 INV_SCALE_EXP = 0.5，applyPointInvScale 补偿公式由 1/k（完全恒定）改为 1/pow(k, 0.5)（crucix 半补偿，参考 jarvis.html 点随 zoom 微缩放）
+- 三个调用点（zoom handler / buildPoints 重建后 / 聚焦环重建后）统一走 applyPointInvScale，一处公式覆盖三处
+- 效果：缩小后图标随之变小（比地图缩小慢、保持可读）；放大后图标变大（比地图放大慢、不膨胀）
+
+### 验证
+
+- npm test 14 files / 311 tests 全绿；vite build 本地构建成功（新 bundle index-BPRw4Zr7.js）
+- scp 原地覆盖 + chmod -R a+rX；nginx 新 bundle 200；18/18 feed 200
