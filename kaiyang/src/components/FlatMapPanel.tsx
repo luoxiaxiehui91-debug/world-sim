@@ -422,8 +422,13 @@ export function FlatMapPanel({
       // 2026-08-11 视觉重构（crucix 化）：中心大小 clamp[2.4,7.2]（v1.10.6 ×0.8 收窄），
       // 删除 ×1.25×1.5 双重放大；事件/高风险由外环脉冲区分，不再靠加大 core。
       // v1.10.7：再收窄 ×0.63 → clamp[1.6,4.6]（主理人"图标偏大"反馈第二轮；降噪目标 2D 普通点 ≤5px）
-      const core = Math.min(4.6, Math.max(1.6, 1.6 + p.weight * 3.0));
-      const highlight = !missing && ((p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent === true);
+      // v1.10.8 聚合点：同地点合并后按 log2(count) 放大（clamp 5~9）以容纳计数徽标
+      const isAgg = (p.aggCount ?? 0) > 1;
+      const core = isAgg
+        ? Math.min(9, Math.max(5, 4 + Math.log2(p.aggCount ?? 1) * 1.3))
+        : Math.min(4.6, Math.max(1.6, 1.6 + p.weight * 3.0));
+      const highlight =
+        !missing && ((p.value ?? 0) >= HIGHLIGHT_THRESHOLD || p.isEvent === true || isAgg);
       const pulseSec = (PULSE_SLOW_S - p.weight * (PULSE_SLOW_S - PULSE_FAST_S)).toFixed(2);
       const fillColor = missing ? withAlpha(p.color, 0.18) : p.color;
       const strokeColor = missing ? p.color : withAlpha('#ffffff', 0.35);
@@ -483,6 +488,19 @@ export function FlatMapPanel({
           circle.attr('stroke-dasharray', '2.5 2').attr('stroke-opacity', 0.85).attr('fill-opacity', 0.18);
         }
         // 中心稳定：核心不加脉冲（脉冲只动外环）
+        // v1.10.8 聚合点：中心叠加白色计数徽标（同地点事件数；pointer-events none 不挡点击）
+        if (isAgg) {
+          grp.append('text')
+            .attr('x', 0).attr('y', 0)
+            .attr('text-anchor', 'middle')
+            .attr('dominant-baseline', 'central')
+            .attr('fill', '#ffffff')
+            .attr('font-size', Math.max(6.5, core * 0.85))
+            .attr('font-weight', 600)
+            .attr('pointer-events', 'none')
+            .style('user-select', 'none')
+            .text(String(p.aggCount));
+        }
       }
 
       grp
@@ -569,7 +587,11 @@ export function FlatMapPanel({
 
     // 2026-08-11 视觉重构：聚焦环收敛到 core×2.4（旧 halo×1.35≈46px 过大）；v1.10.6 core ×0.8
     // v1.10.7：core 同步普通点新公式（1.6+3w），聚焦环乘数 ×2.0 下限 8（与普通点环/星标同量级）
-    const core = Math.min(4.6, Math.max(1.6, 1.6 + target.weight * 3.0));
+    // v1.10.8：聚合点聚焦环对齐聚合尺寸（同地图点渲染公式）
+    const isAgg = (target.aggCount ?? 0) > 1;
+    const core = isAgg
+      ? Math.min(9, Math.max(5, 4 + Math.log2(target.aggCount ?? 1) * 1.3))
+      : Math.min(4.6, Math.max(1.6, 1.6 + target.weight * 3.0));
     const focusR = Math.max(core * 2.0, 8);
 
     layer.append('g')
