@@ -120,3 +120,34 @@
 - 清旧 bundle 排除名单必须动态取自 index.html 实际引用，禁硬编码 hash（误删 CSS 白底事故）
 - 收尾必查三件套：两子系统各自 CHANGELOG + 两树 VERSION bump + npm test 绿
 - 删 INDEX 行时 targets 别匹配更新记录行
+
+## 已知孤儿/脚手架（2026-08-11 容器实测核实）
+> 本节记录「设计里有、运行里没接通」的组件，避免接手者误判。全部以 `ssh nas` + `docker exec` 实测为准，非工作区副本推断。
+
+1. **玉衡 weight_matrix.py（死代码，设计层未接线）**
+   - 证据：macro-scan 容器内 `/app/weight_matrix.py` 存在（14.9KB，Jul 30）；全仓 grep `weight_matrix` 仅有文件自身引用（print/定义），无任何调度或管道调用；`macro-ji/weight_matrix.py` 为同体副本。它只提供 `--init|--health|--pending` 手动 CLI，运行期无人调用。
+   - 后果：`forecast_tracker.db.weight_update_log` 恒为 0（玉衡反哺从未触发）。与「玉衡未运转」互证。
+   - 处置：要么接线（让调度调用并写 weight_update_log），要么在 STATUS 标注为「设计骨架、不投产」并考虑删除。
+
+2. **tianji.db / narrative.db（0 字节空桩）**
+   - 证据：天玑容器 `/app/macro_data/tianji.db`、`narrative.db` 均为 0 字节（Aug 10 15:00）。仓库全量 grep 显示无代码将 DB_PATH 指向这两个文件名；真实写库走 `tianji_db.py` → `forecast_tracker.db`（1.2MB 存活，narrative_chunks=347/predictions=7/forecasts=303）。
+   - 处置：确认为遗留/重命名残桩，可删；或补 writer。
+
+3. **crucix（退场未完成，仍在被实时消费）**
+   - 证据：`macro-scan/data_fetcher.py:734` 仍 `from optim_config import CRUCIX_REMOTE_URL`；`http://192.168.31.108:3117/api/data` 实测 HTTP 200、数据时间戳 `2026-08-11T10:02Z`。运行时无 `USE_CRUCIX`/`NUKE_CRUCIX` 类开关 env（`env|grep crucix` 为空）。
+   - 后果：crucix 退场代码已合并，但运行时宏扫仍连 :3117；G0（08-12）后若执行切断，必须验证 data_fetcher 真不再调用 :3117，否则仿真上下文已切、data_fetcher 仍连 → 静默降级。
+   - **验证检查清单（crucix 退场切断后必须逐项勾，防静默降级）**：① 读 `data_fetcher.py` 确认 `CRUCIX_REMOTE_URL` 引用已移除或条件门控（不再无条件 import/调用）；② `docker stop crucix-crucix-1` 后 macro-scan 不报错、仿真仍产出、news_geo 仍更新；③ `:3117` 端口不再被任何容器内进程连接；④ 替代源（gscpi NY Fed fetcher 等）已接管 crucix 原提供信号。
+   - 注：crucix 容器本身 Up 且 :3117 正常服务。该镜像无 python3，故 `python3 -c /health` 探针会报 "executable not found"——这是测量假象，HTTP 200 已证明存活，勿误判为 crucix 挂掉。
+
+4. **sim_log.db（已接线但零产出，P0 未修）**
+   - 证据：0 字节（Aug 5 23:50）；`macro-sim/core/sim_log.py` 定义 `DB_PATH=.../sim_log.db` 并声明「每次 Monte Carlo 结束后写入预测记录」，但运行期无记录落盘。
+   - 性质：非孤儿（有指定 writer），但集成未生效。维持 P0。
+
+5. **文档/副本孤儿（工作区，非运行时）**
+   - 工作区 `世界推演系统开阳/kaiyang-wave2/` 实测 v1.7.0，落后线上 v1.10.8 → 仅供阅读，非真相。
+   - `_tianji_docs/` 描述的天玑比运行实际更完整（运行仅 `forecast_tracker.db` 在产；tianji.db/narrative.db 为空桩，部分解释了文档与实现的落差）。
+
+## 关于「17 Agent」的口径澄清（纠正旧误判）
+- STATUS「天璇 17 Agent」**无误**。容器 `/app/config/agents.yaml` 定义 17 个 Agent：A1–A12（12 宏观）+ S1_usa / S2_china / S3_eu / S4_russia / S5_saudi（5 主权）= 17（grep `id:` = 17 实测）。
+- `souls/` 目录含 8 个灵魂文件（人格复用库），绑定到其中 8 个 agent（A1/A3/A6/S1/S2/S3/S4/S5）；其余 9 个 agent 走旧 if-else fallback（无 soul_file）。
+- 二者是「agent 数」与「人格库大小」两个不同口径，**非矛盾**。运行容器 config 在 `/app/config`，soul 解析正常，无缺失 soul 静默降级（P0 soul 路径坑仅在 config 放 /tmp 时触发，运行态不触发）。
