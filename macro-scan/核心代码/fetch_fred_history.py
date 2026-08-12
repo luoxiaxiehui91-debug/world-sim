@@ -17,7 +17,7 @@ import json
 import time
 import math
 import argparse
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 try:
@@ -25,6 +25,13 @@ try:
 except ImportError:
     print("ERROR: fredapi 未安装，请运行: pip install fredapi")
     sys.exit(1)
+
+# ── B1 双写模块（旁路，导入失败则降级为 no-op，不影响 CSV 落库）──────────────
+try:
+    from pg_write_indicators import upsert_indicator_rows
+except Exception as _imp_e:
+    upsert_indicator_rows = None
+    print(f"WARN: pg_write_indicators 模块不可用，PG 双写将跳过: {_imp_e}", file=sys.stderr)
 
 import pandas as pd
 
@@ -169,6 +176,33 @@ def fetch_and_save(fred: Fred, series_id: str, name: str, force: bool = False) -
         df = pd.DataFrame({"date": s.index.strftime("%Y-%m-%d"), "value": s.values})
         rows = save_series(series_id, df, mode=mode)
 
+        # ── B1 双写 worldsim-pg.indicators（旁路，失败不影响 CSV 落库）────────
+        pg_written = (0, 0)
+        if upsert_indicator_rows is not None:
+            try:
+                pg_rows = []
+                _vintage = date.today()
+                _created = datetime.now(timezone.utc)   # 时区契约：必须 aware UTC（带 +00:00）
+                for _, row in df.iterrows():
+                    pg_rows.append({
+                        "indicator_key": series_id,
+                        "as_of": str(row["date"]),
+                        "data_vintage": _vintage,
+                        "horizon": "actual",
+                        "value": float(row["value"]),
+                        "ci_low": None,
+                        "ci_high": None,
+                        "model_ver": f"fred-{series_id}",
+                        "created_at": _created,
+                        "schema_version": "1.0",
+                        "status": "ok",
+                    })
+                pg_written = upsert_indicator_rows(pg_rows)
+            except Exception as _pg_e:
+                print(f"WARN [fetch_fred_history] PG 双写失败（不影响 CSV 落库）: {_pg_e}",
+                      file=sys.stderr)
+                pg_written = (0, 0)
+
         return {
             "series_id": series_id,
             "name": name,
@@ -176,6 +210,7 @@ def fetch_and_save(fred: Fred, series_id: str, name: str, force: bool = False) -
             "rows": rows,
             "fetch": fetch_desc,
             "date_range": f"{df['date'].min()} ~ {df['date'].max()}",
+            "pg_written": pg_written,
         }
     except Exception as e:
         return {"series_id": series_id, "name": name, "status": f"ERROR: {e}", "rows": 0}
