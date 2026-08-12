@@ -26,8 +26,8 @@
 - **影响**：这些日期本质是 **UTC 日期**。当前仅作内部时序聚合/键值，无展示；未来若前端直接展示或与本地日期混排，需显式转换（UTC 日 → 本地日）。
 - **当前状态**：**OPEN**。维持现状（UTC 语义），仅在出现展示需求时做转换。建议后续在消费端（如 `/grv-history` 按日线、situations 卡片）加一行注释或转换函数，避免再次误读。
 
-## OPEN-04：crucix 退场 G0 切断验证 PASS，但 D1-D3 信号 wiring 待完成
+## OPEN-04：crucix 退场 G0 PASS + D1(gascpi) wiring 完成，nuke/sdr/vix 零消费无需 wiring（RESOLVED）
 
 - **背景**：G0（2026-08-12）执行受控切断（`docker pause crucix-crucix-1`）验证天枢对 crucix 不可达的降级行为。结果：天枢优雅降级（`_crucix`=EMPTY、不崩溃），回滚后完全恢复（`_crucix`=POPULATED，gscpi=0.79/nuke=6/sdr=True）。验证报告见 `docs/crucix-g0-verification-report.md`。
 - **影响**：D1-D3（gscpi/nuke/sdr）替代源 `fetch_gscpi.py`(NY Fed) / `fetch_safecast_nuke.py` 已存在且已调度，但**未接入 `_crucix` 管线**。crucix 彻底关停后，gscpi/nuke/sdr/vix 信号将静默丢失（regime_detector / narrative_processor 降级分支生效但信号空）。
-- **当前状态**：**OPEN（G0=PASS）**。正式 teardown crucix（G1=08-15）前须完成 D1-D3 wiring（替代源注入 `_crucix`），或在 STATUS 明确接受「gscpi/nuke/sdr 退场即弃」并标注信号口径变化。新闻采集与 crucix 零关联（天枢自采 RSS），不受影响。
+- **当前状态**：**RESOLVED（D1 完成，08-12）**。wiring 实测修正：下游真消费 `_crucix` 仅 gscpi（regime_detector 取 `.value`）；nuke/sdr/vix 在 `_crucix` 为孤儿字段、narrative 桶未接、零消费。故 D1(gascpi) 接 NY Fed CSV 唯一源（commit f30bd2d，删 :3117 分支），nuke/sdr/vix 无需 wiring。crucix 退场可推进 teardown（G1=08-15 停容器）。新闻与 crucix 零关联。
