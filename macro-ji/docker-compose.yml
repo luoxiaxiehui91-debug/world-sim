@@ -5,14 +5,17 @@ services:
     image: macro-tianji:latest
     container_name: macro-scan-tianji-1
     restart: unless-stopped
+    networks:
+      - default
+      - worldsim_default
     build:
       context: .
       dockerfile: Dockerfile
     environment:
       - OPENCLAW_WORKSPACE=/app
       - TIANJI_DATA_DIR=/app/macro_data
-      - FRED_API_KEY=${FRED_API_KEY:-a3f1dc8fca52b0a45e320ea0383bbac7}
-      - NTFY_URL=${NTFY_URL:-https://ntfy.sh/macro-tsx-9005}
+      - FRED_API_KEY=a3f1dc8fca52b0a45e320ea0383bbac7
+      - NTFY_URL=https://ntfy.sh/macro-tsx-9005
       - TZ=Asia/Shanghai
     volumes:
       # 目录挂载铁律：读天枢 data（forecast_tracker.db / fred_history/ / grv_history.jsonl）
@@ -27,3 +30,7 @@ services:
       retries: 3
       start_period: 10s
     # 无端口；触发机制 = T2 共享触发文件（scheduler 写 trigger → watchdog 轮询）
+
+networks:
+  worldsim_default:
+    external: true
