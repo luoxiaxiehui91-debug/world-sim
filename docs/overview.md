@@ -1,8 +1,8 @@
 # 世界推演系统 · 总览
 
-> macro-scan v3.8.15（天枢）· macro-sim **v2.0.24**（天璇）· kaiyang v1.9.0（开阳）· macro-ji v1.0.0（天玑）· as-of 2026-08-07
+> macro-scan v3.8.17（天枢）· macro-sim **v2.0.40**（天璇）· kaiyang v1.10.8（开阳）· macro-ji v1.0.0（天玑）· as-of 2026-08-12
 >
-> **当前状态与待部署事项** → 见 [`HANDOVER.md`](../HANDOVER.md)
+> **当前状态与待部署事项** → 见 [`handover-history.md`](archive/handover-history.md)
 > **权威版本记录** → 各子系统 CHANGELOG（本行仅总览快照，不断言版本；文档分治规范见 `docs/governance/document-governance.md`）
 
 ---
@@ -75,7 +75,7 @@ FRED / GPR / GDELT / 新闻（RSSHub :12000，crucix 独立项目·活跃运行 
 
 | 文档 | 路径 | 适合谁读 |
 |------|------|---------|
-| **当前状态 + 待部署** | `HANDOVER.md` | 每次维护必读，动态快照 |
+| **当前状态 + 待部署** | `docs/archive/handover-history.md` | 每次维护必读，动态快照 |
 | **时间门控路线图** | `ROADMAP.md` | 下一步要做什么 |
 | **本文件** | `docs/overview.md` | 任何人，架构说明（稳定部分）|
 | 天枢变更日志 | `macro-scan/TuiYan_CHANGELOG.md` | 追查具体变更 |
@@ -107,4 +107,4 @@ bash /s/world-sim/deploy.sh macro-sim    # rsync + rebuild + restart
 **出问题先看**：
 1. `docker ps` — 容器是否在线
 2. scheduler.log / docker logs — 最近错误
-3. `HANDOVER.md` 已知问题节
+3. `docs/archive/handover-history.md` 已知问题节
