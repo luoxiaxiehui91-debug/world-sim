@@ -14,7 +14,7 @@
 - SSH：`ssh nas`（**必须 Git 自带 ssh，Windows OpenSSH 已坏**）；容器内部操作（docker exec / 读运行时数据极强实时性）走 SSH——非因 SMB 不可靠（SMB 本身可靠，仅容器刚写完即刻读时有 ~10s 客户端缓存滞后）
 
 **当前主线（08-11）**：
-1. **crucix 退场**——论证+实施 14 commit 全闭合（eff0d8c 为止），**观察窗中**：G0 判 08-12 / G1 判 08-15（自动化）；之后 WP-2.1b gscpi 切换 → WP-3.x 清理 → WP-4.x 停容器
+1. **crucix 退场**——论证+实施 14 commit 全闭合（eff0d8c 为止）；**G0（08-12）受控切断验证 PASS**（docker pause → `_crucix` 优雅降级 EMPTY → 回滚恢复 POPULATED，见 `docs/crucix-g0-verification-report.md`）；G1 判 08-15（待 D1-D3 wiring 进度）；之后 WP-2.1b gscpi 切换 → WP-3.x 清理 → WP-4.x 停容器
 2. **开阳补全**——v1.9.0→v1.10.8（报告中心/FCI/风险面板/news_geo 事件图层/视觉 crucix 化/同地点聚合），news_geo 验收观察窗（08-13 06:35 自动化判定）
 3. 挂起待拍板：**航班走廊线（air 图层 B 完整版）**
 
