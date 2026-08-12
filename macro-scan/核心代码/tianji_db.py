@@ -15,7 +15,7 @@ tianji_db.py — 天玑数据库 schema 与基础操作
 
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 BASE_DIR = os.environ.get("OPENCLAW_WORKSPACE",
@@ -165,7 +165,7 @@ def save_prediction(pred: dict) -> str:
                :time_horizon, 'pending')
         """, {
             "id":                    pred["id"],
-            "created_at":            pred.get("created_at", datetime.utcnow().isoformat()),
+            "created_at":            pred.get("created_at", datetime.now(timezone.utc).isoformat()),
             "due_at":                pred["due_at"],
             "scenario_id":           pred.get("scenario_id"),
             "type":                  pred["type"],
@@ -253,7 +253,7 @@ def get_narrative_chunks_for_dimension(
     """
     import math
     if now_ts is None:
-        now_ts = datetime.utcnow().isoformat()
+        now_ts = datetime.now(timezone.utc).isoformat()
 
     conn = get_connection()
     try:
@@ -299,7 +299,7 @@ def get_narrative_chunks_for_dimension(
 def get_pending_predictions(as_of: str = None) -> list[dict]:
     """取所有到期且未验证的预测。"""
     if as_of is None:
-        as_of = datetime.utcnow().isoformat()
+        as_of = datetime.now(timezone.utc).isoformat()
     conn = get_connection()
     try:
         rows = conn.execute("""

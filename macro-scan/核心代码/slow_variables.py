@@ -19,7 +19,7 @@ slow_variables.py — 慢变量计算模块
 import os
 import json
 import math
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -367,7 +367,7 @@ def _load_manual_score(key: str, default: float = 0.0) -> float:
         if val is not None:
             # 检查是否当月已更新
             updated_at = entry.get("updated_at", "")
-            current_month = datetime.utcnow().isoformat()[:7]
+            current_month = datetime.now(timezone.utc).isoformat()[:7]
             if updated_at[:7] != current_month:
                 _manual_score_stale.add(key)
             else:
@@ -393,7 +393,7 @@ def save_manual_score(key: str, value: float, note: str = ""):
             data = {}
         data[key] = {
             "value":      value,
-            "updated_at": datetime.utcnow().isoformat()[:10],
+            "updated_at": datetime.now(timezone.utc).isoformat()[:10],
             "note":       note,
         }
         with open(path, "w", encoding="utf-8") as f:
@@ -410,7 +410,7 @@ def compute_all(grv_path: str = None, force: bool = False) -> dict:
     月频幂等保护：若 slow_variables.json 已存在且 updated_at 在本月，
     跳过重算直接返回缓存值（除非 force=True）。
     """
-    current_month = datetime.utcnow().isoformat()[:7]
+    current_month = datetime.now(timezone.utc).isoformat()[:7]
 
     # ── cron 幂等：本月已算则跳过 ────────────────────────────
     if not force and os.path.exists(SLOW_VAR_PATH):
@@ -442,7 +442,7 @@ def compute_all(grv_path: str = None, force: bool = False) -> dict:
     stale_keys = list(_manual_score_stale)
 
     result = {
-        "updated_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
         "irp":        irp_result["irp"],
         "ucri":       ucri_result["ucri"],
         "gci":        gci_result["gci"],
