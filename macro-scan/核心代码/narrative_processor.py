@@ -63,7 +63,7 @@ DEFAULT_SOURCE_MAP = {
     "hdx":              {"primary": "disaster_risk",         "tau": 240, "type": "humanitarian"},
     # 气候
     "climate_signals":  {"primary": "climate_risk",          "tau": 240, "type": "official_data"},
-    # Crucix 实时信号
+    # ── Crucix 信号桶（DEPRECATED：crucix 已退场，无上游数据源，下游零消费）──
     "crucix_gscpi":     {"primary": "global_composite",      "tau": 48,  "type": "osint"},
     "crucix_nuke":      {"primary": "taiwan_strait",         "tau": 24,  "type": "osint"},
     "crucix_air":       {"primary": "taiwan_strait",         "tau": 24,  "type": "osint"},
