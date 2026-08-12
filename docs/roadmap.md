@@ -28,16 +28,16 @@
 | R4h ① ease_ok 方向闸 | **收编 EASE 治理** | ✅ | v2.0.40 |
 | silence 治理（credit 回池/p̂/S2） | 挂起待立项 | 🔲 | — |
 
-## crucix 退场（08-10 论证 → 08-11 实施闭合，观察窗中）
+## crucix 退场（08-10 论证 → 08-11 实施闭合 → 08-12 全闭环 G0+G1）
 
 | 阶段 | 状态 | 内容 |
 |------|:--:|------|
 | 论证（round1 四视角 + R2） | ✅ | gscpi 唯一硬依赖 / nuke SafeCast 复刻 / sdr KiwiSDR 接入 / D3 死配置 / news RSS-only（ADR-01~10） |
 | 实施（14 commit 闭合至 ab8b1f7） | ✅ | climate 恢复 / gscpi fetcher+调度 / safecast / kiwisdr / 兜底删 / RSS-only / air 删 / G2 防护 / firms 补偿重试 / 时区修复 |
-| 观察窗 | 🔄 | **G0 判 08-12 / G1 判 08-15**（gscpi 05:32 双轨 5 天）；news_geo 48h 判定 08-13（自动化） |
-| WP-2.1b/2.2 | 🔲 | gscpi 切换 + nuke 改读 `_safecast.nuke`（G1 后） |
-| WP-3.1/3.2 | 🔲 | D3 映射删 + `_crucix` 残留整体清（门禁后） |
-| WP-4.x | 🔲 | crucix 容器停用（devops A/B/C/D，P3 后） |
+| 观察窗 | ✅ | **G0 判 08-12 PASS / G1 判 08-12 已停容器**（gscpi 05:32 双轨 5 天）；news_geo 48h 判定 08-13（自动化） |
+| WP-2.1b/2.2 | 🟡 部分 | gscpi 切换 ✅（D1，NY Fed CSV 唯一源）；nuke 改读 `_safecast.nuke` 未做（下游零消费暂挂） |
+| WP-3.1/3.2 | 🟡 部分 | D3 死配置已删（D1）；`_crucix` 残留保留 gscpi.value 契约（有意保留，未整体清） |
+| WP-4.x | ✅ | crucix 容器停用（G1 08-12 `docker stop crucix-crucix-1` → Exited 137） |
 
 ## 开阳补全（08-10 规划 → 08-11 实施，v1.9.0→v1.10.8）
 
