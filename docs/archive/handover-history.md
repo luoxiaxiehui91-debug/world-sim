@@ -159,7 +159,7 @@ P0 已完成：scp dist/ 并重启 nginx，:8080 返回 200，D3 地图正常。
 
 ## NAS 专属操作清单（下次连上局域网时执行）
 
-> 完整可执行提示词（含每步验证命令和停止条件）：**[`docs/archive/nas-deploy-prompt-v3.8.6.md`](docs/archive/nas-deploy-prompt-v3.8.6.md)**  
+> 完整可执行提示词（含每步验证命令和停止条件）：**[`nas-deploy-prompt-v3.8.6.md`](nas-deploy-prompt-v3.8.6.md)**  
 > ⚠️ 该清单为历史部署流程（对应 archive v3.8.6 提示词），现役容器/版本以「当前状态 2026-08-05」节为准，仅供参考。
 > SSH 地址：`TSX@192.168.31.108`  
 > 执行顺序：本地 kaiyang build → NAS 预检 → macro-scan 重建 → macro-sim 重建 → kaiyang scp
