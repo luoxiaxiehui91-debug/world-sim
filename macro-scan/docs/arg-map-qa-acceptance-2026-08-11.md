@@ -222,4 +222,17 @@ ssh nas 'python3 /vol2/1000/software/world-sim/macro-scan/docs/qa-scripts/verify
 
 ---
 
+## 9. 48h 过渡期硬判定观测日志（2026-08-13 06:35）
+
+| 判定时间 | 命令 | unknown% | N | event_type 分布 | 判定 |
+|---|---|---|---|---|---|
+| 2026-08-13 06:35 | verify_data.py --gate --enforce-unknown | **0.00%** | 604 | political=536 (88.7%) / conflict=64 (10.6%) / protest=4 (0.7%) | **PASS** |
+
+**结论：PASS** — unknown=0.00% < 5% 硬判定通过，过渡期结束，CAMEO root_code 映射全量生效，四枚举输出达标（unknown 由部署时 97.91% → 0.00%）。
+
+佐证（容器内 docker exec 实测）：
+- jsonl 带码行：news_geo.jsonl total=168777 行，带 event_code/root_code=38813 行（占比 23.0%，10 天窗口内带码增量已滑入；产物层兜底映射使 unknown 归零）。
+- 数据层 17 项检查全 PASS（含 AC-M1-05 unknown 硬判定、AC-R-04 无 articles 混入、AC-M1-08 schema/时区、AC-M1-09 updated=06:30:51 距判 0.08h）。
+- 唯一未过项 G-M1（连续非空天数=2<3）属独立观测窗天数累积门禁，08-14 第三次 --snapshot 后自动闭合，与本硬判定无关。
+
 *生成：qa-map · verify_data.py / verify_front.sh / 源码审查 · 2026-08-11 06:55，修订 07:30（§4.5 + 人工-8~12），修订 08:10（§4.6 + 人工-13~15），修订 08:25（§4.7 + 人工-16~17，v1.10.3）(Asia/Shanghai)*
