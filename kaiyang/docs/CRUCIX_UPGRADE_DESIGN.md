@@ -1,3 +1,6 @@
+> ## ⚠️ DEPRECATED · crucix 项目已退场（2026-08-12）
+> 本文件为开阳对标 **crucix** 升级的历史系统设计文档。crucix 信号总线已于 2026-08-12 退场（G0 切断验证 PASS + D1 gscpi 改 NY Fed CSV 唯一源；G1 同日停 `crucix-crucix-1` 容器）。本文档仅作历史参考，**不代表现役实现**；开阳实际架构以 `DATA_CONTRACT.md` / `DESIGN.md` 与现役 `src/` 代码为准。
+>
 # 开阳对标 CRUCIX MONITOR 升级 · 系统设计与任务分解
 
 > 作者：高见远（架构师）｜日期：2026-08-01｜版本：v1（P0 完整设计 + P1/P2 路线图）
