@@ -15,7 +15,7 @@ import os
 import json
 import hashlib
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sqlite3
 
@@ -165,7 +165,7 @@ def ingest_article(
     primary_dim  = cfg.get("primary", "global_composite")
     tau          = cfg.get("tau", 72)
     source_type  = cfg.get("type", "news")
-    ts           = timestamp or datetime.utcnow().isoformat()
+    ts           = timestamp or datetime.now(timezone.utc).isoformat()
 
     # 关键词规则补充 secondary
     secondary_dim = _detect_secondary_dimension(content, primary_dim)
@@ -222,7 +222,7 @@ def ingest_from_json_file(json_path: str, source_id: str, content_field: str = "
         content = item.get(content_field) or item.get("title", "")
         if not content or len(content) < 20:
             continue
-        ts = item.get("published_at") or item.get("updated") or datetime.utcnow().isoformat()
+        ts = item.get("published_at") or item.get("updated") or datetime.now(timezone.utc).isoformat()
         result = ingest_article(source_id=source_id, content=content,
                                 timestamp=ts, source_map=source_map)
         if result["status"] == "ok":
@@ -239,7 +239,7 @@ def update_density_flags(window_days: int = 30):
     """
     conn = get_connection()
     try:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         yesterday = (now - timedelta(hours=24)).isoformat()
 
         for dim in GRV_DIMENSIONS:

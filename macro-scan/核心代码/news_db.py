@@ -13,11 +13,12 @@ news_db.py — 新闻库持久化模块（N1 第一阶段）
 第三阶段（N3，≥1 年后）加入 signal_outcomes 月度校验写入。
 """
 
+import email.utils
 import hashlib
 import json
 import os
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS scan_contexts (
@@ -145,16 +146,33 @@ def init_db(db_path: str) -> None:
 # ── 工具函数 ──────────────────────────────────────────────────────────────────
 
 def _normalize_dt(raw: str) -> str | None:
-    """将 RFC 或 ISO 日期统一转成 YYYY-MM-DDTHH:MM:SS，入库标准格式。"""
+    """将 RFC822 / ISO 日期统一规整为 UTC aware ISO（带 +00:00 后缀）。
+
+    来源时间多为北京时间(+08:00)且缺时区后缀，按北京时间解释后转 UTC，
+    遵守时区契约（落盘必须带显式后缀）。解析彻底失败返回 None（不落垃圾）。
+    """
     if not raw:
         return None
+    s = raw.strip()
+    dt = None
+    # 先试 ISO（含可能的 Z / +00:00）
     try:
-        if "," in raw:                          # RFC: "Sun, 17 May 2026 13:48:00 GMT"
-            raw = raw.split(",")[1].strip()
-            return datetime.strptime(raw[:25], "%d %b %Y %H:%M:%S").strftime("%Y-%m-%dT%H:%M:%S")
-        return raw[:19]                         # ISO prefix
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
     except Exception:
-        return raw[:19] if len(raw) >= 10 else None
+        pass
+    # 再试 RFC822（email.utils，能感知 GMT/UTC 等时区后缀）
+    if dt is None:
+        try:
+            dt = email.utils.parsedate_to_datetime(s)
+        except Exception:
+            dt = None
+    if dt is None:
+        return None
+    # naive（缺时区）→ 当作北京时间 +08:00 解释（实测 22017 行冲突根因）
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone(timedelta(hours=8)))
+    dt = dt.astimezone(timezone.utc)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
 
 def _article_hash(art: dict) -> str:
