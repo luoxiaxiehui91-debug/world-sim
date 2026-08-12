@@ -28,7 +28,7 @@
 **问题**：会话上下文易碎（过长截断 / 新会话丢失历史）。解决方案——把「下一步指引」写到持久文件，不依赖对话历史。
 
 1. **三层持久记忆**：
-   - **T1 设计权威**：`worldsim-review-synthesis.md`（决策变更才改，不要每会话重写）
+   - **T1 设计权威**：架构决策以 git commit 记录（本项目为单人研究系统，未单列 ADR 文档；STATUS「关键决策」节 + `docs/calib/` 为设计评审权威）
    - **T2 实时状态**：`STATUS.md`（每次会话结束更新，**冷启动必读**，几屏看懂）
    - **T3 流水日志**：`.workbuddy/memory/2026-MM-DD.md`（append-only 叙事）
 2. **任务切片**：一个会话 = 一个自包含任务；每任务从 STATUS.md + 方案相关段落即可冷恢复，不需完整对话历史。
@@ -42,7 +42,7 @@
 ## 默认技术栈
 - 前端：Vite + React + MUI + Tailwind CSS
 - world-sim 后端：Python（numpy / scipy / pandas + fredapi），部署于 NAS Docker 容器，代码热挂载
-- NAS 操作一律走 SSH + docker exec，**禁止信任 SMB 挂载的读/写**
+- NAS 操作：容器内部动作走 SSH + docker exec；**SMB 读取可靠**（08-11 实测 STATUS.md / grv_latest.json 经 SMB 读出 sha256 与 NAS 磁盘一致），仅「读运行时数据」须走仓库外 `S:\macro-scan\data`（勿走仓库内死副本 `S:\world-sim\macro-scan\data`）；极强实时性（容器刚写完即刻读）仍优先 docker exec（~10s 客户端缓存滞后）。
 
 ## 交付卡点 / 并发安全（2026-07-31 四角评审固化）
 > 评审最大共识风险 = 多 agent 改同一 NAS 代码库会无锁静默覆盖。以下为硬卡点，每次交付必过。
@@ -50,7 +50,7 @@
 ### 并发安全三件套（硬卡点）
 1. **部署通道统一（禁混用）**：默认 `scp` 单文件 + 基线校验（sha256/md5 比对 + .bak + compileall + import smoke + `DATA_DIR==/workspace/data` 断言）；`rsync` 整目录仅限 lead 在合并改动后受控执行一次。各 agent 禁止随手 rsync 整目录（会静默回滚他人改动）。
 2. **核心文件独占令牌**：`scheduler.py` / `fetcher_base.py` 由 lead 发令牌，同一时段仅一个 agent 可改，其余 agent 只准新增文件、不碰核心文件。
-3. **数据源真相 = GitHub 单仓库**：world-sim 源码已在 `/vol2/1000/software/world-sim/.git`（含 macro-scan + macro-sim），部署是仓库产物的运行副本。**不在 NAS 另起 git**；唯一纪律：**部署须对应一个已知 commit**（改动先在仓库 commit，再部署）。
+3. **数据源真相 = GitHub 单仓库**：world-sim 源码已在 `/vol2/1000/software/world-sim/.git`（含 macro-scan + macro-sim + macro-ji + kaiyang 四子系统），部署是仓库产物的运行副本。**不在 NAS 另起 git**；唯一纪律：**部署须对应一个已知 commit**（改动先在仓库 commit，再部署）。源码真相 = `S:\world-sim`（git 工作树），改码在此 commit 后部署。
 
 ### 两道静态闸（交付卡点，强制 · ⑤ 用户 2026-07-31 20:58 批准固化）
 - **闸一 · import 白名单**：全仓 grep import，仅允许白名单（DATA_DIR / WORKSPACE / CRUCIX_REMOTE_URL 等）。专防 `optim_config` 缺变量（如 FRED_PROXY）致 ImportError 走 fallback、DATA_DIR 落到非持久卷 `/data` 的坑。
