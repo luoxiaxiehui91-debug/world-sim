@@ -1,6 +1,6 @@
 services:
   macro-scan:
-    image: macro-scan:v7
+    image: macro-scan:v8
     restart: unless-stopped
 
     ports:
