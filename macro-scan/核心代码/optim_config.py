@@ -37,8 +37,8 @@ KNOWLEDGE_BASE    = os.path.join(WORKSPACE, "知识库", "财经知识库")
 
 # ── 推送配置（已迁移至 ntfy，此端口仅供 scan_weak_signals.py NeoData 接口使用）──
 AUTH_GATEWAY_PORT = os.environ.get("AUTH_GATEWAY_PORT", "28789")
-# CFG-3: PUSH_ENDPOINT / CRUCIX_ENDPOINT 已删除（死代码，无任何调用者）
-# 实际推送走 ntfy_listener.py；Crucix 直连 CRUCIX_REMOTE_URL
+# CFG-3: PUSH_ENDPOINT / CRUCIX_ENDPOINT / CRUCIX_REMOTE_URL 均已删除（死代码，无任何调用者）
+# 实际推送走 ntfy_listener.py；crucix 已于 08-12 退场（G0 PASS + D1 gscpi 改 NY Fed CSV 唯一源，删 :3117 分支）
 
 # ── FRED API ───────────────────────────────────────────────────────────────────
 # 优先从环境变量读取，如未设置则使用默认 Key
