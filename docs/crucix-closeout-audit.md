@@ -45,11 +45,11 @@
 
 | 候选 | 内容 | 风险/影响 |
 |------|------|-----------|
-| **G1 停容器** | `docker stop crucix-crucix-1` | 独立容器，停后无副作用；原排期 08-15，可提前或按期 |
-| **规则面清理** | `macro-scan/AGENTS.md:196/219` 仍列 crucix `:3117` + `CRUCIX_APIKEY` 为现役服务/env（过渡态，G1 后改 DEPRECATED/删） | 当前容器仍在跑，属事实描述；G1 后清理 |
+| **G1 停容器** | `docker stop crucix-crucix-1` | ✅ **已执行（08-12，容器 Exited，无副作用）** |
+| **规则面清理** | `macro-scan/AGENTS.md:196/219` crucix `:3117` + `CRUCIX_APIKEY` | ✅ **已处理：196 行标 DEPRECATED、219 行注释删除** |
 | **子系统设计文档** | `macro-scan/docs/b1_crucix_integration.md`、`kaiyang/docs/CRUCIX_*.md`（共 ~10 篇） | 历史/设计文档，非现役真相（STATUS 为权威）；G1 后归档或标 DEPRECATED |
-| **`*_v2` 残留** | `macro-scan/核心代码/monte_carlo_v2.py`、`macro-sim/docs/design_v2.md` | 疑似有意版本命名，非明显 cruft；建议确认后再删 |
-| **预存死链** | `macro-scan/docs/a3a_system_design.md → a3a_control_api_design.md` | 历史债（08-12 前已存在），非本次造成；可补文件或改链接 |
+| **`*_v2` 残留** | `monte_carlo_v2.py`、`design_v2.md` | ✅ **已确认非 cruft：`monte_carlo_v2.py` 被 run_macro_analysis/mc_engine/calibrate_mc 三处 import，为现役核心；保留** |
+| **预存死链** | `a3a_system_design.md → a3a_control_api_design.md` | ✅ **已修复：第 6 行链接补 `archive/` 前缀（目标文件本就在 archive/），check-doc-links 现 0 断链** |
 
 ---
 

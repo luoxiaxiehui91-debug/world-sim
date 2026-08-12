@@ -1,3 +1,6 @@
+> ## ⚠️ DEPRECATED · crucix 项目已退场（2026-08-12）
+> 本文件为开阳对标 **crucix（calesthio/Crucix）** 的历史分析/参考文档。crucix 信号总线已于 2026-08-12 退场（G0 切断验证 PASS + D1 gscpi 改 NY Fed CSV 唯一源；G1 同日停 `crucix-crucix-1` 容器）。本文档仅作历史参考，**不代表现役实现**；开阳实际信号以 `DATA_CONTRACT.md` 与现役 `src/` 代码为准。
+>
 # 开阳对标 CRUCIX MONITOR · 竞品 / 参考分析
 
 > 作者：许清楚（产品经理）｜日期：2026-08-01｜配套：[`archive/CRUCIX_BENCHMARK_OPEN_QUESTIONS.md`](./archive/CRUCIX_BENCHMARK_OPEN_QUESTIONS.md) / [`DESIGN.md`](./DESIGN.md) / [`DATA_CONTRACT.md`](./DATA_CONTRACT.md)

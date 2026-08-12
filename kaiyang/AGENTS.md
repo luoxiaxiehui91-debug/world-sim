@@ -80,7 +80,7 @@
 | `docs/A3a-控制API-开阳对接文档.md` | 控制 API 对接规范（HTTP REST :8900 / 命令格式） | 改控制面逻辑时 |
 | `docs/DESIGN.md` | 设计总纲（定位/边界/技术栈/Wave规划） | 做架构决策时 |
 | `docs/ARCH_1.8.0.md` | v1.8.0 架构计划（**ARCHIVED**：Leaflet 迁移方案未实施，实际用 D3 geoNaturalEarth1 重写；react-grid-layout 已实现） | 规划下个版本时（先看 ARCHIVED 标注，勿按 Leaflet 方案执行） |
-| `docs/CRUCIX_UPGRADE_DESIGN.md` | P0 主设计：对标 crucix 升级系统设计 | 做 crucix 相关工作时 |
+| `docs/CRUCIX_UPGRADE_DESIGN.md` | ~~P0 主设计：对标 crucix 升级系统设计~~ **DEPRECATED（crucix 08-12 退场）**，历史参考 | 做 crucix 相关工作时 |
 | `docs/system_design.md` | 控制面 Tab 系统设计（状态机/Token鉴权） | 改控制面架构时 |
 | `docs/DECISION_MATRIX.md` | **决策矩阵**（D2-D5 已文档化；D5 已改 D3 方案定案） | 遇到相关技术决策点时 |
 

@@ -193,7 +193,7 @@ pre-commit install   # 在源码区 S:\world-sim\macro-scan\ 执行一次即可
 | macro-scan 主容器 | :8899 (Web UI) / :8900 (Control API) | Python 3.11-slim；镜像 macro-scan:v7；:8900 由 `control_server.py` 提供（A3a HTTP REST，白名单限 fetcher 名防路径遍历） |
 | tianji（macro-ji） | 无端口 | 天玑独立容器 `macro-scan-tianji-1`（镜像 macro-tianji:latest）；tianji_db/tianji_verifier/weight_matrix 已迁出；触发机制 = T2 共享触发文件（scheduler 写 trigger → watchdog 轮询） |
 | mihomo | :7890/:9090 | 出站代理，**仅 FRED 使用**；ntfy/akshare 强制直连 |
-| crucix | :3117 | 英文地缘新闻+多源情报（FIRMS/EIA/GDELT等30源）|
+| crucix | :3117 | ~~英文地缘新闻+多源情报（FIRMS/EIA/GDELT等30源）~~ **已退场（08-12 G1 停容器）**，仅历史参考 |
 | rsshub | :12000 | 中文财经 RSS（财新/第一财经/华尔街见闻/东方财富研报）|
 
 > ⚠️ Ollama（192.168.31.56）已停用。LLM 降级链：MiniMax-M3 → MiMo v2.5 Pro → SiliconFlow Qwen3.5-27B → 纯数据报告
