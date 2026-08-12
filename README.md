@@ -12,16 +12,16 @@
 world-sim/
 ├── macro-scan/              宏观信号观测系统（天枢）
 ├── macro-sim/               宏观演化仿真系统（天璇）
-├── kaiyang/                 可视化操作面板（开阳）v1.9.0
+├── kaiyang/                 可视化操作面板（开阳）v1.10.8
 ├── macro-ji/                天玑（验证层）macro-ji v1.0.0（独立容器）
 ├── docs/
 │   ├── overview.md          系统总览（功能/架构/运维一页通）
 │   ├── tianji-design.md     天玑（验证层）设计文档 v1.0
 │   └── calib/               校准评审实录（calib-*.md，08-10 同步）
 ├── deploy.sh                统一部署脚本
-├── ROADMAP.md               项目内权威 todo（时间门控任务 + 天玑路线图）
-├── STATUS.md                实时交接状态（镜像自 WorkBuddy 工作区，08-10 同步）
-├── 项目导航.md              项目导航（镜像自 WorkBuddy 工作区，08-10 同步）
+├── docs/roadmap.md          路线图（crucix/开阳/R4 状态，2026-08-12 从根迁来）
+├── STATUS.md                实时交接状态（权威，08-10 起接替 HANDOVER）
+├── OPEN-DECISIONS.md        待决项总索引
 ├── AGENTS.md                AI 工作入口
 └── README.md                本文件
 ```
@@ -31,19 +31,19 @@ world-sim/
 ### macro-scan — 宏观信号观测系统
 - 功能：实时抓取宏观经济指标、新闻、地缘风险信号，进行综合评估和报告生成
 - NAS 运行路径：`/vol2/1000/software/macro-scan`
-- 版本：`v3.8.15`（as-of 2026-08-06；权威版本记录见 [TuiYan_CHANGELOG.md](macro-scan/TuiYan_CHANGELOG.md)，本行仅导航不断言）
+- 版本：`v3.8.17`（as-of 2026-08-12；权威版本记录见 [TuiYan_CHANGELOG.md](macro-scan/TuiYan_CHANGELOG.md)，本行仅导航不断言）
 - 详见 [macro-scan/README.md](macro-scan/README.md)
 
 ### macro-sim — 宏观演化仿真系统
 - 功能：基于当前宏观状态进行多智能体仿真，压力测试宏观假设路径
 - NAS 运行路径：`/vol2/1000/software/world-sim/macro-sim`（部署通道 = deploy.sh 仓库直构，2026-08-06 方案 A 收敛后）
-- 版本：`v2.0.24`（as-of 2026-08-07；权威版本记录见 [CHANGELOG.md](macro-sim/CHANGELOG.md)，本行仅导航不断言）
+- 版本：`v2.0.40`（as-of 2026-08-12；权威版本记录见 [CHANGELOG.md](macro-sim/CHANGELOG.md)，本行仅导航不断言）
 - 详见 [macro-sim/README.md](macro-sim/README.md)
 
 ### kaiyang — 可视化操作面板（开阳）
 - 功能：只读展示天枢产出数据，3D地球 + 经济面板 + 控制抽屉（MOCK_ENABLED=false，A3a 控制 API 已接入，HTTP REST :8900）
 - NAS 访问：`http://192.168.31.108:8080`
-- 版本：`v1.9.0`（as-of 2026-08-06；权威版本记录见 [CHANGELOG.md](kaiyang/CHANGELOG.md)，本行仅导航不断言）
+- 版本：`v1.10.8`（as-of 2026-08-12；权威版本记录见 [CHANGELOG.md](kaiyang/CHANGELOG.md)，本行仅导航不断言）
 - 详见 [kaiyang/README.md](kaiyang/README.md)
 
 ### macro-ji — 天玑（验证层）
