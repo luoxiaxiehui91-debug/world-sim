@@ -14,7 +14,7 @@
 - SSH：`ssh nas`（**必须 Git 自带 ssh，Windows OpenSSH 已坏**）；容器内部操作（docker exec / 读运行时数据极强实时性）走 SSH——非因 SMB 不可靠（SMB 本身可靠，仅容器刚写完即刻读时有 ~10s 客户端缓存滞后）
 
 **当前主线（08-11）**：
-1. **crucix 退场**——论证+实施 14 commit 全闭合（eff0d8c 为止）；**G0（08-12）受控切断验证 PASS**（docker pause → `_crucix` 优雅降级 EMPTY → 回滚恢复 POPULATED，见 `docs/crucix-g0-verification-report.md`）；G1 判 08-15（待 D1-D3 wiring 进度）；之后 WP-2.1b gscpi 切换 → WP-3.x 清理 → WP-4.x 停容器
+1. **crucix 退场**——论证+实施 14 commit 全闭合（eff0d8c 为止）；**G0（08-12）受控切断验证 PASS** + **D1(gascpi) wiring 完成（08-12，纯 NY Fed CSV 源，删 :3117 分支，commit f30bd2d）**；nuke/sdr/vix 经核实下游零消费无需 wiring；crucix 退场可推进 teardown（G1=08-15 停容器）→ WP-3.x 清理废弃容器
 2. **开阳补全**——v1.9.0→v1.10.8（报告中心/FCI/风险面板/news_geo 事件图层/视觉 crucix 化/同地点聚合），news_geo 验收观察窗（08-13 06:35 自动化判定）
 3. 挂起待拍板：**航班走廊线（air 图层 B 完整版）**
 
@@ -26,7 +26,7 @@
 
 **08-11：crucix 退场实施全部闭合（观察窗中）+ 开阳大规模补全（v1.9.0→v1.10.8）+ 时区统一修复**：
 - **crucix 退场实施（08-10 晚启动，全 commit 闭合至 ab8b1f7）**：G0 climate 恢复（a65c998）/ gscpi fetcher+调度（100e544/b29c8da，NY Fed xlsx 尾行 0.805）/ ADR-08 死代码删（a8ffb34；注：本项目为单人研究系统，架构决策以 commit 形式记录于 git 历史，未单列 ADR 文档）/ climate 兜底删+firms 加固（7ac6b48）/ safecast nuke 6 站 MATCH（611cc6b）/ kiwisdr 接线（c38a2b0）/ 双调度注册（260a173）/ RSS-only articles 断供排除（5bba73e）/ air 删+ gscpi_warn None 防护（65666b8）/ firms 补偿重试（77f6711）/ 时区修复 10 处显式后缀（a7c6e42）
-- **观察窗（等门禁，自动化接管）**：gscpi 05:32 / kiwisdr 06:02 / climate 09:10 已首跑；**G0 判 08-12 / G1 判 08-15** → WP-2.1b gscpi 切换 + WP-2.2 nuke 改读 → WP-3.x 清理 → WP-4.x 停容器（crucix 容器独立运行中，等门禁）
+- **观察窗（等门禁，自动化接管）**：gscpi 05:32 / kiwisdr 06:02 / climate 09:10 已首跑；**G0 判 08-12 / G1 判 08-15** → crucix 退场收口（08-12）：G0 切断验证 PASS + D1(gascpi) 已切 NY Fed CSV 唯一源（删 :3117 分支，commit f30bd2d），nuke/sdr/vix 实测下游零消费无需 wiring；**G1=08-15 可推进 teardown 停容器**（新闻自采 RSS 不受 crucix 影响）
 - **开阳补全（v1.9.0→v1.10.8）**：第一批报告中心（45 份）+ FCI/GSCPI 面板 + 风险信号面板 + dashboard 停生成（2dff1a6）+ news_export 提频 I15（3c30723）；**M-1 news_geo 事件图层**（8e6aaf3/a86fbbe/ddb17b0：137B 空壳→527 事件，CAMEO event_code 落盘，XSS 双保险）→ 视觉 crucix 化（a63bd65）→ 缩放半补偿（da464f5）→ 事件弹框+原文链接（84464dd）→ 同新闻合并+unknown 清零（c4659f4）→ 视觉降噪 Top-80 标签（a3b0561）→ **同地点聚合 v1.10.8（ab8b1f7：628→208 点，一城一点+计数徽标）**
 - **news_geo 验收**：数据侧 9/9 + qa 16 PASS + XSS 实测不可注入；48h 判定 08-13 06:35 自动化（unknown<5%）；浏览器复核 17 项待主理人
 - **事故治本（37dda5a）**：开阳部署触发嵌套挂载断链（mv dist 换 inode → html/data 子挂载丢失 + 删 dist/data 容器起不来）→ data 挂载独立到 `/usr/share/nginx/data` + nginx alias（嵌套挂载红线升级，见坑节）
@@ -134,11 +134,11 @@
    - 证据：天玑容器 `/app/macro_data/tianji.db`、`narrative.db` 均为 0 字节（Aug 10 15:00）。仓库全量 grep 显示无代码将 DB_PATH 指向这两个文件名；真实写库走 `tianji_db.py` → `forecast_tracker.db`（1.2MB 存活，narrative_chunks=347/predictions=7/forecasts=304）。
    - 处置：确认为遗留/重命名残桩，可删；或补 writer。
 
-3. **crucix（退场未完成，仍在被实时消费）**
-   - 证据：`macro-scan/data_fetcher.py:734` 仍 `from optim_config import CRUCIX_REMOTE_URL`；`http://192.168.31.108:3117/api/data` 实测 HTTP 200、数据时间戳 `2026-08-11T10:02Z`。运行时无 `USE_CRUCIX`/`NUKE_CRUCIX` 类开关 env（`env|grep crucix` 为空）。
-   - 后果：crucix 退场代码已合并，但运行时宏扫仍连 :3117；G0（08-12）后若执行切断，必须验证 data_fetcher 真不再调用 :3117，否则仿真上下文已切、data_fetcher 仍连 → 静默降级。
-   - **验证检查清单（crucix 退场切断后必须逐项勾，防静默降级）**：① 读 `data_fetcher.py` 确认 `CRUCIX_REMOTE_URL` 引用已移除或条件门控（不再无条件 import/调用）；② `docker stop crucix-crucix-1` 后 macro-scan 不报错、仿真仍产出、news_geo 仍更新；③ `:3117` 端口不再被任何容器内进程连接；④ 替代源（gscpi NY Fed fetcher 等）已接管 crucix 原提供信号。
-   - 注：crucix 容器本身 Up 且 :3117 正常服务。该镜像无 python3，故 `python3 -c /health` 探针会报 "executable not found"——这是测量假象，HTTP 200 已证明存活，勿误判为 crucix 挂掉。
+3. **crucix（退场源已切换，待 teardown 停容器）**
+   - 证据（08-12 实测）：`data_fetcher.py` 已删 `CRUCIX_REMOTE_URL` 引用与 `GET :3117` 分支（commit f30bd2d），gscpi 改读 `DATA_DIR/fred_history/GSCPI.csv`（NY Fed 官方月频值，末行 2026-07-31=0.805）；`docker exec get_current_snapshot` 实测 `[OK] GSCPI (NY Fed CSV): 0.805`，`_crucix` 仍 POPULATED 且字段契约不变（`gscpi.value`）。
+   - 后果：运行时宏扫**已不再连 :3117**（G0 切断验证 + wiring 双实锤）；nuke/sdr/vix 经核实下游零消费（`narrative_processor` 的 crucix_* 桶仅定义未灌数据），无需 wiring。
+   - 剩余动作：G1=08-15 `docker stop crucix-crucix-1` 停容器（独立容器，停后无影响）；新闻自采 RSS 与 crucix 零关联。
+   - 注：crucix 容器本身仍 Up 且 :3117 正常服务（待 G1 主动关停），其镜像无 python3 故 `python3 -c /health` 探针报 "executable not found" 是测量假象，HTTP 200 已证存活，勿误判。
 
 4. **sim_log（死代码，非 P0 功能损坏）**
    - 证据：0 字节（Aug 5 23:50）；`macro-sim/core/sim_log.py` 定义 `DB_PATH=.../sim_log.db` 与 `insert_run()` writer，但全仓 grep `insert_run` **0 调用点**（08-12 审计实测）——writer 从未被任何代码调用，属未接线死代码，空库为预期结果，非「功能损坏」。
