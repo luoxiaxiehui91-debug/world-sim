@@ -729,28 +729,40 @@ def get_current_snapshot() -> Dict:
     else:
         print("  [SKIP] 萨姆规则: 计算失败（失业率历史数据不足）")
 
-    # Crucix 实时数据（gscpi / nuke / sdr）注入 _crucix 键（air 已摘除）
+    # GSCPI 供应链压力指数（crucix 已退场，改用 NY Fed 官方 CSV 为唯一源）
+    # 字段契约与下游 regime_detector 一致：_crucix["gscpi"]["value"]（float）
+    # CSV 由 fetch_gscpi.py 落盘至 DATA_DIR/fred_history/GSCPI.csv（date,value 末行=最新）
     try:
-        from optim_config import CRUCIX_REMOTE_URL as _CRUCIX_URL
-        _cx_resp = requests.get(_CRUCIX_URL, timeout=8)
-        if _cx_resp.status_code == 200:
-            _cx = _cx_resp.json()
-            snapshot["_crucix"] = {
-                "gscpi":    _cx.get("gscpi"),
-                "nuke":     _cx.get("nuke"),
-                "sdr":      _cx.get("sdr"),
-                "markets":  {
-                    "vix": (_cx.get("markets") or {}).get("vix"),
-                },
-            }
-            _gscpi_val = (snapshot["_crucix"]["gscpi"] or {}).get("value")
-            print(f"  [OK] Crucix: gscpi={_gscpi_val}, nuke={len(snapshot['_crucix']['nuke'] or [])}, sdr={bool(_cx.get('sdr'))}")
+        import os as _os
+        import csv as _csv
+        from optim_config import DATA_DIR
+        from datetime import datetime as _dt
+        _gscpi_csv = _os.path.join(DATA_DIR, "fred_history", "GSCPI.csv")
+        if _os.path.exists(_gscpi_csv):
+            with open(_gscpi_csv, newline="", encoding="utf-8") as _gf:
+                _rows = list(_csv.DictReader(_gf))
+            if _rows:
+                _last = _rows[-1]
+                _gscpi_val = float(_last["value"])
+                _gscpi_date = _last.get("date", "")
+                snapshot["_crucix"] = {
+                    "gscpi": {
+                        "value": _gscpi_val,
+                        "date": _gscpi_date,
+                        "fetched_at": _dt.now().strftime("%Y-%m-%d"),
+                        "source": "nyfed_gscpi_csv",
+                    },
+                }
+                print(f"  [OK] GSCPI (NY Fed CSV): {_gscpi_val} ({_gscpi_date})")
+            else:
+                snapshot["_crucix"] = {}
+                print("  [SKIP] GSCPI: CSV 为空")
         else:
             snapshot["_crucix"] = {}
-            print(f"  [SKIP] Crucix: HTTP {_cx_resp.status_code}")
-    except Exception as _cx_e:
+            print(f"  [SKIP] GSCPI: 未找到 {_gscpi_csv}")
+    except Exception as _gx_e:
         snapshot["_crucix"] = {}
-        print(f"  [SKIP] Crucix: {_cx_e}")
+        print(f"  [SKIP] GSCPI: {_gx_e}")
 
     return snapshot
 

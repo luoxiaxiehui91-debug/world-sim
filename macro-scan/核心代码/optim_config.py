@@ -106,9 +106,6 @@ EIA_API_KEY = os.environ.get("EIA_API_KEY", "")
 HDX_API_BASE = os.environ.get("HDX_API_BASE", "https://data.humdata.org/api/3/action")
 HDX_QUERY = os.environ.get("HDX_QUERY", "humanitarian OR conflict OR crisis")
 
-# ── Crucix API（NAS本地，直连地址） ───────────────────────────────────────────
-CRUCIX_REMOTE_URL = "http://192.168.31.108:3117/api/data"  # 按实际地址修改
-
 # ── 外部 LLM API ──────────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY    = os.environ.get("OPENAI_API_KEY", "")
