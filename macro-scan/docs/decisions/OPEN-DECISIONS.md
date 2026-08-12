@@ -25,3 +25,9 @@
 - **背景**：`gdelt_history.jsonl` 的 `date`（`YYYY-MM-DD`，来自 `datetime.now(timezone.utc).isoformat()[:10]`）与 situations 的 `started`/`last_updated`（`%Y-%m-%d`）为纯日期键，本次**明确不改**（无时刻分量，改格式会破坏下游按日聚合）。
 - **影响**：这些日期本质是 **UTC 日期**。当前仅作内部时序聚合/键值，无展示；未来若前端直接展示或与本地日期混排，需显式转换（UTC 日 → 本地日）。
 - **当前状态**：**OPEN**。维持现状（UTC 语义），仅在出现展示需求时做转换。建议后续在消费端（如 `/grv-history` 按日线、situations 卡片）加一行注释或转换函数，避免再次误读。
+
+## OPEN-04：crucix 退场 G0 切断验证 PASS，但 D1-D3 信号 wiring 待完成
+
+- **背景**：G0（2026-08-12）执行受控切断（`docker pause crucix-crucix-1`）验证天枢对 crucix 不可达的降级行为。结果：天枢优雅降级（`_crucix`=EMPTY、不崩溃），回滚后完全恢复（`_crucix`=POPULATED，gscpi=0.79/nuke=6/sdr=True）。验证报告见 `docs/crucix-g0-verification-report.md`。
+- **影响**：D1-D3（gscpi/nuke/sdr）替代源 `fetch_gscpi.py`(NY Fed) / `fetch_safecast_nuke.py` 已存在且已调度，但**未接入 `_crucix` 管线**。crucix 彻底关停后，gscpi/nuke/sdr/vix 信号将静默丢失（regime_detector / narrative_processor 降级分支生效但信号空）。
+- **当前状态**：**OPEN（G0=PASS）**。正式 teardown crucix（G1=08-15）前须完成 D1-D3 wiring（替代源注入 `_crucix`），或在 STATUS 明确接受「gscpi/nuke/sdr 退场即弃」并标注信号口径变化。新闻采集与 crucix 零关联（天枢自采 RSS），不受影响。
