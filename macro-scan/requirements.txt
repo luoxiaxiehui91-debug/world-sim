@@ -62,3 +62,7 @@ spacy>=3.8,<4.0
 # zh_core_web_sm 改为名称+版本（2026-08-06）：pip 从 wheels/ 本地 wheel 安装（--find-links），
 # 原 GitHub URL 构建时直连超时（NAS 出口 44KB/s）+ 代理不可用于 buildkit 网络
 zh_core_web_sm==3.8.0
+
+# PostgreSQL 驱动（worldsim-pg 统一采集库写入，A0.5）
+# psycopg 3.x 二进制包（含 libpq 预编译 wheel，免编译）；从 tuna 镜像拉取
+psycopg[binary]>=3.1.0
