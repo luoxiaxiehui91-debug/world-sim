@@ -4,7 +4,7 @@ news_db.py — 新闻库持久化模块（N1 第一阶段）
 职责：
   - 维护 news.db（SQLite），包含 scan_contexts / articles /
     article_categories / signal_episodes / episode_articles / signal_outcomes
-  - 全量归档 Crucix 文章（url 或 content_hash 去重）
+  - 全量归档天枢自采新闻文章（RSS / defense_rss 源，url 或 content_hash 去重；crucix 已非新闻源）
   - 给每篇文章打关键词类别标签
   - 记录信号触发事件（signal_episodes）及关联文章
   - 提供"触发文章标题"查询接口（供 latest_news.json 增强使用）
