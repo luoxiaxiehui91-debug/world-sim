@@ -16,7 +16,7 @@
 ## 二、系统架构
 
 ```
-FRED / GPR / GDELT / 新闻（RSSHub :12000，crucix 独立项目·活跃运行 30/30 sources OK）
+FRED / GPR / GDELT / 新闻（RSSHub :12000，crucix 独立项目·活跃运行 30/30 sources OK；退场实施中，G1=08-15 停容器）
               │  49个调度任务（I15/I30/日档/月档）
               ▼
         ┌─────────────┐
