@@ -14,6 +14,11 @@ import urllib.request
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+try:
+    import psycopg
+except ImportError:
+    psycopg = None
+
 COLLECTION_NAME = "macro_kb"
 EMBED_MODEL     = os.environ.get("SILICONFLOW_EMBED_MODEL", "BAAI/bge-m3")
 SILICONFLOW_EMBED_URL = "https://api.siliconflow.cn/v1/embeddings"
@@ -21,6 +26,16 @@ CHUNK_SIZE      = 600
 CHUNK_OVERLAP   = 150
 MIN_CHUNK_LEN   = 80
 SCORE_THRESHOLD = 0.5   # cosine distance；越小越相似，超过此值丢弃
+
+# D0: pgvector 后端切换开关（默认 pgvector；观察期可设 RAG_BACKEND=chroma 回滚）
+RAG_BACKEND = os.getenv("RAG_BACKEND", "pgvector").lower()
+_RAG_FAIL_COUNT = 0  # C9 静默降级致盲修复：PG 查询失败计数
+
+# pgvector 连接（mirror b0_migrate.py）
+_PG_HOST = "worldsim-pg"
+_PG_PORT = 5432
+_PG_DB = "worldsim"
+_PG_USER = "worldsim_app"
 
 SKIP_FILES   = {"README.md", "readme.md", "数据字典.md"}
 SKIP_PREFIX  = ("00_知识库", "00_快速参考", "README")
@@ -141,22 +156,49 @@ def _get_collection(chroma_dir: str):
     return col
 
 
+def _get_pg_conn():
+    """返回 worldsim-pg 连接（rag schema 优先）。psycopg 未装时抛错。"""
+    if psycopg is None:
+        raise RuntimeError("psycopg 未安装，无法使用 pgvector 后端")
+    return psycopg.connect(
+        host=_PG_HOST, port=_PG_PORT, dbname=_PG_DB, user=_PG_USER,
+        password=os.environ.get("WORLDSIM_APP_PW"),
+        options="-c search_path=rag,public",
+    )
+
+
+def _vec_str(emb) -> str:
+    """numpy array / list → json string for `::vector` cast (容器未装 pgvector 包)。"""
+    if hasattr(emb, "tolist"):
+        emb = emb.tolist()
+    return json.dumps([float(x) for x in emb])
+
+
 # ── 建索引 ────────────────────────────────────────────────────────────────────
 
-def build_index(kb_dir: str, chroma_dir: str, _unused: str = "") -> int:
+def build_index(kb_dir: str, chroma_dir: str = None, _unused: str = "") -> int:
     """
-    从 kb_dir 读取所有 .md 文件，向量化后存入 ChromaDB。
-    返回入库的文本块数量。每次调用会清空旧索引重建。
+    从 kb_dir 读取所有 .md 文件，向量化后存入向量库（RAG_BACKEND 决定 chroma / pgvector）。
+    返回入库的文本块数量。每次调用会清空旧索引重建（原子重建，杜绝旧毁新残）。
     """
+    print(f"[RAG] 扫描知识库: {kb_dir}")
+    chunks, metas = _load_kb_docs(kb_dir)
+    print(f"[RAG] 共 {len(chunks)} 个文本块，开始向量化（硅基流动 {EMBED_MODEL}）...")
+
+    if RAG_BACKEND == "chroma":
+        return _build_index_chroma(chunks, metas, chroma_dir)
+    return _build_index_pg(chunks, metas)
+
+
+def _build_index_chroma(chunks, metas, chroma_dir):
     try:
         import chromadb
     except ImportError:
         print("[RAG] chromadb 未安装，请先 pip install chromadb")
         return 0
-
-    print(f"[RAG] 扫描知识库: {kb_dir}")
-    chunks, metas = _load_kb_docs(kb_dir)
-    print(f"[RAG] 共 {len(chunks)} 个文本块，开始向量化（硅基流动 {EMBED_MODEL}）...")
+    if not chroma_dir:
+        print("[RAG] chroma 后端需 chroma_dir，跳过")
+        return 0
 
     client = chromadb.PersistentClient(path=chroma_dir)
     try:
@@ -206,22 +248,64 @@ def build_index(kb_dir: str, chroma_dir: str, _unused: str = "") -> int:
     return ok_count
 
 
+def _build_index_pg(chunks, metas):
+    """PG 原子重建：TRUNCATE + INSERT 同事务（C6 修复，杜绝旧毁新残）。"""
+    BATCH = 50
+    ok_count = 0
+    try:
+        with _get_pg_conn() as pg:
+            with pg.transaction():
+                with pg.cursor() as cur:
+                    cur.execute(
+                        "TRUNCATE rag.embeddings WHERE collection_name = %s",
+                        (COLLECTION_NAME,),
+                    )
+                    for batch_start in range(0, len(chunks), BATCH):
+                        bchs = chunks[batch_start: batch_start + BATCH]
+                        bmet = metas[batch_start: batch_start + BATCH]
+                        embeddings = _get_embeddings_batch(bchs)
+                        if not embeddings:
+                            continue
+                        for i, (chunk, meta, emb) in enumerate(zip(bchs, bmet, embeddings)):
+                            if emb is None:
+                                continue
+                            gi = batch_start + i
+                            cur.execute(
+                                """INSERT INTO rag.embeddings
+                                      (collection_name, id, document, metadata, embedding)
+                                   VALUES (%s, %s, %s, %s::jsonb, %s::vector)""",
+                                (COLLECTION_NAME, f"c{gi}", chunk,
+                                 json.dumps(meta), _vec_str(emb)),
+                            )
+                            ok_count += 1
+                        print(f"  [{ok_count}/{len(chunks)}] 已入库...")
+    except Exception as e:
+        print(f"  [RAG] PG 建索引失败（事务已回滚）: {e}")
+        return 0
+    print(f"[RAG] PG 索引完成：{ok_count} 块入库，跳过 {len(chunks)-ok_count} 块（embedding失败）")
+    return ok_count
+
+
 # ── 查询 ──────────────────────────────────────────────────────────────────────
 
 def rag_query_vec(query: str, n_results: int = 5,
                   chroma_dir: str = None) -> List[str]:
     """
-    用向量相似度检索知识库。
-    返回格式与 TF-IDF rag_query() 相同：List["【文件名】\\n片段"]。
+    用向量相似度检索知识库（按 RAG_BACKEND 分发 chroma / pgvector）。
+    返回格式与 TF-IDF rag_query() 相同：List["【文件名】\n片段"]。
     索引不存在或 embedding 失败时返回空列表，由 TF-IDF 兜底。
     """
-    if chroma_dir is None or not os.path.exists(chroma_dir):
-        return []
-
     query_emb = _get_embedding(query)
     if query_emb is None:
         return []
+    if RAG_BACKEND == "chroma":
+        return _rag_query_chroma(query_emb, n_results, chroma_dir)
+    return _rag_query_pg(query_emb, n_results)
 
+
+def _rag_query_chroma(query_emb, n_results, chroma_dir):
+    if chroma_dir is None or not os.path.exists(chroma_dir):
+        return []
     try:
         collection = _get_collection(chroma_dir)
     except Exception:
@@ -252,6 +336,38 @@ def rag_query_vec(query: str, n_results: int = 5,
     print(f"  [RAG-VEC] 检索到 {len(results)} 个相关段落（距离阈值 {SCORE_THRESHOLD}）")
     return results
 
+
+def _rag_query_pg(query_emb, n_results):
+    # pgvector 查询（cosine `<=>`），失败计数后转 TF-IDF（C9 静默降级致盲修复）
+    global _RAG_FAIL_COUNT
+    try:
+        with _get_pg_conn() as pg:
+            with pg.cursor() as cur:
+                cur.execute(
+                    """SELECT document, metadata->>'source' AS source,
+                              embedding <=> %s::vector AS dist
+                       FROM rag.embeddings
+                       WHERE collection_name = %s
+                       ORDER BY embedding <=> %s::vector, id
+                       LIMIT %s""",
+                    (_vec_str(query_emb), COLLECTION_NAME, _vec_str(query_emb), n_results),
+                )
+                rows = cur.fetchall()
+    except Exception as e:
+        _RAG_FAIL_COUNT += 1
+        print(f"  [RAG] PG 向量检索失败 (累计 {_RAG_FAIL_COUNT} 次): {e}")
+        return []
+
+    results = []
+    for doc, source, dist in rows:
+        if dist > SCORE_THRESHOLD:
+            continue
+        results.append(f"【{source or 'unknown'}】\n{doc.strip()}")
+        if len(results) >= n_results:
+            break
+
+    print(f"  [RAG-VEC-PG] 检索到 {len(results)} 个相关段落（距离阈值 {SCORE_THRESHOLD}）")
+    return results
 
 # ── 统一入口（向量优先 + TF-IDF fallback） ────────────────────────────────────
 
