@@ -44,3 +44,28 @@
 | 3 | 备份异盘（第二块盘/另一台 NAS） | 高（数据安全兜底） | 低（配置） | 尽快 |
 | 4 | restore 演练（restore 到临时库验证条数） | 中 | 低 | 周期性 |
 | 5 | 探针扩展 forecast/tianji 表监控 | 中 | 低 | 择机 |
+## 四、修复执行记录（2026-08-13 23:0x，用户拍板「能今晚做的今晚做」）
+
+| 漏洞 | 状态 | 说明 |
+|------|------|------|
+| V1 备份同盘无异地 | ⏸ 跳过 | 用户判断机械硬盘相对有保障，暂不异盘 |
+| V2 无 restore 演练 | ✅ 已做 | dump 恢复到临时库 worldsim_restore_test，6 表条数**与生产完全一致**（32560/404/2034/314/7/419），后清理 |
+| V3 forecast 写路径未切 PG-only | ✅ 已做 | no-op 连接方案（_PG_ONLY + _NoopConn），只改 2 处连接函数；验证 PG 写 + SQLite 冻结 + 双写回归通过。**顺带修 2 真 bug**：upsert_tianji_prediction 占位符 27vs26 静默丢数 |
+| V4a 探针不监控备份 | ✅ 已做 | check_backup() 读 .last_pg_backup marker（25h/49h 阈值），backup-pg.sh 成功后写 marker |
+| V4b 探针不监控 forecast/tianji | 📋 评估后暂缓 | 见下 |
+| V5 历史文档残留旧路径 | 📋 遗留 | 记录性保留 |
+| V6 worldsim_admin 免密 | 📋 遗留 | 个人内网低风险 |
+| V7 P6 观察窗口覆盖不全 | 📋 遗留 | P6 前手动复核 |
+
+### V4b 评估结论（暂缓）
+
+V3 后 forecast/tianji 写路径已 PG-only（PG 为事实源），但 forecast/prediction 是**日频/低频**数据：
+- forecast.forecasts 每天新增量极低（可能 0~1 条），新鲜度阈值无法可靠设定（设松了无意义、设紧了误报）。
+- 低频写断的最直接信号是「最新 created_at 越来越老」，但要到「数天无新 forecast」才触发，届时探针告警已太迟。
+
+**结论**：forecast/tianji 的静默失败监控，用「探针新鲜度」性价比低；建议改用「写路径日志监控」（pg_write_collection 已有 _STATS + logging.error 留痕）+ 月度验证（tianji_verifier 已有）兜底。本项暂缓，不做探针扩展。
+
+### 关键发现（V3 过程中）
+
+1. **upsert_tianji_prediction 占位符 27 vs 26**（pg_write_collection.py）：VALUES 写了 27 个 %s，列只有 26 → 每次 prediction 写 PG 都抛 `placeholders but parameters` 错，被 C3 静默降级吞掉 → **tianji.predictions 的 PG 双写一直失败**（只有 b0_migrate 静态迁移的 7 行）。已修（删多余 %s），验证 prediction 写 PG 7→8 成功。
+2. **predictions 表 CHECK 约束**：type 只能 'quantitative'/'geopolitical'，测试时误用 'macro' 导致 INSERT OR IGNORE 静默跳过——非 bug，是测试数据问题，已用正确值回归。
