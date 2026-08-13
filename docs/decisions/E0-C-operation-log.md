@@ -54,6 +54,15 @@
 ## 四、操作记录（按时间倒序，每动作含 时间/动作/证据/结论）
 
 
+### 2026-08-13 21:3x P5 — PG-only 切换生效（WORLDSIM_SQLITE_OFF=1 + up -d）
+- 前置：探针 dualwrite 加 PG-only 分支（`.sqlite_frozen_at` marker 存在 → 验证 SQLite 冻结 + PG 五表健康），避免 SQLite 停写后 count 差被探针误报 CRIT（切换前必须解决，否则 2h 后误告警）。
+- 动作：运行区 compose `environment:` 加 `WORLDSIM_SQLITE_OFF=1`；touch `data/.sqlite_frozen_at`（epoch 1786627625）；`docker compose up -d macro-scan`（容器 Recreate→Started）。
+- 验证：容器内 `printenv WORLDSIM_SQLITE_OFF=1`；探针 VERDICT=OK（五表 PG 健康 + **SQLite 冻结确认** + 心跳 24s + 产物新鲜）；count 基线 PG articles=32476 / scan_contexts=402 / episodes=2022 vs SQLite 32476 / 403 / 2022（冻结快照；ctx 差 1 行为历史遗留，读全 PG 无影响）。
+- 待验证：手动 `scan_weak_signals.py` 真实采集一轮 → 确认 PG 增长、SQLite count 冻结不变（后台进行中）。
+- 回滚：去掉 compose 的 WORLDSIM_SQLITE_OFF + rm marker + up -d，即回双写。
+- 观察窗口：切换后 scheduler 心跳正常、探针 I120 在线；建议 12-24h 观察后再拍板 P6（删 3 库 + 僵尸）。
+
+
 ### 2026-08-13 21:2x P4 — news_db 写路径 PG 主写支持（WORLDSIM_SQLITE_OFF 开关，默认关=双写现状）
 - 改造：news_db.py 6 写函数（write_scan_context / insert_articles / tag_articles / insert_signal_episode / link_episode_articles / prune_old_articles）加 PG-only 分支 + get_trigger_titles（news_db 内残留 SQLite 读）直接切 PG。
 - 设计：`WORLDSIM_SQLITE_OFF=1` → PG 主写（id 用 pg_write_collection._next_id MAX+1 生成、url/content_hash 查重与 pub_ctx 走 PG、删老文章走 delete_news_articles）；默认不设 → 双写现状（线上零变化）。单容器顺序写无 id 并发竞争。
