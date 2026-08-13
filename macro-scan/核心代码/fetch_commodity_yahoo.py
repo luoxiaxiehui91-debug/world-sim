@@ -122,15 +122,30 @@ class CommodityYahooFetcher(FetcherBase):
         if price is None:
             self.logger.warning("[commodity_yahoo] %s regularMarketPrice 缺失", symbol)
             return None
-        # change_pct：用最近两条收盘价计算，比 chartPreviousClose 更准确
+        # change_pct：以 regularMarketPrice 为 curr，正确处理当日 close=None 的情况
+        # （A股当日收盘 close 在 chart 序列中可能是 None，旧逻辑跳过 None 导致基准错位 1 天）。
+        # 当日已收盘（最后有效 close ≈ price）→ prev 取倒数第二个有效；
+        # 当日未收盘（当日 close 缺失）→ prev 取最后一个有效收盘（= 前一日）。
         change_pct = None
-        if closes and len(closes) >= 2:
+        if price is not None and closes:
             valid_closes = [c for c in closes if c is not None]
-            if len(valid_closes) >= 2:
-                prev = valid_closes[-2]
-                curr = valid_closes[-1]
+            if valid_closes:
+                last_valid = valid_closes[-1]
+                if abs(last_valid - price) / price < 0.0005:
+                    prev = valid_closes[-2] if len(valid_closes) >= 2 else None
+                else:
+                    prev = last_valid
                 if prev and prev != 0:
-                    change_pct = round((curr - prev) / prev * 100, 2)
+                    change_pct = round((price - prev) / prev * 100, 2)
+        # spark5：最近 5 个交易日收盘迷你序列（供前端迷你折线；当日未收盘时补当前价）
+        spark5 = []
+        try:
+            _series = [c for c in closes if c is not None]
+            if _series and _series[-1] != price:
+                _series = _series + [price]
+            spark5 = [round(c, 2) for c in _series[-5:]]
+        except Exception:
+            spark5 = []
         rmt = meta.get("regularMarketTime")
         as_of = (
             datetime.datetime.fromtimestamp(rmt, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -143,6 +158,7 @@ class CommodityYahooFetcher(FetcherBase):
             "unit":       unit,
             "price":      float(price),
             "change_pct": change_pct,
+            "spark5":     spark5,
             "as_of":      as_of,
             "status":     Status.OK,
             # 历史序列（供 backfill 使用）
