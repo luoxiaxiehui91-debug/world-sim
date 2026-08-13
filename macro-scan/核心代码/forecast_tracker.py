@@ -25,6 +25,10 @@ import sys
 from datetime import datetime, date, timezone
 from pathlib import Path
 from typing import Optional
+# E0-A: 旁路双写 worldsim-pg（非阻断，异常自吞，绝不阻断 SQLite 主流程）
+from pg_write_collection import (
+    upsert_forecast, update_forecast_status, upsert_actual, upsert_evaluation,
+)
 try:
     from dateutil.relativedelta import relativedelta
 except ImportError:
@@ -175,6 +179,15 @@ class ForecastTracker:
             notes,
         ))
         self.conn.commit()
+        upsert_forecast(fid, now, scenario, horizon_months, verify_after, country,
+                        "pending", regime, stress_signals,
+                        probs.get("recession"), probs.get("deep_recession"),
+                        probs.get("soft_landing"), probs.get("stagflation"),
+                        probs.get("crisis_vix"),
+                        predictions.get("gdp_p10"), predictions.get("gdp_p50"),
+                        predictions.get("gdp_p90"), predictions.get("unrate_p50"),
+                        predictions.get("cpi_yoy_p50"),
+                        json.dumps(input_state, ensure_ascii=False), notes)
         return fid
 
     # ── 从 JSON 日志导入 ──────────────────────────────────────────────────────
@@ -248,6 +261,15 @@ class ForecastTracker:
                 json.dumps(input_snap, ensure_ascii=False),
                 "从predictions_log.json导入",
             ))
+            upsert_forecast(
+                fid, e.get("created_at", ""), e.get("scenario", "baseline"),
+                e.get("horizon_months", 3), e.get("verify_after", ""), "us",
+                e.get("status", "pending"), e.get("regime", ""), e.get("stress_signals", 0),
+                probs["recession"], probs["deep_recession"], probs["soft_landing"],
+                probs["stagflation"], probs["crisis_vix"],
+                preds.get("gdp_p10"), preds.get("gdp_p50"), preds.get("gdp_p90"),
+                preds.get("unrate_p50"), preds.get("cpi_yoy_p50"),
+                json.dumps(input_snap, ensure_ascii=False), "从predictions_log.json导入")
             imported += 1
 
         self.conn.commit()
@@ -303,6 +325,11 @@ class ForecastTracker:
                 SET status = 'evaluated'
                 WHERE id = ?
             """, (rid,))
+            upsert_actual(
+                verify_date, actual["regime"], actual.get("gdp"),
+                actual.get("unrate"), actual.get("cpi"),
+                datetime.now(timezone.utc).isoformat()[:19], "RULE_FRED")
+            update_forecast_status(rid, "evaluated")
 
             evaluated.append({
                 "id": rid,
@@ -473,6 +500,12 @@ class ForecastTracker:
             scores.get("by_regime", {}).get("soft_landing"),
         ))
         self.conn.commit()
+        upsert_evaluation(
+            date.today().isoformat(), n, scores.get("overall_brier"),
+            scores.get("brier_skill_score"),
+            scores.get("by_regime", {}).get("recession"),
+            scores.get("by_regime", {}).get("soft_landing"),
+        )
 
     # ── 摘要报告 ──────────────────────────────────────────────────────────────
 
