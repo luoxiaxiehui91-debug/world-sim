@@ -184,7 +184,9 @@ def check_and_trigger(new_grv: dict, prev_grv: dict) -> None:
         f"③用户需重点关注的指标或事件窗口（未来1-2周）。"
     )
 
-    # ── 异步推演 + macro-sim 触发（daemon=True，主进程可正常退出）────────────
+    # ── 异步推演（daemon 线程）+ macro-sim 触发（主线程同步写 sim_trigger.json）──
+    # 注意：daemon=True 线程会随主进程退出被丢弃，绝不能把“写 sim_trigger.json”放进 worker；
+    # 故关键副作用在主线程同步执行，重型推演 run_hypothesis_simple 留在后台线程。
     def _worker():
         try:
             from ntfy_utils import push_text_with_priority
@@ -195,8 +197,6 @@ def check_and_trigger(new_grv: dict, prev_grv: dict) -> None:
             )
             from hypothesis_engine import run_hypothesis_simple
             run_hypothesis_simple(scenario)
-            # 写 sim_trigger.json，通知 macro-sim daemon 运行仿真
-            _write_sim_trigger(trigger_summary, level=3)
             # 推演成功：冷却日期已在锁内乐观写入，无需重复写
         except Exception as e:
             # 推演失败：回滚冷却日期，允许下次触发重试
@@ -219,6 +219,9 @@ def check_and_trigger(new_grv: dict, prev_grv: dict) -> None:
             except Exception:
                 print(f"  [B线] 推演失败: {e}")
 
+    # 关键副作用：sim_trigger.json 必须在主线程同步写出，
+    # 否则 daemon 线程随主进程退出被丢弃，macro-sim 永不触发（Round2 P1 回归修复）
+    _write_sim_trigger(trigger_summary, level=3)
     t = threading.Thread(target=_worker, daemon=True)
     t.start()
     print(f"  [B线] 推演已异步启动：{trigger_summary}")
