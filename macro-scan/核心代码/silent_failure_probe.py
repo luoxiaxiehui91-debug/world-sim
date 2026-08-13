@@ -77,6 +77,24 @@ def _fmt_age(sec: float) -> str:
 FROZEN_MARKER = os.path.join(DATA_DIR, ".sqlite_frozen_at")
 BACKUP_MARKER = os.path.join(DATA_DIR, ".last_pg_backup")
 
+# FRED 关键序列滞后监控（V4c）：(相对 DATA_DIR 的 csv, 名称, max_lag_days)
+# max_lag = 该序列正常发布节奏 + 缓冲；超 max_lag WARN、超 max_lag*2 CRIT
+FRED_LAG_WATCH = [
+    ("fred_history/VIXCLS.csv",          "VIX 恐慌指数",        5),
+    ("fred_history/DTWEXBGS.csv",        "美元指数",             9),
+    ("fred_history/BAA10Y.csv",          "HY 信用利差",          6),
+    ("fred_history/T10Y2Y.csv",          "10Y-2Y 利差",          5),
+    ("fred_history/DFF.csv",             "联邦基金利率",         6),
+    ("fred_history/DGS10.csv",           "美债 10Y",             5),
+    ("fred_history/DGS3MO.csv",          "美债 3M",              5),
+    ("fred_history/DEXJPUS.csv",         "美元/日元",            9),
+    ("fred_history/DCOILWTICO.csv",      "WTI 原油",             6),
+    ("fred_history/BAMLH0A0HYM2.csv",    "HY 利差(BofA)",        6),
+    ("fred_history/ICSA.csv",            "初请失业金(周)",      12),
+    ("fred_history/IRLTLT01JPM156N.csv", "日债 10Y(月)",        90),
+    ("fred_history/GSCPI.csv",           "GSCPI(月)",           45),
+]
+
 
 def check_dualwrite() -> list:
     """比对 news 五表 PG vs SQLite；PG-only（.sqlite_frozen_at 存在）时验证 SQLite 冻结 + PG 健康。"""
@@ -225,10 +243,48 @@ def check_backup() -> list:
     return out
 
 
+def check_fred_lag() -> list:
+    """FRED 关键序列最新数据日期滞后监控（源断更/停更时告警）。"""
+    from datetime import datetime, date as _date
+    out = []
+    today = _date.today()
+    for rel, name, max_lag in FRED_LAG_WATCH:
+        path = os.path.join(DATA_DIR, rel)
+        if not os.path.exists(path):
+            out.append((CRIT, f"fred {name}: 文件不存在 {rel}"))
+            continue
+        try:
+            last = None
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("date"):
+                        continue
+                    try:
+                        last = datetime.strptime(line.split(",")[0], "%Y-%m-%d").date()
+                    except ValueError:
+                        continue
+            if last is None:
+                out.append((CRIT, f"fred {name}: CSV 无有效数据行"))
+                continue
+            lag = (today - last).days
+            if lag > max_lag * 2:
+                out.append((CRIT, f"fred {name}: 数据停在 {last}，滞后 {lag} 天"
+                                  f"（CRIT 阈值 {max_lag * 2}）"))
+            elif lag > max_lag:
+                out.append((WARN, f"fred {name}: 数据停在 {last}，滞后 {lag} 天"
+                                  f"（WARN 阈值 {max_lag}）"))
+            else:
+                out.append((OK, f"fred {name}: 最新 {last}，滞后 {lag} 天（阈值 {max_lag}）"))
+        except Exception as e:
+            out.append((WARN, f"fred {name}: 读取异常 {e}"))
+    return out
+
+
 def run_probe(alert: bool = True) -> tuple:
     """执行全部检查。返回 (worst_level, results)。"""
     results = []
-    for fn in (check_dualwrite, check_artifacts, check_backup):
+    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag):
         try:
             results.extend(fn())
         except Exception as e:
