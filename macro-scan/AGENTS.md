@@ -49,7 +49,7 @@ macro-scan/               ← 本地工作目录（S:\world-sim\macro-scan\，gi
 ```
 
 **不在 git 里的运行时目录**（.gitignore 排除）：
-- `data/` — FRED历史/（RAG向量索引已迁 worldsim-pg，chroma_db 已退役）/news.db 等运行时数据
+- `data/` — FRED历史/（RAG向量索引已迁 worldsim-pg，chroma_db 已退役）/news.db 等运行时数据（E0-C 起读全 PG，news.db 冻结待 P6 删）
 - `logs/` — 各任务日志
 - `docs/分析报告/` — 容器每日自动生成
 - `docs/新闻库/` — 容器每日自动生成
@@ -347,6 +347,7 @@ date,value
 ---
 
 ### `data/news.db`（SQLite，macro-sim 直读 fallback）
+> ⚠ E0-C（08-13）后 news.db 冻结（天枢读全 PG / 写 PG-only）。macro-sim 此 fallback 若触发将读到冻结旧数据——主路径 news_export.json（由 PG 产出）不受影响；天璇侧 fallback 迁 PG 列入 P6 后待办。
 
 macro-sim 在 `news_export.json` 不存在时 fallback 直读，查询：
 
