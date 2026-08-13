@@ -53,6 +53,13 @@
 
 ## 四、操作记录（按时间倒序，每动作含 时间/动作/证据/结论）
 
+### 2026-08-13 20:3x 全量验收（E0-C P1-P3 闭卷最后一道门，14/14 PASS）
+- 动作：固化 `final_acceptance_e0c.py` 到 /app（只读、不推 ntfy，供后续回归复用），容器内全量验收。
+- 结果（14/14）：import 16 模块 / scheduler JOBS=54 + silent_probe 在列 / 心跳 22s / 探针 alert=False 9/9 OK（五表双写全等 32476/403/2022/8356/2826，heartbeat 22s，grv 14.4h，news_export 73s，observability 存在）/ harness 31 PASS 0 GAP 0 FAIL / pg 行边界归一化（published_at="2026-08-13T08:26:43" UTC 文本）/ tracker(3) grv(207) daily(3) 真实数据 / obs_stats 25 evaluated+25 triggered+25 staging（恢复真实值）/ news_export.json 40 篇 updated 新鲜 / 无 dualwrite_gap 文件 / 当日 observability 产物存在。
+- 容器日志近 3h 错误扫描：零（无 P2/P3 相关 traceback）。
+- 小修正：run_probe(alert=False) 实际返回 (verdict, [(status, detail)...]) 元组而非 dict，验收判定已适配。
+- 结论：E0-C P1-P3 全绿闭卷。建议观察窗口 12-24h 后再拍板 P4-P6（writer 切 PG-primary / 备份 / 删 3 库 + 2 僵尸）。
+
 ### 2026-08-13 20:4x P2 完成 + P3 synthesis_log 对账闭环
 - **P2 全部 reader 切 PG**：第一批 news_exporter/ntfy_listener/geo_risk_vector/grv_threshold/daily_narrative/situation_detector/situation_tracker（c8d7588）；第二批 signal_synthesizer/observability/web_server；第三批 forecast_tracker/tianji_db/narrative_processor（47a5f72）。news.db 读侧零 sqlite 残留（仅注释/常量/写路径）。每批 rsync → py_compile → import 冒烟 → 函数级实测（真实 PG 数据）。
 - **关键修复（pg_read 行边界归一化）**：PG 时间列 timestamptz 返回 datetime，consumer 大量 `r[1][:10]`/字符串比较会崩——news_exporter 首次运行 `TypeError: datetime not subscriptable` 实证。修复：_Row 构造时 datetime→UTC 文本"YYYY-MM-DDTHH:MM:SS"、Decimal→float、bool→int、bytes→str。
