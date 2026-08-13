@@ -23,6 +23,7 @@ import json
 import math
 import sys
 from datetime import datetime, date, timezone
+from optim_config import now_iso_utc
 from pathlib import Path
 from typing import Optional
 # E0-A: 旁路双写 worldsim-pg（非阻断，异常自吞，绝不阻断 SQLite 主流程）
@@ -136,7 +137,7 @@ class ForecastTracker:
         """记录一条预测，返回 id"""
         import uuid
         fid = forecast_id or str(uuid.uuid4())[:8]
-        now = datetime.now(timezone.utc).isoformat()[:19]
+        now = now_iso_utc()
 
         # 计算 verify_after（horizon_months 个月后）
         today = date.today()
@@ -315,7 +316,7 @@ class ForecastTracker:
                 actual.get("gdp"),
                 actual.get("unrate"),
                 actual.get("cpi"),
-                datetime.now(timezone.utc).isoformat()[:19],
+                now_iso_utc(),
                 "RULE_FRED",
             ))
 
@@ -328,7 +329,7 @@ class ForecastTracker:
             upsert_actual(
                 verify_date, actual["regime"], actual.get("gdp"),
                 actual.get("unrate"), actual.get("cpi"),
-                datetime.now(timezone.utc).isoformat()[:19], "RULE_FRED")
+                now_iso_utc(), "RULE_FRED")
             update_forecast_status(rid, "evaluated")
 
             evaluated.append({

@@ -28,7 +28,7 @@ except Exception:
 # P0-D 修复：状态文件路径常量单点取自 optim_config（跨容器契约 §6.4）
 # 禁止再各自用 dirname(__file__) 推导（会落非持久卷 /data）
 try:
-    from optim_config import DATA_DIR
+    from optim_config import DATA_DIR, now_iso_utc
 except Exception:
     # fail-loud：无法导入 optim_config 属于部署配置错误，禁止静默 fallback
     print("FATAL: cannot import optim_config.DATA_DIR (deployment config error)", flush=True)
@@ -111,6 +111,7 @@ JOBS = [
         "db=os.path.join(DATA_DIR,'news.db'); "
         "n=news_db.prune_old_articles(db,90); print(f'[prune] 删除 {n} 篇旧文章')"
     ]),  # 每月1日，保留90天滚动窗口
+    ("silent_probe", "I120", "1-7", None, [PYTHON, "silent_failure_probe.py"]),  # P0 静默失败探针：双写差/心跳/产物新鲜度→ntfy（每2小时兜底）
 ]
 
 LOG_FILES = {
@@ -253,7 +254,7 @@ def _dump_state():
                 "last_ok":     _last_run_ok.get(job_name, False),  # P0-D：不再默认 True
             }
         state = {
-            "updated": _dt.datetime.now().isoformat()[:19],
+            "updated": now_iso_utc(),
             "heartbeat": now,
             "jobs": list(jobs_meta.keys()),
             **jobs_meta,

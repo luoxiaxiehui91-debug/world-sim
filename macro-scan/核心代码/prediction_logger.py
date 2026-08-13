@@ -10,6 +10,7 @@ import json
 import uuid
 from datetime import datetime, date
 from optim_config import PREDICTIONS_LOG, GDP_HIT_TOLERANCE, UNRATE_HIT_TOLERANCE
+from optim_config import PREDICTIONS_LOG, GDP_HIT_TOLERANCE, UNRATE_HIT_TOLERANCE, now_iso_utc
 
 
 def log_prediction(
@@ -69,7 +70,7 @@ def log_prediction(
 
     entry = {
         "id": str(uuid.uuid4()),
-        "created_at": datetime.now().isoformat(),
+        "created_at": now_iso_utc(),
         "scenario": scenario_label,
         "horizon_months": horizon_months,
         "verify_after": verify_date,

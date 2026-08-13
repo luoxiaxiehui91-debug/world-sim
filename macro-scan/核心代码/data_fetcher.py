@@ -24,6 +24,7 @@ from typing import Dict, List, Tuple, Optional
 # 配置常量（与 run_macro_analysis.py 保持同步）
 # =========================
 
+from optim_config import now_iso_utc  # P0-2
 from optim_config import (
     FRED_API_KEY,
     WORKSPACE as BASE_DIR,
@@ -120,7 +121,7 @@ def _save_cache(cache: Dict):
     """保存指标缓存（写入时间戳元数据）"""
     try:
         os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
-        cache["_meta"] = {"last_update": datetime.now().isoformat()}
+        cache["_meta"] = {"last_update": now_iso_utc()}
         with open(CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump(cache, f, ensure_ascii=False, indent=2)
         # 追加中国指标历史时序（JSONL）

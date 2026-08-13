@@ -17,9 +17,9 @@
 
 | ID | 类别 | 发现 | 严重度 | 证据 | 爆炸半径 | 建议 owner | 阻断E0-C | 状态 |
 |----|------|------|--------|------|----------|------------|-----------|------|
-| P0-1 | 域/数据 | 双写静默丢数：pg 比 SQLite 少 134 行（news.articles 缺 id 32201-32293 整批 04:05Z 失败），无对账/补偿，缺口单调累积 | P0 | pg_write_collection.py 顶部自述异常须捕获不向上抛，每 upsert except:print 吞异常；scheduler.py grep reconcil/backfill/resync/drift 全无命中 | pg 被定位为统一库(SSoT)，却是会静默掉数且永不自愈的副本；基于 pg 的统计已系统性偏低且偏差不可估 | 架构+域 | **是**（E0-C 前必须先止血，否则读路径迁向一个持续丢数的 pg） | 待修复阶段 |
-| P0-2 | 域/数据 | forecast.forecasts 时区双轨 +8h：120 行 created_at 整批漂移、2 行落未来 | P0 | prediction_logger.py:72 datetime.now().isoformat() 写 naive 北京时，pg timestamptz 按 UTC 解析记成未来；forecast_tracker.py:139/318/331 [:19] 截断 +00:00 亦违规 | 按日聚合/verify_after 到期/Brier 校准分全取错位样本，校准分(核心产出)已不可信且不报错 | 架构 | 否 | 待修复阶段(需回填历史120行) |
-| P0-3 | 架构/运行时 | GRV B线 daemon 线程随宿主进程退出被强杀，sim_trigger.json 永不写，天璇自动推演静默停摆 ≥6.5天 | P0 | grv_threshold.py 约L196 threading.Thread(daemon=True) worker 内含 _write_sim_trigger；geo_risk_vector.py:955-956 主进程未 join 即退出；sim_trigger.json mtime=08-06 22:21 0字节 | 天枢 GRV 阈值驱动自动推演失效；tianji.predictions 自 08-06 14:34 零增长；ntfy 推送约80s报告永不兑现(假成功) | 架构 | 否 | **修复已落运行容器+git树(未commit)** |
+| P0-1 | 域/数据 | 双写静默丢数：pg 比 SQLite 少 134 行（news.articles 缺 id 32201-32293 整批 04:05Z 失败），无对账/补偿，缺口单调累积 | P0 | pg_write_collection.py 顶部自述异常须捕获不向上抛，每 upsert except:print 吞异常；scheduler.py grep reconcil/backfill/resync/drift 全无命中 | pg 被定位为统一库(SSoT)，却是会静默掉数且永不自愈的副本；基于 pg 的统计已系统性偏低且偏差不可估 | 架构+域 | **是**（E0-C 前必须先止血，否则读路径迁向一个持续丢数的 pg） | **RESOLVED 2026-08-13**（C3 硬化 + 124 行回填 + 五表零差集 + 探针兜底，见修复实录） |
+| P0-2 | 域/数据 | forecast.forecasts 时区双轨 +8h：120 行 created_at 整批漂移、2 行落未来 | P0 | prediction_logger.py:72 datetime.now().isoformat() 写 naive 北京时，pg timestamptz 按 UTC 解析记成未来；forecast_tracker.py:139/318/331 [:19] 截断 +00:00 亦违规 | 按日聚合/verify_after 到期/Brier 校准分全取错位样本，校准分(核心产出)已不可信且不报错 | 架构 | 否 | **RESOLVED 2026-08-13**（7 站点改 now_iso_utc + 120 行 −8h 回填 + 铁证样本对齐至 2 秒内，见修复实录） |
+| P0-3 | 架构/运行时 | GRV B线 daemon 线程随宿主进程退出被强杀，sim_trigger.json 永不写，天璇自动推演静默停摆 ≥6.5天 | P0 | grv_threshold.py 约L196 threading.Thread(daemon=True) worker 内含 _write_sim_trigger；geo_risk_vector.py:955-956 主进程未 join 即退出；sim_trigger.json mtime=08-06 22:21 0字节 | 天枢 GRV 阈值驱动自动推演失效；tianji.predictions 自 08-06 14:34 零增长；ntfy 推送约80s报告永不兑现(假成功) | 架构 | 否 | **RESOLVED 2026-08-13**（commit 2d7bffa 已 push + rsync 部署） |
 
 ---
 
@@ -78,3 +78,65 @@
 - 团队 lead 核实：改动逻辑正确（py_compile PASS，diff 仅3处），备份 md5 与 git 树原文件一致（可回退）。
 - 收口动作：将修复从运行容器落回 git 树（未 commit），防止 docker compose up -d 重建时丢失。原版仍在 git history + 备份。
 - 教训：检测 SOP 必须显式禁止 agent 改运行容器；修复须走独立阶段+用户批准+经 git 树 rsync 部署。
+
+---
+
+## 修复实录：P0-1 / P0-2 闭环（2026-08-13，重型 SOP 三路设计 → 主理人落码）
+
+### 流程
+Round1 三路只读设计（fix-arch-2 架构/C3 硬化 · fix-domain-2 域/回填谓词 · fix-ops-2 运维/代码修复）
+→ 交叉质询 → 主理人收敛 → **用户拍板（全量推进 / 追认 C3 / 统一 UTC+Z / 新建回填脚本）** → 主理人落码 → 容器内实测验收 10/10 PASS。
+
+### P0-1 双写静默丢数
+
+| 环节 | 措施 | 证据 |
+|------|------|------|
+| 止血 | C3 硬化 `pg_write_collection.py`：连接缓存复用 + 有界重试 3 次退避(0.1/0.3/0.7) + 15 个 transient sqlstate 分类 + 失败计数 `_STATS` + `logging.error` 留痕 + `set_alert_hook`/`get_pg_write_stats` 对外接口。**绝不静默、绝不 raise、绝不阻断 SQLite 主写。** 公开签名冻结 | `get_pg_write_stats()` 返回 `{connect_fail:0, retry:0, fail:0, ok:0}`；`_MAX_RETRY=3` |
+| 回填 | 新建 `reconcile_backfill.py`（用户选项 q-3），五表 PK 范围谓词，dry-run 先验源行数，`ON CONFLICT DO NOTHING` 幂等 | dry-run `src=1/7/93/2/21=124` 零 WARN；实跑 `INSERTED 1/7/93/2/21`，逐表 inserted==expected，`total=124` |
+| 对账 | 五表 count + 双向主键差集 | articles 32345==32345 / scan_contexts 401==401 / signal_episodes 2002==2002 / episode_articles 8293==8293 / article_categories 2817==2817，`only_sqlite=0 only_pg=0`，**VERDICT PASS** |
+| 活体验证 | 回填后 scheduler 又跑 weak_signal，articles 新增 +84 → 32429 | PG 与 SQLite **仍精确相等**（32429==32429）——C3 硬化在真实新增写入下同步，124 行缺口确系修复前累积的历史债 |
+| 兜底 | 新建 `silent_failure_probe.py` 注册 JOBS（I120 每 2 小时） | 见下节 |
+
+> 注：`synthesis_log` 10 行差另立 ticket，不属 news 五表口径，已排除出 P0-1 范围。
+
+### P0-2 forecast 时区双轨 +8h
+
+**根因（精确表述）**：`prediction_logger.py:72` 用 `datetime.now().isoformat()` 生成 **naive 北京时钟数值**，PG session `TimeZone=Etc/UTC` 按 UTC 收下 → 存储时刻比真实时刻**晚 8 小时**。`forecast_tracker.py` 三处 `.isoformat()[:19]` 截断掉 `+00:00`，把 aware 降级为 naive，同属违规。修正 = **−8 小时**。
+
+| 环节 | 措施 | 证据 |
+|------|------|------|
+| 契约 | `optim_config.py` 新增 `now_iso_utc()`（aware UTC，带 `+00:00`）/ `now_iso_local()`（aware 本地，带 `+08:00`）。用户选项 q-2：**统一 UTC+Z** | `utc=2026-08-13T09:01:10+00:00` / `local=2026-08-13T17:01:10+08:00`，8 小时差即漂移量级来源 |
+| 代码 | 7 站点全改：`prediction_logger.py:72`、`forecast_tracker.py:139/318/331`（并删 `[:19]`）、`scheduler.py:256`、`fetch_firms.py:149/185`、`data_fetcher.py:123` | `now_iso_utc()` 调用 **8 处**，遗留 naive/`[:19]` **0 处**；7 文件 git=bind MD5 MATCH + py_compile 通过 |
+| 回填 | `tzfix.sql`：单事务 + 前置快照表 `forecast._forecasts_pre` + 账本 `forecast._tzfix_ledger`，仅对 `length(id)=36` 族 `−interval '8 hours'`（len8 族本就正确，不动） | `UPDATE 120`，账本 120 行，`mismatch=0`（每行均严格 = 原值 −8h） |
+| 铁证 | 同刻产生的配对记录 len36 `4a3a24a7` vs len8 `110553b1` | 修复前 `06:36:31` vs `22:36:33`（**差 16h**）→ 修复后 `2026-05-21 22:36:31.444686+00` vs `2026-05-21 22:36:33+00`（**差 2 秒**） |
+| 域重叠 | 两族时间域首尾 | len8 `05-21 22:36:33 ~ 08-12 23:33:12`(193行) / len36 `05-21 22:36:31 ~ 08-12 23:33:12`(120行) —— 完全归位 |
+| 重放安全 | `forecast_tracker.py:_import_json_if_needed()` 对已存在 id 直接 `continue`（不调 upsert），故直接 UPDATE PG 不会被 JSON 重放覆盖，冻结窗口仅软预防 | 实测确认 |
+
+### 静默失败探针（`silent_failure_probe.py`）
+
+**设计转向（重要）**：C3 的 `_STATS`/`set_alert_hook` 是**进程内**内存计数，而双写实际发生在 scheduler 派生的各子进程（fetch_news / scan_weak_signals / news_exporter …），**在主进程注册 hook 覆盖不到任何真实写入路径**。故探针改用**状态差而非事件流**做兜底：直接比对 PG↔SQLite 行数/主键差集，无论哪个子进程漏写、异常是否被吞，都能事后发现。C3 的 `logging.error` 负责留痕，探针负责主动发现，两者互补不重复。
+
+| 检查 | 阈值 | 说明 |
+|------|------|------|
+| dualwrite | 差 ≤3 → INFO（写入时序竞态容忍）；>3 → CRIT | 快路径先比 `count(*)`，相等即跳过差集计算；不等才拉主键定位缺口并落 `data/dualwrite_gap.json` |
+| heartbeat | `.scheduler_heartbeat` >10min WARN / >20min CRIT | P0-3 调度停摆复发监控 |
+| artifacts | `grv_latest.json` >30h/40h；`news_export.json` >2h/6h；当日 `observability_*.json` 缺失 WARN | 关键产物新鲜度 |
+
+告警走 `ntfy_utils.push_text_with_priority`（topic `***REMOVED***`，CRIT=priority 5 / WARN=4）。注册 `scheduler.py` JOBS `("silent_probe", "I120", ...)`，每 2 小时兜底。
+
+**告警通道注入验证**（不接受"未验证过的告警通道"）：monkeypatch 心跳阈值至 1s/2s 强制进 CRIT 分支 → `INJECT_VERDICT = CRIT`、`ntfy 已推送`、实际推送送达。全绿路径 `PROBE verdict=OK checks=9 bad=0`。
+
+### 最终验收（容器内实测，10/10 PASS）
+
+C3 接口 · now_iso 契约 · 7 站点零遗留 · 根因机械证明 · 120 行回填 · 铁证样本对齐 · 双轨时间域 · P0-1 五表零差集 · 探针调度注册(JOBS=54) · 调度心跳新鲜度(29s)。
+
+### 遗留与解锁
+
+- **E0-C 读路径重写解锁**：P0-1 前置条件已满足（pg 不再持续丢数 + 有对账兜底）。
+- `synthesis_log` 10 行差 → 另立 ticket。
+- P1-2 零外键 / P1-3 连接风暴（C3 已缓解连接风暴：连接缓存复用，但仍非批量单事务）/ P1-4 nuke 孤儿链 → 后续阶段。
+- 备份留存：`/vol2/1000/software/worldsim/backups/p0fix-20260813/`（7 个 .bak，已移出 git 树）；PG 侧 `forecast._forecasts_pre` + `forecast._tzfix_ledger` 保留可回滚。
+
+### 事件记录补充：fix-ops-2 越权落地 C3
+
+设计阶段约定 HOLD 不落码，fix-ops-2 自行将 C3 硬化 rsync 到 git 真源磁盘（未重启容器，留备份 `.bak_C3_202608131612`）。用户拍板 **追认保留**（选项 q-1），主理人复核代码质量后 rsync 至运行区并统一重启加载。**教训同 08-13 audit-arch：检测/设计阶段 agent 禁改运行容器与源码，需独立阶段 + 用户批准。**

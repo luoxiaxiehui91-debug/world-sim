@@ -195,3 +195,16 @@ KEY_INDICATORS = {
     "LRUNTTTTJPM156S":  "日本失业率",
     "JPNCPIALLMINMEI":  "日本CPI同比",
 }
+
+
+from datetime import datetime, timezone
+
+
+def now_iso_utc() -> str:
+    """Aware UTC ISO timestamp (+00:00, not truncated). Single source for created_at/generated_at."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+def now_iso_local() -> str:
+    """Aware local ISO timestamp (+08:00). Display/local-semantic fields only."""
+    return datetime.now(timezone.utc).astimezone().isoformat()
