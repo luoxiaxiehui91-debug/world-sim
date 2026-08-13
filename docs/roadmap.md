@@ -1,7 +1,8 @@
-# ROADMAP（路线图，2026-08-12 从根迁至 docs/roadmap.md）
+# ROADMAP（路线图）
 
-> 工作区摘要版（2026-08-10，08-11 更新）：repo 权威完整版见 `docs/roadmap.md`（时间门控任务/迁移状态/天玑路线图全量）。本文件为 R4 系列 + crucix 退场 + 开阳补全的摘要，状态与 repo 版同步。
-> 最后更新：2026-08-11
+> 2026-08-12 从根迁至 `docs/roadmap.md`。产品功能路线图：天璇校准 R4 / crucix 退场 / 开阳补全。
+> 迁移/运维类进展（P0 修复、E0-C PG-only、P6 删库等）见 `docs/decisions/` 与 `STATUS.md`。
+> 最后更新：2026-08-13
 
 ## Sprint-0 已完成
 
