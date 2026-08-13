@@ -2,7 +2,7 @@
 
 ## 新 session 冷启动（3 分钟，防迷路）
 
-> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-12 00:30 GMT+8。
+> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-13 09:50 GMT+8。
 
 **项目是什么**：world-sim 世界推演系统——个人内部宏观推演系统（非商业产品）。逻辑 5 层：天枢（观测采集）→ 天璇（仿真，17 Agent）→ 天玑（验证）→ 玉衡（权重，未运转）→ 开阳（展示）；横切 crucix 信号总线（AGPL，**已退场 2026-08-12 G1 停容器**）+ 摇光 SRE。
 
@@ -17,6 +17,7 @@
 1. **crucix 退场（已全闭环）**——论证+实施 14 commit 全闭合（eff0d8c 为止）；**G0（08-12）受控切断验证 PASS** + **D1(gascpi) wiring 完成（08-12，纯 NY Fed CSV 源，删 :3117 分支，commit f30bd2d）**；nuke/sdr/vix 经核实下游零消费无需 wiring；**G1（08-12 14:01）`docker stop crucix-crucix-1` 已执行（Exited 137）**，crucix 退场全链路收口（WP-3.x 废弃容器已停）
 2. **开阳补全**——v1.9.0→v1.10.8（报告中心/FCI/风险面板/news_geo 事件图层/视觉 crucix 化/同地点聚合），news_geo 验收观察窗（08-13 06:35 自动化判定）
 3. 挂起待拍板：**航班走廊线（air 图层 B 完整版）**
+4. **worldsim-pg 统一采集库（08-12 晚 DB-first 地基，主线新增）**：独立 PostgreSQL 容器（`pgvector/pgvector:pg16`，端口 127.0.0.1:5434，vol2 bind `/vol2/1000/software/worldsim/pgdata`），与 macro-scan / 天玑 跨 `worldsim_default` 网互联（A0 完成）。macro-scan 重建 v8 装 psycopg（A0.5 完成）。news.db 时区抢救（C1 完成：published_at 22017 行虚假冲突归零）。weight_matrix.py 补入 git 树 + 修 3 处 utcnow（C 方案完成）。部署脚本 deploy-pg.sh 修爆 + 固化 pg_hba（C 完成）。**锁定顺序**：A0→A0.5→C1→A1-min→B1(双写证通 ✅)→C0(加权 ✅)→**B0(迁 news.db+forecast ✅)**→D0(迁 chroma→pgvector ✅)→**E0(应用整合收尾 ✅：A 双写 worldsim-pg 证通 + B 退役 ChromaDB)**。详见「当前状态」worldsim-pg 段。
 
 **必读顺序**：本文件 → README.md → .workbuddy/memory/MEMORY.md（红线）→ 按需 macro-sim/docs/calib/（校准评审权威）；详细待办见下文「待做/已知遗留」节。
 
@@ -33,6 +34,18 @@
 - 时区：全系统落盘时间戳统一显式后缀（UTC→Z / 本地→+08:00），前端 parseTs 契约无后缀=北京时间，10 处修复 + OPEN 3 条（news.db 展示层 / grv-history 边界 / 纯日期键）
 
 **08-12：全量审计收口（neat-freak 六面对账，08-11~08-12）**：文档滞后 11 处修订（版本标签口径/预测计数自相矛盾/目录结构/权威性口径/双 OPEN 册根索引/ADR 注释/sim_log 死代码定性/sim_trigger P0 过时降级/SOP 引用/package.json 版本）；清残留 F13-F18（kaiyang-wave2/STATUS.bak/fci-recovery/F17 垃圾/天枢 weight_matrix 副本已删；HANDOVER.md 因 AGENTS.md 引用保留；天枢停摆脚本留待人工判）；SMB 红线纠正（读可靠，陷阱=两条 macro-scan 目录）。报告 `全量审计报告-20260812.md`。
+
+**08-12 晚：worldsim-pg 统一采集库主线（DB-first 地基）**：
+- **A0 起容器**：`worldsim-pg`（pgvector/pgvector:pg16，127.0.0.1:5434），建 `worldsim_admin`(superuser)/`worldsim_app`(读写)/`worldsim_ro`(只读)三角色 + `REVOKE ALL ON DATABASE worldsim FROM PUBLIC`；macro-scan / 天玑跨 `worldsim_default` 网互联（compose external 持久化）；备份脚本 `backup-pg.sh`(pg_dump -Fc 14天) + crontab `0 4 * * *` + 真实 restore 演练通过。
+- **A0.5 psycopg**：macro-scan 重建 `v8`（`requirements.txt` 加 `psycopg[binary]>=3.1.0`，v7 留作回滚）；v8 容器内 `worldsim_app` 角色建表/INSERT/SELECT/commit/DROP 写验证通过。顺带补 A0 漏配的 `pg_hba.conf` 跨网 ACL（172.29.0.0/16 + SIGHUP reload）。
+- **C1 时区抢救**：`news_db._normalize_dt` 重写（RFC822/ISO 统一规整 UTC aware；naive 当北京+8 解释）；
+  10 处 `datetime.utcnow()`→`datetime.now(timezone.utc)`（narrative/slow/tianji）；新增 `migrate_news_published_at.py`（已执行 `updated=32092 quarantined=0`，aware 重验 `conflict=0/32092`）。根因反转：非「截断垃圾」，而是 published_at 时区语义缺失（22017/32092 行 naive 当 BJ 转 UTC 后冲突归零）。
+- **C 方案三件**：`weight_matrix.py`（玉衡，原游离运行区）补入 git 树 + 修 3 处 utcnow；`deploy-pg.sh` 实测全坏（变量空串/for 循环字面多行/DO 分隔符乱码 `79413`）重写 + 幂等固化 pg_hba 172.29.0.0/16 ACL。6 文件(py_compile/单测/sha 同步)全 PASS，commit+push GitHub。
+- **A1-min 完成（21:5x）**：`indicators` 宽表已建（11 列，`UNIQUE(indicator_key, as_of, horizon, model_ver, data_vintage)` 对应 `contracts.py:to_row`，`worldsim_app` 建表+授权）；实测验证通过（INSERT 示例行 OK + 五元组重复插入被 UNIQUE 拒 + 11 列类型正确 `created_at=timestamptz`）+ 测试行已清理（remaining=0）。DDL 版本化 `sql/01_indicators.sql` 已 commit+push GitHub。为 B1 双写证通前置就绪。
+- **B1 双写证通（22:1x）**：fetch_fred_history 增加 worldsim-pg.indicators 旁路双写——新增 `核心代码/pg_write_indicators.py`（`upsert_indicator_rows(rows)->(inserted,updated)`，单条 `unnest` 数组 + `ON CONFLICT(indicator_key,as_of,horizon,model_ver,data_vintage) DO UPDATE ... RETURNING (xmax=0)` 逐行统计 insert/update；连接/psycopg/环境变量/行数据异常全 try 捕获返 (0,0)，绝不阻断 CSV 落库）；`fetch_fred_history.fetch_and_save` 在 `save_series` 后转 indicators 行 dict 调 upsert，`created_at` 用 aware UTC（时区契约）；`scheduler.py/fetcher_base.py/contracts.py/news_db.py` 等核心文件未触碰（独占令牌纪律）。commit 735da92（2 files, +208/-1）+ push GitHub + 运行区 cp 同步（容器热挂载即时生效）。主理人独立验收（容器内真实 PG）：合成 3 行首跑 (3,0)/二跑 (0,3) 幂等无误翻倍；真实 DGS10（probit 输入）端到端 `pg_written=(16136,0)`，PG 实查 16136 = CSV 16136 行（CSV 未被破坏，范围 1962~2026-08-10）；测试行已清理回 0。坑：psycopg3 `executemany(returning=True)` 仅返末条 → 改 unnest 单语句；多 untyped 数组 `unnest(unknown)` 歧义 → 各参数显式 `::type[]`；运行时需 `WORLDSIM_APP_PW` 经 `docker exec -e` 注入（connection.env 已固化 NAS `/vol2/1000/software/worldsim/`）。下一步转 C0（加权，见下条）。
+- **C0 加权证通（08-13 08:1x）**：玉衡 weight_matrix 接线验证——新增 `sql/02_indicator_weights.sql`（grain(source_id,target_type)，IF NOT EXISTS + CHECK(weight∈[0.05,5.0]) + target 索引）+ `核心代码/c0_compute_weights.py`（一次性脚本，不接 scheduler）。从 indicators(fred-%) 读 49 FRED 序列，逆滚动波动率/变异系数派生权重，文档化种子 dict 映射 GRV 11 维（49 序列全覆盖、0 uncategorized），同 target_type 归一+clip[0.05,5.0]+round5，双写 indicator_weights(PG 权威)+grv_weights.yaml weights 子树（只动 weights、先备份、round5）+JSON 备份；unnest+ON CONFLICT(source_id,target_type) 幂等；撞键防护 GPR/GSCPI 加 `fred.` 前缀防污染既有 source 键；连接/psycopg/环境变量异常全 try 捕获返 (0,0) 不阻断。commit 87abae3（2 files +681）+ push GitHub + 运行区 cp 同步（sha256 与 git 树一致）。主理人独立验收（容器内真实 PG，重跑复现）：backfill 196217 行→派生 49 行；RUN1 (49,0)/幂等 RUN2 (0,49) count 稳 49；7 个 target_type 的 get_weights_for_target 读回与 PG 一致（mism=0）；yaml weights==PG（49 行 mism=0）；权重 upsert 零干扰 indicators（仅 backfill 补数）；测试数据已清理（DROP 表+TRUNCATE indicators 回 0+yaml 还原）。实时推演消费为后续工作。下一步 B0（迁 news.db+forecast）。
+- **B0 news.db+forecast 迁移证通（08-13 10:0x）**：新增 `核心代码/b0_migrate.py`（469 行，自包含：DDL/apply-schema/backfill/verify/dump-sql/subcommand）+ `sql/03_b0_schema.sql`（212 行权威 DDL 版本化）。三源 SQLite → 三 schema PG（**真相**：原计划 tianji.db 为 0 字节空文件，5 个 tianji 表实挂 `forecast_tracker.db` —— 文件名误导但 tianji 特征明确）：`news.*`(7 表, 46825 行)/`forecast.*`(3 表, 313 行)/`tianji.*`(5 表, 430 行)，合计 15 表 47569 行（含 5 个 0 行表）。DDL 类型对齐：`BIGSERIAL` PK/`DOUBLE PRECISION`/`TIMESTAMPTZ`/`BYTEA`(embedding)+各 schema `AUTHORIZATION worldsim_app` + `GRANT ALL`。backfill 用 PG `ON CONFLICT(pk) DO NOTHING + RETURNING(pk)` + sqlite cursor reorder（先 COUNT 再 SELECT 全文，不混 sqlite 同 cursor 迭代前 count）。BLOB→bytea 用 `psycopg.Binary(v)`。TZ 契约：sqlite naive ISO 当 BJ+8 → UTC aware → PG `+00:00`；aware 直传。commit（提交时记录 sha）+ push GitHub + 运行区 cp 同步 + 容器 `/app/b0_migrate.py` 同步 cp 到位。主理人独立验收（容器内真实 PG，按子集重跑复现）：(1) 三个 tianji 简单表（reasoning_trace 3/weight_update_log 0/narrative_density_flags 1）首跑过；(2) tianji.narrative_chunks 419 行 BYTEA round-trip 成功；(3) 15 表全量 backfill DONE inserted=0 skipped=47529（幂等）；(4) verify 全 15 表 PG vs sqlite 行数完全一致（398/32200/2807/1988/8251/0/1142 + 313/0/0 + 7/3/0/419/1）；(5) TZ 抽查 8 列均 `tzinfo=zoneinfo.ZoneInfo(key='Etc/UTC')`；(6) debug 日志清理（`>>> loop start` + `row#{ix}`）→ 本地 py_compile + 容器内 py_compile 双过 → 幂等重跑（0 inserted/47529 skipped + verify 全 OK）。过渡 sqlite 直读 (`news_db/forecast_db/tianji_db`) 暂保留为只读伴读，下游读路径迁移留 D0/E0 推进时择机改写或退役。下一步 D0（迁 chroma）。
+- **D0 chroma→pgvector 迁移证通（08-13）**：新增 `sql/04_d0_schema.sql`（rag schema + `rag.embeddings` 单表 PK(collection_name,id) + HNSW cosine 索引 `vector_cosine_ops` m=16/ef_construction=64）+ `核心代码/d0_migrate_rag.py`（自包含 apply-schema/backfill/verify/dump-sql/subcommand）+ `核心代码/rag_engine.py`（RAG_BACKEND 双读改造）+ `docs/d0-ops.md`（运维手册）。chroma `macro_kb` 4156 emb（dim=1024 bge-m3, cosine）→ pgvector `vector(1024)` HNSW。Step0 `CREATE EXTENSION vector` 由 `worldsim_admin` 装（worldsim_app 非超户、pgvector 非 trusted → InsufficientPrivilege，容器免密转 admin 成功，v0.8.2）。backfill `ON CONFLICT(collection_name,id) DO UPDATE` 幂等（4156/0）；verify 闸门 count=4156 + top-10 重叠率 jaccard=1.0000（≥0.98 PASS；top-5 因余弦等价距离 tie 重排仅 0.90~0.93 作参考，非误差 C5）。`rag_engine.py`：`_build_index_pg` 单事务 `TRUNCATE rag.embeddings WHERE collection_name=%s`+INSERT 循环（修旧 del-then-build 新残 bug C6）；`_rag_query_pg` 用 `<=>` 距离 + `ORDER BY ... , id` 稳定排序；`_RAG_FAIL_COUNT` 计数不静默降级（修 C9 盲点）；chroma 回滚路径实测可用（RAG_BACKEND=chroma）。commit f88a7fb + push GitHub + 运行区 cp 同步（sha256 与 git 树一致）。主理人独立验收：pg 读路径返 5 正确 chunk；坏连接 `_RAG_FAIL_COUNT` 递增返 []；chroma.sqlite3 chmod 444 只读观察期（9/1 月重建跑通后删三件套：chroma 文件+chromadb 依赖+RAG_BACKEND 开关）。下一步 E0（应用整合收尾）。**E0-B（08-13）ChromaDB 提前退役**：用户选择不等 9/1 观察期，rag_engine/build_rag_index 删全部 chroma 分支 + RAG_BACKEND 开关，requirements 移除 chromadb，chroma.sqlite3 已备份（data/chroma_db_backup_2026-08-13.sqlite3）并删除（36MB）。
 
 **08-04：6 异常全量修复闭环**（P0-A/B/C/D + data-freshness + P1，验收 13/13，question 归档，活跃 9→3）。
 
@@ -99,6 +112,7 @@
 8. **天璇 sim_log（死代码）**：`sim_log.py` 的 `insert_run` writer 全仓 0 调用（08-12 审计），空库为预期、非功能损坏，已从 P0 降级（见孤儿段 #4）；天璇 /app/output 校准产物随重建丢失（已知）
 9. **时区 OPEN 3 条**：news.db ingested_at/last_scan 展示层未统一（web_server /status）；web_server.py:530 /grv-history 本地↔UTC 混合比较边界差 8h；gdelt_history.date 纯日期键维持 UTC 语义（低优先）
 10. **firms 09:08 连续 0 行需人工介入（08-11 晨检发现）**：补偿重试（77f6711）未救回；19:08 手动触发 39993 热点=源活 → 疑 09:08 调度时段源端/网络持续异常，建议改调度时间或查该时段出网（qa midcheck P1#2 延伸）
+11. **worldsim-pg 统一采集库后续（08-12 晚主线，顺序锁定）**：A0/A0.5/C1→C(方案)/A1-min/B1/C0/B0/D0 已完成 ✅（见「当前状态」worldsim-pg 段）。**E0 应用整合收尾 ✅（08-13）**：A 双写证通——新增 `pg_write_collection.py` 旁路双写（news/forecast/tianji 三 schema），挂钩 news_db/forecast_tracker/tianji_db/narrative_processor 落库后非阻塞双写；B chroma 退役——rag_engine/build_rag_index 删全部 chroma 分支 + RAG_BACKEND 开关、requirements 移除 chromadb、chroma.sqlite3 备份后删除（观察窗提前，用户选择不等 9/1）。D0 验收 top-10 重叠率 1.0000 通过。**C 读路径改写（天枢 SQLite reader → pg）+ 删 3 个 SQLite 文件留待双写稳定后观察窗**。E0 代码已 commit+push（b0/news-forecast-pg, f574812）。**E0-A 已激活实测通过（08-13 13:xx，TSX@nas 直连容器）**：rsync 同步运行区 + 运行区 docker-compose.yml 注入 WORLDSIM_APP_PW + `docker compose up -d` 重建；探针 `pg.upsert_news_scan_context` 实测 `before=0 after_insert=1 OK`，4 写入模块 import 全过，调度器干净重启，双写链路已活，下次真实采集自然增量 pg。
 
 ## 关键决策
 
@@ -125,10 +139,10 @@
 ## 已知孤儿/脚手架（2026-08-11 容器实测核实）
 > 本节记录「设计里有、运行里没接通」的组件，避免接手者误判。全部以 `ssh nas` + `docker exec` 实测为准，非工作区副本推断。
 
-1. **玉衡 weight_matrix.py（死代码，设计层未接线）**
-   - 证据：全仓 grep `weight_matrix` 仅有文件自身引用（print/定义），无任何调度或管道调用；它只提供 `--init|--health|--pending` 手动 CLI，运行期无人调用。
+1. **玉衡 weight_matrix.py（死代码，设计层未接线，但 08-12 晚已纳入版本控制）**
+   - 证据：全仓 grep `weight_matrix` 仅有文件自身引用（print/定义），无任何调度或管道调用；只提供 `--init|--health|--pending` 手动 CLI，运行期无人调用。
    - 后果：`forecast_tracker.db.weight_update_log` 恒为 0（玉衡反哺从未触发）。与「玉衡未运转」互证。
-   - 处置：**天枢副本 `macro-scan/核心代码/weight_matrix.py` 已于 08-12 审计清理删除（F12）；`macro-ji/weight_matrix.py` 保留为同体遗留副本**。设计骨架、不投产。
+   - 处置演进：**天枢副本原 08-12 审计清理删除（F12），但 08-12 晚 C 方案将其从运行区 cp 补入 git 树（版本化）+ 修 3 处 utcnow(L95/172/301）→ 已 commit GitHub**；现 git 树 + 运行区 + 容器 `/app` bind 三处一致。设计骨架仍不投产，仅纳入版本控制防游离（纠正旧 STATUS「已删」描述）；C0（08-13）新增 c0_compute_weights.py 一次性派生脚本 + indicator_weights 表，证明 get_weights_for_target 读回派生权重闭环（仍非调度常转，apply_weight_adjustment 审批路径未接）。
 
 2. **tianji.db / narrative.db（0 字节空桩）**
    - 证据：天玑容器 `/app/macro_data/tianji.db`、`narrative.db` 均为 0 字节（Aug 10 15:00）。仓库全量 grep 显示无代码将 DB_PATH 指向这两个文件名；真实写库走 `tianji_db.py` → `forecast_tracker.db`（1.2MB 存活，narrative_chunks=347/predictions=7/forecasts=304）。

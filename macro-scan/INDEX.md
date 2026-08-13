@@ -87,7 +87,7 @@
 | 加密交叉验证 | Binance / Kraken API（直连免key） | `data/crypto_extra_*.json` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/ \| grep crypto_extra` | 波动率交叉验证，落盘 |
 | 新闻情绪 | MarketAux / Currents / Sugra（需key降级） | `data/news_*.json` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/ \| grep news_` | 市场情绪，落盘 |
 | 人道风险 | HDX CKAN API（直连限流） | `data/hdx_*.json` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/ \| grep hdx` | humanitarian_risk，落盘 |
-| ChromaDB 向量库 | `知识库/` (558 .md) | `data/chroma_db/` (4156块) | `docker exec macro-scan-macro-scan-1 python3 -c "import chromadb; c=chromadb.PersistentClient(path='/workspace/data/chroma_db'); print(c.list_collections())"` | BAAI/bge-m3 嵌入 |
+| pgvector 向量库 | `知识库/` (558 .md) | worldsim-pg.rag.embeddings (4156块) | `docker exec worldsim-pg psql -U worldsim_app -d worldsim -c "SELECT COUNT(*) FROM rag.embeddings WHERE collection_name='macro_kb'"` | BAAI/bge-m3 嵌入（E0-B 退役 chroma） |
 | 新闻库 | RSSHub + Crucix | `data/news.db` + `latest_news.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import sqlite3; c=sqlite3.connect('/workspace/data/news.db'); print(c.execute('SELECT COUNT(*) FROM articles').fetchone()[0])"` | 双源 |
 | ntfy 推送 | `run_macro_analysis.py` | ntfy.sh/***REMOVED*** | `curl -s ntfy.sh/***REMOVED***/json?poll=1` | 强制直连 |
 

@@ -17,6 +17,12 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+# E0-A: 旁路双写 worldsim-pg（非阻断，异常自吞，绝不阻断 SQLite 主流程）
+from pg_write_collection import (
+    upsert_tianji_prediction, update_tianji_prediction_verified,
+    upsert_tianji_reasoning_trace, upsert_tianji_weight_update_log,
+    upsert_tianji_narrative_chunk,
+)
 
 BASE_DIR = os.environ.get("OPENCLAW_WORKSPACE",
            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -186,6 +192,7 @@ def save_prediction(pred: dict) -> str:
             "time_horizon":          pred.get("time_horizon", "monthly"),
         })
         conn.commit()
+        upsert_tianji_prediction(pred)
         return pred["id"]
     finally:
         conn.close()
@@ -212,6 +219,7 @@ def save_reasoning_trace(trace: dict):
             trace.get("reasoning"),
         ))
         conn.commit()
+        upsert_tianji_reasoning_trace(trace)
     finally:
         conn.close()
 
@@ -238,6 +246,7 @@ def save_narrative_chunk(chunk: dict):
             chunk.get("staleness_tau", 72),
         ))
         conn.commit()
+        upsert_tianji_narrative_chunk(chunk)
     finally:
         conn.close()
 
@@ -332,6 +341,8 @@ def update_prediction_verified(
             WHERE id = ?
         """, (outcome_value, brier_score, brier_skill_score, verified_by, prediction_id))
         conn.commit()
+        update_tianji_prediction_verified(prediction_id, outcome_value, brier_score,
+                                          brier_skill_score, verified_by)
     finally:
         conn.close()
 
@@ -354,6 +365,7 @@ def log_weight_update(entry: dict):
             entry.get("notes"),
         ))
         conn.commit()
+        upsert_tianji_weight_update_log(entry)
     finally:
         conn.close()
 

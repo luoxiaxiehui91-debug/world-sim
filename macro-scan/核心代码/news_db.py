@@ -20,6 +20,12 @@ import os
 import sqlite3
 from datetime import datetime, timezone, timedelta
 
+# E0-A: 旁路双写 worldsim-pg（非阻断，异常自吞，绝不阻断 SQLite 主流程）
+from pg_write_collection import (
+    upsert_news_scan_context, upsert_news_article, upsert_news_article_category,
+    upsert_news_signal_episode, upsert_news_episode_article, delete_news_articles,
+)
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS scan_contexts (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -221,6 +227,8 @@ def write_scan_context(db_path: str, *,
              json.dumps(data_quality) if data_quality else None)
         )
         ctx_id = cur.lastrowid
+    upsert_news_scan_context(ctx_id, now, vix, t10y2y, baa10y, dff, regime,
+                             vix_regime, json.dumps(data_quality) if data_quality else None)
     c.close()
     return ctx_id
 
@@ -278,6 +286,8 @@ def insert_articles(db_path: str,
                 row = c.execute("SELECT id FROM articles WHERE content_hash=?", (h,)).fetchone()
                 aid = row[0] if row else None
             if aid:
+                upsert_news_article(aid, url, h, title, source, pub, now, None,
+                                    ingest_ctx_id, pub_ctx_id)
                 result[h] = aid
     c.close()
     return result
@@ -311,6 +321,7 @@ def tag_articles(db_path: str,
                             "INSERT OR IGNORE INTO article_categories (article_id, category) VALUES (?,?)",
                             (aid, cat)
                         )
+                        upsert_news_article_category(aid, cat)
                         cat_to_ids.setdefault(cat, []).append(aid)
                     except Exception:
                         pass
@@ -335,6 +346,7 @@ def insert_signal_episode(db_path: str,
             (category, now, ratio, level, scan_ctx_id)
         )
         ep_id = cur.lastrowid
+    upsert_news_signal_episode(ep_id, category, now, ratio, level, scan_ctx_id)
     c.close()
     return ep_id
 
@@ -347,10 +359,12 @@ def link_episode_articles(db_path: str,
         return
     c = _conn(db_path)
     with c:
-        c.executemany(
-            "INSERT OR IGNORE INTO episode_articles (episode_id, article_id) VALUES (?,?)",
-            [(episode_id, aid) for aid in article_ids]
-        )
+        for aid in article_ids:
+            c.execute(
+                "INSERT OR IGNORE INTO episode_articles (episode_id, article_id) VALUES (?,?)",
+                (episode_id, aid)
+            )
+            upsert_news_episode_article(episode_id, aid)
     c.close()
 
 
@@ -398,6 +412,7 @@ def prune_old_articles(db_path: str, days: int = 90) -> int:
         return 0
 
     old_ids = [r[0] for r in rows]
+    delete_news_articles(old_ids)   # E0-A 双写镜像删除
     # 分批删除避免 SQLite 变量上限（999）
     batch = 200
     deleted = 0

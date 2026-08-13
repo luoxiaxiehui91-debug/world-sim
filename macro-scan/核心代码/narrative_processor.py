@@ -33,6 +33,11 @@ try:
 except ImportError:
     raise ImportError("tianji_db.py 未找到，请先运行 tianji_db.py 初始化数据库")
 
+# E0-A: 旁路双写 worldsim-pg（非阻断，异常自吞，绝不阻断 SQLite 主流程）
+from pg_write_collection import (
+    upsert_tianji_narrative_density_flag, delete_tianji_narrative_density_flag,
+)
+
 # ── source_dimension_map ──────────────────────────────────────────────────────
 # 每个数据源的文章默认分配到哪个 GRV 维度
 # 格式：source_id -> {primary_dimension, secondary_dimension, staleness_tau, source_type}
@@ -264,11 +269,12 @@ def update_density_flags(window_days: int = 30):
                 if len(hist_rows) >= 1:
                     avg_7 = sum(r[1] for r in hist_rows) / len(hist_rows)
                     if today_count > avg_7 * 1.5:
-                        conn.execute("""
-                            INSERT OR REPLACE INTO narrative_density_flags
-                              (dimension, flagged_at, z_score, consumed)
-                            VALUES (?, ?, ?, 0)
-                        """, (dim, now.isoformat(), 1.6))
+                                            conn.execute("""
+                        INSERT OR REPLACE INTO narrative_density_flags
+                          (dimension, flagged_at, z_score, consumed)
+                        VALUES (?, ?, ?, 0)
+                    """, (dim, now.isoformat(), 1.6))
+                    upsert_tianji_narrative_density_flag(dim, now.isoformat(), 1.6, 0)
                 continue
 
             counts = [r[1] for r in hist_rows]
@@ -283,11 +289,13 @@ def update_density_flags(window_days: int = 30):
                       (dimension, flagged_at, z_score, consumed)
                     VALUES (?, ?, ?, 0)
                 """, (dim, now.isoformat(), round(z, 2)))
+                upsert_tianji_narrative_density_flag(dim, now.isoformat(), round(z, 2), 0)
             else:
                 # 清除旧 flag
                 conn.execute(
                     "DELETE FROM narrative_density_flags WHERE dimension=?", (dim,)
                 )
+                delete_tianji_narrative_density_flag(dim)
 
         conn.commit()
     finally:

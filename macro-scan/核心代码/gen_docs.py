@@ -132,7 +132,7 @@ def replace_subsection(filepath: Path, subsection_header: str, new_table: str):
 # ── 3. 核心代码/ → FILE_MANIFEST.md 离线工具子节 ─────────────────────────────
 
 OFFLINE_TOOLS = {
-    "build_rag_index.py": ("重建 ChromaDB 向量索引", "docker exec ... python3 build_rag_index.py"),
+    "build_rag_index.py": ("重建 pgvector 向量索引（worldsim-pg）", "docker exec ... python3 build_rag_index.py"),
     "build_report_data.py": ("知识库数据采集", "手动执行"),
     "diag_p0.py": ("P0 阶段诊断工具", "手动执行"),
     "check_doc_sync.py": ("pre-commit 联动文档检查脚本", "自动（pre-commit hook）"),

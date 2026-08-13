@@ -14,7 +14,7 @@ S:\world-sim\macro-scan\           （本机源码路径，SMB 挂载 software �
 │   ├── hypothesis_config.py        推演类型映射常量（DIM_MAP，2026-06-27新增）
 │   ├── scheduler.py                Python定时调度器（替代cron）
 │   ├── alert_config.py             弱信号配置常量（ALERT_KEYWORDS等，2026-06-27新增）
-│   ├── rag_engine.py               ChromaDB向量检索+TF-IDF fallback统一入口
+│   ├── rag_engine.py               pgvector向量检索+TF-IDF fallback统一入口
 │   ├── geo_risk_vector.py          GRV地缘风险向量聚合（M1-2）
 │   ├── grv_threshold.py            GRV阈值监控（B线，fcntl原子化）
 │   ├── signal_synthesizer.py       信号共振推演（C线）
@@ -36,7 +36,7 @@ S:\world-sim\macro-scan\           （本机源码路径，SMB 挂载 software �
 │   ├── fred_history/               FRED历史数据（32条序列含EU/JP）
 │   ├── grv_latest.json             GRV地缘风险向量（每日06:10更新）
 │   ├── gdelt_scores.json           GDELT地缘信号（每6h更新）
-│   ├── chroma_db/                  向量索引（bge-m3）
+│   ├── （RAG 向量索引已迁 worldsim-pg.rag.embeddings，chroma_db 已退役 2026-08-13）
 │   └── news.db                     新闻库（月度90天滚动清理）
 ├── docs/
 ├── logs/

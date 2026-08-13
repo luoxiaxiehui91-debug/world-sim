@@ -236,3 +236,4 @@ ssh nas 'python3 /vol2/1000/software/world-sim/macro-scan/docs/qa-scripts/verify
 - 唯一未过项 G-M1（连续非空天数=2<3）属独立观测窗天数累积门禁，08-14 第三次 --snapshot 后自动闭合，与本硬判定无关。
 
 *生成：qa-map · verify_data.py / verify_front.sh / 源码审查 · 2026-08-11 06:55，修订 07:30（§4.5 + 人工-8~12），修订 08:10（§4.6 + 人工-13~15），修订 08:25（§4.7 + 人工-16~17，v1.10.3）(Asia/Shanghai)*
+| 2026-08-13 06:55 | verify_data.py --snapshot | 0.00% | 602 | political=534 / conflict=64 / protest=4 | updated=2026-08-13T06:45:51+08:00 当日 PASS（I15 滞后0周期）；G-M1 连续非空天数=2/3，相对前日 527 波动 +14.2% |
