@@ -128,6 +128,39 @@ def _record_connect_fail(table, pk_repr):
     _emit_alert(table, pk_repr, None, "connect_fail")
 
 
+def upsert_synthesis_log(log_id, rule_id, triggered_at, scan_ctx_id,
+                          summary, hypothesis, llm_success, ntfy_success,
+                          suppress_reason):
+    """E0-C/P3: synthesis_log 双写 PG（读已切 PG，写须跟上；非阻断，复用 C3 连接/重试/告警）。
+    PG news.synthesis_log.id 与 SQLite lastrowid 对齐；已存在则跳过。"""
+    conn = _get_conn()
+    if conn is None:
+        _record_connect_fail("synthesis_log", str(log_id))
+        return
+    sql = (
+        "INSERT INTO news.synthesis_log "
+        "(id, rule_id, triggered_at, scan_ctx_id, trigger_summary, "
+        " hypothesis_text, llm_success, ntfy_success, suppress_reason, pg_synced_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW()) "
+        "ON CONFLICT DO NOTHING"
+    )
+    params = (log_id, rule_id, triggered_at, scan_ctx_id, summary,
+              hypothesis, llm_success, ntfy_success, suppress_reason)
+    for attempt in range(_MAX_RETRY):
+        try:
+            with conn:
+                conn.execute(sql, params)
+            return
+        except Exception as exc:
+            if _classify(exc) and attempt < _MAX_RETRY - 1:
+                _record_retry("synthesis_log", log_id, exc)
+                time.sleep(_BACKOFF[attempt])
+                conn = _get_conn()
+                continue
+            _record_failure("synthesis_log", log_id, exc)
+            return
+
+
 def _get_conn():
     """模块级缓存连接；惰性建立、失效重连（带退避）。不可用时返回 None（原契约不变）。"""
     global _PG_CONN

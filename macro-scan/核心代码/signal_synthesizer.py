@@ -266,6 +266,13 @@ def _write_log(db_path: str, rule_id: str, scan_ctx_id,
               hypothesis, llm_success, ntfy_success, suppress_reason))
         log_id = cur.lastrowid
     c.close()
+    # E0-C/P3: 读已切 PG，写同步落 PG（非阻断），否则 cooldown read-after-write 断裂
+    try:
+        from pg_write_collection import upsert_synthesis_log
+        upsert_synthesis_log(log_id, rule_id, now, scan_ctx_id, summary,
+                             hypothesis, llm_success, ntfy_success, suppress_reason)
+    except Exception:
+        pass
     return log_id
 
 

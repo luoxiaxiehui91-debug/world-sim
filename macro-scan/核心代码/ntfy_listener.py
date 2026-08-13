@@ -506,12 +506,20 @@ def cmd_silence(args: list):
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=10000")
         with conn:
-            conn.execute("""
+            cur = conn.execute("""
                 INSERT INTO synthesis_log
                 (rule_id, triggered_at, trigger_summary, suppress_reason)
                 VALUES (?, ?, ?, 'user_silence')
             """, (rule_id, now_str, summary))
+            log_id = cur.lastrowid
         conn.close()
+        # E0-C/P3: 同步落 PG（非阻断）
+        try:
+            from pg_write_collection import upsert_synthesis_log
+            upsert_synthesis_log(log_id, rule_id, now_str, None, summary,
+                                 "", 0, 0, "user_silence")
+        except Exception:
+            pass
         push_text(f"[状态] 规则已静默", f"规则：{rule_id}\n静默天数：{days}天")
     except Exception as e:
         push_text("⚠️ 静默失败", str(e)[:200])

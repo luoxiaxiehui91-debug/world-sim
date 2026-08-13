@@ -53,6 +53,15 @@
 
 ## 四、操作记录（按时间倒序，每动作含 时间/动作/证据/结论）
 
+### 2026-08-13 20:4x P2 完成 + P3 synthesis_log 对账闭环
+- **P2 全部 reader 切 PG**：第一批 news_exporter/ntfy_listener/geo_risk_vector/grv_threshold/daily_narrative/situation_detector/situation_tracker（c8d7588）；第二批 signal_synthesizer/observability/web_server；第三批 forecast_tracker/tianji_db/narrative_processor（47a5f72）。news.db 读侧零 sqlite 残留（仅注释/常量/写路径）。每批 rsync → py_compile → import 冒烟 → 函数级实测（真实 PG 数据）。
+- **关键修复（pg_read 行边界归一化）**：PG 时间列 timestamptz 返回 datetime，consumer 大量 `r[1][:10]`/字符串比较会崩——news_exporter 首次运行 `TypeError: datetime not subscriptable` 实证。修复：_Row 构造时 datetime→UTC 文本"YYYY-MM-DDTHH:MM:SS"、Decimal→float、bool→int、bytes→str。
+- **observability 顺带修复**：log_time/resonance_ok 列在 SQLite 本就不存在（历史统计恒零）→ PG 移植改用 triggered_at → 今日统计恢复真实值（25 条 staging）。
+- **P3 synthesis_log 对账**：reconcile_synthesis.py 回填 25 行（id 1143-1167，全为今日 staging），INSERTED 25 → PG=1167，双向零差集 VERDICT PASS。
+- **P3 关键 catch（C0）**：读已切 PG 而写还在 SQLite → cooldown read-after-write 断裂（staging 潜伏、生产必炸）。补救：pg_write_collection 新增 `upsert_synthesis_log`（复用 C3 连接缓存/有界重试/告警），signal_synthesizer._write_log + ntfy_listener.cmd_silence 补 PG 双写（非阻断）。
+- **最终双读校验台**：31 PASS / 0 GAP / 0 FAIL（synthesis_log gap 归零）。
+- 观察点：P2-P3 后 synthesis_log 为双写（SQLite+PG）；停 SQLite 写与删 3 库属 P4-P6（需二次拍板）。narrative.db/tianji.db 为 0 字节僵尸。
+
 ### 2026-08-13 20:1x P2 — 双读校验台全绿（30 PASS / 1 GAP / 0 FAIL）
 - 动作：建 `verify_reads_e0c.py`（27 条查询对 + 7 条全量 GAP 对账，SQLite vs PG 逐行比对），容器内跑通，固化到 git 树 + /app 供 E0-C 全程复用。
 - 数据层验证：7d/30d 文章窗口 id/标题/ingested_at 全量一致（0 差集、0 值差）；narrative_chunks(419)/forecasts(314)/predictions(7)/density_flags(1)/articles(32476)/signal_episodes(2022) 全量对等。
