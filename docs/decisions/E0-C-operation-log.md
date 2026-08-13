@@ -54,6 +54,16 @@
 ## 四、操作记录（按时间倒序，每动作含 时间/动作/证据/结论）
 
 
+### 2026-08-13 21:4x P6 准备 — 删除脚本就绪 + synthesis_log 写路径收尾
+- 发现：P5 后探针 WARN「SQLite 仍被写」——synthesis_log 写路径（signal_synthesizer._write_log 与 Live 模式 UPDATE）未加 PG-only 分支，仍写 SQLite news.db（21:32 mtime 证据）。
+- 修复：①`_write_log` 加 PG-only 分支（`_next_id` + upsert_synthesis_log）；②ntfy_listener.cmd_silence 加分支；③pg_write_collection 新增 `update_synthesis_log_success`（Live 模式 llm/ntfy 成功后 PG 更新）+ signal_synthesizer UPDATE 分支。
+- 验证：直接激活 `_write_log`（PG-only）→ PG 写入、SQLite synthesis_log 1172→1172 冻结；探针 NON_OK=0。
+- 重打 marker（1786628269，所有 news.db 写路径 PG-only 确认后）→ 探针 VERDICT OK，SQLite 冻结确认。
+- 删除脚本 `delete_sqlite_e0c.sh`（git 树）：门禁（marker / env=1 / 探针 OK / P4 备份存在）→ 快照 backups/e0c-p6-<ts>/ → rm 4 个 .db → 验证无残留 + 探针 OK。**dry-run 门禁 4/4 全绿**。
+- 观察点：PG 计数持续增长（articles=32560 / ctx=404 / ep=2034）——切换后系统正常运转，写全走 PG。
+- **P6 执行前置待办**：forecast_tracker / tianji_db / narrative_processor 写路径尚无 PG-only 分支 → P6 删 forecast_tracker.db 后会复生（功能无影响——读全 PG，探针不查这些文件；但物理删不彻底）。观察窗口期间补齐后 P6 才"真删干净"。
+
+
 ### 2026-08-13 21:3x P5 — PG-only 切换生效（WORLDSIM_SQLITE_OFF=1 + up -d）
 - 前置：探针 dualwrite 加 PG-only 分支（`.sqlite_frozen_at` marker 存在 → 验证 SQLite 冻结 + PG 五表健康），避免 SQLite 停写后 count 差被探针误报 CRIT（切换前必须解决，否则 2h 后误告警）。
 - 动作：运行区 compose `environment:` 加 `WORLDSIM_SQLITE_OFF=1`；touch `data/.sqlite_frozen_at`（epoch 1786627625）；`docker compose up -d macro-scan`（容器 Recreate→Started）。

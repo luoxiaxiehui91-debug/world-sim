@@ -502,6 +502,14 @@ def cmd_silence(args: list):
         db_path = _os.path.join(DATA_DIR, "news.db")
         now_str = _dt.now(_tz.utc).isoformat()[:19]
         summary = _json.dumps({"silence_days": days}, ensure_ascii=False)
+        if _os.environ.get("WORLDSIM_SQLITE_OFF") == "1":
+            import pg_write_collection as _pwc
+            log_id = _pwc._next_id("news.synthesis_log")
+            if log_id:
+                _pwc.upsert_synthesis_log(log_id, rule_id, now_str, None, summary,
+                                         "", 0, 0, "user_silence")
+            push_text(f"[状态] 规则已静默", f"规则：{rule_id}\n静默天数：{days}天")
+            return
         conn = _sq.connect(db_path, timeout=10)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=10000")

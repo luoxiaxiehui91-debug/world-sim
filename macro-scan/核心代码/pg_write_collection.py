@@ -161,6 +161,15 @@ def upsert_synthesis_log(log_id, rule_id, triggered_at, scan_ctx_id,
             return
 
 
+def update_synthesis_log_success(log_id, llm_success, ntfy_success):
+    """E0-C/P5: synthesis_log 成功标志更新（PG 侧；Live 模式 llm/ntfy 成功后调用）。"""
+    _write(
+        "UPDATE news.synthesis_log SET llm_success=%s, ntfy_success=%s WHERE id=%s",
+        (llm_success, ntfy_success, log_id),
+        table="news.synthesis_log", pk_repr=repr(log_id),
+    )
+
+
 def _get_conn():
     """模块级缓存连接；惰性建立、失效重连（带退避）。不可用时返回 None（原契约不变）。"""
     global _PG_CONN

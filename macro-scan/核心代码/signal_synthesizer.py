@@ -255,6 +255,15 @@ def _write_log(db_path: str, rule_id: str, scan_ctx_id,
                suppress_reason: str = "") -> int:
     now = datetime.now(timezone.utc).isoformat()[:19]
     summary = json.dumps(ctx, ensure_ascii=False)
+    if os.environ.get("WORLDSIM_SQLITE_OFF") == "1":
+        import pg_write_collection as _pwc
+        log_id = _pwc._next_id("news.synthesis_log")
+        if not log_id:
+            return 0
+        _pwc.upsert_synthesis_log(log_id, rule_id, now, scan_ctx_id, summary,
+                                  hypothesis, llm_success, ntfy_success,
+                                  suppress_reason)
+        return log_id
     c = _conn(db_path)
     with c:
         cur = c.execute("""
@@ -517,17 +526,26 @@ def evaluate_rules(rules_path: str = RULES_PATH,
         except Exception as e:
             print(f"  [synthesizer] LLM/推送失败: {e}")
 
-        # 更新日志
-        try:
-            c = _conn(db_path)
-            with c:
-                c.execute(
-                    "UPDATE synthesis_log SET llm_success=?, ntfy_success=? WHERE id=?",
-                    (llm_ok, ntfy_ok, log_id)
-                )
-            c.close()
-        except Exception:
-            pass
+        # 更新日志（E0-C/P5: PG-only 时只更新 PG）
+        if os.environ.get("WORLDSIM_SQLITE_OFF") == "1":
+            try:
+                import pg_write_collection as _pwc
+                _pwc.update_synthesis_log_success(log_id, llm_ok, ntfy_ok)
+            except Exception:
+                pass
+        else:
+            try:
+                c = _conn(db_path)
+                with c:
+                    c.execute(
+                        "UPDATE synthesis_log SET llm_success=?, ntfy_success=? WHERE id=?",
+                        (llm_ok, ntfy_ok, log_id)
+                    )
+                c.close()
+                from pg_write_collection import update_synthesis_log_success
+                update_synthesis_log_success(log_id, llm_ok, ntfy_ok)
+            except Exception:
+                pass
 
         triggered_rules.append({
             "rule_id": rule_id, "name": rule_name,
