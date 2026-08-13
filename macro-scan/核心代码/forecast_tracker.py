@@ -101,8 +101,45 @@ CREATE TABLE IF NOT EXISTS evaluations (
 """
 
 
+_PG_ONLY = os.environ.get("WORLDSIM_SQLITE_OFF", "0") == "1"
+
+
+class _NoopConn:
+    """PG-only 模式下的 SQLite 连接桩：写语句空操作（PG 写路径照常，双写退化为纯 PG）。"""
+    row_factory = None
+
+    def execute(self, *a, **k):
+        return self
+
+    def executemany(self, *a, **k):
+        return self
+
+    def executescript(self, *a, **k):
+        return self
+
+    def commit(self):
+        pass
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def fetchone(self):
+        return None
+
+    def fetchall(self):
+        return []
+
+
 def _connect() -> sqlite3.Connection:
     """创建并返回 SQLite 连接，首次运行时自动执行 DDL 建表（forecasts/actuals/evaluations）。"""
+    if _PG_ONLY:
+        return _NoopConn()
     os.makedirs(DATA_DIR, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row

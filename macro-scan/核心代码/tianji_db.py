@@ -120,7 +120,44 @@ CREATE TABLE IF NOT EXISTS narrative_density_flags (
 """
 
 
+_PG_ONLY = os.environ.get("WORLDSIM_SQLITE_OFF", "0") == "1"
+
+
+class _NoopConn:
+    """PG-only 模式下的 SQLite 连接桩：写语句空操作（PG 写路径照常，双写退化为纯 PG）。"""
+    row_factory = None
+
+    def execute(self, *a, **k):
+        return self
+
+    def executemany(self, *a, **k):
+        return self
+
+    def executescript(self, *a, **k):
+        return self
+
+    def commit(self):
+        pass
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def fetchone(self):
+        return None
+
+    def fetchall(self):
+        return []
+
+
 def get_connection() -> sqlite3.Connection:
+    if _PG_ONLY:
+        return _NoopConn()
     os.makedirs(DATA_DIR, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row

@@ -443,7 +443,7 @@ def upsert_tianji_prediction(pred: dict) -> None:
             time_horizon, status, outcome_value, brier_score,
             brier_skill_score, verified_at, verified_by)
            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                   %s,%s,%s,%s,%s,%s,%s)
+                   %s,%s,%s,%s,%s,%s)
            ON CONFLICT (id) DO UPDATE SET
              created_at=EXCLUDED.created_at, due_at=EXCLUDED.due_at,
              scenario_id=EXCLUDED.scenario_id, type=EXCLUDED.type,
