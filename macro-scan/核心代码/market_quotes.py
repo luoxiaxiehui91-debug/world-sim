@@ -87,7 +87,7 @@ def build_market_quotes():
             "unit":       c.get("unit", ""),
             "as_of":      c.get("as_of"),
         }
-        spark = _spark5(key)
+        spark = c.get("spark5") or _spark5(key)
         if spark:
             q["spark5"] = spark
         return q
@@ -119,7 +119,6 @@ def build_market_quotes():
         ("DTWEXBGS", "USD Index",     ""),
         ("M2SL",     "M2 Supply",     "B$"),
         ("ICSA",     "Jobless Claims",""),
-        ("MORTGAGE30US", "30Y Mortgage", "%"),
     ]
     macro = []
     for ticker, label, unit in macro_defs:
