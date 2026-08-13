@@ -135,7 +135,7 @@ C3 接口 · now_iso 契约 · 7 站点零遗留 · 根因机械证明 · 120 �
 - **E0-C 读路径重写解锁**：P0-1 前置条件已满足（pg 不再持续丢数 + 有对账兜底）。
 - `synthesis_log` 10 行差 → 另立 ticket。
 - P1-2 零外键 / P1-3 连接风暴（C3 已缓解连接风暴：连接缓存复用，但仍非批量单事务）/ P1-4 nuke 孤儿链 → 后续阶段。
-- 备份留存：`/vol2/1000/software/worldsim/backups/p0fix-20260813/`（7 个 .bak，已移出 git 树）；PG 侧 `forecast._forecasts_pre` + `forecast._tzfix_ledger` 保留可回滚。
+- 备份留存：`/vol2/1000/software/worldsim-pg/backups/p0fix-20260813/`（7 个 .bak，已移出 git 树）；PG 侧 `forecast._forecasts_pre` + `forecast._tzfix_ledger` 保留可回滚。
 
 ### 事件记录补充：fix-ops-2 越权落地 C3
 

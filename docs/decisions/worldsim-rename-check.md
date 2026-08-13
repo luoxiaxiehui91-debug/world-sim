@@ -86,3 +86,32 @@
 - **改名可行且改动量小**（6 处路径引用，无 compose/代码/中央知识库/SMB 映射牵连）。
 - **但被 P0-1 阻断**：当前 PG 无有效备份，重建容器窗口无回滚保障。**执行顺序必须改为：先修备份 → 再改名**。
 - 建议备份修复与改名一起做（一个变更单），或先单独修备份（低风险、可立即做）。
+## 执行记录（2026-08-13 22:2x，用户拍板执行，P0 备份已先修）
+
+改名 `worldsim` → `worldsim-pg` 全部落地，**数据零丢失**：
+
+| 步骤 | 动作 | 验证 |
+|------|------|------|
+| 0 | backup-pg.sh 修复 + 真实备份 23M 通过（见 backup-pg-fix-20260813.md） | ✅ |
+| 1 | `mv /vol2/1000/software/worldsim /vol2/1000/software/worldsim-pg`（同文件系统，pgdata 零搬迁） | ✅ 旧路径消失；mv 后容器内 count 不变 |
+| 2 | 改 4 处脚本路径：deploy-pg.sh（WORLD 1 处）/ backup-pg.sh（1 处）/ delete_sqlite_e0c.sh×2（BK 各 1 处） | ✅ bash -n 全过 |
+| 3 | **改 crontab**（2.1 表漏记的第 7 处引用）：`0 4 * * * bash .../worldsim-pg/backup-pg.sh >> .../worldsim-pg/backups/backup.log` | ✅ 无残留旧路径 |
+| 4 | `docker rm -f worldsim-pg` + `bash deploy-pg.sh` 重建（幂等，挂新路径 pgdata） | ✅ 挂载 `/vol2/1000/software/worldsim-pg/pgdata -> /var/lib/postgresql/data` |
+| 5 | 数据完好性对比基线 | ✅ 32560/404/2034/314/1177 **完全一致**；pgvector 扩展在；探针 VERDICT OK / NON_OK 0；心跳 22:28 新鲜 |
+| 6 | 新路径跑一次真实备份 | ✅ `worldsim-20260813-2228.dump` 23M，pg_restore 可读（TOC 85 / CUSTOM / 19 TABLE DATA） |
+| 7 | 文档文字（本文件 2.1 表 + STATUS.md×3 + risk-register×1 + E0C-log×1） | ✅ 本表已更新 |
+
+### 2.1 表修正（执行时发现检查漏记 1 处）
+
+| # | 文件 | 引用 | 性质 |
+|---|------|------|------|
+| 7 | **crontab（TSX 用户）** | `0 4 * * * bash .../worldsim/backup-pg.sh >> .../worldsim/backups/backup.log` | 定时任务 |
+
+> 检查阶段只扫了文件系统（grep），没扫 crontab——执行时才发现。已改，并补充本记录。
+
+### 遗留 / 建议
+
+- **connection.env / .env 随 mv 迁移到新路径**（deploy-pg.sh `--env-file "$WORLD/.env"` 已指向新路径）——天枢容器 environment 的 `WORLDSIM_APP_PW` 是值注入，与路径无关，无需动。
+- 旧路径 `worldsim` 全 NAS 已无引用（脚本/文档/crontab 全改）。
+- 命名坑消除：`S:\world-sim`（代码，带连字符）vs `S:\worldsim-pg`（PG 基础设施，语义自明）。
+- 建议后续把 deploy-pg.sh / backup-pg.sh 权威副本固化进 world-sim 仓库 `infra/pg/`（P2-2，worldsim 目录无 git）。

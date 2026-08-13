@@ -84,7 +84,7 @@
   2. psycopg 传空元组 () 参数也会扫描占位符 → 字面 % 报错；无参用 `c.execute(sql)` 不传 params。
   3. pg_read._row_factory 在 DML（cursor.description=None）会崩 → 修复为空 cols（row_factory 兼容无结果集）。
   4. news.scan_contexts.data_quality 是 text 列（非 jsonb），jsonb 参数化比较报 operator does not exist。
-- 备份：4 个 .db 已 cp 至 /vol2/1000/software/worldsim/backups/e0c-p4-20260813/（news/forecast_tracker/narrative/tianji）。
+- 备份：4 个 .db 已 cp 至 /vol2/1000/software/worldsim-pg/backups/e0c-p4-20260813/（news/forecast_tracker/narrative/tianji）。
 - 状态：P4 代码就绪、**默认关（线上双写不变）**。P5 切换 = 运行区 compose 加 `WORLDSIM_SQLITE_OFF=1` + up -d + 验证 SQLite 停写 + 观察窗；P6 删 3 库 + 僵尸待 P5 观察后拍板。
 
 ### 2026-08-13 20:3x 全量验收（E0-C P1-P3 闭卷最后一道门，14/14 PASS）

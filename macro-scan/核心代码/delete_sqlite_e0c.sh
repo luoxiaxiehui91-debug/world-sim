@@ -13,7 +13,7 @@
 set -euo pipefail
 
 DATA=/vol2/1000/software/macro-scan/data
-BK=/vol2/1000/software/worldsim/backups
+BK=/vol2/1000/software/worldsim-pg/backups
 TS=$(date +%Y%m%d-%H%M%S)
 DRY=${1:-}
 
