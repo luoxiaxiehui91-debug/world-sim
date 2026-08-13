@@ -122,30 +122,10 @@ class CommodityYahooFetcher(FetcherBase):
         if price is None:
             self.logger.warning("[commodity_yahoo] %s regularMarketPrice 缺失", symbol)
             return None
-        # change_pct：以 regularMarketPrice 为 curr，正确处理当日 close=None 的情况
-        # （A股当日收盘 close 在 chart 序列中可能是 None，旧逻辑跳过 None 导致基准错位 1 天）。
-        # 当日已收盘（最后有效 close ≈ price）→ prev 取倒数第二个有效；
-        # 当日未收盘（当日 close 缺失）→ prev 取最后一个有效收盘（= 前一日）。
+        # change_pct/spark5 不在此处算：Yahoo closes 日线对 A股（000300.SS 等）最近多日
+        # 返回 None，closes 序列不可靠。改由 collect() 基于「上次良值」跨交易日推进计算。
         change_pct = None
-        if price is not None and closes:
-            valid_closes = [c for c in closes if c is not None]
-            if valid_closes:
-                last_valid = valid_closes[-1]
-                if abs(last_valid - price) / price < 0.0005:
-                    prev = valid_closes[-2] if len(valid_closes) >= 2 else None
-                else:
-                    prev = last_valid
-                if prev and prev != 0:
-                    change_pct = round((price - prev) / prev * 100, 2)
-        # spark5：最近 5 个交易日收盘迷你序列（供前端迷你折线；当日未收盘时补当前价）
         spark5 = []
-        try:
-            _series = [c for c in closes if c is not None]
-            if _series and _series[-1] != price:
-                _series = _series + [price]
-            spark5 = [round(c, 2) for c in _series[-5:]]
-        except Exception:
-            spark5 = []
         rmt = meta.get("regularMarketTime")
         as_of = (
             datetime.datetime.fromtimestamp(rmt, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -157,8 +137,8 @@ class CommodityYahooFetcher(FetcherBase):
             "name":       name,
             "unit":       unit,
             "price":      float(price),
-            "change_pct": change_pct,
-            "spark5":     spark5,
+            "change_pct": change_pct,   # collect() 基于上次良值填充
+            "spark5":     spark5,       # collect() 基于上次良值填充
             "as_of":      as_of,
             "status":     Status.OK,
             # 历史序列（供 backfill 使用）
@@ -229,11 +209,47 @@ class CommodityYahooFetcher(FetcherBase):
             writer.writeheader()
             writer.writerows(rows)
 
+    def _finalize_item(self, one: dict, prev: dict) -> dict:
+        """基于上次良值算 change_pct / spark5（跨交易日推进，同日沿用）。
+        涨跌幅 = 相对上一交易日收盘（用上次良值 price 作 prev，避开 Yahoo closes 的 None 坑）。"""
+        price = one.get("price")
+        as_of_date = (one.get("as_of") or "")[:10]
+        prev_price = prev.get("price")
+        prev_date = (prev.get("as_of") or "")[:10]
+        prev_chg = prev.get("change_pct")
+        prev_spark = prev.get("spark5") or []
+        if prev and prev_date == as_of_date:
+            # 同一交易日：沿用涨跌幅；spark5 末点刷新为最新价
+            chg = prev_chg
+            spark = list(prev_spark) if prev_spark else ([round(price, 2)] if price is not None else [])
+            if spark and price is not None and spark[-1] != round(price, 2):
+                spark = spark[:-1] + [round(price, 2)]
+        else:
+            # 跨交易日：涨跌幅 = (今日 - 上次收盘) / 上次收盘
+            if prev_price and price is not None:
+                chg = round((price - prev_price) / prev_price * 100, 2)
+            else:
+                chg = None
+            if price is not None:
+                spark = (list(prev_spark) + [round(price, 2)])[-5:] if prev_spark else [round(price, 2)]
+            else:
+                spark = list(prev_spark)
+        one["change_pct"] = chg
+        one["spark5"] = spark
+        return one
+
     def collect(self):
         commodities = {}
         unavailable_symbols = []
         as_of_list = []
         today = datetime.date.today().isoformat()
+        # 上次良值（change_pct/spark5 跨交易日推进；Yahoo closes 日线对 A股不可靠）
+        prev_full = self.load_previous_good()
+        prev_map = {}
+        if prev_full and isinstance(prev_full, dict):
+            for _k, _v in (prev_full.get("commodities") or {}).items():
+                if isinstance(_v, dict):
+                    prev_map[_k] = _v
 
         for symbol, key, name, unit, _category in SYMBOLS:
             hist_dir = os.path.join(DATA_DIR, HIST_DIR_NAME)
@@ -260,6 +276,7 @@ class CommodityYahooFetcher(FetcherBase):
             except Exception as e:
                 self.logger.warning("[commodity_yahoo] %s 历史写入失败: %s", key, e)
 
+            one = self._finalize_item(one, prev_map.get(key, {}))
             commodities[key] = one
             as_of_list.append(one["as_of"])
 
