@@ -74,7 +74,7 @@ class CommodityYahooFetcher(FetcherBase):
     rate_interval = 1.0
     output_file = OUTPUT_FILE
     feeds_grv = False
-    schedule = "0626"
+    schedule = "I15"
 
     def __init__(self, data_dir: str):
         super().__init__(data_dir)
@@ -240,7 +240,7 @@ class CommodityYahooFetcher(FetcherBase):
                     added = self._backfill_history(key, ts_list, closes)
                     self.logger.info("[commodity_yahoo] %s 历史回填 %d 条", key, added)
                 else:
-                    self._append_history(key, today, one["price"])
+                    self._append_history(key, one["as_of"][:10], one["price"])
             except Exception as e:
                 self.logger.warning("[commodity_yahoo] %s 历史写入失败: %s", key, e)
 

@@ -73,7 +73,7 @@ JOBS = [
     ("bdi",         "0625", "1-7", None, [PYTHON, "fetch_bdi.py"]),           # P0 波罗的海干散货指数（本地 CSV，日频）
     ("fao",         "0925", "1-7", 1,    [PYTHON, "fetch_fao.py"]),           # P0 FAO 粮食价格指数（每月1日 dom=1）
     # 新增 商品/航空/中观（T1/T2/T3：fetcher_base 适配层；仅落盘，不喂 GRV，错峰）
-    ("commodity_yahoo",    "0626", "1-7", None, [PYTHON, "fetch_commodity_yahoo.py"]),   # P0 Yahoo 商品（日频，错峰 bdi 0625）
+    ("commodity_yahoo",    "I15", "1-7", None, [PYTHON, "fetch_commodity_yahoo.py"]),   # P0 Yahoo 商品/股市（每 15 分钟，08-14 起即时化）
     ("airtraffic_opensky", "0628", "1-7", None, [PYTHON, "fetch_airtraffic_opensky.py"]), # P0 OpenSky 航空（日频）
     ("energy_eia",         "0630", "1-7", None, [PYTHON, "fetch_energy_eia.py"]),          # P0 EIA 能源（日频，错峰 commodity_yahoo 0626）
     ("china_meso",         "0930", "1-7", 1,    [PYTHON, "fetch_china_meso.py"]),          # P0 AkShare 中观（每月1日，错峰 fao 0925）
