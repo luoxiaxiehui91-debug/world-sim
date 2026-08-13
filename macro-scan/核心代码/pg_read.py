@@ -22,6 +22,7 @@ P2 翻 reader 模板：
     rows = conn.execute("SELECT ... WHERE x IN (%s,%s) AND y >= %s", (a, b, y)).fetchall()
     # row["col"] / row[0] 行为不变（时间已是 UTC 文本）；conn.close() 不变
 注意：psycopg 带参时 SQL 内字面 % 必须写 %%；PG 禁 DISTINCT+ORDER BY 非 select 列。
+DML 兼容：row_factory 在 cursor.description=None（INSERT/DELETE 等无结果集）时返回空 cols，不崩。
 
 部署：本文件 rsync 进运行区即生效（新文件，无需 docker restart）。
 """
@@ -94,7 +95,8 @@ def _norm(v):
 
 def _row_factory(cursor):
     # psycopg 3 协议：row_factory(cursor) 返回一个逐行 maker(raw_tuple) -> Row
-    cols = [d.name for d in cursor.description]
+    # DML（INSERT/DELETE 等无结果集）时 cursor.description 为 None → 空 cols，不崩
+    cols = [d.name for d in cursor.description] if cursor.description else []
 
     def _make(raw):
         return _Row(cols, [_norm(v) for v in raw])

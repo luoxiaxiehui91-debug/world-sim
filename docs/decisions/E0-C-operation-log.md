@@ -53,6 +53,19 @@
 
 ## 四、操作记录（按时间倒序，每动作含 时间/动作/证据/结论）
 
+
+### 2026-08-13 21:2x P4 — news_db 写路径 PG 主写支持（WORLDSIM_SQLITE_OFF 开关，默认关=双写现状）
+- 改造：news_db.py 6 写函数（write_scan_context / insert_articles / tag_articles / insert_signal_episode / link_episode_articles / prune_old_articles）加 PG-only 分支 + get_trigger_titles（news_db 内残留 SQLite 读）直接切 PG。
+- 设计：`WORLDSIM_SQLITE_OFF=1` → PG 主写（id 用 pg_write_collection._next_id MAX+1 生成、url/content_hash 查重与 pub_ctx 走 PG、删老文章走 delete_news_articles）；默认不设 → 双写现状（线上零变化）。单容器顺序写无 id 并发竞争。
+- 验证（容器内隔离，测试数据全清）：**A PG-only 完整链路** ctx404→article32477→category→ep2023→episode_article 全写 PG、SQLite 零文件；**B 默认双写** SQLite+PG 各 1 行回归通过；**C get_trigger_titles** 真实 ctx=401 返回 2 条地缘标题。
+- 踩坑（可复用）：
+  1. 函数内 `from X import f` 把 f 声明为局部变量 → 后续分支用模块级同名 f 报 UnboundLocalError；改用 `import X as _x; _x.f()`。
+  2. psycopg 传空元组 () 参数也会扫描占位符 → 字面 % 报错；无参用 `c.execute(sql)` 不传 params。
+  3. pg_read._row_factory 在 DML（cursor.description=None）会崩 → 修复为空 cols（row_factory 兼容无结果集）。
+  4. news.scan_contexts.data_quality 是 text 列（非 jsonb），jsonb 参数化比较报 operator does not exist。
+- 备份：4 个 .db 已 cp 至 /vol2/1000/software/worldsim/backups/e0c-p4-20260813/（news/forecast_tracker/narrative/tianji）。
+- 状态：P4 代码就绪、**默认关（线上双写不变）**。P5 切换 = 运行区 compose 加 `WORLDSIM_SQLITE_OFF=1` + up -d + 验证 SQLite 停写 + 观察窗；P6 删 3 库 + 僵尸待 P5 观察后拍板。
+
 ### 2026-08-13 20:3x 全量验收（E0-C P1-P3 闭卷最后一道门，14/14 PASS）
 - 动作：固化 `final_acceptance_e0c.py` 到 /app（只读、不推 ntfy，供后续回归复用），容器内全量验收。
 - 结果（14/14）：import 16 模块 / scheduler JOBS=54 + silent_probe 在列 / 心跳 22s / 探针 alert=False 9/9 OK（五表双写全等 32476/403/2022/8356/2826，heartbeat 22s，grv 14.4h，news_export 73s，observability 存在）/ harness 31 PASS 0 GAP 0 FAIL / pg 行边界归一化（published_at="2026-08-13T08:26:43" UTC 文本）/ tracker(3) grv(207) daily(3) 真实数据 / obs_stats 25 evaluated+25 triggered+25 staging（恢复真实值）/ news_export.json 40 篇 updated 新鲜 / 无 dualwrite_gap 文件 / 当日 observability 产物存在。

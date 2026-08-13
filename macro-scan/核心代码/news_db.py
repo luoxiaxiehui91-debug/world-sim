@@ -129,6 +129,47 @@ CREATE INDEX IF NOT EXISTS idx_synthesis_log_date
 
 # ── 连接 ──────────────────────────────────────────────────────────────────────
 
+# ── E0-C/P4: PG 主写支持（WORLDSIM_SQLITE_OFF=1 时跳过 SQLite 写，id/查重走 PG） ──
+_PG_ONLY = os.environ.get("WORLDSIM_SQLITE_OFF", "0") == "1"
+
+
+def _pg_scalar(sql, params=()):
+    """PG 单值查询；不可用/失败返回 None。"""
+    import pg_read
+    conn = pg_read.connect()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            row = conn.execute(sql, params).fetchone()
+            return row[0] if row else None
+    except Exception:
+        return None
+
+
+def _pg_fetch_all(sql, params=()):
+    """PG 多行查询；不可用返回 []。"""
+    import pg_read
+    conn = pg_read.connect()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            return conn.execute(sql, params).fetchall()
+    finally:
+        conn.close()
+
+
+def _find_pub_ctx_pg(published_at):
+    if not published_at:
+        return None
+    return _pg_scalar(
+        "SELECT id FROM news.scan_contexts "
+        "WHERE scan_time <= %s ORDER BY scan_time DESC LIMIT 1",
+        (published_at,)
+    )
+
+
 def _conn(db_path: str) -> sqlite3.Connection:
     """打开 SQLite 连接，启用 WAL 模式（支持读写并发），超时15s。"""
     c = sqlite3.connect(db_path, timeout=15)
@@ -217,6 +258,15 @@ def write_scan_context(db_path: str, *,
                        data_quality: dict | None = None) -> int:
     """写入一条扫描快照，返回新行 ID（供文章关联使用）。"""
     now = datetime.now(timezone.utc).isoformat()
+    if _PG_ONLY:
+        import pg_write_collection as _pwc
+        ctx_id = _pwc._next_id("news.scan_contexts")
+        if not ctx_id:
+            return 0
+        _pwc.upsert_news_scan_context(ctx_id, now, vix, t10y2y, baa10y, dff, regime,
+                                      vix_regime,
+                                      json.dumps(data_quality) if data_quality else None)
+        return ctx_id
     c = _conn(db_path)
     with c:
         cur = c.execute(
@@ -245,6 +295,35 @@ def insert_articles(db_path: str,
     if not articles:
         return {}
     now = datetime.now(timezone.utc).isoformat()
+    if _PG_ONLY:
+        import pg_write_collection as _pwc
+        result: dict[str, int] = {}
+        for art in articles:
+            title = (art.get("title") or "").strip()
+            if not title:
+                continue
+            url    = art.get("url") or None
+            source = art.get("source") or art.get("channel") or ""
+            h      = _article_hash(art)
+            pub    = _normalize_dt(
+                art.get("published_at") or art.get("pubDate") or art.get("date")
+            )
+            pub_ctx_id = _find_pub_ctx_pg(pub)
+            existing = None
+            if url:
+                existing = _pg_scalar("SELECT id FROM news.articles WHERE url=%s", (url,))
+            if existing is None:
+                existing = _pg_scalar("SELECT id FROM news.articles WHERE content_hash=%s", (h,))
+            if existing is not None:
+                result[h] = existing
+                continue
+            aid = _pwc._next_id("news.articles")
+            if not aid:
+                continue
+            _pwc.upsert_news_article(aid, url, h, title, source, pub, now, None,
+                                     ingest_ctx_id, pub_ctx_id)
+            result[h] = aid
+        return result
     c = _conn(db_path)
     result: dict[str, int] = {}
     with c:
@@ -306,6 +385,19 @@ def tag_articles(db_path: str,
     if not hash_to_id or not articles:
         return {}
     cat_to_ids: dict[str, list[int]] = {}
+    if _PG_ONLY:
+        import pg_write_collection as _pwc
+        for art in articles:
+            h   = _article_hash(art)
+            aid = hash_to_id.get(h)
+            if not aid:
+                continue
+            text = (art.get("title", "") + " " + art.get("content", "")).lower()
+            for cat, kws in alert_keywords.items():
+                if any(kw.lower() in text for kw in kws):
+                    _pwc.upsert_news_article_category(aid, cat)
+                    cat_to_ids.setdefault(cat, []).append(aid)
+        return cat_to_ids
     c = _conn(db_path)
     with c:
         for art in articles:
@@ -338,6 +430,13 @@ def insert_signal_episode(db_path: str,
                           scan_ctx_id: int) -> int:
     """记录一次信号触发事件，返回 episode_id（供 link_episode_articles 关联文章）。"""
     now = datetime.now(timezone.utc).isoformat()
+    if _PG_ONLY:
+        import pg_write_collection as _pwc
+        ep_id = _pwc._next_id("news.signal_episodes")
+        if not ep_id:
+            return 0
+        _pwc.upsert_news_signal_episode(ep_id, category, now, ratio, level, scan_ctx_id)
+        return ep_id
     c = _conn(db_path)
     with c:
         cur = c.execute(
@@ -356,6 +455,11 @@ def link_episode_articles(db_path: str,
                           article_ids: list[int]) -> None:
     """将文章 ID 列表关联到信号事件（INSERT OR IGNORE，防重复）。"""
     if not article_ids:
+        return
+    if _PG_ONLY:
+        import pg_write_collection as _pwc
+        for aid in article_ids:
+            _pwc.upsert_news_episode_article(episode_id, aid)
         return
     c = _conn(db_path)
     with c:
@@ -378,17 +482,22 @@ def get_trigger_titles(db_path: str,
     返回本次扫描中触发 category 的前 N 篇文章标题（按发布时间倒序）。
     供 latest_news.json 的 trigger_titles 字段使用。
     """
-    c = _conn(db_path)
-    rows = c.execute(
-        """SELECT a.title FROM articles a
-           JOIN article_categories ac ON a.id = ac.article_id
-           WHERE ac.category = ? AND a.ingest_ctx_id = ?
-           ORDER BY a.published_at DESC
-           LIMIT ?""",
-        (category, ingest_ctx_id, limit)
-    ).fetchall()
-    c.close()
-    return [r[0] for r in rows]
+    import pg_read
+    conn = pg_read.connect()
+    if conn is None:
+        return []
+    try:
+        rows = conn.execute(
+            """SELECT a.title FROM news.articles a
+               JOIN news.article_categories ac ON a.id = ac.article_id
+               WHERE ac.category = %s AND a.ingest_ctx_id = %s
+               ORDER BY a.published_at DESC
+               LIMIT %s""",
+            (category, ingest_ctx_id, limit)
+        ).fetchall()
+        return [r[0] for r in rows]
+    finally:
+        conn.close()
 
 
 # ── 维护接口 ──────────────────────────────────────────────────────────────────
@@ -399,8 +508,20 @@ def prune_old_articles(db_path: str, days: int = 90) -> int:
     不删除 signal_episodes（保留信号历史供回测）。
     返回删除的文章行数。
     """
-    c = _conn(db_path)
     cutoff = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    if _PG_ONLY:
+        rows = _pg_fetch_all(
+            "SELECT id FROM news.articles "
+            "WHERE ingested_at < %s::timestamptz - make_interval(days => %s)",
+            (cutoff, days)
+        )
+        old_ids = [r[0] for r in rows]
+        if not old_ids:
+            return 0
+        import pg_write_collection as _pwc
+        _pwc.delete_news_articles(old_ids)
+        return len(old_ids)
+    c = _conn(db_path)
     # SQLite datetime 运算：取 ingested_at < now - N days
     rows = c.execute(
         """SELECT id FROM articles
