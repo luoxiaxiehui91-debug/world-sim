@@ -73,16 +73,18 @@ def _query_top_news(limit: int = 5) -> list:
     if not os.path.exists(NEWS_DB_PATH):
         return []
     try:
-        conn = sqlite3.connect(NEWS_DB_PATH, timeout=5)
-        conn.execute("PRAGMA journal_mode=WAL")
+        import pg_read as _pg
+        conn = _pg.connect()
+        if conn is None:
+            return []
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()[:19]
         rows = conn.execute("""
             SELECT a.title, ac.category
-            FROM articles a
-            JOIN article_categories ac ON a.id = ac.article_id
-            WHERE a.ingested_at >= ?
+            FROM news.articles a
+            JOIN news.article_categories ac ON a.id = ac.article_id
+            WHERE a.ingested_at >= %s
             ORDER BY a.ingested_at DESC
-            LIMIT ?
+            LIMIT %s
         """, (cutoff, limit * 3)).fetchall()
         conn.close()
         seen_cats = set()

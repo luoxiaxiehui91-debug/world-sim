@@ -124,10 +124,10 @@ def cmd_status():
 
     # news.db 文章数
     try:
-        db = WORKSPACE / "data" / "news.db"
-        if db.exists():
-            conn = sqlite3.connect(db)
-            count = conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
+        import pg_read as _pg
+        conn = _pg.connect()
+        if conn is not None:
+            count = conn.execute("SELECT COUNT(*) FROM news.articles").fetchone()[0]
             conn.close()
             lines.append(f"新闻库：{count} 篇")
         else:

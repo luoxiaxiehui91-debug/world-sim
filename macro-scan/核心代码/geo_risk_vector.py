@@ -340,21 +340,20 @@ def _apply_conflict_floor(value: float | None, dimension: str) -> float | None:
     if floor is None or value is None:
         return value
     try:
-        import sqlite3 as _sql
-        db_path = os.path.join(DATA_DIR, "news.db")
-        if not os.path.exists(db_path):
+        import pg_read as _pg
+        conn = _pg.connect()
+        if conn is None:
             return value
         cutoff = (datetime.datetime.now() - datetime.timedelta(days=30)).isoformat()
-        conn = _sql.connect(db_path)
         (count,) = conn.execute("""
             SELECT COUNT(DISTINCT a.id)
-            FROM articles a
-            JOIN article_categories ac ON a.id = ac.article_id
+            FROM news.articles a
+            JOIN news.article_categories ac ON a.id = ac.article_id
             WHERE ac.category IN ('geopolitics', '地缘升级')
-              AND (a.country_tag LIKE '%RUS%' OR a.country_tag LIKE '%UKR%'
-                   OR a.title LIKE '%俄%' OR a.title LIKE '%乌克兰%'
-                   OR a.title LIKE '%Russia%' OR a.title LIKE '%Ukraine%')
-              AND a.published_at > ?
+              AND (a.country_tag LIKE '%%RUS%%' OR a.country_tag LIKE '%%UKR%%'
+                   OR a.title LIKE '%%俄%%' OR a.title LIKE '%%乌克兰%%'
+                   OR a.title LIKE '%%Russia%%' OR a.title LIKE '%%Ukraine%%')
+              AND a.published_at > %s
         """, (cutoff,)).fetchone()
         conn.close()
         if count >= _CONFLICT_FLOOR_MIN_ARTICLES:

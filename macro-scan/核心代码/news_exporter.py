@@ -1,11 +1,11 @@
 import os
 import sys
 import json
-import sqlite3
 import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from optim_config import DATA_DIR, NEWS_EXPORT_PATH
+import pg_read  # E0-C: 读路径切 PG（原 sqlite3 news.db）
 
 # DB 中文类别 → 导出英文标签（未列入的类别不导出）
 # 注：「文化贸易摩擦」「科技竞争」「自然灾害」暂无 macro-sim handler，
@@ -26,12 +26,12 @@ CATEGORY_MAP = {
 MAX_ARTICLES = 40
 DAYS_BACK = 7
 
-_PLACEHOLDERS = ",".join("?" * len(CATEGORY_MAP))
-# 不用 SQLite datetime 过滤（旧格式行无法比较），多取后 Python 侧按日期过滤
+# E0-C: PG 占位符 %s（原 SQLite ?）；news. 前缀显式 schema
+_PLACEHOLDERS = ",".join(["%s"] * len(CATEGORY_MAP))
 SQL = (
     "SELECT a.title, a.url, a.source, ac.category, a.published_at "
-    "FROM articles a "
-    "JOIN article_categories ac ON a.id = ac.article_id "
+    "FROM news.articles a "
+    "JOIN news.article_categories ac ON a.id = ac.article_id "
     "WHERE ac.category IN ({ph}) "
     "ORDER BY a.published_at DESC "
     "LIMIT 500"
@@ -55,13 +55,10 @@ def _parse_date(pub: str) -> str:
 
 
 def export_news_for_sim():
-    db_path = os.path.join(DATA_DIR, "news.db")
-    if not os.path.exists(db_path):
-        print(f"[news_exporter] news.db not found: {db_path}")
+    conn = pg_read.connect()
+    if conn is None:
+        print("[news_exporter] PG 读连接不可用（worldsim-pg），跳过导出")
         return
-
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=10)
-    conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(SQL, tuple(CATEGORY_MAP.keys())).fetchall()
     finally:

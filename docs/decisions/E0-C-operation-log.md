@@ -53,6 +53,21 @@
 
 ## 四、操作记录（按时间倒序，每动作含 时间/动作/证据/结论）
 
+### 2026-08-13 20:1x P2 — 双读校验台全绿（30 PASS / 1 GAP / 0 FAIL）
+- 动作：建 `verify_reads_e0c.py`（27 条查询对 + 7 条全量 GAP 对账，SQLite vs PG 逐行比对），容器内跑通，固化到 git 树 + /app 供 E0-C 全程复用。
+- 数据层验证：7d/30d 文章窗口 id/标题/ingested_at 全量一致（0 差集、0 值差）；narrative_chunks(419)/forecasts(314)/predictions(7)/density_flags(1)/articles(32476)/signal_episodes(2022) 全量对等。
+- 唯一 GAP：synthesis_log SQLite=1167 vs PG=1142，差 25 行 → P3 对账（PG 侧运行时未双写 synthesis_log，静态迁入后持续落后）。
+- 方言坑（已解，可复用）：
+  1. `",".join("%s" * N)` 是字符级 join → 产出 "%,%,..." 报错；须 `",".join(["%s"]*N)`。
+  2. psycopg 带参时字面 % 必须 %%；`LIKE '%RUS%'` → `LIKE '%%RUS%%'`。
+  3. PG 禁 DISTINCT + ORDER BY 非 select 列 → `GROUP BY a.title ORDER BY MAX(a.ingested_at) DESC`。
+  4. `DATE(x)` → `(x::date)::text`；`datetime('now','-24 hours')` → `NOW() - INTERVAL '24 hours'`；`sqlite_master` → information_schema。
+  5. PG real(float32) vs SQLite double：ft_pending_list 6 位小数差（0.726044 vs 0.726043）→ 容差 1e-4；hygiene 项可 ALTER 列改 double。
+  6. 并列时间戳 LIMIT 边界 tie-break 不同（同秒批量入库，SQLite 按 rowid / PG 按 pk）→ LIMIT 子集不同但合法；窗口全集一致已核。
+  7. P0-2 遗留：forecasts.created_at SQLite naive 北京 vs PG UTC → 113 行 8h skew（PG 正确），已容忍；SQLite 侧未回填属预期。
+- 观察点：observability 的 log_time/resonance_ok 在 SQLite 本就不存在（统计一直是零）→ PG 移植改用 triggered_at，顺带修复。
+- 结论：SQL 移植语义全部验证等价，P2 翻 reader 有绿灯。下一步逐模块切 PG 读层。
+
 ### 2026-08-13 19:5x P1 — 建 PG 读层 pg_read.py（纯新增·可逆）
 - 动作：新建 `pg_read.py`（只读 worldsim-pg），rsync 进运行区 /app（新文件，无需 docker restart）。
 - 设计：worldsim_app 只读（仅 SELECT）；自定义 _Row 行工厂同时支持 row["col"] 与 row[0]（等价 sqlite3.Row），使 P2 翻 reader 仅「换 connect + ?→%s」；每次 connect 新建连接（避 `with c:` 关连接踩缓存）；search_path=news,forecast,tianji,public；占位符 %s。

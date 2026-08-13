@@ -162,16 +162,17 @@ def _query_recent_articles(keywords: List[str], days: int = 3) -> List[str]:
     if not os.path.exists(NEWS_DB_PATH):
         return []
     try:
-        conn = sqlite3.connect(NEWS_DB_PATH, timeout=5)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
+        import pg_read as _pg
+        conn = _pg.connect()
+        if conn is None:
+            return []
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()[:19]
         titles = []
         for kw in keywords[:3]:  # 只用前3个关键词，避免查询过慢
             rows = conn.execute("""
-                SELECT title FROM articles
-                WHERE title LIKE ?
-                  AND ingested_at >= ?
+                SELECT title FROM news.articles
+                WHERE title LIKE %s
+                  AND ingested_at >= %s
                 ORDER BY ingested_at DESC
                 LIMIT 3
             """, (f"%{kw}%", cutoff)).fetchall()

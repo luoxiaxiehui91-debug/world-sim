@@ -75,12 +75,14 @@ def _fetch_recent_articles(days: int = 7) -> list[dict]:
     if not os.path.exists(NEWS_DB_PATH):
         return []
     try:
-        conn = sqlite3.connect(NEWS_DB_PATH, timeout=5)
-        conn.execute("PRAGMA journal_mode=WAL")
+        import pg_read as _pg
+        conn = _pg.connect()
+        if conn is None:
+            return []
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()[:19]
         rows = conn.execute("""
-            SELECT title, ingested_at FROM articles
-            WHERE ingested_at >= ?
+            SELECT title, ingested_at FROM news.articles
+            WHERE ingested_at >= %s
             ORDER BY ingested_at DESC
             LIMIT 2000
         """, (cutoff,)).fetchall()
@@ -96,12 +98,14 @@ def _fetch_baseline_articles(days: int = 30) -> list[dict]:
     if not os.path.exists(NEWS_DB_PATH):
         return []
     try:
-        conn = sqlite3.connect(NEWS_DB_PATH, timeout=5)
-        conn.execute("PRAGMA journal_mode=WAL")
+        import pg_read as _pg
+        conn = _pg.connect()
+        if conn is None:
+            return []
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()[:19]
         rows = conn.execute("""
-            SELECT title, ingested_at FROM articles
-            WHERE ingested_at >= ?
+            SELECT title, ingested_at FROM news.articles
+            WHERE ingested_at >= %s
             ORDER BY ingested_at DESC
             LIMIT 10000
         """, (cutoff,)).fetchall()

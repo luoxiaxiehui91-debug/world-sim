@@ -68,17 +68,16 @@ def _get_trigger_titles_from_news() -> str:
     """读 news.db 最近24h 地缘相关标题，最多3条，注入情景文本。"""
     titles = []
     try:
-        import sqlite3
-        db_path = os.path.join(DATA_DIR, "news.db")
-        if not os.path.exists(db_path):
+        import pg_read as _pg
+        conn = _pg.connect()
+        if conn is None:
             return "（无）"
-        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=10)
         rows = conn.execute("""
-            SELECT DISTINCT a.title FROM articles a
-            JOIN article_categories ac ON a.id = ac.article_id
+            SELECT a.title FROM news.articles a
+            JOIN news.article_categories ac ON a.id = ac.article_id
             WHERE ac.category IN ('地缘升级', '社会政治危机', '军事冲突')
-              AND a.ingested_at >= datetime('now', '-24 hours')
-            ORDER BY a.ingested_at DESC LIMIT 3
+              AND a.ingested_at >= NOW() - INTERVAL '24 hours'
+            GROUP BY a.title ORDER BY MAX(a.ingested_at) DESC LIMIT 3
         """).fetchall()
         conn.close()
         titles = [r[0] for r in rows if r[0]]
