@@ -87,7 +87,7 @@
 | `hypothesis_config.py` | 假设推演类型映射（DIM_MAP），2026-06-27 从 hypothesis_engine 提取 |
 | `news_db.py` | SQLite 新闻库；`prune_old_articles(days=90)` 月度清理（2026-06-27 新增）|
 | `news_exporter.py` | macro-sim 数据桥；每日 07:05 导出近7天地缘/能源/金融/宏观/货币类文章至 `data/news_export.json` |
-| `rag_engine.py` | ChromaDB 向量检索；`rag_query()` 统一入口（向量+TF-IDF fallback，2026-06-27 新增）|
+| `rag_engine.py` | pgvector 向量检索；`rag_query()` 统一入口（向量+TF-IDF fallback，D0 迁入 worldsim-pg，E0-B 删 chroma 分支）|
 | `forecast_tracker.py` | 预测记录追踪 |
 | `prediction_logger.py` | 预测日志写入 |
 | `verify_predictions.py` | 月度预测回测 |
@@ -97,7 +97,7 @@
 
 | 文件 | 职责 | 调用方式 |
 |:---|:---|:---|
-| `build_rag_index.py` | 重建 ChromaDB 向量索引 | docker exec ... python3 build_rag_index.py |
+| `build_rag_index.py` | 重建 pgvector 向量索引（worldsim-pg.rag.embeddings） | docker exec ... python3 build_rag_index.py |
 | `build_report_data.py` | 知识库数据采集 | 手动执行 |
 | `diag_p0.py` | P0 阶段诊断工具 | 手动执行 |
 | `check_doc_sync.py` | pre-commit 联动文档检查脚本 | 自动（pre-commit hook） |
@@ -139,7 +139,7 @@
 | 路径 | 内容 | 清空影响 |
 |:---|:---|:---|
 | `data/fred_history/` | FRED CSV 历史数据 | 下次 fetch 自动重建，RAG 索引暂不可用 |
-| `data/chroma_db/` | ChromaDB 向量索引（4156块，BAAI/bge-m3）| 需重新运行 build_rag_index.py |
+| `data/chroma_db/` | 已退役（2026-08-13，E0-B）：向量索引迁 worldsim-pg.rag.embeddings | 重建：docker exec ... python3 build_rag_index.py |
 | `data/news.db` | SQLite 新闻库 | 新闻历史丢失 |
 | `data/situations.yaml` | 当前事件情势状态 | 情势追踪重置 |
 | `data/grv_latest.json` | 最新 GRV 向量 | 下次 06:10 任务自动更新 |
