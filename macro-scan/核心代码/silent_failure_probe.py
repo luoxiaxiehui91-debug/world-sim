@@ -74,9 +74,47 @@ def _fmt_age(sec: float) -> str:
     return f"{sec / 3600:.1f}h"
 
 
+FROZEN_MARKER = os.path.join(DATA_DIR, ".sqlite_frozen_at")
+
+
 def check_dualwrite() -> list:
-    """比对 news 五表 PG vs SQLite。返回 [(level, msg), ...]。"""
+    """比对 news 五表 PG vs SQLite；PG-only（.sqlite_frozen_at 存在）时验证 SQLite 冻结 + PG 健康。"""
     out = []
+    frozen_at = None
+    if os.path.exists(FROZEN_MARKER):
+        try:
+            frozen_at = float(open(FROZEN_MARKER, encoding="utf-8").read().strip())
+        except Exception:
+            frozen_at = 0
+    if frozen_at is not None:
+        try:
+            import psycopg
+        except Exception as e:
+            return [(WARN, f"dualwrite(pg-only): psycopg 不可用，跳过（{e}）")]
+        try:
+            p = psycopg.connect(**PG_DSN)
+        except Exception as e:
+            return [(CRIT, f"dualwrite(pg-only): PG 连接失败 {e}")]
+        try:
+            for pg_tbl, sq_tbl, pk in DUALWRITE_TABLES:
+                with p.cursor() as c:
+                    c.execute(f"SELECT count(*) FROM {pg_tbl}")
+                    pc = c.fetchone()[0]
+                lvl = CRIT if pc <= 0 else OK
+                out.append((lvl, "dualwrite(pg-only) {}: PG={}（{}）".format(
+                    sq_tbl, pc, "异常" if lvl == CRIT else "健康，SQLite 冻结")))
+            sq_mtime = os.path.getmtime(SQLITE_PATH) if os.path.exists(SQLITE_PATH) else 0
+            if sq_mtime > frozen_at + 60:
+                out.append((WARN, "dualwrite(pg-only): SQLite 仍被写"
+                                  "（mtime={:.0f} > frozen={:.0f}）".format(sq_mtime, frozen_at)))
+            else:
+                out.append((OK, "dualwrite(pg-only): SQLite 冻结确认"))
+        finally:
+            try:
+                p.close()
+            except Exception:
+                pass
+        return out
     if not os.path.exists(SQLITE_PATH):
         return [(CRIT, f"dualwrite: SQLite 源不存在 {SQLITE_PATH}")]
     try:
