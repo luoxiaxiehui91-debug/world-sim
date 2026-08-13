@@ -459,14 +459,13 @@ async def status():
             reports.append({"name": p.stem[:40], "date": datetime.fromtimestamp(p.stat().st_mtime).strftime("%m-%d %H:%M")})
     result["recent_reports"] = reports
 
-    # news.db
+    # news.db → PG（E0-C）
     try:
-        import sqlite3
-        db = Path(DATA_DIR) / "news.db"
-        if db.exists():
-            conn = sqlite3.connect(db)
-            result["news_count"] = conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
-            last = conn.execute("SELECT MAX(ingested_at) FROM articles").fetchone()[0]
+        import pg_read as _pg
+        conn = _pg.connect()
+        if conn is not None:
+            result["news_count"] = conn.execute("SELECT COUNT(*) FROM news.articles").fetchone()[0]
+            last = conn.execute("SELECT MAX(ingested_at) FROM news.articles").fetchone()[0]
             result["last_scan"] = (last or "N/A")[:16]
             conn.close()
     except Exception:

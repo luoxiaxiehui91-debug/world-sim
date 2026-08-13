@@ -191,16 +191,20 @@ def ingest_article(
     if not dry_run:
         # 去重检查：同维度同 hash 跳过
         chash = _content_hash(content, primary_dim)
-        conn = get_connection()
+        import pg_read as _pg
+        conn = _pg.connect()
         try:
-            existing = conn.execute(
-                "SELECT id FROM narrative_chunks WHERE source_id=? AND content LIKE ? LIMIT 1",
-                (source_id, content[:100] + "%")
-            ).fetchone()
+            existing = None
+            if conn is not None:
+                existing = conn.execute(
+                    "SELECT id FROM tianji.narrative_chunks WHERE source_id=%s AND content LIKE %s LIMIT 1",
+                    (source_id, content[:100] + "%")
+                ).fetchone()
             if existing:
                 return {"status": "duplicate_skipped", "dimension": primary_dim}
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
 
         save_narrative_chunk(chunk)
 
@@ -243,26 +247,35 @@ def update_density_flags(window_days: int = 30):
     冷启动不足30天时退化为简单阈值（当日数量 > 过去7天均值×1.5）。
     """
     conn = get_connection()
+    pgc = None
     try:
         now = datetime.now(timezone.utc)
         yesterday = (now - timedelta(hours=24)).isoformat()
+        import pg_read as _pg
+        pgc = _pg.connect()
 
         for dim in GRV_DIMENSIONS:
-            # 今日数量
-            today_count = conn.execute("""
-                SELECT COUNT(*) FROM narrative_chunks
-                WHERE primary_dimension=? AND timestamp >= ?
-            """, (dim, yesterday)).fetchone()[0]
+            # 今日数量（E0-C: 读路径切 PG）
+            if pgc is not None:
+                today_count = pgc.execute("""
+                    SELECT COUNT(*) FROM tianji.narrative_chunks
+                    WHERE primary_dimension=%s AND timestamp >= %s
+                """, (dim, yesterday)).fetchone()[0]
+            else:
+                today_count = 0
 
             # 历史日均（window_days 天）
             history_start = (now - timedelta(days=window_days)).isoformat()
-            hist_rows = conn.execute("""
-                SELECT DATE(timestamp) as d, COUNT(*) as cnt
-                FROM narrative_chunks
-                WHERE primary_dimension=? AND timestamp >= ?
-                GROUP BY DATE(timestamp)
-                ORDER BY d DESC
-            """, (dim, history_start)).fetchall()
+            if pgc is not None:
+                hist_rows = pgc.execute("""
+                    SELECT (timestamp::date)::text as d, COUNT(*) as cnt
+                    FROM tianji.narrative_chunks
+                    WHERE primary_dimension=%s AND timestamp >= %s
+                    GROUP BY (timestamp::date)
+                    ORDER BY d DESC
+                """, (dim, history_start)).fetchall()
+            else:
+                hist_rows = []
 
             if len(hist_rows) < 7:
                 # 冷启动：简单阈值
@@ -300,14 +313,22 @@ def update_density_flags(window_days: int = 30):
         conn.commit()
     finally:
         conn.close()
+        if pgc is not None:
+            try:
+                pgc.close()
+            except Exception:
+                pass
 
 
 def get_flagged_dimensions() -> dict[str, float]:
     """返回当前被路径B标记的维度及其Z-score。"""
-    conn = get_connection()
+    import pg_read as _pg
+    conn = _pg.connect()
+    if conn is None:
+        return {}
     try:
         rows = conn.execute(
-            "SELECT dimension, z_score FROM narrative_density_flags WHERE consumed=0"
+            "SELECT dimension, z_score FROM tianji.narrative_density_flags WHERE consumed=0"
         ).fetchall()
         return {r[0]: r[1] for r in rows}
     finally:

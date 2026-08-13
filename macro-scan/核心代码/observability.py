@@ -140,47 +140,46 @@ def read_synthesizer_stats(today: str = None) -> dict:
     }
 
     try:
-        if not os.path.exists(SYNTHESIS_DB):
+        import pg_read as _pg
+        conn = _pg.connect()
+        if conn is None:
             return empty
 
-        conn = sqlite3.connect(f"file:{SYNTHESIS_DB}?mode=ro", uri=True)
-        conn.row_factory = sqlite3.Row
-
-        # 检查 synthesis_log 表是否存在
+        # 检查 synthesis_log 表是否存在（PG news schema）
         cur = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='synthesis_log'"
+            "SELECT 1 FROM information_schema.tables "
+            "WHERE table_schema='news' AND table_name='synthesis_log'"
         )
         if not cur.fetchone():
             conn.close()
             return empty
 
-        # 当日评估数
+        # 当日评估数（E0-C: SQLite log_time 列本不存在（历史恒 0），改用 triggered_at）
         cur = conn.execute(
-            "SELECT COUNT(*) as n FROM synthesis_log WHERE date(log_time) = ?",
+            "SELECT COUNT(*) as n FROM news.synthesis_log WHERE triggered_at::date = %s::date",
             (today,)
         )
         evaluated = cur.fetchone()["n"]
 
-        # 触发数（共振通过）
+        # 触发数：SQLite resonance_ok 列本不存在（历史恒 0），PG 无此列 → 按今日触发总数计
         cur = conn.execute(
-            "SELECT COUNT(*) as n FROM synthesis_log "
-            "WHERE date(log_time) = ? AND resonance_ok = 1",
+            "SELECT COUNT(*) as n FROM news.synthesis_log WHERE triggered_at::date = %s::date",
             (today,)
         )
         triggered = cur.fetchone()["n"]
 
         # LLM 调用数
         cur = conn.execute(
-            "SELECT COUNT(*) as n FROM synthesis_log "
-            "WHERE date(log_time) = ? AND llm_success = 1",
+            "SELECT COUNT(*) as n FROM news.synthesis_log "
+            "WHERE triggered_at::date = %s::date AND llm_success = 1",
             (today,)
         )
         llm_calls = cur.fetchone()["n"]
 
         # ntfy 发送数
         cur = conn.execute(
-            "SELECT COUNT(*) as n FROM synthesis_log "
-            "WHERE date(log_time) = ? AND ntfy_success = 1",
+            "SELECT COUNT(*) as n FROM news.synthesis_log "
+            "WHERE triggered_at::date = %s::date AND ntfy_success = 1",
             (today,)
         )
         ntfy_sends = cur.fetchone()["n"]
@@ -188,8 +187,8 @@ def read_synthesizer_stats(today: str = None) -> dict:
         # 各抑制原因计数
         suppress = {}
         cur = conn.execute(
-            "SELECT suppress_reason, COUNT(*) as n FROM synthesis_log "
-            "WHERE date(log_time) = ? AND suppress_reason IS NOT NULL "
+            "SELECT suppress_reason, COUNT(*) as n FROM news.synthesis_log "
+            "WHERE triggered_at::date = %s::date AND suppress_reason IS NOT NULL "
             "GROUP BY suppress_reason",
             (today,)
         )
@@ -290,14 +289,14 @@ def daily_health_push() -> None:
         # ── 数字3：predictions 表当前行数 ─────────────────────────────────
         predictions_rows = 0
         try:
-            db_path = os.path.join(DATA_DIR, "forecast_tracker.db")
-            if os.path.exists(db_path):
-                conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-                cur = conn.execute("SELECT COUNT(*) FROM predictions")
+            import pg_read as _pg
+            conn = _pg.connect()
+            if conn is not None:
+                cur = conn.execute("SELECT COUNT(*) FROM tianji.predictions")
                 predictions_rows = cur.fetchone()[0]
                 conn.close()
             else:
-                predictions_rows = -1  # DB 不存在
+                predictions_rows = -1  # PG 不可用
         except Exception:
             predictions_rows = -1
 

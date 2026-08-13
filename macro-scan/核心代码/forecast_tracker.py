@@ -111,6 +111,32 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
+# ── E0-C 只读助手（forecast 读路径 → worldsim-pg） ─────────────────────────────
+
+def _pg_fetch(sql, params=()):
+    """只读 PG；不可用时返回空列表（多为打印/报告，非阻断）。"""
+    import pg_read
+    conn = pg_read.connect()
+    if conn is None:
+        return []
+    try:
+        return conn.execute(sql, params).fetchall()
+    finally:
+        conn.close()
+
+
+def _pg_fetchone(sql, params=()):
+    """只读 PG 单行；不可用时返回 None。"""
+    import pg_read
+    conn = pg_read.connect()
+    if conn is None:
+        return None
+    try:
+        return conn.execute(sql, params).fetchone()
+    finally:
+        conn.close()
+
+
 # ── 主类 ──────────────────────────────────────────────────────────────────────
 
 class ForecastTracker:
@@ -208,9 +234,9 @@ class ForecastTracker:
             fid = e.get("id", "")
             if not fid:
                 continue
-            cur = self.conn.execute(
-                "SELECT 1 FROM forecasts WHERE id=?", (fid,)
-            ).fetchone()
+            cur = _pg_fetchone(
+                "SELECT 1 FROM forecast.forecasts WHERE id=%s", (fid,)
+            )
             if cur:
                 continue  # 已存在
 
@@ -284,10 +310,10 @@ class ForecastTracker:
         从 FRED 拉取真实数据，打标签，计算 Brier Score。
         """
         today_str = date.today().isoformat()
-        rows = self.conn.execute("""
-            SELECT * FROM forecasts
-            WHERE status = 'pending' AND verify_after <= ?
-        """, (today_str,)).fetchall()
+        rows = _pg_fetch("""
+            SELECT * FROM forecast.forecasts
+            WHERE status = 'pending' AND verify_after <= %s
+        """, (today_str,))
 
         if not rows:
             print("  [Tracker] 暂无到期预测记录（verify_after 未到）")
@@ -512,21 +538,19 @@ class ForecastTracker:
 
     def summary(self) -> None:
         """打印预测追踪状态摘要：总记录、待验证/已到期/已评估数量、最新 Brier Score。"""
-        total    = self.conn.execute("SELECT COUNT(*) FROM forecasts").fetchone()[0]
-        pending  = self.conn.execute(
-            "SELECT COUNT(*) FROM forecasts WHERE status='pending'"
-        ).fetchone()[0]
+        total    = (_pg_fetchone("SELECT COUNT(*) FROM forecast.forecasts") or (0,))[0]
+        pending  = (_pg_fetchone(
+            "SELECT COUNT(*) FROM forecast.forecasts WHERE status='pending'") or (0,))[0]
         today_str = date.today().isoformat()
-        due = self.conn.execute(
-            "SELECT COUNT(*) FROM forecasts WHERE status='pending' AND verify_after<=?",
+        due = (_pg_fetchone(
+            "SELECT COUNT(*) FROM forecast.forecasts WHERE status='pending' AND verify_after<=%s",
             (today_str,)
-        ).fetchone()[0]
-        evaluated = self.conn.execute(
-            "SELECT COUNT(*) FROM forecasts WHERE status='evaluated'"
-        ).fetchone()[0]
-        latest_eval = self.conn.execute(
-            "SELECT * FROM evaluations ORDER BY eval_date DESC LIMIT 1"
-        ).fetchone()
+        ) or (0,))[0]
+        evaluated = (_pg_fetchone(
+            "SELECT COUNT(*) FROM forecast.forecasts WHERE status='evaluated'") or (0,))[0]
+        latest_eval = _pg_fetchone(
+            "SELECT * FROM forecast.evaluations ORDER BY eval_date DESC LIMIT 1"
+        )
 
         sep = "─" * 50
         print(f"\n{sep}")
@@ -551,16 +575,16 @@ class ForecastTracker:
 
     def _next_verify_date(self) -> str:
         """返回最近一条 pending 预测的 verify_after 日期（无记录时返回'—'）。"""
-        row = self.conn.execute(
-            "SELECT MIN(verify_after) FROM forecasts WHERE status='pending'"
-        ).fetchone()
+        row = _pg_fetchone(
+            "SELECT MIN(verify_after) FROM forecast.forecasts WHERE status='pending'"
+        )
         return row[0] if row and row[0] else "—"
 
     def brier_report(self) -> None:
         """打印最近10次 Brier Score 评估历史表格（含 Skill Score 和衰退体制 Brier）。"""
-        rows = self.conn.execute(
-            "SELECT * FROM evaluations ORDER BY eval_date DESC LIMIT 10"
-        ).fetchall()
+        rows = _pg_fetch(
+            "SELECT * FROM forecast.evaluations ORDER BY eval_date DESC LIMIT 10"
+        )
         if not rows:
             print("  尚无评估记录")
             return
@@ -574,12 +598,12 @@ class ForecastTracker:
 
     def pending_list(self) -> None:
         """打印所有 status=pending 的预测记录（ID/创建日/情景/验证期/体制/概率）。"""
-        rows = self.conn.execute("""
+        rows = _pg_fetch("""
             SELECT id, created_at, scenario, horizon_months, verify_after,
                    regime, prob_recession, prob_soft_landing
-            FROM forecasts WHERE status='pending'
+            FROM forecast.forecasts WHERE status='pending'
             ORDER BY verify_after
-        """).fetchall()
+        """)
         if not rows:
             print("  无待验证记录")
             return

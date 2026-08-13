@@ -264,13 +264,16 @@ def get_narrative_chunks_for_dimension(
     if now_ts is None:
         now_ts = datetime.now(timezone.utc).isoformat()
 
-    conn = get_connection()
+    import pg_read as _pg
+    conn = _pg.connect()
+    if conn is None:
+        return []
     try:
         rows = conn.execute("""
             SELECT id, source_id, source_type, content, token_count,
                    staleness_tau, timestamp
-            FROM narrative_chunks
-            WHERE primary_dimension = ?
+            FROM tianji.narrative_chunks
+            WHERE primary_dimension = %s
             ORDER BY timestamp DESC
             LIMIT 200
         """, (dimension,)).fetchall()
@@ -309,11 +312,14 @@ def get_pending_predictions(as_of: str = None) -> list[dict]:
     """取所有到期且未验证的预测。"""
     if as_of is None:
         as_of = datetime.now(timezone.utc).isoformat()
-    conn = get_connection()
+    import pg_read as _pg
+    conn = _pg.connect()
+    if conn is None:
+        return []
     try:
         rows = conn.execute("""
-            SELECT * FROM predictions
-            WHERE status = 'pending' AND due_at <= ?
+            SELECT * FROM tianji.predictions
+            WHERE status = 'pending' AND due_at <= %s
             ORDER BY due_at ASC
         """, (as_of,)).fetchall()
         return [dict(r) for r in rows]
@@ -373,9 +379,12 @@ def log_weight_update(entry: dict):
 if __name__ == "__main__":
     run_migration()
     print("天玑数据库初始化完成。")
-    conn = get_connection()
-    tables = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-    ).fetchall()
-    print("当前表：", [t[0] for t in tables])
-    conn.close()
+    import pg_read as _pg
+    conn = _pg.connect()
+    if conn is not None:
+        tables = conn.execute(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema='tianji' ORDER BY table_name"
+        ).fetchall()
+        print("当前表：", [t[0] for t in tables])
+        conn.close()

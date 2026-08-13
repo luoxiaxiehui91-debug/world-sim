@@ -103,21 +103,24 @@ def _check_resonance(rule: dict, db_path: str) -> tuple[bool, dict]:
 
     since = (datetime.now(timezone.utc) - timedelta(days=window)).isoformat()[:19]
     try:
-        c = _conn(db_path)
-        ph = ",".join("?" * len(categories))
+        import pg_read as _pg
+        c = _pg.connect()
+        if c is None:
+            return False, {}
+        ph = ",".join(["%s"] * len(categories))
         rows = c.execute(f"""
             SELECT category,
                    COUNT(DISTINCT scan_ctx_id) AS scan_cnt,
                    COUNT(*)                    AS total_cnt,
                    AVG(ratio)                  AS avg_ratio,
                    MAX(ratio)                  AS max_ratio
-            FROM signal_episodes
+            FROM news.signal_episodes
             WHERE category IN ({ph})
-              AND triggered_at >= ?
+              AND triggered_at >= %s
               AND scan_ctx_id IS NOT NULL
             GROUP BY category
-            HAVING COUNT(DISTINCT scan_ctx_id) >= ?
-               AND AVG(ratio) >= ?
+            HAVING COUNT(DISTINCT scan_ctx_id) >= %s
+               AND AVG(ratio) >= %s
         """, (*categories, since, min_cnt, min_ratio)).fetchall()
         c.close()
     except Exception as e:
@@ -131,15 +134,18 @@ def _check_resonance(rule: dict, db_path: str) -> tuple[bool, dict]:
     # 取代表性标题
     titles = []
     try:
-        c = _conn(db_path)
+        import pg_read as _pg
+        c = _pg.connect()
+        if c is None:
+            return False, {}
         for cat_row in triggered[:2]:
             cat = cat_row["category"]
             t_rows = c.execute("""
-                SELECT DISTINCT a.title FROM articles a
-                JOIN article_categories ac ON a.id = ac.article_id
-                WHERE ac.category = ?
-                  AND a.ingested_at >= ?
-                ORDER BY a.ingested_at DESC LIMIT 2
+                SELECT a.title FROM news.articles a
+                JOIN news.article_categories ac ON a.id = ac.article_id
+                WHERE ac.category = %s
+                  AND a.ingested_at >= %s
+                GROUP BY a.title ORDER BY MAX(a.ingested_at) DESC LIMIT 2
             """, (cat, since)).fetchall()
             titles.extend(r[0] for r in t_rows if r[0])
         c.close()
@@ -204,11 +210,14 @@ def _is_in_cooldown(rule_id: str, cooldown_days: int, db_path: str) -> bool:
     suppress_reason='user_silence' 的记录单独检查。"""
     try:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=cooldown_days)).isoformat()[:19]
-        c = _conn(db_path)
+        import pg_read as _pg
+        c = _pg.connect()
+        if c is None:
+            return False
         # 正常推演冷却
         row = c.execute("""
-            SELECT 1 FROM synthesis_log
-            WHERE rule_id = ? AND triggered_at >= ?
+            SELECT 1 FROM news.synthesis_log
+            WHERE rule_id = %s AND triggered_at >= %s
               AND llm_success = 1 AND ntfy_success = 1
               AND (suppress_reason IS NULL OR suppress_reason = '')
             LIMIT 1
@@ -218,8 +227,8 @@ def _is_in_cooldown(rule_id: str, cooldown_days: int, db_path: str) -> bool:
             return True
         # 用户静默：从 trigger_summary JSON 读 silence_days，按实际天数计算截止时间
         row2 = c.execute("""
-            SELECT triggered_at, trigger_summary FROM synthesis_log
-            WHERE rule_id = ? AND suppress_reason = 'user_silence'
+            SELECT triggered_at, trigger_summary FROM news.synthesis_log
+            WHERE rule_id = %s AND suppress_reason = 'user_silence'
             ORDER BY triggered_at DESC LIMIT 1
         """, (rule_id,)).fetchone()
         c.close()
@@ -288,9 +297,12 @@ def _render_hypothesis(rule: dict, ctx: dict) -> str:
 def _get_today_synthesis_count(db_path: str) -> int:
     try:
         today = datetime.now().strftime("%Y-%m-%d")
-        c = _conn(db_path)
+        import pg_read as _pg
+        c = _pg.connect()
+        if c is None:
+            return 0
         row = c.execute(
-            "SELECT COUNT(*) FROM synthesis_log WHERE triggered_at >= ? AND ntfy_success = 1",
+            "SELECT COUNT(*) FROM news.synthesis_log WHERE triggered_at >= %s AND ntfy_success = 1",
             (today + "T00:00:00",)
         ).fetchone()
         c.close()
