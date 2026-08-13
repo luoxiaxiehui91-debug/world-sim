@@ -7,7 +7,7 @@
   Step 1  获取当前指标快照（FRED + akshare，失败时回退缓存）
   Step 2  计算衰退/通胀风险评分（LEI加权框架，0-100分）
   Step 3  匹配历史危机情景（CSV指标欧几里德距离匹配）
-  Step 4  RAG知识库检索（ChromaDB向量检索 → TF-IDF降级）
+  Step 4  RAG知识库检索（pgvector向量检索 → TF-IDF降级）
   Step 5  体制检测 + 蒙特卡洛概率模拟（5000路径，12个月）
   Step 6  构建LLM提示词（注入数据+信号+RAG上下文）
   Step 7  调用Ollama推理（降级链：qwen3 → mimo → 纯数据报告）
@@ -84,7 +84,7 @@ except ImportError:
     _AKSHARE_CN_AVAILABLE = False
     print("[AK] fetch_china_data_akshare 模块未找到，中国指标将使用降级方案")
 
-# RAG 向量检索引擎（chromadb + nomic-embed-text，可选；不可用时自动降级 TF-IDF）
+# RAG 向量检索引擎（pgvector + bge-m3，可选；不可用时自动降级 TF-IDF）
 try:
     from rag_engine import rag_query_vec as _rag_query_vec, rag_query as _rag_engine_query
     _RAG_VEC_AVAILABLE = True
@@ -112,7 +112,6 @@ BASE_DIR   = os.environ.get("OPENCLAW_WORKSPACE",
 KB_DIR             = os.path.join(BASE_DIR, "知识库", "财经知识库")
 REPORT_DIR         = os.path.join(BASE_DIR, "docs", "分析报告")
 SYSTEM_PROMPT_FILE = os.path.join(BASE_DIR, "system_prompt.md")
-CHROMA_DIR   = os.path.join(BASE_DIR, "data", "chroma_db")
 OLLAMA_BASE  = OLLAMA_URL.split("/api/")[0]   # http://host:port（去掉 /api/... 路径）
 CRISIS_CSV = os.path.join(KB_DIR, "02_核心变量因果链", "历史情景_量化指标.csv")
 CACHE_FILE = os.path.join(REPORT_DIR, ".indicator_cache.json")  # FRED失败时的缓存回退
@@ -383,7 +382,7 @@ def compute_geo_risk_matrix() -> Tuple[str, Dict]:
 def rag_query(query: str, n_results: int = 5) -> List[str]:
     """知识库检索：委托 rag_engine.rag_query()（向量优先 + TF-IDF fallback 均在引擎内处理）。"""
     if _rag_engine_query is not None:
-        return _rag_engine_query(query, n_results, KB_DIR, CHROMA_DIR)
+        return _rag_engine_query(query, n_results, KB_DIR)
     # rag_engine 不可用时的最终兜底（TF-IDF 内联，仅作安全网）
     try:
         from sklearn.feature_extraction.text import TfidfVectorizer
