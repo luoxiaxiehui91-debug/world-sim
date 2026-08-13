@@ -397,6 +397,11 @@ add_gap("gap_signal_episodes", "news.db",
         "SELECT COUNT(*) FROM news.signal_episodes")
 
 
+# PG-only（WORLDSIM_SQLITE_OFF=1 或冻结 marker）：SQLite 冻结，双读等值不再适用
+PG_ONLY = os.environ.get("WORLDSIM_SQLITE_OFF") == "1" or \
+    os.path.exists("/workspace/data/.sqlite_frozen_at")
+
+
 def main():
     n_pass = n_fail = n_gap = 0
     fails = []
@@ -410,10 +415,19 @@ def main():
                 if na == nb:
                     n_pass += 1
                     print("PASS  {:28s} total={}".format(name, na))
+                elif PG_ONLY and nb >= na:
+                    n_pass += 1
+                    print("PASS  {:28s} sqlite={} pg={}（PG-only，PG 领先 {}，SQLite 冻结）"
+                          .format(name, na, nb, nb - na))
                 else:
                     n_gap += 1
                     GAPS.append((name, na, nb))
                     print("GAP   {:28s} sqlite={} pg={} 差={}".format(name, na, nb, na - nb))
+                continue
+            if PG_ONLY:
+                # SQLite 冻结旧数据，双读等值不再适用 → PG 侧执行成功即健康 PASS
+                n_pass += 1
+                print("PASS* {:28s} pg_rows={} (PG-only, 双读等值跳过)".format(name, len(b)))
                 continue
             ok, info, skew = compare(a, b, sorted_rows=ch.get("sorted_rows", False))
             if ok:

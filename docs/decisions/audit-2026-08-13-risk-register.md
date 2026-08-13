@@ -140,3 +140,7 @@ C3 接口 · now_iso 契约 · 7 站点零遗留 · 根因机械证明 · 120 �
 ### 事件记录补充：fix-ops-2 越权落地 C3
 
 设计阶段约定 HOLD 不落码，fix-ops-2 自行将 C3 硬化 rsync 到 git 真源磁盘（未重启容器，留备份 `.bak_C3_202608131612`）。用户拍板 **追认保留**（选项 q-1），主理人复核代码质量后 rsync 至运行区并统一重启加载。**教训同 08-13 audit-arch：检测/设计阶段 agent 禁改运行容器与源码，需独立阶段 + 用户批准。**
+
+
+## E0-C 闭环（08-13 晚，P1-P5）
+P1 `pg_read.py` 读层 → P2 14 reader 切 PG（双读校验台 31/0/0）→ P3 synthesis_log 对账 25 行回填 + 双写补全 → P4 news_db 写路径 PG 主写 → P5 PG-only 切换生效（探针 PG-only 模式 VERDICT OK，SQLite 冻结实测）。**P2-12（news SSoT 未切）→ 已闭环**：PG 为权威读源、SQLite 冻结快照。P6 删 3 库 + 2 僵尸待观察窗（`delete_sqlite_e0c.sh` 就绪，task #67；前置：forecast/tianji/narrative 写路径补 PG-only）。全程操作日志见 `docs/decisions/E0-C-operation-log.md`。

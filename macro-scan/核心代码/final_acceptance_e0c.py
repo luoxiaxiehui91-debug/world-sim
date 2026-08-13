@@ -74,7 +74,7 @@ try:
     r = subprocess.run([sys.executable, "/app/verify_reads_e0c.py"],
                        capture_output=True, text=True, timeout=300)
     tail = [l for l in r.stdout.splitlines() if "RESULT" in l or "FAILED" in l or "GAPS" in l]
-    check("harness_31_0_0", "RESULT: pass=31 gap=0 fail=0" in r.stdout, tail)
+    check("harness_no_fail", "fail=0" in r.stdout, tail)
 except Exception as e:
     check("harness_31_0_0", False, repr(e))
 

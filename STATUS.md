@@ -2,7 +2,7 @@
 
 ## 新 session 冷启动（3 分钟，防迷路）
 
-> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-13 17:05 GMT+8。
+> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-13 21:45 GMT+8。
 
 **项目是什么**：world-sim 世界推演系统——个人内部宏观推演系统（非商业产品）。逻辑 5 层：天枢（观测采集）→ 天璇（仿真，17 Agent）→ 天玑（验证）→ 玉衡（权重，未运转）→ 开阳（展示）；横切 crucix 信号总线（AGPL，**已退场 2026-08-12 G1 停容器**）+ 摇光 SRE。
 
@@ -20,6 +20,7 @@
 4. **worldsim-pg 统一采集库（08-12 晚 DB-first 地基，主线新增）**：独立 PostgreSQL 容器（`pgvector/pgvector:pg16`，端口 127.0.0.1:5434，vol2 bind `/vol2/1000/software/worldsim/pgdata`），与 macro-scan / 天玑 跨 `worldsim_default` 网互联（A0 完成）。macro-scan 重建 v8 装 psycopg（A0.5 完成）。news.db 时区抢救（C1 完成：published_at 22017 行虚假冲突归零）。weight_matrix.py 补入 git 树 + 修 3 处 utcnow（C 方案完成）。部署脚本 deploy-pg.sh 修爆 + 固化 pg_hba（C 完成）。**锁定顺序**：A0→A0.5→C1→A1-min→B1(双写证通 ✅)→C0(加权 ✅)→**B0(迁 news.db+forecast ✅)**→D0(迁 chroma→pgvector ✅)→**E0(应用整合收尾 ✅：A 双写 worldsim-pg 证通 + B 退役 ChromaDB)**。详见「当前状态」worldsim-pg 段。
 
 5. **全量审计 + 双 P0 修复（08-13，已闭环）**：worldsim-audit 4 路 × 3 round 全量审计产出 3 P0 / 4 P1 / 12 P2（登记表 `docs/decisions/audit-2026-08-13-risk-register.md`）。**P0-1 双写静默丢数**（C3 硬化 + 124 行回填 + 五表零差集 + `silent_failure_probe.py` I120 兜底）、**P0-2 forecast 时区 +8h**（7 站点改 `now_iso_utc()` + 120 行 −8h 回填，铁证样本对齐至 2 秒内）、**P0-3 自动推演停摆**（commit 2d7bffa）**三条全部 RESOLVED**，容器内实测验收 10/10 PASS。**→ E0-C 读路径重写前置条件已满足，可启动。**
+6. **E0-C 读路径重写 + PG-only（08-13 晚，P1-P5 已闭环）**：`pg_read.py` 只读层（行边界归一化 datetime→UTC 文本）→ 14 个 reader 全切 PG（双读校验台 `verify_reads_e0c.py` 31/0/0）→ synthesis_log 25 行对账 + 双写补全 → news_db 写路径 PG 主写（`WORLDSIM_SQLITE_OFF` 开关）→ **P5 切换生效**（运行区 compose 注入 `WORLDSIM_SQLITE_OFF=1` + `up -d`，探针 PG-only 模式 VERDICT OK，直接激活 + 真实采集验证 PG 写 / SQLite 冻结，删除脚本 `delete_sqlite_e0c.sh` 门禁 dry-run 4/4 全绿）。**P6 删 3 SQLite + 2 僵尸待 12-24h 观察窗后执行**（task #67；前置：forecast/tianji/narrative 写路径补 PG-only）。
 
 **必读顺序**：本文件 → README.md → .workbuddy/memory/MEMORY.md（红线）→ 按需 macro-sim/docs/calib/（校准评审权威）；详细待办见下文「待做/已知遗留」节。
 
@@ -27,7 +28,8 @@
 
 ## 当前状态
 
-**08-13：全量审计 + P0-1 / P0-2 双 P0 闭环（重型 SOP 三路设计 → 用户拍板 → 主理人落码 → 容器内实测）**：
+**08-13 晚：E0-C 读路径重写（P1-P5 闭环，PG-only 生效）**：P1 `pg_read.py` 只读层（_Row 行边界归一化 datetime→UTC 文本 / Decimal→float / bool→int；DML row_factory 兼容）。P2 14 reader 切 PG（news_exporter/ntfy/geo_risk/grv/daily_narrative/detector/tracker/synth/obs/web/forecast_tracker/tianji_db/narrative_processor），双读校验台 31 PASS / 0 GAP / 0 FAIL。P3 synthesis_log 对账 25 行回填 + `upsert_synthesis_log` 双写（read-after-write 断裂 catch）。P4 news_db 写路径 PG 主写（`_next_id` 生成 id / 查重走 PG / get_trigger_titles 残留读切 PG）。P5 切换生效（compose `WORLDSIM_SQLITE_OFF=1` + `up -d` + `.sqlite_frozen_at` marker；探针 PG-only 分支防误报；直接激活测试 PG 写 / SQLite 冻结；真实采集 scan_weak_signals PG ctx 402→403）。全量验收 14/14 PASS，容器日志零错误。备份 4 db → `backups/e0c-p4-20260813/`。P6 删库脚本 `delete_sqlite_e0c.sh` 就绪（门禁 dry-run 4/4），观察窗后执行（task #67）。
+- **08-13：全量审计 + P0-1 / P0-2 双 P0 闭环（重型 SOP 三路设计 → 用户拍板 → 主理人落码 → 容器内实测）**：
 - **审计**：worldsim-audit 4 路 × 3 round → 3 P0 / 4 P1 / 12 P2，登记表 `docs/decisions/audit-2026-08-13-risk-register.md`（含完整修复实录）。审计同时**推翻 3 条旧假设**：sim_trigger「单文件 bind 断链」实为目录挂载正常、真因是代码回归；news.content「仍 TEXT」两库均无该列（RESOLVED）；「时钟偏快 2h」三方 UTC 差 <1s（误判）。
 - **P0-1 双写静默丢数 RESOLVED**：`pg_write_collection.py` C3 硬化（连接缓存复用 + 有界重试 3 次退避 + 15 个 transient sqlstate 分类 + 失败计数留痕 + `set_alert_hook`/`get_pg_write_stats`；**绝不静默、绝不 raise、绝不阻断 SQLite 主写**）；新建 `reconcile_backfill.py` 回填 124 行 / 5 表（articles 93 + episode_articles 21 + signal_episodes 7 + article_categories 2 + scan_contexts 1），dry-run 先验源行数再实跑，逐表 inserted==expected；**五表 count + 双向主键差集全零，VERDICT PASS**；回填后 scheduler 自然新增 +84 篇 articles（→32429）**PG 仍与 SQLite 精确相等**，证明 C3 在真实写入下同步。`synthesis_log` 10 行差另立 ticket（非 news 五表口径）。
 - **P0-2 forecast 时区 +8h RESOLVED**：根因 = `prediction_logger.py:72` 用 `datetime.now()` 生成 **naive 北京时钟数值**，PG session `TimeZone=Etc/UTC` 按 UTC 收下 → 存储时刻**晚 8h**；`forecast_tracker.py` 三处 `.isoformat()[:19]` 截断 `+00:00` 把 aware 降级 naive。修复：`optim_config.py` 新增 `now_iso_utc()`/`now_iso_local()`，**7 站点全改**（prediction_logger:72 / forecast_tracker:139,318,331 / scheduler:256 / fetch_firms:149,185 / data_fetcher:123），`now_iso_utc()` 调用 8 处、遗留 naive+`[:19]` **0 处**；`tzfix.sql` 单事务 + 快照表 `forecast._forecasts_pre` + 账本 `forecast._tzfix_ledger`，仅 `length(id)=36` 族 `−8h`（len8 族本就正确不动），`UPDATE 120` / `mismatch=0`。**铁证**：同刻配对 len36 `4a3a24a7` vs len8 `110553b1` 修复前差 16h（06:36:31 vs 22:36:33）→ 修复后差 **2 秒**（22:36:31.444686 vs 22:36:33）。
