@@ -75,6 +75,7 @@ def _fmt_age(sec: float) -> str:
 
 
 FROZEN_MARKER = os.path.join(DATA_DIR, ".sqlite_frozen_at")
+BACKUP_MARKER = os.path.join(DATA_DIR, ".last_pg_backup")
 
 
 def check_dualwrite() -> list:
@@ -208,10 +209,26 @@ def check_artifacts() -> list:
     return out
 
 
+def check_backup() -> list:
+    """PG 逻辑备份新鲜度（backup-pg.sh 成功后写 .last_pg_backup marker，cron 04:00 日频）。"""
+    out = []
+    if not os.path.exists(BACKUP_MARKER):
+        out.append((WARN, "backup .last_pg_backup: marker 缺失（backup-pg.sh 尚未成功写）"))
+        return out
+    age = time.time() - os.path.getmtime(BACKUP_MARKER)
+    if age >= 49 * 3600:
+        out.append((CRIT, f"backup .last_pg_backup: 陈旧 {_fmt_age(age)}（CRIT 阈值 49h）"))
+    elif age >= 25 * 3600:
+        out.append((WARN, f"backup .last_pg_backup: 陈旧 {_fmt_age(age)}（WARN 阈值 25h）"))
+    else:
+        out.append((OK, f"backup .last_pg_backup: {_fmt_age(age)} 前成功"))
+    return out
+
+
 def run_probe(alert: bool = True) -> tuple:
     """执行全部检查。返回 (worst_level, results)。"""
     results = []
-    for fn in (check_dualwrite, check_artifacts):
+    for fn in (check_dualwrite, check_artifacts, check_backup):
         try:
             results.extend(fn())
         except Exception as e:

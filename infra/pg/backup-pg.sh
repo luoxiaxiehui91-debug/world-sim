@@ -23,4 +23,7 @@ docker exec "$PG_CONTAINER" pg_dump -Fc -U worldsim_admin -h localhost -p 5432 -
 # 清理 14 天前
 find "$BACKUP_DIR" -name "worldsim-*.dump" -mtime +14 -delete
 
+# 写备份成功 marker（供 silent_failure_probe 监控备份新鲜度，防 backup 再静默挂）
+date +%s > /vol2/1000/software/macro-scan/data/.last_pg_backup
+
 echo "backup done: $OUT ($(du -h "$OUT" | cut -f1))"
