@@ -58,7 +58,9 @@
 - 前置：探针 dualwrite 加 PG-only 分支（`.sqlite_frozen_at` marker 存在 → 验证 SQLite 冻结 + PG 五表健康），避免 SQLite 停写后 count 差被探针误报 CRIT（切换前必须解决，否则 2h 后误告警）。
 - 动作：运行区 compose `environment:` 加 `WORLDSIM_SQLITE_OFF=1`；touch `data/.sqlite_frozen_at`（epoch 1786627625）；`docker compose up -d macro-scan`（容器 Recreate→Started）。
 - 验证：容器内 `printenv WORLDSIM_SQLITE_OFF=1`；探针 VERDICT=OK（五表 PG 健康 + **SQLite 冻结确认** + 心跳 24s + 产物新鲜）；count 基线 PG articles=32476 / scan_contexts=402 / episodes=2022 vs SQLite 32476 / 403 / 2022（冻结快照；ctx 差 1 行为历史遗留，读全 PG 无影响）。
-- 待验证：手动 `scan_weak_signals.py` 真实采集一轮 → 确认 PG 增长、SQLite count 冻结不变（后台进行中）。
+- **直接激活测试（21:3x）**：真实容器 env（WORLDSIM_SQLITE_OFF=1）+ scheduler 同款 news_db 写函数，写 ctx id=405 → PG vix=999.99 存在、SQLite scan_contexts 403→403 冻结、清理残留 0（5 秒级验证）。
+- **真实采集验证**：手动 `scan_weak_signals.py` 一轮（2min，零 ERROR/Traceback）→ PG scan_contexts 402→**403**（写路径生效）、SQLite 冻结 403 不变；articles/episodes/cats 无变化（本轮无新文章）；日志干净。
+- **结论**：PG-only 切换完全生效。观察窗口 12-24h，之后拍板 P6。
 - 回滚：去掉 compose 的 WORLDSIM_SQLITE_OFF + rm marker + up -d，即回双写。
 - 观察窗口：切换后 scheduler 心跳正常、探针 I120 在线；建议 12-24h 观察后再拍板 P6（删 3 库 + 僵尸）。
 
