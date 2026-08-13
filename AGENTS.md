@@ -13,9 +13,15 @@
 | `macro-ji`   | 验证层（天玑）：读天枢 data 做推演验证/反哺（T2 共享触发文件驱动，2026-08-04 独立容器上线） | **COPY 模式**（macro-ji/ 目录 rebuild） | v1.0.0 · [CHANGELOG](macro-ji/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-ji` |
 | `kaiyang`    | 可视化操作面板：只读展示天枢数据 + 控制台（:8080，control API :8900） | nginx 静态站（MOCK_ENABLED=false，A3a 已接入，index.html no-cache） | v1.10.8 · [CHANGELOG](kaiyang/CHANGELOG.md) | `/vol2/1000/software/kaiyang` |
 
-**数据流**：macro-scan 每日写入 `data/*.json` → macro-sim 只读消费 → kaiyang 只读展示；天玑（macro-ji）读天枢 data（forecast_tracker.db 三写者共存 + WAL）做验证闭环。
+**数据流**：macro-scan 每日写入 `data/*.json` → macro-sim 只读消费 → kaiyang 只读展示；天玑（macro-ji）读天枢 data / worldsim-pg（E0-C 起读路径统一 PG）做验证闭环。
 
 ---
+
+## 数据架构现状（E0-C，2026-08-13）
+
+**读路径已统一 worldsim-pg**（`核心代码/pg_read.py` 只读层，行边界归一化 UTC 文本；14 个 reader 已切）。**写路径 PG 主写**（`WORLDSIM_SQLITE_OFF=1` 已生效：news_db 6 写函数 + synthesis_log 写路径 PG-only 分支；SQLite 冻结快照 + `data/.sqlite_frozen_at` marker，待 P6 删 3 库 + 2 僵尸——`核心代码/delete_sqlite_e0c.sh` 就绪）。
+
+涉及 P0/E0-C 排障先查 `docs/decisions/E0-C-operation-log.md` 与 `docs/decisions/ADR-00{1,2,3}.md`；对账/探针：`verify_reads_e0c.py`（双读校验台，PG-only 语义）/ `reconcile_synthesis.py` / `silent_failure_probe.py`（PG-only 模式）。
 
 ## 新 session 阅读路径
 
