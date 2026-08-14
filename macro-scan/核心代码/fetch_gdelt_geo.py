@@ -508,11 +508,13 @@ def _map_event_type(root_code: Any, goldstein: Any = None) -> str:
     return "political"
 
 
-def _norm_intensity(goldstein: Any, mentions: Any) -> int:
+def _norm_intensity(goldstein: Any, mentions: Any, is_conflict: bool = False) -> int:
     """事件显著度 0-100（设计文档 §5.4）：0.6*烈度 + 0.4*传播广度，整数，下限 1。
 
     g = min(|Goldstein|, 10) / 10；m = min(log1p(mentions) / log1p(50), 1.0)。
     注意：intensity 是显著度不是风险度，方向由 event_type 表达。
+    conflict 类（08-14 校准）：武装冲突 Goldstein 典型 -7~-10，绝对值映射使 92% 事件挤在
+    75-100 无区分度 → 改用相对烈度 (|g|-7)/3（7→0 基准、10→1.0 极端），political/protest 保持原映射。
     """
     try:
         g = float(goldstein) if goldstein is not None else 0.0
@@ -522,7 +524,10 @@ def _norm_intensity(goldstein: Any, mentions: Any) -> int:
         m = float(mentions) if mentions is not None else 0.0
     except (TypeError, ValueError):
         m = 0.0
-    g_norm = min(abs(g), 10.0) / 10.0
+    if is_conflict:
+        g_norm = min(max((abs(g) - 7.0) / 3.0, 0.0), 1.0)
+    else:
+        g_norm = min(abs(g), 10.0) / 10.0
     m_norm = min(math.log1p(m) / math.log1p(50.0), 1.0)
     raw = 0.6 * g_norm + 0.4 * m_norm
     return max(1, min(100, round(raw * 100)))
@@ -567,12 +572,14 @@ def _map_to_news_geo_event(ev: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
     if gt in (0, 1):
         return None  # 国家质心 / 无效精度 → 丢弃（过滤链第 2 步）
 
+    _etype = _map_event_type(ev.get("root_code"), ev.get("intensity"))
     evt: Dict[str, Any] = {
         "id": "gdelt-" + str(ev.get("event_id", "")),
         "lat": round(lat, COORD_DECIMALS),
         "lng": round(lng, COORD_DECIMALS),
-        "event_type": _map_event_type(ev.get("root_code"), ev.get("intensity")),
-        "intensity": _norm_intensity(ev.get("intensity"), ev.get("mentions")),
+        "event_type": _etype,
+        "intensity": _norm_intensity(ev.get("intensity"), ev.get("mentions"),
+                                     is_conflict=(_etype == "conflict")),
         "country": str(ev.get("country_iso", "")),
     }
     mentions = ev.get("mentions")
