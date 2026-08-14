@@ -243,6 +243,21 @@ def check_backup() -> list:
     return out
 
 
+def check_sqlite_gone() -> list:
+    """SQLite 零残留断言（P6 删库后自动化守护）：data 目录出现任何 .db = 某代码复活了它。
+    发现即 CRIT（防定时炸弹：scheduler 任务或验收工具静默建文件）。"""
+    out = []
+    try:
+        hits = [f for f in os.listdir(DATA_DIR) if f.endswith(".db")]
+    except Exception as e:
+        return [(CRIT, "sqlite_gone: 扫描 data 失败 %s" % e)]
+    if hits:
+        out.append((CRIT, "sqlite_gone: 检测到 SQLite 复生文件 %s（P6 已删库，某代码静默重建）" % hits))
+    else:
+        out.append((OK, "sqlite_gone: data 目录无 .db 残留"))
+    return out
+
+
 def check_fred_lag() -> list:
     """FRED 关键序列最新数据日期滞后监控（源断更/停更时告警）。"""
     from datetime import datetime, date as _date
@@ -284,7 +299,7 @@ def check_fred_lag() -> list:
 def run_probe(alert: bool = True) -> tuple:
     """执行全部检查。返回 (worst_level, results)。"""
     results = []
-    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag):
+    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_sqlite_gone):
         try:
             results.extend(fn())
         except Exception as e:

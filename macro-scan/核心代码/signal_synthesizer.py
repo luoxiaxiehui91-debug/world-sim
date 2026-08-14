@@ -48,6 +48,9 @@ GDELT_PATH   = os.path.join(DATA_DIR, "gdelt_scores.json")
 
 # ── 连接工具 ──────────────────────────────────────────────────────────────────
 def _conn(db_path: str) -> sqlite3.Connection:
+    if not os.path.exists(db_path):
+        # P6 删库后（08-14）：SQLite 已退役，禁止自动创建（sqlite3.connect 会建空库）
+        raise RuntimeError("SQLite 已退役（P6 删库）: %s 不存在" % db_path)
     c = sqlite3.connect(db_path, timeout=10)
     c.execute("PRAGMA journal_mode=WAL")
     c.execute("PRAGMA busy_timeout=10000")
