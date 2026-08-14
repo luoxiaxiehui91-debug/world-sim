@@ -303,6 +303,48 @@ def check_sqlite_gone() -> list:
     return out
 
 
+def check_feed_fresh() -> list:
+    """新增数据源新鲜度/有效性监控（08-14 加：firms date bug 教训——NRT 源可能
+    静默空数据/文件过期无人知；覆盖 firms/spacelaunch/safecast_nuke 三个 08-14 源）。"""
+    from datetime import datetime as _dt, timezone as _tz
+    import json as _json
+    out = []
+    now = _dt.now(_tz.utc)
+    specs = [
+        ("firms_fire.json", "firms 火点", 30, "total_hotspots", "FIRMS 0 火点（疑似 date bug/API 异常，08-14 教训）"),
+        ("spacelaunch.json", "spacelaunch 发射", 30, "launches_count", "spacelaunch 空/无效"),
+        ("safecast_nuke.json", "safecast 核辐射", 3, "sites", "safecast 无站点"),
+    ]
+    for fname, label, max_h, key, empty_warn in specs:
+        path = os.path.join(DATA_DIR, fname)
+        if not os.path.exists(path):
+            out.append((CRIT, f"{label}: 文件不存在 {fname}"))
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = _json.load(f)
+            fetched = d.get("fetched_at") or d.get("as_of") or ""
+            age_h = 999.0
+            if fetched:
+                try:
+                    age_h = (now - _dt.fromisoformat(fetched.replace("Z", "+00:00"))).total_seconds() / 3600
+                except ValueError:
+                    age_h = 999.0
+            val = d.get(key)
+            empty = (val is None) or (isinstance(val, (int, float)) and val <= 0) or (isinstance(val, list) and len(val) == 0)
+            if empty:
+                out.append((CRIT, f"{label}: {empty_warn}（{fname}）"))
+            elif age_h > max_h * 2:
+                out.append((CRIT, f"{label}: 数据过期 {round(age_h,1)}h（CRIT 阈值 {max_h*2}h）"))
+            elif age_h > max_h:
+                out.append((WARN, f"{label}: 数据偏旧 {round(age_h,1)}h（WARN 阈值 {max_h}h）"))
+            else:
+                out.append((OK, f"{label}: ok（{round(age_h,1)}h 前更新）"))
+        except Exception as e:
+            out.append((WARN, f"{label}: 读取异常 {e}"))
+    return out
+
+
 def check_fred_lag() -> list:
     """FRED 关键序列最新数据日期滞后监控（源断更/停更时告警）。"""
     from datetime import datetime, date as _date
@@ -344,7 +386,7 @@ def check_fred_lag() -> list:
 def run_probe(alert: bool = True) -> tuple:
     """执行全部检查。返回 (worst_level, results)。"""
     results = []
-    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_sqlite_gone):
+    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_sqlite_gone, check_feed_fresh):
         try:
             results.extend(fn())
         except Exception as e:
