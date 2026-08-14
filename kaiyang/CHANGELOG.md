@@ -527,6 +527,22 @@ docs/operations/20260805-world-deduction-time-audit-fixed.md。
 - npm test 14 files / 311 tests 全绿；vite build 本地构建（新 bundle index-oJgF4qMk.js / css 沿用 S7YTSnTj）
 - scp 原地覆盖 + chmod -R a+rX；root/js/css/news_geo 200；旧 bundle 按 DEPLOYMENT 规范留 3 版清理（v1.10.0-1.10.4 共 9 个删除）
 
+## [1.11.2] - 2026-08-14 · thermal 热异常等级筛选防卡顿（用户反馈「太占资源直接卡住了」）
+
+**修改理由**：thermal 全量渲染 4031 个网格点 × 4 SVG 元素/点（环+光晕+圆+计数徽标）≈ 1.6 万元素 + 4000+ 事件监听，叠加 aircraft 6182 箭头 / sdr 851 点后直接卡死。用户要求「有等级划分就筛一下」。
+
+### 修改
+
+- `lib/thermalAdapter.ts`：**等级 = 网格火点 count 分档**（极高 ≥500 / 高 ≥100 / 中 ≥50）；新增 `MIN_THERMAL_COUNT = 50`——count < 50 的零星火点格（占 87%：4031→527 格）不渲染；剩余 527 格按 value 归一化的 severityLabel 分档（低/中/高），hover 看具体火点数 / FRP
+- `layerCategories.ts`：UNCAPPED_LAYERS 移除 thermal（筛选后 ~500 格远低于护栏，保留护栏兜底防火点爆炸；aircraft 仍 UNCAPPED）
+- 测试：thermalAdapter.test 数据改 ≥50 + 新增筛选断言（49/1 火点格被滤掉）；338 tests 全绿
+
+### 验证
+
+- tsc 通过；338 tests 全绿；vite build（新 bundle `index-CztpNBcr.js`）scp 部署；index / bundle 200
+- 效果：thermal 渲染 4031 → 527 点（~2100 元素），总点数 aircraft(6182) + sdr(851) + thermal(527) 流畅
+- 视觉项由主理人浏览器复核
+
 ## [1.11.1] - 2026-08-14 · P2 图层续接：sdr 软件无线电 + thermal 热异常（数据源已就绪顺势接入）
 
 **修改理由**：用户问「还有什么要推进」→ P2 剩余图层中数据源已就绪的两块先接（sdr_summary.json 851 接收器含坐标、firms_fire.json 火点）。

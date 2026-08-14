@@ -16,7 +16,16 @@ import type { FirmsRaw } from '@/types/contracts';
  *  - aggCount = 网格火点数 → 渲染中心计数徽标（复用聚合点机制）；
  *  - weight = value/100（火点越密点越大）；
  *  - note 展示火点数 / 最强 FRP / 高置信数。
+ *
+ * ⚠ 等级筛选（08-14 19:5x 用户反馈「太占资源直接卡住了」）：
+ *  - 4031 个网格点 × 4 SVG 元素/点（环+光晕+圆+徽标）≈ 1.6 万元素直接卡死；
+ *  - 等级 = count 分档：极高 ≥500（59 格）/ 高 ≥100（340 格）/ 中 ≥50（527 格）；
+ *  - **MIN_THERMAL_COUNT = 50**：count < 50 的零星火点格（占 87%：4031→527）不渲染，
+ *    信息量低（零星单点燃烧），渲染量降至 ~2100 元素保持流畅；
+ *  - 剩余点按 value 归一化的 severityLabel 分档（低/中/高），hover 看具体火点数。
  */
+export const MIN_THERMAL_COUNT = 50;
+
 export function adaptThermal(raw: FirmsRaw | null): RiskPoint[] {
   if (!raw || !Array.isArray(raw.hotspots) || raw.hotspots.length === 0) {
     return [];
@@ -26,6 +35,10 @@ export function adaptThermal(raw: FirmsRaw | null): RiskPoint[] {
   const maxCount = Math.max(1, hotspots[0]?.count ?? 1);
   const points: RiskPoint[] = [];
   for (const h of hotspots) {
+    // 等级筛选：零星火点格（count < MIN_THERMAL_COUNT）不渲染
+    if (!Number.isFinite(h.count) || h.count < MIN_THERMAL_COUNT) {
+      continue;
+    }
     // 坐标越界兜底（后端已校验，双保险）
     if (
       !Number.isFinite(h.lat) || !Number.isFinite(h.lng) ||

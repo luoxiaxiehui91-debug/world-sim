@@ -98,10 +98,9 @@ describe('layerCategories: 枚举完整性', () => {
     expect(MAX_POINTS_PER_LAYER).toBeGreaterThan(0);
   });
 
-  it('UNCAPPED_LAYERS 含 aircraft/thermal（08-14 用户拍板全量显示，截断后缺一部分没意义）', () => {
+  it('UNCAPPED_LAYERS 含 aircraft（08-14 用户拍板全量显示；thermal 已移除——等级筛选后仅 ~500 格）', () => {
     expect(UNCAPPED_LAYERS.has('aircraft')).toBe(true);
-    expect(UNCAPPED_LAYERS.has('thermal')).toBe(true);
-    expect(UNCAPPED_LAYERS.has('air')).toBe(false);
+    expect(UNCAPPED_LAYERS.has('thermal')).toBe(false);
     expect(UNCAPPED_LAYERS.size).toBeGreaterThan(0);
   });
 

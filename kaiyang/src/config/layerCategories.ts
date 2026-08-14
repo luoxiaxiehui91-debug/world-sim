@@ -228,11 +228,12 @@ export const MISSING_COLOR: string = CATEGORY_PALETTE.missing;
 export const MAX_POINTS_PER_LAYER = 2000;
 
 /**
- * 不受单图层护栏限制的类别（08-14 用户拍板：aircraft 实时航班全量显示，截断后缺一部分没意义；
- * thermal 火点 1° 网格聚合点同理由——聚合后全球几千点，全量渲染）。
+ * 不受单图层护栏限制的类别（08-14 用户拍板：aircraft 实时航班全量显示，截断后缺一部分没意义）。
  * 其余图层仍受 MAX_POINTS_PER_LAYER 护栏保护（防 feed 突发膨胀打死帧率）。
+ * （thermal 曾加入，08-14 19:5x 移除：MIN_THERMAL_COUNT=50 等级筛选后仅 ~500 格，
+ *  远低于护栏；保留护栏兜底防火点爆炸。）
  */
-export const UNCAPPED_LAYERS: ReadonlySet<LayerCategory> = new Set(['aircraft', 'thermal']);
+export const UNCAPPED_LAYERS: ReadonlySet<LayerCategory> = new Set(['aircraft']);
 
 /** 类别 → 定义；未知类别返回 undefined（调用方自行降级为 FALLBACK_CATEGORY）。 */
 export function categoryDef(category: LayerCategory | undefined): LayerCategoryDef | undefined {
