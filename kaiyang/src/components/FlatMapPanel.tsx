@@ -147,6 +147,29 @@ export function FlatMapPanel({
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
 
+  /**
+   * tooltip 跟随 mousemove 的 rAF 节流（08-14 19:5x 用户反馈卡顿）：
+   * 8000+ 点每个都挂 mousemove → setTooltip 的监听，鼠标扫过时每帧触发多次
+   * React state 更新 → 整个 SVG 重渲染卡顿。合并到每帧最多一次 setTooltip。
+   */
+  const tooltipRafRef = useRef<number | null>(null);
+  const pendingTooltipRef = useRef<{ x: number; y: number } | null>(null);
+  const scheduleTooltipMove = useCallback((x: number, y: number) => {
+    pendingTooltipRef.current = { x, y };
+    if (tooltipRafRef.current !== null) return; // 本帧已有调度，合并
+    tooltipRafRef.current = requestAnimationFrame(() => {
+      tooltipRafRef.current = null;
+      const pos = pendingTooltipRef.current;
+      pendingTooltipRef.current = null;
+      if (pos) {
+        setTooltip(prev => (prev ? { ...prev, x: pos.x, y: pos.y } : null));
+      }
+    });
+  }, []);
+  useEffect(() => () => {
+    if (tooltipRafRef.current !== null) cancelAnimationFrame(tooltipRafRef.current);
+  }, []);
+
   /** 统一对现有点位 / 聚焦环 / 星标施加 zoom 反向补偿（v1.10.4 半补偿：1/√k）。
    *
    * 2026-08-11 v1.10.2 根治「缩放态下切分类 → 全部放大」：
@@ -392,7 +415,7 @@ export function FlatMapPanel({
           })
           .on('mousemove', function(event: MouseEvent) {
             const pos = toContainerPos(event);
-            setTooltip(prev => prev ? { ...prev, x: pos.x, y: pos.y } : null);
+            scheduleTooltipMove(pos.x, pos.y);
           })
           .on('mouseleave', () => setTooltip(null));
       }
@@ -471,6 +494,29 @@ export function FlatMapPanel({
               : '', // 空 transform = 箭头朝北（d3 attr 不接受 undefined）
           )
           .attr('pointer-events', 'none');
+      } else if (p.shape === 'dot') {
+        // 08-14 海量点简化渲染（thermal/sdr）：只画核心圆，无外环/光晕。
+        // 点数大（数千）时每点省 2 个 SVG 元素，配合 tooltip rAF 节流防卡顿（用户反馈）。
+        const dot = grp.append('circle')
+          .attr('cx', 0).attr('cy', 0).attr('r', core)
+          .attr('fill', fillColor).attr('stroke', strokeColor).attr('stroke-width', strokeW)
+          .attr('fill-opacity', 0.85);
+        if (missing) {
+          dot.attr('stroke-dasharray', '2.5 2').attr('stroke-opacity', 0.85).attr('fill-opacity', 0.18);
+        }
+        // 聚合点（thermal 网格火点数）：中心计数徽标，pointer-events none 不挡点击
+        if (isAgg) {
+          grp.append('text')
+            .attr('x', 0).attr('y', 0)
+            .attr('text-anchor', 'middle')
+            .attr('dominant-baseline', 'central')
+            .attr('fill', '#ffffff')
+            .attr('font-size', Math.max(6.5, core * 0.85))
+            .attr('font-weight', 600)
+            .attr('pointer-events', 'none')
+            .style('user-select', 'none')
+            .text(String(p.aggCount));
+        }
       } else {
         // 弧光（2026-08-11 视觉重构 crucix 化）：薄描边环贴附外侧 + 内层淡光晕 + 中心实体。
         // v1.10.3 弧光收窄：外环 r 2.2→1.8 更贴附、线宽 1.2→1.0、透明度 0.6→0.5。
@@ -524,14 +570,17 @@ export function FlatMapPanel({
         })
         .on('mousemove', function(event: MouseEvent) {
           const pos = toContainerPos(event);
-          setTooltip(prev => prev ? { ...prev, x: pos.x, y: pos.y } : null);
+          scheduleTooltipMove(pos.x, pos.y);
         })
-        .on('mouseleave', () => setTooltip(null))
+        .on('mouseleave', () => {
+          pendingTooltipRef.current = null;
+          setTooltip(null);
+        })
         .on('click', () => onPointClick?.(p));
     }
     // v1.10.2：重建后的新点组补上 zoom 反向缩放（根治缩放态切分类 → 全部放大）
     applyPointInvScale();
-  }, [points, dims, onPointClick, applyPointInvScale]);
+  }, [points, dims, onPointClick, applyPointInvScale, scheduleTooltipMove]);
 
   useEffect(() => {
     buildPoints();

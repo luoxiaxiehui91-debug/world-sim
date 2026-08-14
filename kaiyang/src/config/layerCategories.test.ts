@@ -69,7 +69,7 @@ describe('layerCategories: 枚举完整性', () => {
   it('每个类别的 phase / shape / defaultVisible 均合法', () => {
     for (const def of LAYER_CATEGORIES) {
       expect(['P0', 'P1', 'P2']).toContain(def.phase);
-      expect(['circle', 'diamond', 'triangle', 'square', 'arrow', 'arc']).toContain(def.shape);
+      expect(['circle', 'diamond', 'triangle', 'square', 'arrow', 'arc', 'dot']).toContain(def.shape);
       expect(typeof def.defaultVisible).toBe('boolean');
       expect(def.label.length).toBeGreaterThan(0);
       expect(def.desc.length).toBeGreaterThan(0);

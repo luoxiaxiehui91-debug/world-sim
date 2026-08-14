@@ -92,6 +92,9 @@ export function ShapeSwatch({
         {...common}
       />
     );
+  } else if (shape === 'dot') {
+    // 08-14 海量点简化（thermal/sdr）：小实心点，与地图 dot 渲染一致
+    node = <circle cx={c} cy={c} r={r * 0.8} {...common} />;
   } else if (shape === 'square') {
     node = <rect x={c - r * 0.85} y={c - r * 0.85} width={r * 1.7} height={r * 1.7} {...common} />;
   } else {

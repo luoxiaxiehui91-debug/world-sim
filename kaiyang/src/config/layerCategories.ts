@@ -39,8 +39,9 @@ export type LayerCategory =
 
 /** 点位符号形状。P0 只实现 circle / diamond，其余为 P1+ 预留。
  *  'arrow' = 方向型渲染模式（08-14）：aircraft 实时航班——2D 只画航向旋转箭头、不画圆点圈（用户拍板）；
- *  'arc' = 弧线型（08-14）：air 全球航线网图例图标（图层本体是 RiskArc 弧，无点位）。 */
-export type PointShape = 'circle' | 'diamond' | 'triangle' | 'square' | 'arrow' | 'arc';
+ *  'arc' = 弧线型（08-14）：air 全球航线网图例图标（图层本体是 RiskArc 弧，无点位）；
+ *  'dot' = 海量点简化（08-14）：thermal/sdr——只画核心圆无外环光晕（每点省 2 元素防卡顿）。 */
+export type PointShape = 'circle' | 'diamond' | 'triangle' | 'square' | 'arrow' | 'arc' | 'dot';
 
 /** 点位数据状态：ok=有数；missing=该点无有效数值（元状态，覆盖类别色）。 */
 export type PointStatus = 'ok' | 'missing';
@@ -155,7 +156,7 @@ export const LAYER_CATEGORIES: LayerCategoryDef[] = [
     key: 'thermal',
     label: '热异常',
     color: CATEGORY_PALETTE.thermal,
-    shape: 'circle',
+    shape: 'dot',
     defaultVisible: false,
     phase: 'P2',
     feed: 'firms',
@@ -195,7 +196,7 @@ export const LAYER_CATEGORIES: LayerCategoryDef[] = [
     key: 'sdr',
     label: 'SDR 覆盖',
     color: CATEGORY_PALETTE.sdr,
-    shape: 'circle',
+    shape: 'dot',
     defaultVisible: false,
     phase: 'P2',
     feed: 'sdr',
