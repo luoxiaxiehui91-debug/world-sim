@@ -527,6 +527,24 @@ docs/operations/20260805-world-deduction-time-audit-fixed.md。
 - npm test 14 files / 311 tests 全绿；vite build 本地构建（新 bundle index-oJgF4qMk.js / css 沿用 S7YTSnTj）
 - scp 原地覆盖 + chmod -R a+rX；root/js/css/news_geo 200；旧 bundle 按 DEPLOYMENT 规范留 3 版清理（v1.10.0-1.10.4 共 9 个删除）
 
+## [1.11.3] - 2026-08-14 · 2D 渲染防卡顿双管齐下（用户反馈「还是卡」）
+
+**修改理由**：thermal 等级筛选后仍卡（527 格 + aircraft 6182 + sdr 851 全开 ≈ 8000+ 点 / 3.2 万事件监听）。定位：①鼠标扫过时每个点 mousemove → setTooltip 高频 React 重渲染（每帧多次 state 更新 → 整幅 SVG 重渲染）；②circle 渲染每点 4 元素（环+光晕+圆+徽标）DOM 过重。
+
+### 修改
+
+- `FlatMapPanel.tsx` **tooltip mousemove rAF 节流**：所有点/弧的 mousemove 合并到 `requestAnimationFrame` 每帧最多 1 次 setTooltip（`scheduleTooltipMove` + pending ref + unmount 清理）；mouseleave 清 pending
+- `FlatMapPanel.tsx` + **dot 渲染分支**：只画核心圆（missing 虚线兜底）+ 聚合计数徽标，无外环/光晕——每点省 2 元素
+- `layerCategories.ts`：PointShape + 'dot'；thermal/sdr def shape circle→dot（图例与地图一致）
+- `LayerLegend.tsx`：ShapeSwatch + dot 图例（小实心点）
+- 测试：合法 shape 列表 + 'dot'；338 tests 全绿
+
+### 验证
+
+- tsc 通过；338 tests 全绿；vite build（新 bundle `index-BwASTqV3.js`）scp 部署；index / bundle 200
+- 预期：鼠标扫过不再每帧重渲染（rAF 合并到 60fps 上限）；thermal/sdr 元素数减半
+- 视觉项由主理人浏览器复核
+
 ## [1.11.2] - 2026-08-14 · thermal 热异常等级筛选防卡顿（用户反馈「太占资源直接卡住了」）
 
 **修改理由**：thermal 全量渲染 4031 个网格点 × 4 SVG 元素/点（环+光晕+圆+计数徽标）≈ 1.6 万元素 + 4000+ 事件监听，叠加 aircraft 6182 箭头 / sdr 851 点后直接卡死。用户要求「有等级划分就筛一下」。
