@@ -71,6 +71,26 @@ def _load_rules() -> tuple[list, dict]:
 
 # ── 数据成熟度守门 ────────────────────────────────────────────────────────────
 def _check_data_maturity(db_path: str, required_days: int = 30) -> tuple[bool, int]:
+    # PG-only：走 worldsim-pg（08-14 P0 修复——此前无条件 _conn() 会在文件缺失时
+    # sqlite3.connect 重建 news.db，导致已删 SQLite 复生）
+    if os.environ.get("WORLDSIM_SQLITE_OFF") == "1":
+        try:
+            import pg_read as _pg
+            c = _pg.connect()
+            if c is None:
+                return False, 0
+            row = c.execute(
+                "SELECT EXTRACT(EPOCH FROM (now() - MIN(triggered_at)))/86400.0 "
+                "FROM news.signal_episodes"
+            ).fetchone()
+            c.close()
+            if not row or row[0] is None:
+                return False, 0
+            age = int(row[0])
+            return age >= required_days, age
+        except Exception:
+            return False, 0
+    # ── 原 SQLite 分支（非 PG-only 保留）──
     try:
         c = _conn(db_path)
         row = c.execute(
@@ -98,7 +118,9 @@ def _check_resonance(rule: dict, db_path: str) -> tuple[bool, dict]:
     min_cnt    = trigger.get("min_scan_count", 1)
     min_ratio  = trigger.get("min_avg_ratio", 1.5)
 
-    if not categories or not os.path.exists(db_path):
+    # 08-14 P0 修复：删掉 os.path.exists(db_path) 守卫——该函数已只读 PG，
+    # 文件存在性检查是 SQLite 时代残留，会让已删库场景直接静默短路。
+    if not categories:
         return False, {}
 
     since = (datetime.now(timezone.utc) - timedelta(days=window)).isoformat()[:19]

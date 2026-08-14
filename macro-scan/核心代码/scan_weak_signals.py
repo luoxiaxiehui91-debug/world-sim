@@ -1462,6 +1462,8 @@ def run_scan():
     """
     from optim_config import ensure_dirs, DATA_DIR as _DATA_DIR
     ensure_dirs()
+    if os.environ.get("WORLDSIM_SQLITE_OFF") == "1":
+        print("[PG-only] 跳过 SQLite 初始化（news.db 已退役，读写走 worldsim-pg）")
     print(f"[弱信号扫描] {date.today().isoformat()}")
 
     fred_alerts = []

@@ -2,7 +2,7 @@
 
 ## 新 session 冷启动（3 分钟，防迷路）
 
-> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-13 21:45 GMT+8。
+> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-14 09:15 GMT+8。
 
 **项目是什么**：world-sim 世界推演系统——个人内部宏观推演系统（非商业产品）。逻辑 5 层：天枢（观测采集）→ 天璇（仿真，17 Agent）→ 天玑（验证）→ 玉衡（权重，未运转）→ 开阳（展示）；横切 crucix 信号总线（AGPL，**已退场 2026-08-12 G1 停容器**）+ 摇光 SRE。
 
@@ -20,7 +20,7 @@
 4. **worldsim-pg 统一采集库（08-12 晚 DB-first 地基，主线新增）**：独立 PostgreSQL 容器（`pgvector/pgvector:pg16`，端口 127.0.0.1:5434，vol2 bind `/vol2/1000/software/worldsim-pg/pgdata`），与 macro-scan / 天玑 跨 `worldsim_default` 网互联（A0 完成）。macro-scan 重建 v8 装 psycopg（A0.5 完成）。news.db 时区抢救（C1 完成：published_at 22017 行虚假冲突归零）。weight_matrix.py 补入 git 树 + 修 3 处 utcnow（C 方案完成）。部署脚本 deploy-pg.sh 修爆 + 固化 pg_hba（C 完成）。**锁定顺序**：A0→A0.5→C1→A1-min→B1(双写证通 ✅)→C0(加权 ✅)→**B0(迁 news.db+forecast ✅)**→D0(迁 chroma→pgvector ✅)→**E0(应用整合收尾 ✅：A 双写 worldsim-pg 证通 + B 退役 ChromaDB)**。详见「当前状态」worldsim-pg 段。
 
 5. **全量审计 + 双 P0 修复（08-13，已闭环）**：worldsim-audit 4 路 × 3 round 全量审计产出 3 P0 / 4 P1 / 12 P2（登记表 `docs/decisions/audit-2026-08-13-risk-register.md`）。**P0-1 双写静默丢数**（C3 硬化 + 124 行回填 + 五表零差集 + `silent_failure_probe.py` I120 兜底）、**P0-2 forecast 时区 +8h**（7 站点改 `now_iso_utc()` + 120 行 −8h 回填，铁证样本对齐至 2 秒内）、**P0-3 自动推演停摆**（commit 2d7bffa）**三条全部 RESOLVED**，容器内实测验收 10/10 PASS。**→ E0-C 读路径重写已启动并全闭环（P1-P6：PG-only + SQLite 退役，见下条第 6 条）。**
-6. **E0-C 读路径重写 + PG-only（08-13 晚，P1-P5 已闭环）**：`pg_read.py` 只读层（行边界归一化 datetime→UTC 文本）→ 14 个 reader 全切 PG（双读校验台 `verify_reads_e0c.py` 31/0/0）→ synthesis_log 25 行对账 + 双写补全 → news_db 写路径 PG 主写（`WORLDSIM_SQLITE_OFF` 开关）→ **P5 切换生效**（运行区 compose 注入 `WORLDSIM_SQLITE_OFF=1` + `up -d`，探针 PG-only 模式 VERDICT OK，直接激活 + 真实采集验证 PG 写 / SQLite 冻结，删除脚本 `delete_sqlite_e0c.sh` 门禁 dry-run 4/4 全绿）。**P6 删 3 SQLite + 2 僵尸待 12-24h 观察窗后执行**（task #67；前置：forecast/tianji/narrative 写路径补 PG-only）。
+6. **E0-C 读路径重写 + PG-only（08-13 晚，P1-P6 全闭环）**：`pg_read.py` 只读层（行边界归一化 datetime→UTC 文本）→ 14 个 reader 全切 PG（双读校验台 `verify_reads_e0c.py` 31/0/0）→ synthesis_log 25 行对账 + 双写补全 → news_db 写路径 PG 主写（`WORLDSIM_SQLITE_OFF` 开关）→ **P5 切换生效**（运行区 compose 注入 `WORLDSIM_SQLITE_OFF=1` + `up -d`，探针 PG-only 模式 VERDICT OK，直接激活 + 真实采集验证 PG 写 / SQLite 冻结，删除脚本 `delete_sqlite_e0c.sh` 门禁 dry-run 4/4 全绿）。**P6 删 4 SQLite 已于 08-14 08:39 执行**（commit 1ba002a，快照 `e0c-p6-20260814-083910`，删后观察无复生 / 探针 OK）。
 
 **必读顺序**：本文件 → README.md → .workbuddy/memory/MEMORY.md（红线）→ 按需 macro-sim/docs/calib/（校准评审权威）；详细待办见下文「待做/已知遗留」节。
 
@@ -28,7 +28,7 @@
 
 ## 当前状态
 
-**08-13 晚：E0-C 读路径重写（P1-P5 闭环，PG-only 生效）**：P1 `pg_read.py` 只读层（_Row 行边界归一化 datetime→UTC 文本 / Decimal→float / bool→int；DML row_factory 兼容）。P2 14 reader 切 PG（news_exporter/ntfy/geo_risk/grv/daily_narrative/detector/tracker/synth/obs/web/forecast_tracker/tianji_db/narrative_processor），双读校验台 31 PASS / 0 GAP / 0 FAIL。P3 synthesis_log 对账 25 行回填 + `upsert_synthesis_log` 双写（read-after-write 断裂 catch）。P4 news_db 写路径 PG 主写（`_next_id` 生成 id / 查重走 PG / get_trigger_titles 残留读切 PG）。P5 切换生效（compose `WORLDSIM_SQLITE_OFF=1` + `up -d` + `.sqlite_frozen_at` marker；探针 PG-only 分支防误报；直接激活测试 PG 写 / SQLite 冻结；真实采集 scan_weak_signals PG ctx 402→403）。全量验收 14/14 PASS，容器日志零错误。备份 4 db → `backups/e0c-p4-20260813/`。P6 删库脚本 `delete_sqlite_e0c.sh` 就绪（门禁 dry-run 4/4），观察窗后执行（task #67）。
+**08-13 晚：E0-C 读路径重写（P1-P6 全闭环，PG-only 生效）**：P1 `pg_read.py` 只读层（_Row 行边界归一化 datetime→UTC 文本 / Decimal→float / bool→int；DML row_factory 兼容）。P2 14 reader 切 PG（news_exporter/ntfy/geo_risk/grv/daily_narrative/detector/tracker/synth/obs/web/forecast_tracker/tianji_db/narrative_processor），双读校验台 31 PASS / 0 GAP / 0 FAIL。P3 synthesis_log 对账 25 行回填 + `upsert_synthesis_log` 双写（read-after-write 断裂 catch）。P4 news_db 写路径 PG 主写（`_next_id` 生成 id / 查重走 PG / get_trigger_titles 残留读切 PG）。P5 切换生效（compose `WORLDSIM_SQLITE_OFF=1` + `up -d` + `.sqlite_frozen_at` marker；探针 PG-only 分支防误报；直接激活测试 PG 写 / SQLite 冻结；真实采集 scan_weak_signals PG ctx 402→403）。全量验收 14/14 PASS，容器日志零错误。备份 4 db → `backups/e0c-p4-20260813/`。**P6 删库已于 08-14 08:39 执行**（commit 1ba002a，快照 `e0c-p6-20260814-083910`）：删 4 db + 观察无复生 / 探针 OK。
 - **08-13：全量审计 + P0-1 / P0-2 双 P0 闭环（重型 SOP 三路设计 → 用户拍板 → 主理人落码 → 容器内实测）**：
 - **审计**：worldsim-audit 4 路 × 3 round → 3 P0 / 4 P1 / 12 P2，登记表 `docs/decisions/audit-2026-08-13-risk-register.md`（含完整修复实录）。审计同时**推翻 3 条旧假设**：sim_trigger「单文件 bind 断链」实为目录挂载正常、真因是代码回归；news.content「仍 TEXT」两库均无该列（RESOLVED）；「时钟偏快 2h」三方 UTC 差 <1s（误判）。
 - **P0-1 双写静默丢数 RESOLVED**：`pg_write_collection.py` C3 硬化（连接缓存复用 + 有界重试 3 次退避 + 15 个 transient sqlstate 分类 + 失败计数留痕 + `set_alert_hook`/`get_pg_write_stats`；**绝不静默、绝不 raise、绝不阻断 SQLite 主写**）；新建 `reconcile_backfill.py` 回填 124 行 / 5 表（articles 93 + episode_articles 21 + signal_episodes 7 + article_categories 2 + scan_contexts 1），dry-run 先验源行数再实跑，逐表 inserted==expected；**五表 count + 双向主键差集全零，VERDICT PASS**；回填后 scheduler 自然新增 +84 篇 articles（→32429）**PG 仍与 SQLite 精确相等**，证明 C3 在真实写入下同步。`synthesis_log` 10 行差另立 ticket（非 news 五表口径）。
@@ -125,7 +125,7 @@
 8. **天璇 sim_log（死代码）**：`sim_log.py` 的 `insert_run` writer 全仓 0 调用（08-12 审计），空库为预期、非功能损坏，已从 P0 降级（见孤儿段 #4）；天璇 /app/output 校准产物随重建丢失（已知）
 9. **时区 OPEN 3 条**：news.db ingested_at/last_scan 展示层未统一（web_server /status）；web_server.py:530 /grv-history 本地↔UTC 混合比较边界差 8h；gdelt_history.date 纯日期键维持 UTC 语义（低优先）
 10. **firms 09:08 连续 0 行需人工介入（08-11 晨检发现）**：补偿重试（77f6711）未救回；19:08 手动触发 39993 热点=源活 → 疑 09:08 调度时段源端/网络持续异常，建议改调度时间或查该时段出网（qa midcheck P1#2 延伸）
-11. **worldsim-pg 统一采集库后续（08-12 晚主线，顺序锁定）**：A0/A0.5/C1→C(方案)/A1-min/B1/C0/B0/D0 已完成 ✅（见「当前状态」worldsim-pg 段）。**E0 应用整合收尾 ✅（08-13）**：A 双写证通——新增 `pg_write_collection.py` 旁路双写（news/forecast/tianji 三 schema），挂钩 news_db/forecast_tracker/tianji_db/narrative_processor 落库后非阻塞双写；B chroma 退役——rag_engine/build_rag_index 删全部 chroma 分支 + RAG_BACKEND 开关、requirements 移除 chromadb、chroma.sqlite3 备份后删除（观察窗提前，用户选择不等 9/1）。D0 验收 top-10 重叠率 1.0000 通过。**C 读路径改写（天枢 SQLite reader → pg）+ 删 3 个 SQLite 文件留待双写稳定后观察窗**。E0 代码已 commit+push（b0/news-forecast-pg, f574812）。**E0-A 已激活实测通过（08-13 13:xx，TSX@nas 直连容器）**：rsync 同步运行区 + 运行区 docker-compose.yml 注入 WORLDSIM_APP_PW + `docker compose up -d` 重建；探针 `pg.upsert_news_scan_context` 实测 `before=0 after_insert=1 OK`，4 写入模块 import 全过，调度器干净重启，双写链路已活，下次真实采集自然增量 pg。
+11. **worldsim-pg 统一采集库后续（08-12 晚主线，顺序锁定）**：A0/A0.5/C1→C(方案)/A1-min/B1/C0/B0/D0 已完成 ✅（见「当前状态」worldsim-pg 段）。**E0 应用整合收尾 ✅（08-13）**：A 双写证通——新增 `pg_write_collection.py` 旁路双写（news/forecast/tianji 三 schema），挂钩 news_db/forecast_tracker/tianji_db/narrative_processor 落库后非阻塞双写；B chroma 退役——rag_engine/build_rag_index 删全部 chroma 分支 + RAG_BACKEND 开关、requirements 移除 chromadb、chroma.sqlite3 备份后删除（观察窗提前，用户选择不等 9/1）。D0 验收 top-10 重叠率 1.0000 通过。**C 读路径改写（天枢 SQLite reader → pg）+ 删 SQLite 文件（P6 已于 08-14 08:39 执行，commit 1ba002a）**。E0 代码已 commit+push（b0/news-forecast-pg, f574812）。**E0-A 已激活实测通过（08-13 13:xx，TSX@nas 直连容器）**：rsync 同步运行区 + 运行区 docker-compose.yml 注入 WORLDSIM_APP_PW + `docker compose up -d` 重建；探针 `pg.upsert_news_scan_context` 实测 `before=0 after_insert=1 OK`，4 写入模块 import 全过，调度器干净重启，双写链路已活，下次真实采集自然增量 pg。
 
 ## 关键决策
 

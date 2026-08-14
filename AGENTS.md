@@ -17,9 +17,9 @@
 
 ---
 
-## 数据架构现状（E0-C，2026-08-13）
+## 数据架构现状（E0-C，2026-08-14）
 
-**读路径已统一 worldsim-pg**（`核心代码/pg_read.py` 只读层，行边界归一化 UTC 文本；14 个 reader 已切）。**写路径 PG 主写**（`WORLDSIM_SQLITE_OFF=1` 已生效：news_db 6 写函数 + synthesis_log 写路径 PG-only 分支；SQLite 冻结快照 + `data/.sqlite_frozen_at` marker，待 P6 删 3 库 + 2 僵尸——`核心代码/delete_sqlite_e0c.sh` 就绪）。
+**读路径已统一 worldsim-pg**（`核心代码/pg_read.py` 只读层，行边界归一化 UTC 文本；14 个 reader 已切）。**写路径 PG 主写**（`WORLDSIM_SQLITE_OFF=1` 已生效：news_db 6 写函数 + synthesis_log 写路径 PG-only 分支；`data/.sqlite_frozen_at` marker 留存）。**SQLite 已删（P6 08-14 08:39 闭环，commit 1ba002a，快照 `e0c-p6-20260814-083910`）——任何代码不得再 sqlite3.connect 创建 news.db，读走 pg_read（08-14 P0 修复：init_db/_conn fail-fast + _check_data_maturity PG 分支）。**
 
 涉及 P0/E0-C 排障先查 `docs/decisions/E0-C-operation-log.md` 与 `docs/decisions/ADR-00{1,2,3}.md`；对账/探针：`verify_reads_e0c.py`（双读校验台，PG-only 语义）/ `reconcile_synthesis.py` / `silent_failure_probe.py`（PG-only 模式）。
 

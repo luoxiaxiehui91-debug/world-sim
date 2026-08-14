@@ -171,7 +171,13 @@ def _find_pub_ctx_pg(published_at):
 
 
 def _conn(db_path: str) -> sqlite3.Connection:
-    """打开 SQLite 连接，启用 WAL 模式（支持读写并发），超时15s。"""
+    """打开 SQLite 连接，启用 WAL 模式（支持读写并发），超时15s。
+
+    PG-only（WORLDSIM_SQLITE_OFF=1）下禁止 SQLite 连接：读路径应走 pg_read，
+    直接 sqlite3.connect 会在文件缺失时重建 news.db（P0 复生，08-14 修复）。
+    """
+    if _PG_ONLY:
+        raise RuntimeError("PG-only: 禁止 sqlite3.connect，读路径走 pg_read")
     c = sqlite3.connect(db_path, timeout=15)
     c.execute("PRAGMA journal_mode=WAL")
     c.execute("PRAGMA busy_timeout=10000")
@@ -182,7 +188,13 @@ def _conn(db_path: str) -> sqlite3.Connection:
 # ── 初始化 ────────────────────────────────────────────────────────────────────
 
 def init_db(db_path: str) -> None:
-    """创建 news.db 并执行 DDL 建表（幂等，已存在则跳过）。"""
+    """创建 news.db 并执行 DDL 建表（幂等，已存在则跳过）。
+
+    PG-only（WORLDSIM_SQLITE_OFF=1）下直接 return：严禁创建 SQLite 文件
+    （08-14 P0 修复：此前 scan_weak_signals 调用此处会复活已删的 news.db）。
+    """
+    if _PG_ONLY:
+        return
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     c = _conn(db_path)
     with c:
