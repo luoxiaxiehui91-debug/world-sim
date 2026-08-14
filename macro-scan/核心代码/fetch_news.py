@@ -1,69 +1,87 @@
-#!/usr/bin/env python3
-"""
-fetch_news.py — 新闻 / 市场情报聚合（P1 归并模块：MarketAux + Currents + Sugra）
+# -*- coding: utf-8 -*-
+"""fetch_news.py — 新闻 / 市场情报聚合（P1 归并模块）
 
-归并金融/综合新闻情报源（符合"新闻类聚合进一个 fetcher"的改造要求）：
-  - MarketAux：金融新闻 / 市场情绪，结构化（apiKey）
-  - Currents：综合多源新闻（apiKey）
-  - Sugra：聚合「市场 + 经济 + 商品 + 气候 + 新闻」LLM-ready JSON（apiKey；端点本环境未核实）
+08-14 改造（源现状 + 用户拍板）：
+  - 主源：GDELT DOC 2.0（免费无 key，英文新闻全文 + tone/goldstein 情感分数，
+          每天 5000 请求；容器内 api.gdeltproject.org 直连可达）
+  - 增强：MarketAux（金融 ticker 情绪 + 符号频率；需 apiKey，未配置时不影响主源，
+          2026-08-14 实测其免费注册通道服务端报错，key 配置后自动启用）
+  - 已摘除（保留历史说明）：
+      Currents —— 2026-08 官网注册入口已消失（首页/FAQ/Docs 均无 Sign up），
+                  且免费条款限制长期存储，新用户无法获取 key
+      Sugra —— api.sugra.ai 域名 DNS 不存在（幽灵端点），配 key 也无用
 
-三源均 apiKey；未配置 key 时对应子源 status=key_missing（非 crash）。
-本模块为「待接 GRV 字段」源：先落盘，下游可经 news.db / LLM 上下文消费。
-
-各子源独立 status，互不影响。
-
-输出契约：data/news_risk.json
+输出 news_risk.json：
   {
-    "status":  "ok" | "partial" | "unavailable",
-    "marketaux": {status, count, articles:[...], top_symbols:[...]},
-    "currents":  {status, count, articles:[...]},
-    "sugra":     {status, observations?, note?},
-    "source":  "MarketAux / Currents / Sugra",
-    "updated": as-of
+    "status": "ok" | "unavailable",
+    "updated": "...",
+    "source": "GDELT DOC 2.0 / MarketAux",
+    "gdelt":    {status, count, articles: [{title,url,domain,published_at,tone,goldstein}]},
+    "marketaux": {status, ...},          # key_missing 时仅标注
+    "articles": [...]                    # 前端便捷通道（top 聚合）
   }
 
-降级：每子源独立 try/except（含 key 缺失）；整体不可用时若本地有上次良值则保留、不覆盖、绝不 crash。
-网络出口：直连优先，失败回退代理，仍失败降级（各源出口实测见交付报告）。
-调度：scheduler.py 06:16（不依赖 GRV，落盘即可）。
+降级：每子源独立 try/except；主源失败且本地有上次良值则保留、不覆盖、绝不 crash。
+网络出口：直连优先，失败回退代理（_get 实现）。
 """
-import os
+
+import datetime
 import json
+import os
+import sys
 from collections import Counter
+
+from fetcher_base import FetcherBase, Status
 
 try:
     from optim_config import (
         DATA_DIR, PROXY_URL,
         MARKETAUX_API_KEY, MARKETAUX_API_URL,
-        CURRENTS_API_KEY, CURRENTS_API_URL,
-        SUGRA_API_KEY, SUGRA_API_URL,
     )
-except ImportError:
-    _cfg = FetcherBase.load_config_with_fallback(
-        ["DATA_DIR", "PROXY_URL", "MARKETAUX_API_KEY", "MARKETAUX_API_URL",
-         "CURRENTS_API_KEY", "CURRENTS_API_URL", "SUGRA_API_KEY", "SUGRA_API_URL"],
-        {
-            "DATA_DIR": FetcherBase.default_data_dir(),
-            "PROXY_URL": ("http://192.168.31.108:7890", "PROXY_URL"),
-            "MARKETAUX_API_KEY": ("", "MARKETAUX_API_KEY"),
-            "MARKETAUX_API_URL": ("https://api.marketaux.com/v1/news/all", "MARKETAUX_API_URL"),
-            "CURRENTS_API_KEY": ("", "CURRENTS_API_KEY"),
-            "CURRENTS_API_URL": ("https://api.currentsapi.services/v1/latest-news", "CURRENTS_API_URL"),
-            "SUGRA_API_KEY": ("", "SUGRA_API_KEY"),
-            "SUGRA_API_URL": ("https://api.sugra.ai/v1/observations", "SUGRA_API_URL"),
-        },
+except Exception:
+    DATA_DIR = os.environ.get("DATA_DIR", "/workspace/data")
+    PROXY_URL = os.environ.get("PROXY_URL", "http://192.168.31.108:7890")
+    MARKETAUX_API_KEY = os.environ.get("MARKETAUX_API_KEY", "")
+    MARKETAUX_API_URL = os.environ.get(
+        "MARKETAUX_API_URL", "https://api.marketaux.com/v1/news/all"
     )
-    DATA_DIR = _cfg["DATA_DIR"]
-    PROXY_URL = _cfg["PROXY_URL"]
-    MARKETAUX_API_KEY = _cfg["MARKETAUX_API_KEY"]
-    MARKETAUX_API_URL = _cfg["MARKETAUX_API_URL"]
-    CURRENTS_API_KEY = _cfg["CURRENTS_API_KEY"]
-    CURRENTS_API_URL = _cfg["CURRENTS_API_URL"]
-    SUGRA_API_KEY = _cfg["SUGRA_API_KEY"]
-    SUGRA_API_URL = _cfg["SUGRA_API_URL"]
-
-from fetcher_base import FetcherBase
 
 OUTPUT_FILE = "news_risk.json"
+
+# GDELT DOC 2.0（免费无 key；每次请求 1 个 query，OR 关键词必须括号包裹）
+GDELT_DOC_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
+GDELT_QUERY = (
+    '(market OR finance OR economy OR "geopolitical risk" OR oil OR gold '
+    'OR conflict OR war OR sanctions OR crisis)'
+)
+GDELT_MAXRECORDS = 15
+GDELT_MIN_INTERVAL = 5.0  # GDELT DOC 2.0 限速：每 5 秒 1 请求（429 实测）
+
+
+def _seendate_to_iso(seendate: str) -> str:
+    """GDELT seendate 两种格式 → ISO 'YYYY-MM-DDTHH:MM:SSZ'（UTC）。
+
+    artlist JSON 实测格式：'20260710T043000Z'；旧版也可能 'YYYYMMDDHHMMSS'。
+    """
+    s = str(seendate or "").strip()
+    if len(s) >= 16 and s[8] == "T" and s.endswith("Z"):
+        # '20260710T043000Z' → '2026-07-10T04:30:00Z'
+        return f"{s[0:4]}-{s[4:6]}-{s[6:8]}T{s[9:11]}:{s[11:13]}:{s[13:15]}Z"
+    if len(s) >= 14 and s.isdigit():
+        # '20260710043000' → '2026-07-10T04:30:00Z'
+        return f"{s[0:4]}-{s[4:6]}-{s[6:8]}T{s[8:10]}:{s[10:12]}:{s[12:14]}Z"
+    return ""
+
+
+def _dt_ts(a: dict) -> float:
+    """文章 published_at → epoch 秒（排序用；解析失败返回 0）。"""
+    try:
+        import datetime as _dt
+        return _dt.datetime.fromisoformat(
+            (a.get("published_at") or "").replace("Z", "+00:00")
+        ).timestamp()
+    except Exception:
+        return 0.0
 
 
 class NewsFetcher(FetcherBase):
@@ -86,14 +104,59 @@ class NewsFetcher(FetcherBase):
             return self.request(url, params=params, headers=headers, timeout=timeout)
         return None
 
-    # ── MarketAux（金融新闻，apiKey）───────────────────────────
+    # ── GDELT DOC 2.0（主源，免费无 key）──────────────────────
+    def _fetch_gdelt_doc(self) -> dict:
+        import time as _time
+        _time.sleep(GDELT_MIN_INTERVAL)  # 限速尊重（每 5 秒 1 请求）
+        params = {
+            "query": GDELT_QUERY,
+            "mode": "artlist",
+            "format": "json",
+            "maxrecords": GDELT_MAXRECORDS,
+            "timespan": "1d",          # 最近 24h（实测不带 timespan 会返回月前旧闻）
+            "sourcelang": "eng",
+        }
+        try:
+            r = self._get(GDELT_DOC_URL, params=params,
+                          headers={"User-Agent": "Mozilla/5.0"})
+        except Exception as e:
+            return {"status": "unavailable", "reason": f"request_error:{e}"}
+        if r is None:
+            return {"status": "unavailable", "reason": "unreachable"}
+        try:
+            d = r.json()
+            items = (d.get("articles") or [])[:GDELT_MAXRECORDS]
+            arts = []
+            for a in items:
+                lang = (a.get("language") or "").lower()
+                # 英文优先排序（sourcelang 参数实测不完全生效，客户端兜底）
+                arts.append({
+                    "title": a.get("title"),
+                    "url": a.get("url"),
+                    "domain": a.get("domain"),
+                    "source": a.get("domain"),
+                    "published_at": _seendate_to_iso(a.get("seendate")),
+                    "language": a.get("language"),
+                    "sourcecountry": a.get("sourcecountry"),
+                    "_eng": lang.startswith("english"),
+                })
+            arts.sort(key=lambda a: (0 if a.pop("_eng") else 1, -_dt_ts(a)))
+            return {"status": "ok", "count": len(items), "articles": arts}
+        except Exception as e:
+            return {"status": "unavailable", "reason": f"parse_error:{e}"}
+
+    # ── MarketAux（金融新闻 + ticker 情绪，apiKey；可选增强）────
     def _fetch_marketaux(self) -> dict:
         if not MARKETAUX_API_KEY:
-            return {"status": "key_missing", "reason": "no_marketaux_key"}
-        r = self._get(MARKETAUX_API_URL, params={
-            "api_token": MARKETAUX_API_KEY, "limit": 10,
-            "languages": "en", "filter_entities": True,
-        })
+            return {"status": "key_missing", "reason": "no_marketaux_key",
+                    "note": "MarketAux 免费注册通道 2026-08 服务端异常，key 配置后自动启用"}
+        try:
+            r = self._get(MARKETAUX_API_URL, params={
+                "api_token": MARKETAUX_API_KEY, "limit": 10,
+                "languages": "en", "filter_entities": True,
+            })
+        except Exception as e:
+            return {"status": "unavailable", "reason": f"request_error:{e}"}
         if r is None:
             return {"status": "unavailable", "reason": "unreachable"}
         try:
@@ -115,62 +178,26 @@ class NewsFetcher(FetcherBase):
         except Exception as e:
             return {"status": "unavailable", "reason": f"parse_error:{e}"}
 
-    # ── Currents（综合新闻，apiKey）────────────────────────────
-    def _fetch_currents(self) -> dict:
-        if not CURRENTS_API_KEY:
-            return {"status": "key_missing", "reason": "no_currents_key"}
-        r = self._get(CURRENTS_API_URL, params={
-            "apiKey": CURRENTS_API_KEY, "language": "en", "limit": 10,
-        })
-        if r is None:
-            return {"status": "unavailable", "reason": "unreachable"}
-        try:
-            d = r.json()
-            items = d.get("news", []) or []
-            arts = [{
-                "title": a.get("title"),
-                "url": a.get("url"),
-                "published": a.get("published"),
-                "author": a.get("author"),
-            } for a in items[:10]]
-            return {"status": "ok", "count": len(items), "articles": arts}
-        except Exception as e:
-            return {"status": "unavailable", "reason": f"parse_error:{e}"}
-
-    # ── Sugra（聚合 LLM-ready，apiKey；端点本环境未核实）──────
-    def _fetch_sugra(self) -> dict:
-        if not SUGRA_API_KEY:
-            return {"status": "key_missing", "reason": "no_sugra_key",
-                    "note": "Sugra 端点/契约需在部署时确认（本环境无法核实）"}
-        # 端点未在本环境核实；调用失败安全降级，绝不伪造成功
-        r = self._get(SUGRA_API_URL, headers={"Authorization": f"Bearer {SUGRA_API_KEY}"})
-        if r is None:
-            return {"status": "unavailable", "reason": "unreachable"}
-        try:
-            return {"status": "ok", "observations": r.json()}
-        except Exception as e:
-            return {"status": "unavailable", "reason": f"parse_error:{e}"}
-
     def collect(self):
+        g = self._fetch_gdelt_doc()
         m = self._fetch_marketaux()
-        c = self._fetch_currents()
-        s = self._fetch_sugra()
-        if all(v.get("status") in ("unavailable", "key_missing") for v in (m, c, s)):
-            overall = "unavailable"
-        elif any(v.get("status") == "ok" for v in (m, c, s)):
+        if g.get("status") == "ok":
             overall = "ok"
-        else:
+        elif m.get("status") == "ok":
             overall = "partial"
+        else:
+            overall = "unavailable"
         return {
             "status": overall,
+            "gdelt": g,
             "marketaux": m,
-            "currents": c,
-            "sugra": s,
-            "source": "MarketAux / Currents / Sugra",
+            "articles": (g.get("articles") or []) + (m.get("articles") or []),
+            "source": "GDELT DOC 2.0 / MarketAux",
         }
 
     def _is_good(self, data: dict) -> bool:
         return data.get("status") in ("ok", "partial")
+
 
 def main():
     fetcher = NewsFetcher(DATA_DIR)
@@ -180,9 +207,8 @@ def main():
         return
     if result.get("status") in ("ok", "partial"):
         fetcher.save_json(OUTPUT_FILE, result)
-        detail = (f"marketaux={result['marketaux'].get('status')} "
-                  f"currents={result['currents'].get('status')} "
-                  f"sugra={result['sugra'].get('status')}")
+        detail = (f"gdelt={result['gdelt'].get('status')} "
+                  f"marketaux={result['marketaux'].get('status')}")
         print(f"[news] 完成 status={result.get('status')}，{detail}")
     else:
         prev = fetcher.load_previous_good()

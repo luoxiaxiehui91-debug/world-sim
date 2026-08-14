@@ -7,6 +7,7 @@ import type {
   DisasterSignalsRaw,
   EarthquakeRiskRaw,
   EnergyRiskRaw,
+  NewsRiskRaw,
   UnavailableRiskRaw,
 } from '@/types/contracts';
 
@@ -104,7 +105,7 @@ export function RiskSignalsPanel() {
   const earthquake = useFeed<EarthquakeRiskRaw>('earthquake_risk');
   const energy = useFeed<EnergyRiskRaw>('energy_risk');
   const hdx = useFeed<UnavailableRiskRaw>('hdx_risk');
-  const news = useFeed<UnavailableRiskRaw>('news_risk');
+  const news = useFeed<NewsRiskRaw>('news_risk');
 
   return (
     <div className="glass-panel scanlines flex h-full min-h-[240px] flex-col">
@@ -185,8 +186,20 @@ export function RiskSignalsPanel() {
 
         {/* ── 新闻风险 ── */}
         <SignalCard title="新闻风险" status={news.data?.status} updated={news.data?.updated}>
+          {news.data?.status === 'ok' && (
+            <div className="flex flex-col gap-1">
+              {(news.data?.articles ?? []).slice(0, 5).map((a, i) => (
+                <a key={`${a.url ?? ''}-${i}`} href={a.url} target="_blank" rel="noopener noreferrer"
+                   className="line-clamp-1 text-[10px] leading-tight text-white/60 hover:text-cyan-300 hover:underline"
+                   title={a.title}>
+                  {a.title}
+                </a>
+              ))}
+              {!news.data?.articles?.length && <div className="text-[9px] text-white/35">暂无风险新闻</div>}
+            </div>
+          )}
           {news.data?.status === 'unavailable' && (
-            <div className="text-[9px] text-white/35">聚合源不可用（缺 API key）</div>
+            <div className="text-[9px] text-white/35">聚合源不可用</div>
           )}
           {news.data?.source && <div className="text-[9px] text-white/25">来源 {news.data.source}</div>}
           {news.error && <div className="text-[10px] text-amber-300">读取失败</div>}

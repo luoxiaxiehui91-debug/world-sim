@@ -400,3 +400,23 @@ export interface UnavailableRiskRaw extends RiskSignalBase {
   reason?: string;
   source?: string;
 }
+
+/** news_risk.json（08-14 起 GDELT DOC 2.0 主源，含文章列表）。 */
+export interface NewsRiskArticle {
+  title?: string;
+  url?: string;
+  domain?: string;
+  source?: string;
+  published_at?: string;
+  language?: string;
+  sourcecountry?: string;
+}
+export interface NewsRiskRaw extends RiskSignalBase {
+  source?: string;
+  gdelt?: {
+    status?: string;
+    count?: number;
+    articles?: NewsRiskArticle[];
+  };
+  articles?: NewsRiskArticle[];
+}
