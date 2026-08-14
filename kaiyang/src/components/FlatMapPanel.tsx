@@ -497,8 +497,11 @@ export function FlatMapPanel({
       } else if (p.shape === 'dot') {
         // 08-14 海量点简化渲染（thermal/sdr）：只画核心圆，无外环/光晕。
         // 点数大（数千）时每点省 2 个 SVG 元素，配合 tooltip rAF 节流防卡顿（用户反馈）。
+        // v1.11.5：core 改用普通点公式（1.6~4.6px）而非聚合放大（5~9px）——
+        // thermal 计数已由中心徽标表达，点再大喧宾夺主（用户反馈「圆太大」）。
+        const dotCore = Math.min(4.6, Math.max(1.6, 1.6 + p.weight * 3.0));
         const dot = grp.append('circle')
-          .attr('cx', 0).attr('cy', 0).attr('r', core)
+          .attr('cx', 0).attr('cy', 0).attr('r', dotCore)
           .attr('fill', fillColor).attr('stroke', strokeColor).attr('stroke-width', strokeW)
           .attr('fill-opacity', 0.85);
         if (missing) {
@@ -511,7 +514,7 @@ export function FlatMapPanel({
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'central')
             .attr('fill', '#ffffff')
-            .attr('font-size', Math.max(6.5, core * 0.85))
+            .attr('font-size', Math.max(6.5, dotCore * 0.85))
             .attr('font-weight', 600)
             .attr('pointer-events', 'none')
             .style('user-select', 'none')
