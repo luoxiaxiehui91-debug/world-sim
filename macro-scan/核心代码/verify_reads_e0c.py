@@ -18,8 +18,15 @@ NOW = dt.datetime.now(dt.timezone.utc)
 GAPS = []
 
 
+SQLITE_GONE = not os.path.exists(os.path.join(DATA, "news.db"))
+
+
 def sq(db, sql, params=()):
-    c = sqlite3.connect(os.path.join(DATA, db))
+    p = os.path.join(DATA, db)
+    if not os.path.exists(p):
+        raise FileNotFoundError("SQLite 已退役（P6 删库）: " + p)
+    # 只读模式连接：文件不存在时禁止自动创建空库（否则每次跑回归都会复活 .db）
+    c = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
     try:
         return [tuple(r) for r in c.execute(sql, params).fetchall()]
     finally:
@@ -408,6 +415,12 @@ def main():
     for ch in CHECKS:
         name = ch["name"]
         try:
+            if SQLITE_GONE:
+                # SQLite 已退役（P6 删库）：跳过双读比对，PG 侧健康检查
+                b = pg(ch["pgsql"], ch["pgparams"])
+                n_pass += 1
+                print("PASS* {:28s} pg_rows={} (SQLite 已退役，PG 健康)".format(name, len(b)))
+                continue
             a = sq(ch["db"], ch["sql"], ch["params"])
             b = pg(ch["pgsql"], ch["pgparams"])
             if ch.get("gap"):

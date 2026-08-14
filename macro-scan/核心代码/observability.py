@@ -127,6 +127,16 @@ def read_synthesizer_stats(today: str = None) -> dict:
     """
     if today is None:
         today = datetime.date.today().isoformat()
+    # 时区口径（P0-2 家族修复）：today 是本地（北京）日期，PG session 是 UTC，
+    # 必须转 UTC 区间，否则早上 8 点前的轮次（UTC 仍在昨日）被漏计为 0。
+    try:
+        from zoneinfo import ZoneInfo
+        _local = datetime.datetime.fromisoformat(today + "T00:00:00").replace(tzinfo=ZoneInfo("Asia/Shanghai"))
+        _utc_start = _local.astimezone(datetime.timezone.utc)
+        _utc_end = _utc_start + datetime.timedelta(days=1)
+    except Exception:
+        _utc_start = datetime.datetime.fromisoformat(today + "T00:00:00")
+        _utc_end = _utc_start + datetime.timedelta(days=1)
 
     empty = {
         "staging_mode": None,
@@ -156,31 +166,31 @@ def read_synthesizer_stats(today: str = None) -> dict:
 
         # 当日评估数（E0-C: SQLite log_time 列本不存在（历史恒 0），改用 triggered_at）
         cur = conn.execute(
-            "SELECT COUNT(*) as n FROM news.synthesis_log WHERE triggered_at::date = %s::date",
-            (today,)
+            "SELECT COUNT(*) as n FROM news.synthesis_log WHERE triggered_at >= %s AND triggered_at < %s",
+            (_utc_start, _utc_end)
         )
         evaluated = cur.fetchone()["n"]
 
         # 触发数：SQLite resonance_ok 列本不存在（历史恒 0），PG 无此列 → 按今日触发总数计
         cur = conn.execute(
-            "SELECT COUNT(*) as n FROM news.synthesis_log WHERE triggered_at::date = %s::date",
-            (today,)
+            "SELECT COUNT(*) as n FROM news.synthesis_log WHERE triggered_at >= %s AND triggered_at < %s",
+            (_utc_start, _utc_end)
         )
         triggered = cur.fetchone()["n"]
 
         # LLM 调用数
         cur = conn.execute(
             "SELECT COUNT(*) as n FROM news.synthesis_log "
-            "WHERE triggered_at::date = %s::date AND llm_success = 1",
-            (today,)
+            "WHERE triggered_at >= %s AND triggered_at < %s AND llm_success = 1",
+            (_utc_start, _utc_end)
         )
         llm_calls = cur.fetchone()["n"]
 
         # ntfy 发送数
         cur = conn.execute(
             "SELECT COUNT(*) as n FROM news.synthesis_log "
-            "WHERE triggered_at::date = %s::date AND ntfy_success = 1",
-            (today,)
+            "WHERE triggered_at >= %s AND triggered_at < %s AND ntfy_success = 1",
+            (_utc_start, _utc_end)
         )
         ntfy_sends = cur.fetchone()["n"]
 
@@ -188,9 +198,9 @@ def read_synthesizer_stats(today: str = None) -> dict:
         suppress = {}
         cur = conn.execute(
             "SELECT suppress_reason, COUNT(*) as n FROM news.synthesis_log "
-            "WHERE triggered_at::date = %s::date AND suppress_reason IS NOT NULL "
+            "WHERE triggered_at >= %s AND triggered_at < %s AND suppress_reason IS NOT NULL "
             "GROUP BY suppress_reason",
-            (today,)
+            (_utc_start, _utc_end)
         )
         for row in cur:
             suppress[row["suppress_reason"]] = row["n"]

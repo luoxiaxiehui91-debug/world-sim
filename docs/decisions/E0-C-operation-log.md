@@ -53,6 +53,13 @@
 
 ## 四、操作记录（按时间倒序，每动作含 时间/动作/证据/结论）
 
+### 2026-08-14 08:4x 全项目检查 + 验收工具适配（P6 后）
+- 全量验收复跑发现 **3 个真问题并修复**：
+  1. **harness 复活 .db**：verify_reads_e0c.py 用普通 sqlite3.connect 连已删的 news.db → 自动创建 0 字节空库（P6 后任何回归都会复活 SQLite）→ sq() 改 `file:...?mode=ro` 只读 + `SQLITE_GONE` 分支（SQLite 已退役 → 跳过双读，PG 健康 PASS）。26/0/0。
+  2. **observability 时区口径 bug**（P0-2 家族遗留）：read_synthesizer_stats 用北京 today 匹配 PG UTC 的 `triggered_at::date` → 早 8 点前的轮次（UTC 仍在昨日）漏计为 0 → 改 UTC 区间查询（local 00:00 → UTC 区间）。修复后今日 17 条评估正确统计。
+  3. **验收脚本数据内容硬编码**：tracker_pg_read 要求"关税"近 24h 恰好 3 条（真实数据窗口变化必挂）→ 改执行成功即 PASS（读路径健康语义）。
+- 修复后 **final_acceptance_e0c.py 14/14 ALL_PASS**；.db 零复生确认。
+
 ### 2026-08-14 08:39 P6 — 删除 3 SQLite + 2 僵尸，E0-C 全部闭环
 - 动作：`bash 核心代码/delete_sqlite_e0c.sh`。门禁 4/4 全过（marker 存在 / env WORLDSIM_SQLITE_OFF=1 / 探针 OK / P4 备份存在）→ 快照 4 db → `backups/e0c-p6-20260814-083910/` → 删除 news.db / forecast_tracker.db / narrative.db / tianji.db → 验证原路径无 .db + 探针删后 OK。
 - 删后观察（90s+）：无 .db 复生、心跳 08:41 新鲜、日志零 sqlite 错误、探针 verdict OK / NON_OK 0、commodity/crypto 产物正常。**无遗漏代码触碰 SQLite**。
