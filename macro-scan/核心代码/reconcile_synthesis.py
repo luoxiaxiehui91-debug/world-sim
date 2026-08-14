@@ -34,7 +34,10 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    sq = sqlite3.connect(os.path.join(DATA, "news.db"))
+    _sq_path = os.path.join(DATA, "news.db")
+    if not os.path.exists(_sq_path):
+        raise FileNotFoundError("news.db 已退役（P6 删库 08-14）: 对账请基于 worldsim-pg")
+    sq = sqlite3.connect(f"file:{_sq_path}?mode=ro", uri=True)
     sq.row_factory = sqlite3.Row
     rows = sq.execute(
         "SELECT id, rule_id, triggered_at, scan_ctx_id, trigger_summary, "

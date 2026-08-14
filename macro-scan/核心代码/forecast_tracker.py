@@ -140,6 +140,10 @@ def _connect() -> sqlite3.Connection:
     """创建并返回 SQLite 连接，首次运行时自动执行 DDL 建表（forecasts/actuals/evaluations）。"""
     if _PG_ONLY:
         return _NoopConn()
+    if not os.path.exists(DB_PATH):
+        # P6 删库后（08-14）：SQLite 已退役，禁止自动创建（sqlite3.connect 会建空库）
+        raise RuntimeError(
+            "SQLite 已退役（P6 删库）: %s 不存在，读路径走 pg_read；如需双写回归请先恢复备份" % DB_PATH)
     os.makedirs(DATA_DIR, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row

@@ -20,7 +20,9 @@ TABLES = [
 ]
 
 def main():
-    sconn = sqlite3.connect(SQLITE)
+    if not os.path.exists(SQLITE):
+        raise FileNotFoundError("%s 已退役（P6 删库 08-14）: 对账请基于 worldsim-pg" % SQLITE)
+    sconn = sqlite3.connect(f"file:{SQLITE}?mode=ro", uri=True)
     sconn.row_factory = sqlite3.Row
     pconn = psycopg.connect(**PG)
     total = 0
