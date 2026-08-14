@@ -208,11 +208,14 @@ export function WorldPanel() {
     [visibleCategories],
   );
 
-  // 2D 平面图性能护栏（08-14 20:4x 用户反馈「平面图非常卡」）：
-  // aircraft 6182 箭头在 SVG 下 DOM 过重 → flat 模式均匀降采样到
-  // MAX_FLAT_LAYER_POINTS；globe 3D 走 WebGL 可扛全量不降（用户拍板过全量）。
+  // 视图分层（08-14 23:0x 用户拍板）：
+  // - flat 2D 平面图：aircraft 实时航班降采样到 MAX_FLAT_LAYER_POINTS（SVG 性能护栏）
+  // - globe 3D 地球：aircraft **不渲染**（用户拍板：实时航班放 3D 无意义，且全量
+  //   12503 点 WebGL 耗资源；3D 保留 air 航线网/弧 + 其他图层）
   const displayPoints = useMemo(
-    () => (mode === 'flat' ? downsampleLayer(allPoints, 'aircraft') : allPoints),
+    () => (mode === 'flat'
+      ? downsampleLayer(allPoints, 'aircraft')
+      : allPoints.filter((p) => p.category !== 'aircraft')),
     [allPoints, mode],
   );
 
