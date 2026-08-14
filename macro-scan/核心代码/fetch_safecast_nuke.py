@@ -145,6 +145,44 @@ def collect_sites() -> tuple[list, bool]:
     return sites, False
 
 
+def _alert_anomalies(sites: list) -> None:
+    """anom 站点状态变化 → ntfy 核辐射异常告警（P1-4 修复：告警分支此前哑失效——
+    safecast_nuke 只落盘无消费者，anom 永远没人看见）。
+    去重：data/nuke_alert_state.json 记录各站上次 anom 状态，仅状态翻转时推送。"""
+    try:
+        from ntfy_utils import push_text
+    except Exception:
+        push_text = None
+    anoms = {s["key"]: bool(s.get("anom")) for s in sites if s.get("avgCPM") is not None}
+    state_path = os.path.join(BASE_DIR, "data", "nuke_alert_state.json")
+    prev = {}
+    if os.path.exists(state_path):
+        try:
+            with open(state_path, encoding="utf-8") as f:
+                prev = json.load(f)
+        except Exception:
+            prev = {}
+    changed = {k: v for k, v in anoms.items() if prev.get(k) != v}
+    if changed and push_text:
+        try:
+            lines = []
+            for k, v in changed.items():
+                site = next((s["site"] for s in sites if s["key"] == k), k)
+                if v:
+                    lines.append(f"{site}：辐射读数异常（avgCPM > {ANOMALY_CPM_THRESHOLD}）")
+                else:
+                    lines.append(f"{site}：辐射读数恢复正常")
+            push_text("核辐射监测变化", "\n".join(lines))
+            print(f"[safecast] 核辐射告警推送：{len(changed)} 站点状态变化")
+        except Exception as e:
+            print(f"[safecast] 告警推送失败（非阻断）: {e}")
+    try:
+        with open(state_path, "w", encoding="utf-8") as f:
+            json.dump(anoms, f, ensure_ascii=False, indent=1)
+    except Exception as e:
+        print(f"[safecast] 告警状态落盘失败（非阻断）: {e}")
+
+
 def fetch_and_save() -> dict:
     """采集 → 落盘 data/safecast_nuke.json。返回摘要 dict。"""
     os.makedirs(os.path.dirname(OUT_JSON), exist_ok=True)
@@ -164,6 +202,7 @@ def fetch_and_save() -> dict:
     else:
         ok = sum(1 for s in sites if s["avgCPM"] is not None)
         print(f"[OK] safecast 写入 {ok}/6 站有效读数 → {OUT_JSON}")
+        _alert_anomalies(sites)  # P1-4：核辐射异常告警（状态翻转才推送）
     return payload
 
 

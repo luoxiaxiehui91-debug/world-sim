@@ -487,6 +487,28 @@ export interface FirmsRaw extends RiskSignalBase {
   upstream_window_days?: number;
 }
 
+/** spacelaunch.json（Next Spaceflight 发射记录，08-14 开阳 space 图层）。 */
+export interface SpaceLaunchItemRaw {
+  name?: string | null;
+  /** 发射时间窗（ISO） */
+  net?: string | null;
+  /** upcoming: Go/TBD/...；previous: Launch Successful/Failure/... */
+  status?: string | null;
+  rocket?: string | null;
+  provider?: string | null;
+  pad_name?: string | null;
+  /** 发射场坐标 */
+  lat: number;
+  lng: number;
+  /** 'upcoming' | 'previous' */
+  type?: string;
+}
+export interface SpaceLaunchRaw extends RiskSignalBase {
+  scope?: string;
+  launches_count?: number;
+  launches?: SpaceLaunchItemRaw[];
+}
+
 export interface NewsRiskRaw extends RiskSignalBase {
   source?: string;
   gdelt?: {

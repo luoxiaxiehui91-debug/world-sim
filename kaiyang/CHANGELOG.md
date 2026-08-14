@@ -527,6 +527,59 @@ docs/operations/20260805-world-deduction-time-audit-fixed.md。
 - npm test 14 files / 311 tests 全绿；vite build 本地构建（新 bundle index-oJgF4qMk.js / css 沿用 S7YTSnTj）
 - scp 原地覆盖 + chmod -R a+rX；root/js/css/news_geo 200；旧 bundle 按 DEPLOYMENT 规范留 3 版清理（v1.10.0-1.10.4 共 9 个删除）
 
+## [1.11.8] - 2026-08-14 · P2 续接：space 太空活动图层（Next Spaceflight 发射记录）
+
+**修改理由**：用户问「继续推进」→ P2 剩余三源调研：space 实测可达（免费无 key，需浏览器 UA 否则 403）、health 的 WHO RSS 已 404（暂缓）、maritime 免费源覆盖受限（暂缓，需注册 key）→ space 先接入。
+
+### 修改
+
+- **后端天枢**（fetch_spacelaunch.py，新建）：Next Spaceflight Launch Library 2（upcoming 未来计划 + previous 最近完成），解析发射场 pad 坐标；**必须带浏览器 UA**（无 UA 403 实测）；直连→代理回退；落盘 `spacelaunch.json`（130 条，坐标全合法）；scheduler 0705 日档（发射事件低频）
+- **前端**：
+  - `contracts.ts`：SpaceLaunchRaw / SpaceLaunchItemRaw
+  - `dataSources.ts`：+ spacelaunch feed
+  - `layerCategories.ts`：space def 更新（feed 'spacelaunch'、shape triangle→dot、desc）
+  - `lib/spaceAdapter.ts`（新建）：launches → RiskPoint[]（**air/thermal 教训复用：value null + severity 中性「太空」+ weight 0.5 + note 时间/状态/火箭**）
+  - `WorldPanel.tsx`：spacePoints 合并（K7 常规点区）
+  - 测试：+spaceAdapter.test（5 用例）；346 tests 全绿
+
+### 验证
+
+- tsc 通过；346 tests 全绿；vite build（新 bundle `index-cs9ILczn.js`）scp 部署；index / bundle / spacelaunch feed 200
+- 后端实跑：130 条（upcoming + previous）/ 坐标全合法 / 样本 Falcon 9 USSF-366 @范登堡
+- 视觉项由主理人浏览器复核
+
+## [1.11.7] - 2026-08-14 · thermal 风险语义中性化（用户追问「风险值怎么定的？非洲/西伯利亚相当高」）
+
+**修改理由**：主理人追问 thermal 风险值——原 value=count 归一化使西伯利亚（1800 火点/格 value 99）和非洲（1391 火点 value 77）显示「高风险」，但**火点密度 ≠ 人类风险**（无人区森林大火/季节性烧荒 vs 人口区山火），与 air「高度≠风险」同款语义错误。
+
+### 修改
+
+- `lib/thermalAdapter.ts`：value 恒 null（不显示误导风险值）+ severity 中性「火点活跃」+ weight=count 归一化（0-1）仅驱动点大小/3D 高度 + note 真实火点数/FRP/高置信（hover 看）；删除 aggCount
+- 测试：thermalAdapter.test 断言更新（value null / severity 中性 / weight 归一化 / aggCount 无）；341 tests 全绿
+
+### 验证
+
+- tsc 通过；341 tests 全绿；vite build（`index-BaNLJpp6.js`）scp 部署；index / bundle 200
+- 视觉项由主理人浏览器复核
+
+## [1.11.6] - 2026-08-14 · thermal 去中心计数徽标（用户反馈「数字去掉」）
+
+**修改理由**：527 格密集区中心数字糊成一片；火点数信息移到 hover tooltip（note 已含 count/FRP/高置信）。
+
+### 修改
+
+- `FlatMapPanel.tsx`：dot 分支删除 isAgg 计数 text（仅 dot 类；circle 聚合徽标保留给 news 同城聚合）
+- 验证：341 tests 全绿；vite build（`index-Cykfn9Ze.js`）scp 部署
+
+## [1.11.5] - 2026-08-14 · thermal dot 圆点缩小（用户反馈「圆太大」）
+
+**修改理由**：dot 分支误用聚合 core（isAgg ? 5~9px），thermal 全带 aggCount 走了聚合放大 → 527 格全是大圆。
+
+### 修改
+
+- `FlatMapPanel.tsx`：dot 分支改用普通点公式 `1.6 + weight*3.0 clamp[1.6,4.6]`（计数已由中心徽标表达，点无需 log2(count) 放大）
+- 验证：341 tests 全绿；vite build（`index-D1JxghQ2.js`）scp 部署
+
 ## [1.11.4] - 2026-08-14 · 2D 平面图 aircraft 降采样护栏（用户反馈「平面图就非常卡」）
 
 **修改理由**：rAF 节流 + dot 简化后 2D 仍卡——最大头是 aircraft 6182 箭头（SVG 每点 group+path+监听）。用户授权「筛一筛或缩小显示」→ flat 模式降采样，globe 3D 保持全量（WebGL 可扛，且用户拍板过全量）。

@@ -14,6 +14,7 @@ import { adaptAirTraffic } from '@/lib/airTrafficAdapter';
 import { adaptAirRoutes } from '@/lib/airRoutesAdapter';
 import { adaptSdr } from '@/lib/sdrAdapter';
 import { adaptThermal } from '@/lib/thermalAdapter';
+import { adaptSpace } from '@/lib/spaceAdapter';
 import { buildEventBars, buildRiskArcs, buildRiskPoints, downsampleLayer, type RiskPoint } from '@/lib/mapData';
 import { buildNuclearPoints, mergeNuclear } from '@/lib/nuclearData';
 import {
@@ -43,7 +44,7 @@ import {
 import { severityColor, withAlpha } from '@/config/theme';
 import { fmtNum } from '@/lib/format';
 import type { GrvRaw, MarketQuotesRaw, NewsGeoRaw, NuclearSitesRaw ,
-  AirTrafficRaw, AirRoutesRaw, SdrSummaryRaw, FirmsRaw} from '@/types/contracts';
+  AirTrafficRaw, AirRoutesRaw, SdrSummaryRaw, FirmsRaw, SpaceLaunchRaw} from '@/types/contracts';
 
 /** 视图模式：3D 地球 / 2D 平面地图。 */
 export type WorldViewMode = 'globe' | 'flat';
@@ -156,6 +157,8 @@ export function WorldPanel() {
   const { data: sdrRaw } = useFeed<SdrSummaryRaw>('sdr');
   // 08-14 thermal 图层：NASA FIRMS 火点（1° 网格预聚合，日档，feed 缺失 → []）
   const { data: firmsRaw } = useFeed<FirmsRaw>('firms');
+  // 08-14 space 图层：全球航天发射记录（日档，feed 缺失 → []）
+  const { data: spaceRaw } = useFeed<SpaceLaunchRaw>('spacelaunch');
   // 1.6.0 预埋：市场行情读取层仅触发 fetch，本批无面板（不为它分配 RingPoint）
   const { data: marketRaw } = useFeed<MarketQuotesRaw>('market_quotes');
   const { report } = useStatus();
@@ -180,6 +183,8 @@ export function WorldPanel() {
   const sdrPoints = useMemo(() => adaptSdr(sdrRaw ?? null), [sdrRaw]);
   // 08-14 thermal 图层：FIRMS 火点 1° 网格聚合点（火点密度 = 热异常活跃度）
   const thermalPoints = useMemo(() => adaptThermal(firmsRaw ?? null), [firmsRaw]);
+  // 08-14 space 图层：全球航天发射活动点位（非风险语义）
+  const spacePoints = useMemo(() => adaptSpace(spaceRaw ?? null), [spaceRaw]);
   // 核设施：feed 缺失时 mergeNuclear 回落静态种子，读数为空 ⇒ 灰色虚线菱形（不白屏、不编数）
   const nuclearRows = useMemo(() => mergeNuclear(nuclearRaw ?? null), [nuclearRaw]);
   const nuclearPoints = useMemo(() => buildNuclearPoints(nuclearRows), [nuclearRows]);
@@ -193,9 +198,9 @@ export function WorldPanel() {
   const allPoints = useMemo(
     () => capPointsPerLayer([
       ...points, ...eventPoints, ...newsGeoPoints,
-      ...airPoints, ...sdrPoints, ...thermalPoints, ...nuclearPoints,
+      ...airPoints, ...sdrPoints, ...thermalPoints, ...spacePoints, ...nuclearPoints,
     ]),
-    [points, eventPoints, newsGeoPoints, airPoints, sdrPoints, thermalPoints, nuclearPoints],
+    [points, eventPoints, newsGeoPoints, airPoints, sdrPoints, thermalPoints, spacePoints, nuclearPoints],
   );
 
   const visibleSet = useMemo<ReadonlySet<LayerCategory>>(

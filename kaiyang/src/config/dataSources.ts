@@ -82,6 +82,13 @@ export const FEEDS: Record<string, FeedConfig> = {
     schemaVersion: '1.0',
     description: 'NASA FIRMS 火点（1° 网格预聚合，08-14 thermal 图层）',
   },
+  spacelaunch: {
+    name: 'spacelaunch',
+    path: 'spacelaunch.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '全球航天发射记录（Next Spaceflight，日档，08-14 space 图层）',
+  },
   newsAll: {
     name: 'newsAll',
     path: 'news_all.json',
