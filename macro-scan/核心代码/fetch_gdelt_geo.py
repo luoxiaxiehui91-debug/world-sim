@@ -36,6 +36,7 @@ import json
 import logging
 import math
 import os
+import re
 import sys
 import time
 import zipfile
@@ -486,6 +487,35 @@ def _html_escape(value: Any) -> str:
     return str(value).translate(_HTML_ESCAPE_TABLE)
 
 
+# 地缘冲突过滤（08-14 B 方案）：conflict 类中"国内治安/执法/犯罪"事件从地缘冲突图层排除。
+# GDELT CAMEO 18/19 大量是本国 actor 对本国（美国枪击 actor=USA/COP/CRM、印度警民 actor=COP/IND），
+# 非地缘冲突，却因 Goldstein=-10 在地图上显示成 90+ 深红点。判断规则：
+#   有他国 actor（国家段 ≠ 事件国）→ 国际冲突（保留）
+#   无他国但军事/武装 actor（MIL/UAF/REB…）→ 冲突信号（保留，含军演/平叛）
+#   其余（纯本国非军事 actor）→ 国内治安（过滤）
+_COUNTRY_CODES = set("""USA CHN IND RUS GBR FRA DEU JPN KOR PRK ITA ESP CAN AUS BRA MEX ARG ZAF SAU
+IRN IRQ ISR PSE TUR EGY SYR LBY YEM AFG PAK BGD LKA MMR THA VNM IDN MYS SGP PHL KAZ UKR POL
+BLR CZE SVK HUN ROU BGR SRB GRC NLD BEL CHE SWE NOR DNK FIN AUT PRT IRL NZL NGA ETH KEN COD
+TWN HKG MAC GTM""".split())
+_MILITARY_TYPES = {"MIL", "MILMIL", "UAF", "REB", "MST", "IRREG", "PARA", "SEP"}
+
+
+def _is_domestic_conflict(actor1: Any, actor2: Any, country_iso: Any) -> bool:
+    """conflict 类事件是否国内治安（真→过滤，假→地缘冲突保留）。"""
+    country = str(country_iso or "").strip()
+    if not country:
+        return False
+    segs: set = set()
+    for a in (actor1, actor2):
+        if a:
+            segs.update(re.findall(r"[A-Z]{3}", str(a)))
+    if segs & (_COUNTRY_CODES - {country}):
+        return False  # 他国 actor 参与 → 国际冲突
+    if segs & _MILITARY_TYPES:
+        return False  # 军事/武装 actor → 冲突信号
+    return True
+
+
 def _map_event_type(root_code: Any, goldstein: Any = None) -> str:
     """CAMEO EventRootCode → 开阳四类枚举。
 
@@ -573,6 +603,9 @@ def _map_to_news_geo_event(ev: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
         return None  # 国家质心 / 无效精度 → 丢弃（过滤链第 2 步）
 
     _etype = _map_event_type(ev.get("root_code"), ev.get("intensity"))
+    if _etype == "conflict" and _is_domestic_conflict(
+            ev.get("actor1_code"), ev.get("actor2_code"), ev.get("country_iso")):
+        return None  # 国内治安/犯罪（美国枪击、印度警民等）→ 不进地缘冲突图层（08-14 B 方案）
     evt: Dict[str, Any] = {
         "id": "gdelt-" + str(ev.get("event_id", "")),
         "lat": round(lat, COORD_DECIMALS),
