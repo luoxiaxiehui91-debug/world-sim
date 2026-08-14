@@ -10,6 +10,7 @@ import { useStatus } from '@/state/StatusContext';
 import { useSelection } from '@/state/SelectionContext';
 import { adaptGrv } from '@/lib/grvAdapter';
 import { aggregateNewsGeo } from '@/lib/geoAggregate';
+import { adaptAirTraffic } from '@/lib/airTrafficAdapter';
 import { buildEventBars, buildRiskArcs, buildRiskPoints, type RiskPoint } from '@/lib/mapData';
 import { buildNuclearPoints, mergeNuclear } from '@/lib/nuclearData';
 import {
@@ -37,7 +38,8 @@ import {
 } from '@/data/strategicSites';
 import { severityColor, withAlpha } from '@/config/theme';
 import { fmtNum } from '@/lib/format';
-import type { GrvRaw, MarketQuotesRaw, NewsGeoRaw, NuclearSitesRaw } from '@/types/contracts';
+import type { GrvRaw, MarketQuotesRaw, NewsGeoRaw, NuclearSitesRaw ,
+  AirTrafficRaw} from '@/types/contracts';
 
 /** 视图模式：3D 地球 / 2D 平面地图。 */
 export type WorldViewMode = 'globe' | 'flat';
@@ -141,6 +143,8 @@ export function WorldPanel() {
   const { data: nuclearRaw } = useFeed<NuclearSitesRaw>('nuclearSites');
   // 1.6.0 新增：地理新闻读取层骨架。feed 缺失 / 空 events 适配为 []（K5 不白屏）
   const { data: newsGeoRaw } = useFeed<NewsGeoRaw>('news_geo');
+  // 08-14 air 图层：OpenSky 实时航班（feed 缺失 → []，K5 不白屏）
+  const { data: airRaw } = useFeed<AirTrafficRaw>('airtraffic');
   // 1.6.0 预埋：市场行情读取层仅触发 fetch，本批无面板（不为它分配 RingPoint）
   const { data: marketRaw } = useFeed<MarketQuotesRaw>('market_quotes');
   const { report } = useStatus();
@@ -158,6 +162,7 @@ export function WorldPanel() {
     () => aggregateNewsGeo(newsGeoRaw ?? null),
     [newsGeoRaw],
   );
+  const airPoints = useMemo(() => adaptAirTraffic(airRaw ?? null), [airRaw]);
   // 核设施：feed 缺失时 mergeNuclear 回落静态种子，读数为空 ⇒ 灰色虚线菱形（不白屏、不编数）
   const nuclearRows = useMemo(() => mergeNuclear(nuclearRaw ?? null), [nuclearRaw]);
   const nuclearPoints = useMemo(() => buildNuclearPoints(nuclearRows), [nuclearRows]);
@@ -167,8 +172,8 @@ export function WorldPanel() {
   // 落在固定设施之下避免海量时淹没核读数菱形。
   void marketRaw; // 显式标记已消费（仅 fetch 不渲染，预埋备查）
   const allPoints = useMemo(
-    () => capPointsPerLayer([...points, ...eventPoints, ...newsGeoPoints, ...nuclearPoints]),
-    [points, eventPoints, newsGeoPoints, nuclearPoints],
+    () => capPointsPerLayer([...points, ...eventPoints, ...newsGeoPoints, ...airPoints, ...nuclearPoints]),
+    [points, eventPoints, newsGeoPoints, airPoints, nuclearPoints],
   );
 
   const visibleSet = useMemo<ReadonlySet<LayerCategory>>(

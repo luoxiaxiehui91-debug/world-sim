@@ -24,7 +24,8 @@ fetch_airtraffic_opensky.py — OpenSky Network 全球在飞航班快照（/api/
     "avg_velocity_ms":   float|null,
     "top_origin_countries": [{"country":..., "count":..., "pct":...}],
     "total_states":      int,
-    "sample_limited":    false
+    "sample_limited":    false,
+    "coordinates":       [{"lat","lng","alt_m","vel_ms","callsign","origin"}...]  # ≤500 均匀采样（08-14 开阳 air 图层）
   }
 
 调度：scheduler.py 06:28（日频，错峰）。feeds_grv=False，仅落盘供下游消费。
@@ -60,10 +61,14 @@ HEADERS = {
 }
 
 # OpenSky state 17 字段顺序索引（详见架构设计附录）
+IDX_CALLSIGN = 1         # callsign
 IDX_ORIGIN_COUNTRY = 2   # origin_country
+IDX_LONGITUDE = 5        # longitude
+IDX_LATITUDE = 6         # latitude
 IDX_BARO_ALT = 7         # baro_altitude
 IDX_ON_GROUND = 8        # on_ground
 IDX_VELOCITY = 9         # velocity
+MAX_COORDS = 500         # 前端 air 图层点位采样上限（全量 ~6000 点太密，均匀采样）
 
 
 class AirTrafficOpenSkyFetcher(FetcherBase):
@@ -73,7 +78,7 @@ class AirTrafficOpenSkyFetcher(FetcherBase):
     rate_interval = 1.0
     output_file = OUTPUT_FILE
     feeds_grv = False
-    schedule = "0628"
+    schedule = "I30"   # 08-14 提频（48/日=12%≪200/日 50% 水位）；观察后评估 I15
 
     def __init__(self, data_dir: str):
         super().__init__(data_dir)
@@ -133,11 +138,31 @@ class AirTrafficOpenSkyFetcher(FetcherBase):
                     "pct": pct,
                 })
 
+        # 在飞航班坐标采样（08-14 开阳 air 图层点位）：全量 ~6000 点太密，
+        # 均匀采样 ≤MAX_COORDS 个；前端按图层开关显示，hover 看高度/速度/起飞机场国。
+        coords_raw = [
+            s for s in in_air
+            if len(s) > IDX_LONGITUDE
+            and s[IDX_LATITUDE] is not None and s[IDX_LONGITUDE] is not None
+        ]
+        step = max(1, len(coords_raw) // MAX_COORDS) if coords_raw else 1
+        coordinates = []
+        for s in coords_raw[::step][:MAX_COORDS]:
+            coordinates.append({
+                "lat": round(float(s[IDX_LATITUDE]), 4),
+                "lng": round(float(s[IDX_LONGITUDE]), 4),
+                "alt_m": s[IDX_BARO_ALT] if len(s) > IDX_BARO_ALT else None,
+                "vel_ms": s[IDX_VELOCITY] if len(s) > IDX_VELOCITY else None,
+                "callsign": s[IDX_CALLSIGN].strip() if len(s) > IDX_CALLSIGN and s[IDX_CALLSIGN] else None,
+                "origin": s[IDX_ORIGIN_COUNTRY] if len(s) > IDX_ORIGIN_COUNTRY else None,
+            })
+
         return {
             "status": Status.OK,
             "source": "OpenSky Network /api/states/all",
             "as_of": as_of,
             "scope": "global",
+            "coordinates": coordinates,
             "flights_in_air": flights_in_air,
             "avg_altitude_m": avg_altitude_m,
             "avg_velocity_ms": avg_velocity_ms,

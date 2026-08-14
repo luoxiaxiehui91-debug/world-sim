@@ -135,7 +135,7 @@ export const LAYER_CATEGORIES: LayerCategoryDef[] = [
     shape: 'triangle',
     defaultVisible: false,
     phase: 'P2',
-    feed: null,
+    feed: 'airtraffic',
     desc: '航空器活动与航迹（需后端 feed）',
   },
   {

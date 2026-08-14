@@ -411,6 +411,22 @@ export interface NewsRiskArticle {
   language?: string;
   sourcecountry?: string;
 }
+/** airtraffic_opensky.json（OpenSky 实时航班快照，08-14 开阳 air 图层）。 */
+export interface AirTrafficPoint {
+  lat: number;
+  lng: number;
+  alt_m?: number | null;
+  vel_ms?: number | null;
+  callsign?: string | null;
+  origin?: string | null;
+}
+export interface AirTrafficRaw extends RiskSignalBase {
+  flights_in_air?: number;
+  total_states?: number;
+  scope?: string;
+  coordinates?: AirTrafficPoint[];
+}
+
 export interface NewsRiskRaw extends RiskSignalBase {
   source?: string;
   gdelt?: {

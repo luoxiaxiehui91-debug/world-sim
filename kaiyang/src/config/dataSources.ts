@@ -54,6 +54,13 @@ export const FEEDS: Record<string, FeedConfig> = {
     schemaVersion: '1.0',
     description: '新闻 / 叙事导出（风险信号流）',
   },
+  airtraffic: {
+    name: 'airtraffic',
+    path: 'airtraffic_opensky.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '空域活动（OpenSky 实时航班快照，08-14 air 图层接入）',
+  },
   newsAll: {
     name: 'newsAll',
     path: 'news_all.json',
