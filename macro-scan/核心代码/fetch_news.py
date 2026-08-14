@@ -89,7 +89,7 @@ class NewsFetcher(FetcherBase):
     rate_interval = 1.0
     output_file = OUTPUT_FILE
     feeds_grv = False
-    schedule = "0616"
+    schedule = "I30"   # 30min：MarketAux 48/天≈48% 贴 50% 水位；GDELT 48/天≈0.96%（08-14 提频保实时）
 
     def __init__(self, data_dir: str):
         super().__init__(data_dir)

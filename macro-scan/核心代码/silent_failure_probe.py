@@ -247,11 +247,12 @@ def check_news_risk() -> list:
     """新闻风险流新鲜度（fetch_news.py 日频 06:16 写 news_risk.json；08-14 起 GDELT DOC 2.0 主源）。
 
     判据基于内容 updated 字段（非 mtime——降级保留旧值时 mtime 不变，写 unavailable 时 mtime 变但内容旧）：
-      - status=ok                    → OK（健康）
-      - unavailable 且 <25h          → OK（短时降级容忍，如 GDELT 临时 429）
-      - unavailable 且 >=25h         → WARN（一天以上不可用）
-      - unavailable 且 >=49h         → CRIT
+      - status=ok 且 <2h             → OK（健康）
+      - status=ok 且 2-4h            → WARN（4-8 个 30min 周期未成功）
+      - unavailable 且 <2h           → OK（短时降级容忍，如 GDELT 临时 429）
+      - 任何状态 >=4h                → CRIT（8+ 周期未更新）
       - 文件缺失                      → CRIT（fetch_news 从未成功写过）
+      阈值随调度频率：08-14 提频 I30 后由 25h/49h 收窄为 2h/4h。
     """
     out = []
     path = os.path.join(DATA_DIR, "news_risk.json")
@@ -276,14 +277,14 @@ def check_news_risk() -> list:
     except Exception:
         out.append((WARN, f"news_risk.json: updated 解析失败 '{updated}'"))
         return out
-    if status == "ok":
+    if status == "ok" and age < 2 * 3600:
         out.append((OK, f"news_risk: {status}（{_fmt_age(age)} 前更新）"))
-    elif age >= 49 * 3600:
-        out.append((CRIT, f"news_risk: {status} 且陈旧 {_fmt_age(age)}（CRIT 阈值 49h）"))
-    elif age >= 25 * 3600:
-        out.append((WARN, f"news_risk: {status} 且陈旧 {_fmt_age(age)}（WARN 阈值 25h）"))
+    elif age >= 4 * 3600:
+        out.append((CRIT, f"news_risk: {status} 且陈旧 {_fmt_age(age)}（CRIT 阈值 4h）"))
+    elif age >= 2 * 3600:
+        out.append((WARN, f"news_risk: {status} 且陈旧 {_fmt_age(age)}（WARN 阈值 2h）"))
     else:
-        out.append((OK, f"news_risk: {status}（短时降级容忍 <25h）"))
+        out.append((OK, f"news_risk: {status}（短时降级容忍 <2h）"))
     return out
 
 

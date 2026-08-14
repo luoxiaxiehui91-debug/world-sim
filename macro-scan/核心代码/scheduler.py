@@ -65,7 +65,7 @@ JOBS = [
     ("energy",      "0608", "1-7", None, [PYTHON, "fetch_energy.py"]),       # P1 电网/能源（喂 energy_grid_risk）
     # 以下不喂 GRV，仅落盘交叉验证/事件源，错峰在 grv_update 之后
     ("crypto_extra","I15", "1-7", None, [PYTHON, "fetch_crypto_extra.py"]), # P1 Binance/Kraken 冗余行情（事件档 每15分）
-    ("news",        "0616", "1-7", None, [PYTHON, "fetch_news.py"]),         # P1 MarketAux/Currents/Sugra
+    ("news",        "I30",  "1-7", None, [PYTHON, "fetch_news.py"]),         # P1 GDELT DOC 2.0 + MarketAux（30min=MarketAux 48% 贴 50% 水位，实时性）
     ("hdx",         "0620", "1-7", None, [PYTHON, "fetch_hdx.py"]),          # P1 人道/危机冲击
     # 新增 BDI / FAO（T01/T02：fetcher_base 适配层；仅落盘，不喂 GRV）
     # BDI 实时拉取本环境不可行（Stooq OpenResty 验 TLS 指纹 + Chromium 下载不可达，详见 CHANGELOG v3.6.0），
