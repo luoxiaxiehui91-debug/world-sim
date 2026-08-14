@@ -1,6 +1,5 @@
 import {
   categoryColor,
-  categoryShape,
   type PointStatus,
 } from '@/config/layerCategories';
 import type { RiskPoint } from '@/lib/mapData';
@@ -10,13 +9,15 @@ import type { AirTrafficRaw } from '@/types/contracts';
  * airtraffic_opensky.json → RiskPoint[]（开阳 air 空域活动图层，08-14 接入）。
  *
  * 数据源：fetch_airtraffic_opensky.py（OpenSky /api/states/all，I30 实时快照）。
- * coordinates 已由后端均匀采样 ≤500 个在飞航班（含 lat/lng/alt/vel/callsign/origin）。
+ * coordinates 为**全量**在飞航班（08-14 起不再采样；OpenSky 按请求计费不按条数，
+ * 当前约 6184 点，前端 UNCAPPED_LAYERS 豁免截断，全量渲染）。
  *
  * ⚠ 语义边界（08-14 修正，用户指出「风险值是什么」）：
  *  - air 图层是「空域活动可视化」，**不是风险评分**。飞行高度 ≠ 风险等级。
  *  - value 恒为 null（不参与风险值/等级体系，点位不显示误导数字）；
- *  - weight 用高度归一化仅驱动点尺寸（高飞的点略大，纯视觉）；
+ *  - weight 固定 0.5（用户拍板：统一大小，区分大小没意义）；
  *  - severity 固定中性标签 '空域'（弹框不显示 低/中/高）；
+ *  - shape = 'arrow'（08-14 用户拍板：2D 只画航向箭头、不画圆点圈）；
  *  - hover/弹框展示航班号、高度、速度、起飞机场国。
  */
 export function adaptAirTraffic(raw: AirTrafficRaw | null): RiskPoint[] {
@@ -55,7 +56,7 @@ export function adaptAirTraffic(raw: AirTrafficRaw | null): RiskPoint[] {
       severity: '空域', // 中性标签，替代 低/中/高
       weight: 0.5, // 统一大小（用户拍板：不区分大小）
       category: 'air',
-      shape: categoryShape('air'),
+      shape: 'arrow', // 08-14：2D 只画航向箭头不画圆点圈（用户拍板）
       direction: track, // 2D 地图画航向箭头
       rawMetric: c.origin ? `起飞机场国 ${c.origin}` : undefined,
       note:

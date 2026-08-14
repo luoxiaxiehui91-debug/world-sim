@@ -7,6 +7,7 @@ import {
   LAYER_VISIBILITY_STORAGE_KEY,
   MAX_POINTS_PER_LAYER,
   MISSING_COLOR,
+  UNCAPPED_LAYERS,
   categoryColor,
   categoryDef,
   categoryLabel,
@@ -68,7 +69,7 @@ describe('layerCategories: 枚举完整性', () => {
   it('每个类别的 phase / shape / defaultVisible 均合法', () => {
     for (const def of LAYER_CATEGORIES) {
       expect(['P0', 'P1', 'P2']).toContain(def.phase);
-      expect(['circle', 'diamond', 'triangle', 'square']).toContain(def.shape);
+      expect(['circle', 'diamond', 'triangle', 'square', 'arrow']).toContain(def.shape);
       expect(typeof def.defaultVisible).toBe('boolean');
       expect(def.label.length).toBeGreaterThan(0);
       expect(def.desc.length).toBeGreaterThan(0);
@@ -95,6 +96,11 @@ describe('layerCategories: 枚举完整性', () => {
   it('护栏常量已预埋且为正整数（§10-N5）', () => {
     expect(Number.isInteger(MAX_POINTS_PER_LAYER)).toBe(true);
     expect(MAX_POINTS_PER_LAYER).toBeGreaterThan(0);
+  });
+
+  it('UNCAPPED_LAYERS 含 air（08-14 用户拍板全量显示，截断后缺一部分没意义）', () => {
+    expect(UNCAPPED_LAYERS.has('air')).toBe(true);
+    expect(UNCAPPED_LAYERS.size).toBeGreaterThan(0);
   });
 });
 

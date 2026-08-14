@@ -36,8 +36,10 @@ export type LayerCategory =
 // 注：'osint'（开源情报）已于 1.3.0 永久删除 —— 天枢合规否决（不做社媒抓取），
 // 见 docs/DATA_CONTRACT.md §2.6 第 8 项。不得再加回。
 
-/** 点位符号形状。P0 只实现 circle / diamond，其余为 P1+ 预留。 */
-export type PointShape = 'circle' | 'diamond' | 'triangle' | 'square';
+/** 点位符号形状。P0 只实现 circle / diamond，其余为 P1+ 预留。
+ *  'arrow' 为方向型渲染模式（08-14 新增）：air 空域活动图层使用——
+ *   2D 平面地图只画航向旋转箭头、不画圆点圈（用户拍板：有箭头就不需要圈）。 */
+export type PointShape = 'circle' | 'diamond' | 'triangle' | 'square' | 'arrow';
 
 /** 点位数据状态：ok=有数；missing=该点无有效数值（元状态，覆盖类别色）。 */
 export type PointStatus = 'ok' | 'missing';
@@ -132,7 +134,7 @@ export const LAYER_CATEGORIES: LayerCategoryDef[] = [
     key: 'air',
     label: '空域活动',
     color: CATEGORY_PALETTE.air,
-    shape: 'triangle',
+    shape: 'arrow', // 08-14：2D 只画航向箭头不画圆点圈（用户拍板），图例与地图一致
     defaultVisible: false,
     phase: 'P2',
     feed: 'airtraffic',
@@ -213,6 +215,13 @@ export const MISSING_COLOR: string = CATEGORY_PALETTE.missing;
  * 超过此数的图层会被截断并在控制台告警，避免某个 feed 突然打爆帧率。
  */
 export const MAX_POINTS_PER_LAYER = 2000;
+
+/**
+ * 不受单图层护栏限制的类别（08-14 用户拍板：air 空域活动全量显示，截断后缺一部分没意义）。
+ * 后端已全量输出在飞航班（OpenSky 按请求计费不按条数，全量零额外成本；当前约 6184 点），
+ * 前端不再截断。其余图层仍受 MAX_POINTS_PER_LAYER 护栏保护（防 feed 突发膨胀打死帧率）。
+ */
+export const UNCAPPED_LAYERS: ReadonlySet<LayerCategory> = new Set(['air']);
 
 /** 类别 → 定义；未知类别返回 undefined（调用方自行降级为 FALLBACK_CATEGORY）。 */
 export function categoryDef(category: LayerCategory | undefined): LayerCategoryDef | undefined {

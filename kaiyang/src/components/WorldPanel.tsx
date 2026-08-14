@@ -18,6 +18,7 @@ import {
   DEFAULT_VISIBLE_CATEGORIES,
   LAYER_VISIBILITY_STORAGE_KEY,
   MAX_POINTS_PER_LAYER,
+  UNCAPPED_LAYERS,
   parseLayerVisibility,
   serializeLayerVisibility,
   type LayerCategory,
@@ -98,6 +99,7 @@ function readInitialRegion(): RegionKey {
  * 单图层点位数量护栏（设计稿 §10-N5）。
  * 超出 `MAX_POINTS_PER_LAYER` 的部分直接截断并在控制台告警，
  * 避免某个 feed 突然膨胀（如热异常火点）把帧率打死。
+ * 08-14：`UNCAPPED_LAYERS`（air 空域活动）豁免——用户拍板全量显示，截断后缺一部分没意义。
  */
 function capPointsPerLayer(points: RiskPoint[]): RiskPoint[] {
   const seen = new Map<LayerCategory, number>();
@@ -106,7 +108,7 @@ function capPointsPerLayer(points: RiskPoint[]): RiskPoint[] {
   for (const p of points) {
     const n = (seen.get(p.category) ?? 0) + 1;
     seen.set(p.category, n);
-    if (n > MAX_POINTS_PER_LAYER) {
+    if (!UNCAPPED_LAYERS.has(p.category) && n > MAX_POINTS_PER_LAYER) {
       truncated = true;
       continue;
     }

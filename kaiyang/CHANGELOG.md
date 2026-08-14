@@ -527,6 +527,26 @@ docs/operations/20260805-world-deduction-time-audit-fixed.md。
 - npm test 14 files / 311 tests 全绿；vite build 本地构建（新 bundle index-oJgF4qMk.js / css 沿用 S7YTSnTj）
 - scp 原地覆盖 + chmod -R a+rX；root/js/css/news_geo 200；旧 bundle 按 DEPLOYMENT 规范留 3 版清理（v1.10.0-1.10.4 共 9 个删除）
 
+## [1.10.9] - 2026-08-14 · air 空域活动图层：只画航向箭头 + 全量显示（用户拍板）
+
+**修改理由**：主理人复核 08-14 air 图层接入后两点意见——①2D 平面地图上方向箭头与圆点重叠，有箭头就不需要圈；②点位被单图层护栏截断后只剩部分航班，缺一部分的数据没意义，要求全量显示。
+
+### 修改
+
+- `src/config/layerCategories.ts`：`PointShape` 新增 `'arrow'`（方向型渲染模式）；air 类别 `shape` `'triangle'`→`'arrow'`（图例与地图符号一致）；新增 `UNCAPPED_LAYERS`（含 air——08-14 用户拍板全量显示，不受 `MAX_POINTS_PER_LAYER=2000` 护栏截断，其余图层护栏不变）
+- `src/lib/airTrafficAdapter.ts`：air 点 `shape` → `'arrow'`；头部注释同步最新事实（全量 6182 点 / weight 0.5 统一大小 / shape arrow 语义）
+- `src/components/FlatMapPanel.tsx`：新增 `shape==='arrow'` 分支——只画航向旋转箭头（`direction` 缺失时朝北兜底，d3 attr 不接受 undefined 用空串），不画圆点 / 外环 / 光晕；circle 分支移除原 direction 叠加逻辑（arrow 成为唯一箭头载体）
+- `src/components/WorldPanel.tsx`：`capPointsPerLayer` 对 `UNCAPPED_LAYERS` 豁免截断（air 全量渲染，其余图层仍受护栏保护）
+- `src/components/LayerLegend.tsx`：`ShapeSwatch` 新增 arrow 图标（底部图例 / 左侧指标树与地图符号一致）
+- `src/config/layerCategories.test.ts`：+`UNCAPPED_LAYERS` 断言；合法 shape 列表 +`'arrow'`
+
+### 验证
+
+- `npm test` 15 files / 321 tests 全绿（+1）；`tsc --noEmit` 通过；`vite build` 本地构建成功（新 bundle `index-CG5qCmNJ.js` / `index-CW8B4ZOt.css`）
+- scp 原地覆盖 + `chmod -R a+rX`；root / 新 js / 新 css / `airtraffic_opensky.json` 均 200
+- feed 实测：coordinates **6182 点全量**、track 覆盖 **100%**（箭头渲染数据完全支撑；OpenSky 按请求计费不按条数，全量零额外成本）
+- 视觉项由主理人浏览器复核：2D 空域图层只见航向箭头无圆点圈、全量航班
+
 ## [1.10.8] - 2026-08-11 · 同地点聚合：一城一点 + 计数徽标 + 弹框列全部事件
 
 **修改理由**：主理人反馈「同一地点事件是分开的，比如北京不止一条」——GDELT 对同一地点用城市中心坐标，但 location_name 存在拼写变体（Beijing/Peking、Washington/White House/Lincoln Memorial），同城新闻被拆成多个点。

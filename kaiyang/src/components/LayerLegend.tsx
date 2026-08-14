@@ -63,7 +63,15 @@ export function ShapeSwatch({
   };
 
   let node: ReactElement;
-  if (shape === 'diamond') {
+  if (shape === 'arrow') {
+    // 08-14 air 空域活动图层：小箭头（指向右，地图上按航向 rotate 旋转）
+    node = (
+      <path
+        d={`M ${c - r},${c - r * 0.72} L ${c + r * 0.92},${c} L ${c - r},${c + r * 0.72} L ${c - r * 0.12},${c} Z`}
+        {...common}
+      />
+    );
+  } else if (shape === 'diamond') {
     node = <polygon points={`${c},${c - r} ${c + r},${c} ${c},${c + r} ${c - r},${c}`} {...common} />;
   } else if (shape === 'triangle') {
     node = (

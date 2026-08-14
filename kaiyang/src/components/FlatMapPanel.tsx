@@ -457,6 +457,20 @@ export function FlatMapPanel({
         } else if (highlight) {
           poly.attr('class', 'fm-point-pulse').style('--ky-pulse-duration', `${pulseSec}s`);
         }
+      } else if (p.shape === 'arrow') {
+        // 08-14 空域活动图层（air）：只画航向箭头、不画圆点圈（用户拍板：有箭头就不需要圈）。
+        // SVG transform rotate 顺时针 = 航向 0-360 从北，近似可用；
+        // direction 缺失时箭头朝北（后端 track 100% 有值，兜底防点消失）。
+        grp.append('path')
+          .attr('d', 'M 6 0 L -2.5 -3 L -0.8 0 L -2.5 3 Z')
+          .attr('fill', withAlpha(p.color, 0.9))
+          .attr(
+            'transform',
+            typeof p.direction === 'number' && Number.isFinite(p.direction)
+              ? `rotate(${p.direction})`
+              : '', // 空 transform = 箭头朝北（d3 attr 不接受 undefined）
+          )
+          .attr('pointer-events', 'none');
       } else {
         // 弧光（2026-08-11 视觉重构 crucix 化）：薄描边环贴附外侧 + 内层淡光晕 + 中心实体。
         // v1.10.3 弧光收窄：外环 r 2.2→1.8 更贴附、线宽 1.2→1.0、透明度 0.6→0.5。
@@ -501,16 +515,6 @@ export function FlatMapPanel({
             .style('user-select', 'none')
             .text(String(p.aggCount));
         }
-      }
-
-      // 08-14 方向箭头（air 航班航向等）：有 direction 的点画旋转小箭头指向航向
-      // （SVG transform rotate 顺时针 = 航向 0-360 从北，近似可用；3D 球不画见 GlobePanel 注释）
-      if (typeof p.direction === 'number' && Number.isFinite(p.direction)) {
-        grp.append('path')
-          .attr('d', 'M 5 0 L -2 -2.2 L -0.5 0 L -2 2.2 Z')
-          .attr('fill', withAlpha(p.color, 0.9))
-          .attr('transform', `rotate(${p.direction})`)
-          .attr('pointer-events', 'none');
       }
 
       grp
