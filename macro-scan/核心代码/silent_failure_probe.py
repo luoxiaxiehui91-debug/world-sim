@@ -243,6 +243,50 @@ def check_backup() -> list:
     return out
 
 
+def check_news_risk() -> list:
+    """新闻风险流新鲜度（fetch_news.py 日频 06:16 写 news_risk.json；08-14 起 GDELT DOC 2.0 主源）。
+
+    判据基于内容 updated 字段（非 mtime——降级保留旧值时 mtime 不变，写 unavailable 时 mtime 变但内容旧）：
+      - status=ok                    → OK（健康）
+      - unavailable 且 <25h          → OK（短时降级容忍，如 GDELT 临时 429）
+      - unavailable 且 >=25h         → WARN（一天以上不可用）
+      - unavailable 且 >=49h         → CRIT
+      - 文件缺失                      → CRIT（fetch_news 从未成功写过）
+    """
+    out = []
+    path = os.path.join(DATA_DIR, "news_risk.json")
+    if not os.path.exists(path):
+        out.append((CRIT, "news_risk.json: 缺失（fetch_news 从未成功写过）"))
+        return out
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception as e:
+        out.append((CRIT, f"news_risk.json: 解析失败 {e}"))
+        return out
+    status = d.get("status") or "unknown"
+    updated = d.get("updated") or ""
+    try:
+        # updated 形如 2026-08-14T13:07:58+08:00
+        import datetime as _dt
+        u = _dt.datetime.fromisoformat(updated)
+        if u.tzinfo is None:
+            u = u.replace(tzinfo=_dt.timezone.utc)
+        age = time.time() - u.timestamp()
+    except Exception:
+        out.append((WARN, f"news_risk.json: updated 解析失败 '{updated}'"))
+        return out
+    if status == "ok":
+        out.append((OK, f"news_risk: {status}（{_fmt_age(age)} 前更新）"))
+    elif age >= 49 * 3600:
+        out.append((CRIT, f"news_risk: {status} 且陈旧 {_fmt_age(age)}（CRIT 阈值 49h）"))
+    elif age >= 25 * 3600:
+        out.append((WARN, f"news_risk: {status} 且陈旧 {_fmt_age(age)}（WARN 阈值 25h）"))
+    else:
+        out.append((OK, f"news_risk: {status}（短时降级容忍 <25h）"))
+    return out
+
+
 def check_sqlite_gone() -> list:
     """SQLite 零残留断言（P6 删库后自动化守护）：data 目录出现任何 .db = 某代码复活了它。
     发现即 CRIT（防定时炸弹：scheduler 任务或验收工具静默建文件）。"""
@@ -299,7 +343,7 @@ def check_fred_lag() -> list:
 def run_probe(alert: bool = True) -> tuple:
     """执行全部检查。返回 (worst_level, results)。"""
     results = []
-    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_sqlite_gone):
+    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_sqlite_gone):
         try:
             results.extend(fn())
         except Exception as e:
