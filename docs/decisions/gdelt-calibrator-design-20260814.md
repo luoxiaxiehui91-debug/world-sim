@@ -131,7 +131,15 @@ except Exception as e:
 - **代码回滚**：git revert 天枢两文件（热挂载恢复）；天玑校准器是新增文件不涉及回滚（不调用即无副作用）
 - 校准器幂等：每次重跑覆盖配置，无累积状态
 
-## 10. 风险与权衡
+## 10. 落码记录（2026-08-14 08:3x，用户批准）
+
+- **部署**：tianji_calibrator.py（macro-ji）+ tianji_verifier.py `__main__` 顺带调用 + Dockerfile（pip 源清华 403→阿里云 + COPY 补校准器）；scan_weak_signals.py（_TONE_BASE/8 维 scale 读 calib）+ geo_risk_vector.py（_compute_gdelt_p95_dynamic 退役改读 calib）。天玑镜像重建 3 次（第 1 次 pip 源 403、第 2 次 COPY 漏校准器、第 3 次成功）——**踩坑：改天玑代码必须同步 Dockerfile 的 COPY 行**。
+- **关键修正（验证时发现）**：gdelt_history.jsonl 存的是归一化分数（0-100）非原始计数，直接 P95 会双重归一化（tension P95=0.5 症状）→ 反推原始计数 P95 = P95(score)×old_scale/100（military 135000→9180 等）。tone_base 截断分数反推不可靠 → 直接用注释实测 -7.97 + med>60 警告。
+- **验证（容器内实测）**：校准器输出 407 条样本；重跑 scan_gdelt_dimension：social_stress 国家级从 60+ 回落到 PAK 50.1/RUS 44.7/UKR 42.7/USA 39.9（符合设计意图）；计数维度恢复区分度（中位 5-25、真实触顶存在）；GRV P95 从 calib 加载（1.417 vs fallback 1.243）；模拟 watchdog 触发 verifier → 顺带校准器写配置成功（[CALIB] 校准配置已写）。探针全绿。
+- **行为变化确认**：校准后 8 国告警数变化（social_stress 回落后部分国家降阈值下），属修正系统性虚高的预期结果；USA 今日多维度触顶（military/sanction/cultural 100）是真实 GDELT 信号（美国媒体偏置 + 事件），非校准 bug，可留意。
+- **git**：commit（tianji_calibrator + verifier + Dockerfile + scan + GRV）。
+
+## 11. 风险与权衡
 
 | 风险 | 缓解 |
 |------|------|

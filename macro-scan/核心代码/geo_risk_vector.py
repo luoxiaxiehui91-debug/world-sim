@@ -57,102 +57,39 @@ _GDELT_P95: dict = {}
 
 def _compute_gdelt_p95_dynamic() -> dict:
     """
-    从 gdelt_history.jsonl 动态计算各热点 GDELT 组合分的 P95，写入 _GDELT_P95 缓存。
+    从 gdelt_calib.json 读取各热点 GDELT 组合分的 P95（天玑 tianji_calibrator.py 产出）。
 
-    热点组合与 _gdelt_country_score 保持一致：
-      russia_europe = avg(military+sanction for RUS/DEU/UKR)
-      taiwan_strait = avg(military+sanction for TWN/CHN)
-      us_china      = avg(military+sanction for USA/CHN)
-      mideast       = avg(military+sanction for IRN/SAU/ISR)
-
-    样本量 <100 条时 fallback 到 _GDELT_P95_FALLBACK（硬编码值）。
-    grv_datasource_fix.md P1：建议 ≥1000 条后锁定，当前 <1000 时动态更新。
+    热点组合与 _gdelt_country_score 保持一致（mil+sanc 平均）：
+      russia_europe / taiwan_strait / us_china / mideast
+    样本量 <100 或配置缺失时 fallback 到 _GDELT_P95_FALLBACK（硬编码值）。
+    E0-C/V3（2026-08-14）：原进程内自算逻辑退役，统一读天玑校准配置（单一事实源）。
     """
     global _GDELT_P95
-    history_path = os.path.join(DATA_DIR, "gdelt_history.jsonl")
-    if not os.path.exists(history_path):
+    calib_path = os.path.join(DATA_DIR, "gdelt_calib.json")
+    if not os.path.exists(calib_path):
         _GDELT_P95 = dict(_GDELT_P95_FALLBACK)
         return _GDELT_P95
-
     try:
         import json as _json
-        records = []
-        with open(history_path, encoding="utf-8") as f:
-            for ln in f:
-                ln = ln.strip()
-                if ln:
-                    try:
-                        records.append(_json.loads(ln))
-                    except Exception:
-                        pass
-
-        if len(records) < 100:
-            _get_logger().info(
-                "[GRV] gdelt_history 样本不足100条（%d），使用硬编码 P95 fallback", len(records)
-            )
+        with open(calib_path, encoding="utf-8") as f:
+            d = _json.load(f)
+        hp = (d or {}).get("hotspot_p95") or {}
+        if (d or {}).get("sample_count", 0) < 100 or not isinstance(hp, dict) or not hp:
+            _get_logger().info("[GRV] gdelt_calib 样本不足/无配置，使用硬编码 P95 fallback")
             _GDELT_P95 = dict(_GDELT_P95_FALLBACK)
             return _GDELT_P95
-
-        hotspot_countries = {
-            "russia_europe": ["RUS", "DEU", "UKR"],
-            "taiwan_strait": ["TWN", "CHN"],
-            "us_china":      ["USA", "CHN"],
-            "mideast":       ["IRN", "SAU", "ISR"],
-        }
-
-        result = {}
-        for key, countries in hotspot_countries.items():
-            vals = []
-            for r in records:
-                scores = r.get("scores", {})
-                row_vals = []
-                for c in countries:
-                    mil  = float(scores.get("military",  {}).get(c) or 0)
-                    sanc = float(scores.get("sanction",  {}).get(c) or 0)
-                    row_vals.append((mil + sanc) / 2)
-                if row_vals:
-                    vals.append(sum(row_vals) / len(row_vals))
-
-            if len(vals) >= 50:
-                sorted_vals = sorted(vals)
-                p95_idx = int(len(sorted_vals) * 0.95)
-                p95 = sorted_vals[min(p95_idx, len(sorted_vals) - 1)]
-                result[key] = round(max(p95, 0.01), 3)  # 防零除
-            else:
-                result[key] = _GDELT_P95_FALLBACK.get(key, 1.0)
-
-        _GDELT_P95 = result
+        merged = dict(_GDELT_P95_FALLBACK)
+        merged.update({k: float(v) for k, v in hp.items() if v})
+        _GDELT_P95 = merged
         _get_logger().info(
-            "[GRV] gdelt_history P95 动态计算完成（%d条）: %s", len(records), result
+            "[GRV] GDELT P95 从天玑校准配置加载（%d条样本）: %s",
+            d.get("sample_count"), merged,
         )
         return _GDELT_P95
-
     except Exception as _e:
-        _get_logger().warning("[GRV] P95 动态计算失败，使用 fallback: %s", _e)
+        _get_logger().warning("[GRV] gdelt_calib 读取失败（%s），使用硬编码 P95 fallback", _e)
         _GDELT_P95 = dict(_GDELT_P95_FALLBACK)
         return _GDELT_P95
-
-# 持续冲突 floor：news.db 确认冲突仍在进行时对应维度的 GRV 下限
-# 防止 GPR 指数因媒体疲劳（战争常态化）导致维度虚低
-_CONFLICT_FLOOR = {
-    "russia_europe": 35.0,
-}
-_CONFLICT_FLOOR_MIN_ARTICLES = 5  # 触发 floor 所需的近30天冲突文章数
-
-
-# GED P95 基准锚点（ged_agg_country_month.csv，1989-2024，地区月度聚合，state+one-sided）
-# 多 agent 辩论结论（地缘政治理论+数据科学+怀疑者，2026-08-04）：
-#   P95 = 3570 死亡/地区/月；log1p(3570) ≈ 8.18
-#   权重：GED×0.30 + GDELT×0.70（保守起步，3个月后校准）
-#   适用维度：russia_europe（Europe）/ middle_east_energy（Middle East）
-#   不适用：taiwan_strait / us_china_strategic（威慑型风险，死亡数无意义）
-_GED_P95_ANCHOR = 3570.0
-_GED_REGION_MAP = {
-    "russia_europe":    "Europe",
-    "middle_east_energy": "Middle East",
-}
-_GED_STALE_MONTHS = 18  # 超过此月数无数据则权重自动降为 0
-
 
 def _load_ged_conflict_signal(dimension: str) -> float | None:
     """

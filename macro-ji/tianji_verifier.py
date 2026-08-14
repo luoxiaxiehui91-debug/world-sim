@@ -490,3 +490,9 @@ if __name__ == "__main__":
         confirm_geopolitical(pred_id, result == "1")
     else:
         run_monthly_verification()
+        # GDELT 校准器（T2 顺带跑：verifier 触发时刷新校准配置；函数级独立可拆；失败非阻断）
+        try:
+            from tianji_calibrator import run_calibration
+            run_calibration()
+        except Exception as _e:
+            print(f"[CALIB] 校准器失败（非阻断）: {_e}")

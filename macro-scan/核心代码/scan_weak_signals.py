@@ -837,7 +837,9 @@ def _compute_gdelt_scores(rows: list) -> dict:
     # 基准线 BASE=-7.0（低张力时期冲突事件典型均值，实测约 -7.97）
     # 公式：score = (mean_tone - BASE) / (−10.0 − BASE) * 100
     #       mean_tone=-7.0 → 0分（基准），mean_tone=-10.0 → 100分（极度压力）
-    _TONE_BASE = -7.0   # 低张力基准线（实测校准值）
+    _calib = _load_gdelt_calib()
+    _scales = _calib.get("scales", {})
+    _TONE_BASE = _calib.get("tone_base", -7.0)  # 低张力基准线（天玑校准器输出，fallback -7.0）
     _TONE_FLOOR = -10.0  # 最大冲突（Goldstein 下限）
 
     def _tone_to_score(c: str) -> float:
@@ -859,16 +861,31 @@ def _compute_gdelt_scores(rows: list) -> dict:
     # religious_conflict / regime_change 无实测峰值，使用保守估算值
     # ⚠️ 运行 3 个月后用 gdelt_history.jsonl 校准这两个维度的 scale
     return {
-        "military":           _norm(military, 135000),
-        "tension":            _norm(tension,  220000),
-        "protest":            _norm(protest,   14000),
-        "sanction":           _norm(sanction,  45000),
-        "coop":               _norm(coop,     900000),
-        "religious_conflict": _norm(rel_eth,    8000),   # 新增，估算基准
-        "regime_change":      _norm(regime_ch,  5000),   # 新增，估算基准
+        "military":           _norm(military, _scales.get("military", 135000)),
+        "tension":            _norm(tension,  _scales.get("tension", 220000)),
+        "protest":            _norm(protest,  _scales.get("protest", 14000)),
+        "sanction":           _norm(sanction, _scales.get("sanction", 45000)),
+        "coop":               _norm(coop,     _scales.get("coop", 900000)),
+        "religious_conflict": _norm(rel_eth,  _scales.get("religious_conflict", 8000)),
+        "regime_change":      _norm(regime_ch, _scales.get("regime_change", 5000)),
         "social_stress":      social_stress,             # Phase 2B：社会情绪压力
-        "cultural_friction":  _norm(cultural,    200),  # Phase 2D：文化摩擦（实测校准，原 3000 严重高估）
+        "cultural_friction":  _norm(cultural, _scales.get("cultural_friction", 200)),
     }
+
+
+def _load_gdelt_calib() -> dict:
+    """读取 gdelt_calib.json 校准配置（天玑 tianji_calibrator 产出）。样本 <100 或缺失 → {}（调用方 fallback 硬编码）。"""
+    try:
+        from optim_config import DATA_DIR
+        _p = os.path.join(DATA_DIR, "gdelt_calib.json")
+        if os.path.exists(_p):
+            with open(_p, encoding="utf-8") as f:
+                _d = json.load(f)
+            if isinstance(_d, dict) and (_d.get("sample_count") or 0) >= 100:
+                return _d
+    except Exception:
+        pass
+    return {}
 
 
 def _save_gdelt_scores(scores: dict) -> None:

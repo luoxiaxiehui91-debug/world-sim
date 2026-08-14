@@ -6,10 +6,10 @@ WORKDIR /app
 
 # pyyaml 唯一第三方依赖（weight_matrix 模块级 HAS_YAML + tianji_verifier 函数内 import）
 COPY requirements.txt /app/
-RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
 
 # 天玑验证内核（纯 stdlib + pyyaml）
-COPY tianji_db.py tianji_verifier.py weight_matrix.py optim_config.py /app/
+COPY tianji_db.py tianji_verifier.py weight_matrix.py optim_config.py tianji_calibrator.py /app/
 # watchdog：T2 共享触发文件轮询（trigger → 执行验证 → 写回）
 COPY verify_watchdog.py /app/
 
