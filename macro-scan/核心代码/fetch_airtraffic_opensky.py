@@ -68,7 +68,9 @@ IDX_LATITUDE = 6         # latitude
 IDX_BARO_ALT = 7         # baro_altitude
 IDX_ON_GROUND = 8        # on_ground
 IDX_VELOCITY = 9         # velocity
-MAX_COORDS = 500         # 前端 air 图层点位采样上限（全量 ~6000 点太密，均匀采样）
+IDX_TRUE_TRACK = 10      # true_track 航向（度，0-360 顺时针从北；前端箭头指向）
+# 08-14 全量输出：OpenSky /api/states/all 按请求计费不按条数，全量坐标零配额成本。
+# 前端 air 图层渲染保护 MAX_POINTS_PER_LAYER=2000 截断（capPointsPerLayer 兜底性能）。
 
 
 class AirTrafficOpenSkyFetcher(FetcherBase):
@@ -138,16 +140,15 @@ class AirTrafficOpenSkyFetcher(FetcherBase):
                     "pct": pct,
                 })
 
-        # 在飞航班坐标采样（08-14 开阳 air 图层点位）：全量 ~6000 点太密，
-        # 均匀采样 ≤MAX_COORDS 个；前端按图层开关显示，hover 看高度/速度/起飞机场国。
+        # 在飞航班坐标全量输出（08-14：API 按请求计费不按条数，全量零成本；
+        # 前端渲染保护 capPointsPerLayer 2000 截断兜底性能）。
         coords_raw = [
             s for s in in_air
             if len(s) > IDX_LONGITUDE
             and s[IDX_LATITUDE] is not None and s[IDX_LONGITUDE] is not None
         ]
-        step = max(1, len(coords_raw) // MAX_COORDS) if coords_raw else 1
         coordinates = []
-        for s in coords_raw[::step][:MAX_COORDS]:
+        for s in coords_raw:
             coordinates.append({
                 "lat": round(float(s[IDX_LATITUDE]), 4),
                 "lng": round(float(s[IDX_LONGITUDE]), 4),
@@ -155,6 +156,7 @@ class AirTrafficOpenSkyFetcher(FetcherBase):
                 "vel_ms": s[IDX_VELOCITY] if len(s) > IDX_VELOCITY else None,
                 "callsign": s[IDX_CALLSIGN].strip() if len(s) > IDX_CALLSIGN and s[IDX_CALLSIGN] else None,
                 "origin": s[IDX_ORIGIN_COUNTRY] if len(s) > IDX_ORIGIN_COUNTRY else None,
+                "track": s[IDX_TRUE_TRACK] if len(s) > IDX_TRUE_TRACK else None,
             })
 
         return {

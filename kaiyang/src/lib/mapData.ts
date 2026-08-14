@@ -47,6 +47,9 @@ export interface RiskPoint {
   weight: number;
   /** 图层类别（D1 色相载体）。缺省视为 'geo'，保证旧数据不炸 */
   category: LayerCategory;
+  /** 方向（度，0-360 顺时针从北）。可选：仅支持方向的图层（如 air 航班航向）填充，
+   *  2D 平面地图渲染为旋转小箭头；3D 球标签面向相机不渲染箭头（方向会被相机旋转干扰）。 */
+  direction?: number;
   /** 符号形状；缺省取 categoryDef(category).shape */
   shape?: PointShape;
   /** 类别内的原生度量原文（如 "0.12 µSv/h" / "37 人死亡"），仅供 tooltip 展示，不参与计算 */

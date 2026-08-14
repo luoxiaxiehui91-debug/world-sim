@@ -503,6 +503,16 @@ export function FlatMapPanel({
         }
       }
 
+      // 08-14 方向箭头（air 航班航向等）：有 direction 的点画旋转小箭头指向航向
+      // （SVG transform rotate 顺时针 = 航向 0-360 从北，近似可用；3D 球不画见 GlobePanel 注释）
+      if (typeof p.direction === 'number' && Number.isFinite(p.direction)) {
+        grp.append('path')
+          .attr('d', 'M 5 0 L -2 -2.2 L -0.5 0 L -2 2.2 Z')
+          .attr('fill', withAlpha(p.color, 0.9))
+          .attr('transform', `rotate(${p.direction})`)
+          .attr('pointer-events', 'none');
+      }
+
       grp
         .on('mouseenter', function(event: MouseEvent) {
           const pos = toContainerPos(event);

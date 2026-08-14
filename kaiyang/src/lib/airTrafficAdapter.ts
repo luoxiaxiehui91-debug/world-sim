@@ -35,10 +35,12 @@ export function adaptAirTraffic(raw: AirTrafficRaw | null): RiskPoint[] {
     ) {
       continue;
     }
-    const alt = typeof c.alt_m === 'number' ? c.alt_m : 0;
-    // 高度归一化仅驱动点尺寸（纯视觉），不参与风险值体系
-    const heightWeight = Math.min(1, Math.max(0, alt / 15000));
     const label = c.callsign ?? `航班${i + 1}`;
+    // 航向（0-360 顺时针从北）→ direction（2D 平面地图渲染旋转箭头）
+    const track =
+      typeof c.track === 'number' && Number.isFinite(c.track)
+        ? ((c.track % 360) + 360) % 360
+        : undefined;
     points.push({
       id: `air:${i}:${label}-${c.lat.toFixed(4)}-${c.lng.toFixed(4)}`,
       label,
@@ -51,13 +53,15 @@ export function adaptAirTraffic(raw: AirTrafficRaw | null): RiskPoint[] {
       status,
       color: categoryColor('air', status),
       severity: '空域', // 中性标签，替代 低/中/高
-      weight: heightWeight,
+      weight: 0.5, // 统一大小（用户拍板：不区分大小）
       category: 'air',
       shape: categoryShape('air'),
+      direction: track, // 2D 地图画航向箭头
       rawMetric: c.origin ? `起飞机场国 ${c.origin}` : undefined,
       note:
         `高度 ${c.alt_m !== null && c.alt_m !== undefined ? `${Math.round(c.alt_m)}m` : '—'} · ` +
-        `速度 ${c.vel_ms !== null && c.vel_ms !== undefined ? `${Math.round(c.vel_ms)}m/s` : '—'}`,
+        `速度 ${c.vel_ms !== null && c.vel_ms !== undefined ? `${Math.round(c.vel_ms)}m/s` : '—'}` +
+        (track !== undefined ? ` · 航向 ${Math.round(track)}°` : ''),
       sourceUrl: undefined,
     });
   }

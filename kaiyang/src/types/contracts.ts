@@ -419,6 +419,7 @@ export interface AirTrafficPoint {
   vel_ms?: number | null;
   callsign?: string | null;
   origin?: string | null;
+  track?: number | null;
 }
 export interface AirTrafficRaw extends RiskSignalBase {
   flights_in_air?: number;
