@@ -158,8 +158,8 @@ export const LAYER_CATEGORIES: LayerCategoryDef[] = [
     shape: 'circle',
     defaultVisible: false,
     phase: 'P2',
-    feed: null,
-    desc: '火点 / 热异常（海量小点，需抽稀）',
+    feed: 'firms',
+    desc: 'NASA FIRMS 火点（1° 网格后端预聚合，08-14 接入；火点密度 = 热异常活跃度）',
   },
   {
     key: 'maritime',
@@ -195,11 +195,11 @@ export const LAYER_CATEGORIES: LayerCategoryDef[] = [
     key: 'sdr',
     label: 'SDR 覆盖',
     color: CATEGORY_PALETTE.sdr,
-    shape: 'square',
+    shape: 'circle',
     defaultVisible: false,
     phase: 'P2',
-    feed: null,
-    desc: '软件无线电接收点覆盖（需后端 feed）',
+    feed: 'sdr',
+    desc: 'KiwiSDR 全球软件无线电接收器（851 个在线点，08-14 接入；覆盖可视化非风险）',
   },
 ];
 
@@ -228,11 +228,11 @@ export const MISSING_COLOR: string = CATEGORY_PALETTE.missing;
 export const MAX_POINTS_PER_LAYER = 2000;
 
 /**
- * 不受单图层护栏限制的类别（08-14 用户拍板：aircraft 实时航班全量显示，截断后缺一部分没意义）。
- * 后端已全量输出在飞航班（OpenSky 按请求计费不按条数，全量零额外成本；当前约 6182 点），
- * 前端不再截断。其余图层仍受 MAX_POINTS_PER_LAYER 护栏保护（防 feed 突发膨胀打死帧率）。
+ * 不受单图层护栏限制的类别（08-14 用户拍板：aircraft 实时航班全量显示，截断后缺一部分没意义；
+ * thermal 火点 1° 网格聚合点同理由——聚合后全球几千点，全量渲染）。
+ * 其余图层仍受 MAX_POINTS_PER_LAYER 护栏保护（防 feed 突发膨胀打死帧率）。
  */
-export const UNCAPPED_LAYERS: ReadonlySet<LayerCategory> = new Set(['aircraft']);
+export const UNCAPPED_LAYERS: ReadonlySet<LayerCategory> = new Set(['aircraft', 'thermal']);
 
 /** 类别 → 定义；未知类别返回 undefined（调用方自行降级为 FALLBACK_CATEGORY）。 */
 export function categoryDef(category: LayerCategory | undefined): LayerCategoryDef | undefined {

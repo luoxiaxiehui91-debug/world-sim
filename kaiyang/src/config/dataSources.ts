@@ -68,6 +68,20 @@ export const FEEDS: Record<string, FeedConfig> = {
     schemaVersion: '1.0',
     description: '全球航线网（OpenFlights 静态结构数据，08-14 air 图层）',
   },
+  sdr: {
+    name: 'sdr',
+    path: 'sdr_summary.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: 'KiwiSDR 全球接收器（fetch_kiwisdr 日更，08-14 sdr 图层）',
+  },
+  firms: {
+    name: 'firms',
+    path: 'firms_fire.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: 'NASA FIRMS 火点（1° 网格预聚合，08-14 thermal 图层）',
+  },
   newsAll: {
     name: 'newsAll',
     path: 'news_all.json',

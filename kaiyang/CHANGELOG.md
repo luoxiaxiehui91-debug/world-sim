@@ -527,6 +527,30 @@ docs/operations/20260805-world-deduction-time-audit-fixed.md。
 - npm test 14 files / 311 tests 全绿；vite build 本地构建（新 bundle index-oJgF4qMk.js / css 沿用 S7YTSnTj）
 - scp 原地覆盖 + chmod -R a+rX；root/js/css/news_geo 200；旧 bundle 按 DEPLOYMENT 规范留 3 版清理（v1.10.0-1.10.4 共 9 个删除）
 
+## [1.11.1] - 2026-08-14 · P2 图层续接：sdr 软件无线电 + thermal 热异常（数据源已就绪顺势接入）
+
+**修改理由**：用户问「还有什么要推进」→ P2 剩余图层中数据源已就绪的两块先接（sdr_summary.json 851 接收器含坐标、firms_fire.json 火点）。
+
+### 修改
+
+- **sdr 图层**（纯前端，数据源零改动）：
+  - `contracts.ts` SdrSummaryRaw / SdrReceiverRaw（注意后端字段是 `lon` 非 `lng`）
+  - `lib/sdrAdapter.ts`（新建）：receivers → RiskPoint[]（active→ok / 非 active→missing 灰；value null + severity 中性 'SDR'，air 教训复用）
+  - `layerCategories.ts`：sdr def 更新（feed 'sdr'、shape square→circle 图例地图一致、desc）
+- **thermal 图层**（后端 + 前端）：
+  - `fetch_firms.py`：**date 修复**（结束日期「今天」→「昨天」——FIRMS NRT 对 date=今天返回 0 行，实测 08-14 0 行 / 08-13 有 7.6 万行；这是长期潜伏 bug，早上跑必 0）；`_aggregate` 输出 **1° 网格聚合 hotspots**（格心 + 火点计数 + 最强 FRP + 高置信数，7.6 万+7.7 万行 → 4031 格，DECISION_MATRIX D2 后端预聚合）
+  - `contracts.ts` FirmsRaw / ThermalHotspotRaw；`dataSources.ts` + firms feed
+  - `lib/thermalAdapter.ts`（新建）：hotspots → RiskPoint[]（value = 火点计数归一化 = 热异常活跃度，aggCount 计数徽标，note 含 FRP/高置信）
+  - `UNCAPPED_LAYERS` + thermal（聚合后全球 4031 点全量渲染，截断无意义）
+- WorldPanel：sdrPoints + thermalPoints 合并（K7 顺序：常规点区，nuclear 之前）
+
+### 验证
+
+- tsc 通过；337 tests 全绿（+10：sdrAdapter 5 + thermalAdapter 5）
+- 后端实跑：total=152978 火点 / 1° 网格 4031 点 / 坐标全合法 / 中国 321 格、非洲 1045 格、南美 553 格（西伯利亚 1812 火点 top 格，真实数据）
+- vite build（新 bundle `index-CfjqlYsM.js`）scp 部署；index / bundle / sdr / firms feed 全 200
+- 视觉项由主理人浏览器复核
+
 ## [1.11.0] - 2026-08-14 · air 图层重构：全球航线网（弧）替代实时飞机点 + 新增 aircraft 子图层（用户拍板）
 
 **修改理由**：主理人发现实时航班图层「非洲/中国上空基本空」——经实测与查证，OpenSky 是众包 ADS-B 接收器网络，非洲/中国/俄罗斯内陆接收器稀疏，那些区域航班收不到信号（俄罗斯上空欧亚航线仅 11 点是最硬证据），**是数据源覆盖盲区而非 bug**。主理人拍板：air 图层改为**静态全球航线网**（OpenFlights 结构数据，全球主要航线完整、无盲区），实时飞机点降级为独立 aircraft 子图层（默认关、desc 标注盲区）。

@@ -15,9 +15,10 @@ fetch_firms.py — NASA FIRMS 卫星火点直连采集（替代 Crucix 接入）
 逐函数重建，行为等价验证：与 pyc 各跑一次对比 firms_fire.json 数值一致。
 """
 import json
+import math
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from optim_config import now_iso_utc
 from pathlib import Path
 import time
@@ -79,11 +80,15 @@ def _fetch_source_csv(date_str, source):
 
 
 def _aggregate(csv_texts):
-    '''合并多源 CSV 并聚合成 (total, high_conf, regions)。按 (lat,lng,date,time) 去重。'''
+    '''合并多源 CSV 并聚合成 (total, high_conf, regions, hotspots)。
+    按 (lat,lng,date,time) 去重；hotspots = 1° 网格聚合点（格心 + 火点计数 +
+    最强 FRP + 高置信数）——海量火点后端预聚合（DECISION_MATRIX D2：
+    "热点图层建议后端预聚合"），供开阳 thermal 热异常图层直接渲染。'''
     seen = set()
     total = 0
     high_conf = 0
-    grid = {}
+    grid = {}   # 10° 带（既有 regions 口径）
+    cells = {}  # 1° 网格（thermal 图层聚合）
     for txt in csv_texts:
         lines = txt.splitlines()
         if len(lines) < 2:
@@ -102,8 +107,31 @@ def _aggregate(csv_texts):
                 continue
             seen.add(dedup)
             total += 1
-            if parts[9].strip().lower() == 'h':
+            conf = parts[9].strip().lower()
+            if conf == 'h':
                 high_conf += 1
+            # 1° 网格聚合（floor 处理负半球的格边界对齐）
+            try:
+                frp = float(parts[12]) if len(parts) > 12 and parts[12].strip() else 0.0
+            except ValueError:
+                frp = 0.0
+            lat0 = math.floor(lat)
+            lng0 = math.floor(lng)
+            c = cells.get((lat0, lng0))
+            if c is None:
+                c = cells[(lat0, lng0)] = {
+                    'lat': lat0 + 0.5,
+                    'lng': lng0 + 0.5,
+                    'count': 0,
+                    'frp_max': 0.0,
+                    'high_conf': 0,
+                }
+            c['count'] += 1
+            if frp > c['frp_max']:
+                c['frp_max'] = frp
+            if conf == 'h':
+                c['high_conf'] += 1
+            # 10° 带（既有）
             lat_band = int(lat // 10) * 10
             lng_band = int(lng // 10) * 10
             lat_lbl = f'{lat_band}N' if lat >= 0 else f'{-lat_band}S'
@@ -112,7 +140,8 @@ def _aggregate(csv_texts):
             grid[key] = grid.get(key, 0) + 1
     # 只保留热点 ≥ 阈值 的格子（与 fetch_climate_signals 的消费口径一致）
     regions = sorted(k for k, v in grid.items() if v > REGION_HOTSPOT_THRESHOLD)
-    return total, high_conf, regions
+    hotspots = sorted(cells.values(), key=lambda c: c['count'], reverse=True)
+    return total, high_conf, regions, hotspots
 
 
 def fetch_and_save(date_str=None):
@@ -121,8 +150,11 @@ def fetch_and_save(date_str=None):
         print('[fetch_firms] requests 不可用，跳过')
         return {}
 
+    # 2026-08-14 修复：结束日期用「昨天」——FIRMS NRT 对 date=今天返回 0 行
+    # （当天数据尚未生成，实测 2026-08-14 0 行 / 08-13 有数据）；昨天+NRT 已生成，
+    # DAY_COUNT=2 窗口 = 前天+昨天，保持 24-48h 语义。
     if date_str is None:
-        date_str = datetime.now().strftime('%Y-%m-%d')
+        date_str = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
 
     print(f'[fetch_firms] 拉取 NASA FIRMS {VIIRS_SOURCES} world/{DAY_COUNT} @ {date_str}')
 
@@ -152,6 +184,7 @@ def fetch_and_save(date_str=None):
             'total_hotspots': 0,
             'high_confidence': 0,
             'active_fire_regions': [],
+            'hotspots': [],
             'source': f'NASA FIRMS {",".join(VIIRS_SOURCES)} (direct)',
             'upstream_window_days': DAY_COUNT,
             'status': 'failed',
@@ -172,7 +205,7 @@ def fetch_and_save(date_str=None):
             print(f'[fetch_firms] fail-loud 告警失败: {e}')
         return failed_result
 
-    total, high_conf, regions = _aggregate(csvs)
+    total, high_conf, regions, hotspots = _aggregate(csvs)
 
     # 2026-08-07 fail-loud（红线 #8）：全球 2 天 NRT 双源火点常态 7 万+，双零 = 异常信号（API 返回空/解析丢失），必须告警
     if total == 0 and high_conf == 0:
@@ -188,6 +221,7 @@ def fetch_and_save(date_str=None):
         'total_hotspots': total,
         'high_confidence': high_conf,
         'active_fire_regions': regions,
+        'hotspots': hotspots,
         'source': f'NASA FIRMS {",".join(VIIRS_SOURCES)} (direct)',
         'upstream_window_days': DAY_COUNT,
     }

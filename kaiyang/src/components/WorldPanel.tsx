@@ -12,6 +12,8 @@ import { adaptGrv } from '@/lib/grvAdapter';
 import { aggregateNewsGeo } from '@/lib/geoAggregate';
 import { adaptAirTraffic } from '@/lib/airTrafficAdapter';
 import { adaptAirRoutes } from '@/lib/airRoutesAdapter';
+import { adaptSdr } from '@/lib/sdrAdapter';
+import { adaptThermal } from '@/lib/thermalAdapter';
 import { buildEventBars, buildRiskArcs, buildRiskPoints, type RiskPoint } from '@/lib/mapData';
 import { buildNuclearPoints, mergeNuclear } from '@/lib/nuclearData';
 import {
@@ -41,7 +43,7 @@ import {
 import { severityColor, withAlpha } from '@/config/theme';
 import { fmtNum } from '@/lib/format';
 import type { GrvRaw, MarketQuotesRaw, NewsGeoRaw, NuclearSitesRaw ,
-  AirTrafficRaw, AirRoutesRaw} from '@/types/contracts';
+  AirTrafficRaw, AirRoutesRaw, SdrSummaryRaw, FirmsRaw} from '@/types/contracts';
 
 /** 视图模式：3D 地球 / 2D 平面地图。 */
 export type WorldViewMode = 'globe' | 'flat';
@@ -150,6 +152,10 @@ export function WorldPanel() {
   const { data: airRaw } = useFeed<AirTrafficRaw>('airtraffic');
   // 08-14 air 图层：全球航线网（OpenFlights 静态结构数据，feed 缺失 → []）
   const { data: airRoutesRaw } = useFeed<AirRoutesRaw>('airroutes');
+  // 08-14 sdr 图层：KiwiSDR 全球接收器（日更，feed 缺失 → []）
+  const { data: sdrRaw } = useFeed<SdrSummaryRaw>('sdr');
+  // 08-14 thermal 图层：NASA FIRMS 火点（1° 网格预聚合，日档，feed 缺失 → []）
+  const { data: firmsRaw } = useFeed<FirmsRaw>('firms');
   // 1.6.0 预埋：市场行情读取层仅触发 fetch，本批无面板（不为它分配 RingPoint）
   const { data: marketRaw } = useFeed<MarketQuotesRaw>('market_quotes');
   const { report } = useStatus();
@@ -170,6 +176,10 @@ export function WorldPanel() {
   const airPoints = useMemo(() => adaptAirTraffic(airRaw ?? null), [airRaw]);
   // 08-14 air 图层航线弧：全球主要航线走廊（静态结构数据；intensity = 航线繁忙度非风险）
   const airRouteArcs = useMemo(() => adaptAirRoutes(airRoutesRaw ?? null), [airRoutesRaw]);
+  // 08-14 sdr 图层：KiwiSDR 全球接收器点位（覆盖可视化，非风险）
+  const sdrPoints = useMemo(() => adaptSdr(sdrRaw ?? null), [sdrRaw]);
+  // 08-14 thermal 图层：FIRMS 火点 1° 网格聚合点（火点密度 = 热异常活跃度）
+  const thermalPoints = useMemo(() => adaptThermal(firmsRaw ?? null), [firmsRaw]);
   // 核设施：feed 缺失时 mergeNuclear 回落静态种子，读数为空 ⇒ 灰色虚线菱形（不白屏、不编数）
   const nuclearRows = useMemo(() => mergeNuclear(nuclearRaw ?? null), [nuclearRaw]);
   const nuclearPoints = useMemo(() => buildNuclearPoints(nuclearRows), [nuclearRows]);
@@ -177,10 +187,15 @@ export function WorldPanel() {
   // K7 层叠顺序：海量点(P2 暂无) → 常规点 → 事件点 → 地理新闻 → 固定设施
   // 地理新闻位于「事件点」之后、「核设施」之前：与 event 同属增量信息但更稳定，
   // 落在固定设施之下避免海量时淹没核读数菱形。
+  // 08-14 追加顺序：aircraft 实时航班 → sdr 接收器 → thermal 火点（均为常规点，
+  // 排在 event/news 之后、nuclear 之前，避免压住核读数）。
   void marketRaw; // 显式标记已消费（仅 fetch 不渲染，预埋备查）
   const allPoints = useMemo(
-    () => capPointsPerLayer([...points, ...eventPoints, ...newsGeoPoints, ...airPoints, ...nuclearPoints]),
-    [points, eventPoints, newsGeoPoints, airPoints, nuclearPoints],
+    () => capPointsPerLayer([
+      ...points, ...eventPoints, ...newsGeoPoints,
+      ...airPoints, ...sdrPoints, ...thermalPoints, ...nuclearPoints,
+    ]),
+    [points, eventPoints, newsGeoPoints, airPoints, sdrPoints, thermalPoints, nuclearPoints],
   );
 
   const visibleSet = useMemo<ReadonlySet<LayerCategory>>(

@@ -447,6 +447,46 @@ export interface AirRoutesRaw extends RiskSignalBase {
   routes?: AirRouteRaw[];
 }
 
+/** sdr_summary.json（KiwiSDR 全球接收器目录，08-14 开阳 sdr 图层）。 */
+export interface SdrReceiverRaw {
+  id: string;
+  name: string;
+  /** 注意：后端字段是 lon（不是 lng） */
+  lat: number;
+  lon: number;
+  loc: string;
+  grid: string;
+  status: string;
+  users: string;
+  updated: string;
+}
+export interface SdrSummaryRaw extends RiskSignalBase {
+  total?: number;
+  online?: number;
+  offline?: number;
+  receivers?: SdrReceiverRaw[];
+}
+
+/** firms_fire.json hotspots[]（NASA FIRMS 火点，1° 网格后端预聚合，08-14 thermal 图层）。 */
+export interface ThermalHotspotRaw {
+  /** 网格中心坐标 */
+  lat: number;
+  lng: number;
+  /** 网格内火点数 */
+  count: number;
+  /** 网格内最强 FRP（辐射功率，MW） */
+  frp_max: number;
+  /** 网格内高置信火点数 */
+  high_conf: number;
+}
+export interface FirmsRaw extends RiskSignalBase {
+  total_hotspots?: number;
+  high_confidence?: number;
+  active_fire_regions?: string[];
+  hotspots?: ThermalHotspotRaw[];
+  upstream_window_days?: number;
+}
+
 export interface NewsRiskRaw extends RiskSignalBase {
   source?: string;
   gdelt?: {
