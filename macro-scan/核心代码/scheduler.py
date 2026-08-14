@@ -40,7 +40,7 @@ LOG_DIR = "/var/log/macro-scan"
 
 JOBS = [
     # name,         hhmm,   weekdays(1-5=Mon-Fri, 1-7=all), dom(day-of-month, None=any), command
-    ("disaster",    "I30", "1-7", None, [PYTHON, "fetch_disaster_signals.py"]),  # 自然灾害信号（事件档 每30分）
+    ("disaster",    "I15", "1-7", None, [PYTHON, "fetch_disaster_signals.py"]),  # 自然灾害信号（事件档 每15分；08-14 提频与地震对齐）
     ("fred_fetch",  "0530", "1-7", None, [PYTHON, "fetch_fred_history.py"]),
     ("gscpi",       "0532", "1-7", None, [PYTHON, "fetch_gscpi.py"]),          # NY Fed GSCPI（落盘 GSCPI.csv；ADR-01 门禁重定义；错峰 fred_fetch 0530，morning 0730 前落盘）
     ("compute_fci", "0535", "1-7", None, [PYTHON, "compute_fci.py"]),  # L1 FCI 双轨（依赖 fred_fetch 刷新 fred_history）
@@ -51,7 +51,7 @@ JOBS = [
     ("china_fetch", "0545", "1-7", None, [PYTHON, "fetch_china_data.py"]),
     ("world_macro", "0550", "1-7", None, [PYTHON, "fetch_world_macro.py"]),
     ("fx_fetch",    "0555", "1-7", None, [PYTHON, "fetch_fx.py"]),
-    ("crypto",      "I15", "1-7", None, [PYTHON, "fetch_crypto.py"]),         # CoinGecko（事件档 每15分；≤50%月限额）
+    ("crypto",      "I10", "1-7", None, [PYTHON, "fetch_crypto.py"]),         # CoinGecko（事件档 每10分；08-14 提频 4320/月=43% 贴 50% 月限）
     ("weak_signal", "0000", "1-7", None, [PYTHON, "scan_weak_signals.py"]),
     ("weak_signal", "0600", "1-7", None, [PYTHON, "scan_weak_signals.py"]),
     ("weak_signal", "1200", "1-7", None, [PYTHON, "scan_weak_signals.py"]),
@@ -59,12 +59,12 @@ JOBS = [
     ("sanctions",   "0605", "1-7", None, [PYTHON, "fetch_sanctions.py"]),
     # ── 新接入 P0+P1 源（fetcher_base 适配层；常驻进程、独立时间槽、互不阻塞）──
     # 喂 GRV 的源（earthquake / energy）排在大盘 grv_update 06:10 之前，保证当天先落盘
-    ("earthquake",  "I15", "1-7", None, [PYTHON, "fetch_earthquake.py"]),   # P0 USGS 地震（事件档 每15分；喂 seismic_risk）
+    ("earthquake",  "I5",  "1-7", None, [PYTHON, "fetch_earthquake.py"]),   # P0 USGS 地震（事件档 每5分；08-14 提频，USGS 无硬限）
     ("safecast_nuke", "I60", "1-7", None, [PYTHON, "fetch_safecast_nuke.py"]), # SafeCast 核电站辐射 CPM（事件档 每60分；历史归档均值 2016-2023，低频拉取避免刷免费 API）
     ("gdelt_geo",   "I15", "1-7", None, [PYTHON, "fetch_gdelt_geo.py", "--incremental"]),  # P1 GDELT 地理事件点（事件档 每15分；产出 news_geo.jsonl + 派生 news_geo.json，供开阳事件图层）
-    ("energy",      "0608", "1-7", None, [PYTHON, "fetch_energy.py"]),       # P1 电网/能源（喂 energy_grid_risk）
+    ("energy",      "I60", "1-7", None, [PYTHON, "fetch_energy.py"]),       # P1 电网/能源（小时档；08-14 提频，碳强度近实时受益）
     # 以下不喂 GRV，仅落盘交叉验证/事件源，错峰在 grv_update 之后
-    ("crypto_extra","I15", "1-7", None, [PYTHON, "fetch_crypto_extra.py"]), # P1 Binance/Kraken 冗余行情（事件档 每15分）
+    ("crypto_extra","I5",  "1-7", None, [PYTHON, "fetch_crypto_extra.py"]), # P1 Binance/Kraken 冗余行情（事件档 每5分；08-14 提频，公共端慷慨）
     ("news",        "I30",  "1-7", None, [PYTHON, "fetch_news.py"]),         # P1 GDELT DOC 2.0 + MarketAux（30min=MarketAux 48% 贴 50% 水位，实时性）
     ("hdx",         "0620", "1-7", None, [PYTHON, "fetch_hdx.py"]),          # P1 人道/危机冲击
     # 新增 BDI / FAO（T01/T02：fetcher_base 适配层；仅落盘，不喂 GRV）
@@ -74,7 +74,7 @@ JOBS = [
     ("fao",         "0925", "1-7", 1,    [PYTHON, "fetch_fao.py"]),           # P0 FAO 粮食价格指数（每月1日 dom=1）
     # 新增 商品/航空/中观（T1/T2/T3：fetcher_base 适配层；仅落盘，不喂 GRV，错峰）
     ("commodity_yahoo",    "I15", "1-7", None, [PYTHON, "fetch_commodity_yahoo.py"]),   # P0 Yahoo 商品/股市（每 15 分钟，08-14 起即时化）
-    ("airtraffic_opensky", "0628", "1-7", None, [PYTHON, "fetch_airtraffic_opensky.py"]), # P0 OpenSky 航空（日频）
+    ("airtraffic_opensky", "I30", "1-7", None, [PYTHON, "fetch_airtraffic_opensky.py"]), # P0 OpenSky 航空（30min；08-14 提频 48/日=12%≪200/日 50% 水位，观察后评估 I15）
     ("energy_eia",         "0630", "1-7", None, [PYTHON, "fetch_energy_eia.py"]),          # P0 EIA 能源（日频，错峰 commodity_yahoo 0626）
     ("china_meso",         "0930", "1-7", 1,    [PYTHON, "fetch_china_meso.py"]),          # P0 AkShare 中观（每月1日，错峰 fao 0925）
     # 地震为实时外生冲击，日内再刷 3 次（错峰，不与白天任务冲突）
@@ -94,7 +94,7 @@ JOBS = [
     ("daily_narrative", "0700", "1-7", None, [PYTHON, "daily_narrative.py"]),
     ("news_export",  "I15", "1-7", None, [PYTHON, "news_exporter.py"]),         # macro-sim JSON 导出
     ("narrative_proc","0710", "1-7", None, [PYTHON, "narrative_processor.py"]),  # 天玑 叙事预处理（叙事块写入+密度监测）
-    ("defense_rss",   "0712", "1-7", None, [PYTHON, "fetch_defense_rss.py"]),     # T1-3 防务RSS（Al Jazeera/Defense One/WotR）
+    ("defense_rss",   "I60", "1-7", None, [PYTHON, "fetch_defense_rss.py"]),     # T1-3 防务RSS（小时档；08-14 提频，RSS 持续无 key）
     # news_geo_feed（P3-A NER）已于 2026-08-11 停调度：gdelt_geo --incremental 直接派生 news_geo.json（路线 A）
     ("situation_detect", "0630", "1-7", None, [PYTHON, "situation_detector.py"]),
     ("weekly_synthesis", "2000", "5",  None, [PYTHON, "weekly_synthesis.py"]),       # 周五20:00
