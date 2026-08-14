@@ -115,8 +115,8 @@ export const LAYER_CATEGORIES: LayerCategoryDef[] = [
     shape: 'circle',
     defaultVisible: true,
     phase: 'P1',
-    feed: null,
-    desc: '武装冲突 / 伤亡事件（需后端 feed）',
+    feed: 'news_geo',
+    desc: '武装冲突 / 伤亡事件（GDELT news_geo 事件，08-14 接入）',
   },
   {
     key: 'chokepoint',
