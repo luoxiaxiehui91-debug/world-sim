@@ -3,7 +3,6 @@ import {
   categoryShape,
   type PointStatus,
 } from '@/config/layerCategories';
-import { severityLabel } from '@/config/theme';
 import type { RiskPoint } from '@/lib/mapData';
 import type { AirTrafficRaw } from '@/types/contracts';
 
@@ -13,10 +12,12 @@ import type { AirTrafficRaw } from '@/types/contracts';
  * 数据源：fetch_airtraffic_opensky.py（OpenSky /api/states/all，I30 实时快照）。
  * coordinates 已由后端均匀采样 ≤500 个在飞航班（含 lat/lng/alt/vel/callsign/origin）。
  *
- * 点位语义：
- *  - value = 高度归一化（0~15000m → 0~100），weight 驱动尺寸
- *  - hover 显示 高度/速度/起飞机场国（rawMetric/note）
- *  - 空数据 / feed 缺失 → []（K5 不白屏）
+ * ⚠ 语义边界（08-14 修正，用户指出「风险值是什么」）：
+ *  - air 图层是「空域活动可视化」，**不是风险评分**。飞行高度 ≠ 风险等级。
+ *  - value 恒为 null（不参与风险值/等级体系，点位不显示误导数字）；
+ *  - weight 用高度归一化仅驱动点尺寸（高飞的点略大，纯视觉）；
+ *  - severity 固定中性标签 '空域'（弹框不显示 低/中/高）；
+ *  - hover/弹框展示航班号、高度、速度、起飞机场国。
  */
 export function adaptAirTraffic(raw: AirTrafficRaw | null): RiskPoint[] {
   if (!raw || !Array.isArray(raw.coordinates) || raw.coordinates.length === 0) {
@@ -35,21 +36,22 @@ export function adaptAirTraffic(raw: AirTrafficRaw | null): RiskPoint[] {
       continue;
     }
     const alt = typeof c.alt_m === 'number' ? c.alt_m : 0;
-    const value = Math.round(Math.min(100, Math.max(0, (alt / 15000) * 100)));
+    // 高度归一化仅驱动点尺寸（纯视觉），不参与风险值体系
+    const heightWeight = Math.min(1, Math.max(0, alt / 15000));
     const label = c.callsign ?? `航班${i + 1}`;
     points.push({
       id: `air:${i}:${label}-${c.lat.toFixed(4)}-${c.lng.toFixed(4)}`,
       label,
       lat: c.lat,
       lng: c.lng,
-      value,
+      value: null, // air 非风险语义：不显示误导数值
       uncertainty: null,
       uncertaintyEstimated: false,
       group: `空域 · ${c.origin ?? '未知'}`,
       status,
       color: categoryColor('air', status),
-      severity: severityLabel(value),
-      weight: value / 100,
+      severity: '空域', // 中性标签，替代 低/中/高
+      weight: heightWeight,
       category: 'air',
       shape: categoryShape('air'),
       rawMetric: c.origin ? `起飞机场国 ${c.origin}` : undefined,
