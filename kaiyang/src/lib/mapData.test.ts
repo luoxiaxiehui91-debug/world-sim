@@ -5,6 +5,8 @@ import {
   buildRiskArcs,
   pointTooltipHtml,
   arcTooltipHtml,
+  downsampleLayer,
+  MAX_FLAT_LAYER_POINTS,
 } from '@/lib/mapData';
 import type { RiskPoint } from '@/lib/mapData';
 import { CATEGORY_PALETTE, severityColor } from '@/config/theme';
@@ -449,5 +451,57 @@ describe('arcTooltipHtml', () => {
     expect(html).toContain('气候风险');
     expect(html).toContain('俄乌/东欧');
     expect(html).toContain('65');
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* 2D 平面图降采样护栏（08-14 用户反馈平面图卡）                        */
+/* ------------------------------------------------------------------ */
+describe('downsampleLayer（2D 平面图海量点降采样）', () => {
+  function mk(id: string, category: RiskPoint['category']): RiskPoint {
+    return {
+      id,
+      label: id,
+      lat: 0,
+      lng: 0,
+      value: 50,
+      uncertainty: null,
+      uncertaintyEstimated: false,
+      group: 'g',
+      status: 'ok',
+      color: '#fff',
+      severity: '中',
+      weight: 0.5,
+      category,
+      shape: 'circle',
+    };
+  }
+
+  it('不超过上限时原样返回（不降采样）', () => {
+    const pts = [mk('a1', 'aircraft'), mk('a2', 'aircraft')];
+    expect(downsampleLayer(pts, 'aircraft', 1500)).toBe(pts);
+  });
+
+  it('超上限时目标图层均匀降采样（stride 抽样），其余图层原样保留', () => {
+    const pts: RiskPoint[] = [
+      ...Array.from({ length: 100 }, (_, i) => mk(`f${i}`, 'aircraft')),
+      mk('s1', 'sdr'),
+      mk('t1', 'thermal'),
+    ];
+    const out = downsampleLayer(pts, 'aircraft', 30);
+    // 100 → 30（stride=4，保留 25 个）
+    const kept = out.filter((p) => p.category === 'aircraft');
+    expect(kept.length).toBeLessThanOrEqual(30);
+    expect(kept.length).toBeGreaterThanOrEqual(25);
+    // 非目标图层原样保留
+    expect(out.filter((p) => p.category === 'sdr')).toHaveLength(1);
+    expect(out.filter((p) => p.category === 'thermal')).toHaveLength(1);
+    // id 全局唯一（K2）
+    expect(new Set(out.map((p) => p.id)).size).toBe(out.length);
+  });
+
+  it('MAX_FLAT_LAYER_POINTS 默认上限为正整数（aircraft 6182 → 1500 量级）', () => {
+    expect(Number.isInteger(MAX_FLAT_LAYER_POINTS)).toBe(true);
+    expect(MAX_FLAT_LAYER_POINTS).toBe(1500);
   });
 });

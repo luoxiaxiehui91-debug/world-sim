@@ -14,7 +14,7 @@ import { adaptAirTraffic } from '@/lib/airTrafficAdapter';
 import { adaptAirRoutes } from '@/lib/airRoutesAdapter';
 import { adaptSdr } from '@/lib/sdrAdapter';
 import { adaptThermal } from '@/lib/thermalAdapter';
-import { buildEventBars, buildRiskArcs, buildRiskPoints, type RiskPoint } from '@/lib/mapData';
+import { buildEventBars, buildRiskArcs, buildRiskPoints, downsampleLayer, type RiskPoint } from '@/lib/mapData';
 import { buildNuclearPoints, mergeNuclear } from '@/lib/nuclearData';
 import {
   ALL_CATEGORIES,
@@ -203,10 +203,18 @@ export function WorldPanel() {
     [visibleCategories],
   );
 
+  // 2D 平面图性能护栏（08-14 20:4x 用户反馈「平面图非常卡」）：
+  // aircraft 6182 箭头在 SVG 下 DOM 过重 → flat 模式均匀降采样到
+  // MAX_FLAT_LAYER_POINTS；globe 3D 走 WebGL 可扛全量不降（用户拍板过全量）。
+  const displayPoints = useMemo(
+    () => (mode === 'flat' ? downsampleLayer(allPoints, 'aircraft') : allPoints),
+    [allPoints, mode],
+  );
+
   // 地区范围内的点位（world 时 inRegion 恒真，等价于升级前行为）
   const regionPoints = useMemo(
-    () => allPoints.filter((p) => inRegion(p, region)),
-    [allPoints, region],
+    () => displayPoints.filter((p) => inRegion(p, region)),
+    [displayPoints, region],
   );
 
   // 过滤 = 地区范围 ∩ 图层显隐

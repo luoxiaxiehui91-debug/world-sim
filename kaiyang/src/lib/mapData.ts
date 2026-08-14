@@ -268,3 +268,30 @@ export function arcTooltipHtml(a: RiskArc): string {
     `${a.fromLabel} ↔ ${a.toLabel} · 联动强度 ${fmtNum(a.intensity, 0)}</div>`
   );
 }
+
+/**
+ * 2D 平面图单图层降采样上限（08-14 20:4x 用户反馈「平面图非常卡」）。
+ * SVG 渲染下海量点（aircraft 6182 箭头）DOM 过重；3D globe 走 WebGL 可扛全量不降。
+ * 仅 flat 模式对海量图层均匀抽样到该上限。
+ */
+export const MAX_FLAT_LAYER_POINTS = 1500;
+
+/**
+ * 对指定图层做均匀降采样（stride 抽样），其余图层原样保留。
+ * 用于 2D 平面图性能护栏（渲染器无过滤职责，过滤/降采样只在本数据层做）。
+ * 输入已超出 max 才降采样；保持空间分布均匀（按数组索引 stride 取点）。
+ */
+export function downsampleLayer(
+  points: RiskPoint[],
+  category: LayerCategory,
+  max: number = MAX_FLAT_LAYER_POINTS,
+): RiskPoint[] {
+  const layer = points.filter((p) => p.category === category);
+  if (layer.length <= max) return points;
+  const stride = Math.ceil(layer.length / max);
+  const keep = new Set<string>();
+  layer.forEach((p, i) => {
+    if (i % stride === 0) keep.add(p.id);
+  });
+  return points.filter((p) => p.category !== category || keep.has(p.id));
+}

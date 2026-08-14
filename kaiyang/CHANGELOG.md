@@ -527,6 +527,22 @@ docs/operations/20260805-world-deduction-time-audit-fixed.md。
 - npm test 14 files / 311 tests 全绿；vite build 本地构建（新 bundle index-oJgF4qMk.js / css 沿用 S7YTSnTj）
 - scp 原地覆盖 + chmod -R a+rX；root/js/css/news_geo 200；旧 bundle 按 DEPLOYMENT 规范留 3 版清理（v1.10.0-1.10.4 共 9 个删除）
 
+## [1.11.4] - 2026-08-14 · 2D 平面图 aircraft 降采样护栏（用户反馈「平面图就非常卡」）
+
+**修改理由**：rAF 节流 + dot 简化后 2D 仍卡——最大头是 aircraft 6182 箭头（SVG 每点 group+path+监听）。用户授权「筛一筛或缩小显示」→ flat 模式降采样，globe 3D 保持全量（WebGL 可扛，且用户拍板过全量）。
+
+### 修改
+
+- `lib/mapData.ts`：`MAX_FLAT_LAYER_POINTS = 1500` + `downsampleLayer(points, category, max)`——stride 均匀抽样（保持空间分布），非目标图层原样保留；渲染器无过滤职责（K6），降采样只在本数据层做
+- `WorldPanel.tsx`：`displayPoints` = flat 模式对 aircraft 降采样 / globe 全量；regionPoints/visiblePoints 走 displayPoints
+- 测试：mapData.test +3（不超限原样 / 超限均匀降采样且他层保留 / 上限常量）；341 tests 全绿
+
+### 验证
+
+- tsc 通过；341 tests 全绿；vite build（新 bundle `index-DdjydWdV.js`）scp 部署；index / bundle 200
+- 效果：2D aircraft 6182 → ~1500（均匀），总点位 2D ≈ 3400（aircraft 1500 + sdr 851 + thermal 527 + 常规），SVG 流畅
+- 视觉项由主理人浏览器复核
+
 ## [1.11.3] - 2026-08-14 · 2D 渲染防卡顿双管齐下（用户反馈「还是卡」）
 
 **修改理由**：thermal 等级筛选后仍卡（527 格 + aircraft 6182 + sdr 851 全开 ≈ 8000+ 点 / 3.2 万事件监听）。定位：①鼠标扫过时每个点 mousemove → setTooltip 高频 React 重渲染（每帧多次 state 更新 → 整幅 SVG 重渲染）；②circle 渲染每点 4 元素（环+光晕+圆+徽标）DOM 过重。
