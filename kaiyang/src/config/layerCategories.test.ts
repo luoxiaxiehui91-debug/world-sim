@@ -34,9 +34,9 @@ describe('layerCategories: 枚举完整性', () => {
     expect(ALL_CATEGORIES).toHaveLength(LAYER_CATEGORIES.length);
   });
 
-  it('共 12 个类别，键两两唯一（osint 已因合规否决永久删除）', () => {
-    expect(LAYER_CATEGORIES).toHaveLength(12);
-    expect(new Set(ALL_CATEGORIES).size).toBe(12);
+  it('共 13 个类别，键两两唯一（osint 已因合规否决永久删除；08-14 +aircraft 实时航班）', () => {
+    expect(LAYER_CATEGORIES).toHaveLength(13);
+    expect(new Set(ALL_CATEGORIES).size).toBe(13);
     expect(ALL_CATEGORIES).not.toContain('osint' as LayerCategory);
     expect(CATEGORY_PALETTE).not.toHaveProperty('osint');
   });
@@ -69,7 +69,7 @@ describe('layerCategories: 枚举完整性', () => {
   it('每个类别的 phase / shape / defaultVisible 均合法', () => {
     for (const def of LAYER_CATEGORIES) {
       expect(['P0', 'P1', 'P2']).toContain(def.phase);
-      expect(['circle', 'diamond', 'triangle', 'square', 'arrow']).toContain(def.shape);
+      expect(['circle', 'diamond', 'triangle', 'square', 'arrow', 'arc']).toContain(def.shape);
       expect(typeof def.defaultVisible).toBe('boolean');
       expect(def.label.length).toBeGreaterThan(0);
       expect(def.desc.length).toBeGreaterThan(0);
@@ -98,9 +98,22 @@ describe('layerCategories: 枚举完整性', () => {
     expect(MAX_POINTS_PER_LAYER).toBeGreaterThan(0);
   });
 
-  it('UNCAPPED_LAYERS 含 air（08-14 用户拍板全量显示，截断后缺一部分没意义）', () => {
-    expect(UNCAPPED_LAYERS.has('air')).toBe(true);
+  it('UNCAPPED_LAYERS 含 aircraft（08-14 用户拍板实时航班全量显示，截断后缺一部分没意义）', () => {
+    expect(UNCAPPED_LAYERS.has('aircraft')).toBe(true);
+    expect(UNCAPPED_LAYERS.has('air')).toBe(false);
     expect(UNCAPPED_LAYERS.size).toBeGreaterThan(0);
+  });
+
+  it('air=全球航线网（弧层）/ aircraft=实时航班（箭头点）双图层就位（08-14 重构）', () => {
+    const air = categoryDef('air');
+    const aircraft = categoryDef('aircraft');
+    expect(air).toBeDefined();
+    expect(air?.shape).toBe('arc');
+    expect(air?.feed).toBe('airroutes');
+    expect(aircraft).toBeDefined();
+    expect(aircraft?.shape).toBe('arrow');
+    expect(aircraft?.feed).toBe('airtraffic');
+    expect(aircraft?.defaultVisible).toBe(false);
   });
 });
 

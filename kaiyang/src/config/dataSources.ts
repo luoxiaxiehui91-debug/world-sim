@@ -59,7 +59,14 @@ export const FEEDS: Record<string, FeedConfig> = {
     path: 'airtraffic_opensky.json',
     type: 'json',
     schemaVersion: '1.0',
-    description: '空域活动（OpenSky 实时航班快照，08-14 air 图层接入）',
+    description: '实时航班（OpenSky ADS-B 快照，08-14 aircraft 图层；非洲/中国/俄罗斯内陆覆盖稀疏）',
+  },
+  airroutes: {
+    name: 'airroutes',
+    path: 'airroutes.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '全球航线网（OpenFlights 静态结构数据，08-14 air 图层）',
   },
   newsAll: {
     name: 'newsAll',

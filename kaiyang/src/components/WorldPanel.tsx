@@ -11,6 +11,7 @@ import { useSelection } from '@/state/SelectionContext';
 import { adaptGrv } from '@/lib/grvAdapter';
 import { aggregateNewsGeo } from '@/lib/geoAggregate';
 import { adaptAirTraffic } from '@/lib/airTrafficAdapter';
+import { adaptAirRoutes } from '@/lib/airRoutesAdapter';
 import { buildEventBars, buildRiskArcs, buildRiskPoints, type RiskPoint } from '@/lib/mapData';
 import { buildNuclearPoints, mergeNuclear } from '@/lib/nuclearData';
 import {
@@ -40,7 +41,7 @@ import {
 import { severityColor, withAlpha } from '@/config/theme';
 import { fmtNum } from '@/lib/format';
 import type { GrvRaw, MarketQuotesRaw, NewsGeoRaw, NuclearSitesRaw ,
-  AirTrafficRaw} from '@/types/contracts';
+  AirTrafficRaw, AirRoutesRaw} from '@/types/contracts';
 
 /** 视图模式：3D 地球 / 2D 平面地图。 */
 export type WorldViewMode = 'globe' | 'flat';
@@ -99,7 +100,7 @@ function readInitialRegion(): RegionKey {
  * 单图层点位数量护栏（设计稿 §10-N5）。
  * 超出 `MAX_POINTS_PER_LAYER` 的部分直接截断并在控制台告警，
  * 避免某个 feed 突然膨胀（如热异常火点）把帧率打死。
- * 08-14：`UNCAPPED_LAYERS`（air 空域活动）豁免——用户拍板全量显示，截断后缺一部分没意义。
+ * 08-14：`UNCAPPED_LAYERS`（aircraft 实时航班）豁免——用户拍板全量显示，截断后缺一部分没意义。
  */
 function capPointsPerLayer(points: RiskPoint[]): RiskPoint[] {
   const seen = new Map<LayerCategory, number>();
@@ -145,8 +146,10 @@ export function WorldPanel() {
   const { data: nuclearRaw } = useFeed<NuclearSitesRaw>('nuclearSites');
   // 1.6.0 新增：地理新闻读取层骨架。feed 缺失 / 空 events 适配为 []（K5 不白屏）
   const { data: newsGeoRaw } = useFeed<NewsGeoRaw>('news_geo');
-  // 08-14 air 图层：OpenSky 实时航班（feed 缺失 → []，K5 不白屏）
+  // 08-14 aircraft 子图层：OpenSky 实时航班（feed 缺失 → []，K5 不白屏）
   const { data: airRaw } = useFeed<AirTrafficRaw>('airtraffic');
+  // 08-14 air 图层：全球航线网（OpenFlights 静态结构数据，feed 缺失 → []）
+  const { data: airRoutesRaw } = useFeed<AirRoutesRaw>('airroutes');
   // 1.6.0 预埋：市场行情读取层仅触发 fetch，本批无面板（不为它分配 RingPoint）
   const { data: marketRaw } = useFeed<MarketQuotesRaw>('market_quotes');
   const { report } = useStatus();
@@ -165,6 +168,8 @@ export function WorldPanel() {
     [newsGeoRaw],
   );
   const airPoints = useMemo(() => adaptAirTraffic(airRaw ?? null), [airRaw]);
+  // 08-14 air 图层航线弧：全球主要航线走廊（静态结构数据；intensity = 航线繁忙度非风险）
+  const airRouteArcs = useMemo(() => adaptAirRoutes(airRoutesRaw ?? null), [airRoutesRaw]);
   // 核设施：feed 缺失时 mergeNuclear 回落静态种子，读数为空 ⇒ 灰色虚线菱形（不白屏、不编数）
   const nuclearRows = useMemo(() => mergeNuclear(nuclearRaw ?? null), [nuclearRaw]);
   const nuclearPoints = useMemo(() => buildNuclearPoints(nuclearRows), [nuclearRows]);
@@ -195,8 +200,14 @@ export function WorldPanel() {
     [regionPoints, visibleSet],
   );
 
-  // 弧线是地缘维度之间的联动，随 geo 图层一起显隐
-  const visibleArcs = useMemo(() => (visibleSet.has('geo') ? arcs : []), [visibleSet, arcs]);
+  // 弧线 = 地缘联动弧（随 geo 显隐）+ 全球航线网（随 air 显隐，08-14 静态航线网）
+  const visibleArcs = useMemo(
+    () => [
+      ...(visibleSet.has('geo') ? arcs : []),
+      ...(visibleSet.has('air') ? airRouteArcs : []),
+    ],
+    [visibleSet, arcs, airRouteArcs],
+  );
 
   // 战略要地：常驻叠加层，独立于 12 类风险色轴；开关关掉时传空数组给子视图。
   // validStrategicSites 已做容错（坐标越界 / 缺字段 / 重复 id 一律跳过），空数据绝白屏。

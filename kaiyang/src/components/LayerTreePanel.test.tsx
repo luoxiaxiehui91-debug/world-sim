@@ -72,9 +72,9 @@ function panelHtml(over: Partial<LayerTreePanelProps> = {}): string {
 }
 
 describe('LayerTreePanel: 渲染完整性', () => {
-  it('渲染全部 12 个类别的中文名（枚举来自 LAYER_CATEGORIES 单一真源）', () => {
+  it('渲染全部 13 个类别的中文名（枚举来自 LAYER_CATEGORIES 单一真源；08-14 +aircraft）', () => {
     const html = panelHtml();
-    expect(LAYER_CATEGORIES).toHaveLength(12);
+    expect(LAYER_CATEGORIES).toHaveLength(13);
     for (const def of LAYER_CATEGORIES) {
       expect(html, `应渲染类别「${def.label}」`).toContain(def.label);
     }
@@ -318,7 +318,7 @@ describe('LayerTreePanel: 布局与无障碍', () => {
   });
 
   it('头部展示「已开类别数 / 总数」，随 visible 变化', () => {
-    expect(panelHtml({ visible: ALL_ON })).toContain(`12/${LAYER_CATEGORIES.length}`);
+    expect(panelHtml({ visible: ALL_ON })).toContain(`13/${LAYER_CATEGORIES.length}`);
     expect(panelHtml({ visible: new Set<LayerCategory>(['geo', 'event']) })).toContain(
       `2/${LAYER_CATEGORIES.length}`,
     );

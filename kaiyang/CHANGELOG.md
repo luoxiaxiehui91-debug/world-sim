@@ -527,6 +527,35 @@ docs/operations/20260805-world-deduction-time-audit-fixed.md。
 - npm test 14 files / 311 tests 全绿；vite build 本地构建（新 bundle index-oJgF4qMk.js / css 沿用 S7YTSnTj）
 - scp 原地覆盖 + chmod -R a+rX；root/js/css/news_geo 200；旧 bundle 按 DEPLOYMENT 规范留 3 版清理（v1.10.0-1.10.4 共 9 个删除）
 
+## [1.11.0] - 2026-08-14 · air 图层重构：全球航线网（弧）替代实时飞机点 + 新增 aircraft 子图层（用户拍板）
+
+**修改理由**：主理人发现实时航班图层「非洲/中国上空基本空」——经实测与查证，OpenSky 是众包 ADS-B 接收器网络，非洲/中国/俄罗斯内陆接收器稀疏，那些区域航班收不到信号（俄罗斯上空欧亚航线仅 11 点是最硬证据），**是数据源覆盖盲区而非 bug**。主理人拍板：air 图层改为**静态全球航线网**（OpenFlights 结构数据，全球主要航线完整、无盲区），实时飞机点降级为独立 aircraft 子图层（默认关、desc 标注盲区）。
+
+### 修改
+
+- **后端天枢**（fetch_airroutes.py，新建）：
+  - 容器出网（直连→代理回退）拉 OpenFlights `airports.dat` + `routes.dat`（CC BY-SA 4.0，~2014，全球航线结构稳定）
+  - 解析 7698 机场坐标 + 过滤直飞/非代码共享航线，机场对聚合频次、双向合并，取 **top 500 主要航线**
+  - 产出 `airroutes.json`（from/to IATA + 两端坐标 + flights 频次），落 `/workspace/data/`，scheduler 日档 0950（结构数据日更远超所需）
+  - 实测：500 条 / 坐标全合法 / 中国枢纽航线 96 条 + 非洲区域航线 42 条（盲区从根上解决）
+- **前端**：
+  - `contracts.ts`：AirRoutesRaw / AirRouteRaw 类型（schema_version 继承 RiskSignalBase string）
+  - `dataSources.ts`：+ airroutes feed
+  - `layerCategories.ts`：`LayerCategory` + `aircraft`；`PointShape` + `arc`；air 改「全球航线」shape=arc feed=airroutes；aircraft 新增「实时航班」shape=arrow feed=airtraffic defaultVisible=false（盲区标注在 desc）；`UNCAPPED_LAYERS` air→aircraft
+  - `theme.ts`：`CATEGORY_PALETTE` + `aircraft: #38bdf8`（天蓝，与 air 翡翠绿同族区分）；index.css 镜像同步
+  - `lib/airRoutesAdapter.ts`（新建）：airroutes.json → RiskArc[]（复用既有 2D greatCircleArc / 3D arcsData，零新渲染代码；intensity = 航线繁忙度 20-100 线性归一化，非风险语义；颜色固定 air 翡翠绿）
+  - `lib/airTrafficAdapter.ts`：category/id 前缀 `air`→`aircraft`，头部注释补覆盖盲区说明
+  - `WorldPanel.tsx`：airRouteArcs + visibleArcs 合并（geo 联动弧 + air 航线弧分开关显隐）
+  - `LayerLegend.tsx`：ShapeSwatch + arc 图例（小弧线）
+  - 测试：+airRoutesAdapter.test（5 用例）；layerCategories/LayerTreePanel 断言 12→13 类别 + UNCAPPED aircraft；全量 **327 tests 全绿**
+
+### 验证
+
+- tsc --noEmit 通过；vite build 本地构建（新 bundle `index-haZ1gfS0.js` / `index-BlNeBOU6.css`）
+- scp 原地覆盖 + chmod；index / 新 js / 新 css / airroutes / airtraffic feed 全 200
+- 后端实跑：routes_count=500 / airports_indexed=7698 / 落盘 /workspace/data/airroutes.json（重启后仍在）
+- 视觉项由主理人浏览器复核
+
 ## [1.10.9] - 2026-08-14 · air 空域活动图层：只画航向箭头 + 全量显示（用户拍板）
 
 **修改理由**：主理人复核 08-14 air 图层接入后两点意见——①2D 平面地图上方向箭头与圆点重叠，有箭头就不需要圈；②点位被单图层护栏截断后只剩部分航班，缺一部分的数据没意义，要求全量显示。

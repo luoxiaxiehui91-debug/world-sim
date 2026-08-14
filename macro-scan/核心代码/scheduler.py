@@ -75,6 +75,7 @@ JOBS = [
     # 新增 商品/航空/中观（T1/T2/T3：fetcher_base 适配层；仅落盘，不喂 GRV，错峰）
     ("commodity_yahoo",    "I15", "1-7", None, [PYTHON, "fetch_commodity_yahoo.py"]),   # P0 Yahoo 商品/股市（每 15 分钟，08-14 起即时化）
     ("airtraffic_opensky", "I30", "1-7", None, [PYTHON, "fetch_airtraffic_opensky.py"]), # P0 OpenSky 航空（30min；08-14 提频 48/日=12%≪200/日 50% 水位，观察后评估 I15）
+    ("airroutes",       "0950", "1-7", None, [PYTHON, "fetch_airroutes.py"]), # P2 OpenFlights 全球航线网（日档 0950；结构数据日更远超所需，08-14 air 图层静态航线网）
     ("energy_eia",         "0630", "1-7", None, [PYTHON, "fetch_energy_eia.py"]),          # P0 EIA 能源（日频，错峰 commodity_yahoo 0626）
     ("china_meso",         "0930", "1-7", 1,    [PYTHON, "fetch_china_meso.py"]),          # P0 AkShare 中观（每月1日，错峰 fao 0925）
     # 地震为实时外生冲击，日内再刷 3 次（错峰，不与白天任务冲突）
@@ -146,6 +147,7 @@ LOG_FILES = {
     "fao":         f"{LOG_DIR}/fao.log",
     "commodity_yahoo":   f"{LOG_DIR}/commodity_yahoo.log",
     "airtraffic_opensky":f"{LOG_DIR}/airtraffic_opensky.log",
+    "airroutes":f"{LOG_DIR}/airroutes.log",
     "energy_eia":        f"{LOG_DIR}/energy_eia.log",
     "china_meso":        f"{LOG_DIR}/china_meso.log",
     "weekly_synthesis": f"{LOG_DIR}/weekly_synthesis.log",

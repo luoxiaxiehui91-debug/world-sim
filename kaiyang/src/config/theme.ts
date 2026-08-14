@@ -159,6 +159,9 @@ export const CATEGORY_PALETTE = {
   chokepoint: '#e2e8f0',
   /** 空域活动 · 翡翠绿 */
   air: '#34d399',
+  /** 实时航班 · 天蓝（08-14 新类别：与 air 翡翠绿同族（空域）但色相区分——
+   *  弧=静态航线网、箭头=实时航班，两个独立开关须可辨） */
+  aircraft: '#38bdf8',
   /** 热异常 · 橙（C3-A：由红改橙，避开 conflict 红） */
   thermal: '#fb923c',
   /** 海上监视 · 紫 */

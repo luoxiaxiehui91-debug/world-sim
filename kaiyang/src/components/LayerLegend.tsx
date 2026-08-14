@@ -64,11 +64,23 @@ export function ShapeSwatch({
 
   let node: ReactElement;
   if (shape === 'arrow') {
-    // 08-14 air 空域活动图层：小箭头（指向右，地图上按航向 rotate 旋转）
+    // 08-14 aircraft 实时航班图层：小箭头（指向右，地图上按航向 rotate 旋转）
     node = (
       <path
         d={`M ${c - r},${c - r * 0.72} L ${c + r * 0.92},${c} L ${c - r},${c + r * 0.72} L ${c - r * 0.12},${c} Z`}
         {...common}
+      />
+    );
+  } else if (shape === 'arc') {
+    // 08-14 air 全球航线网图层：小弧线（与地图弧渲染呼应；弧线图层无点位）
+    node = (
+      <path
+        d={`M ${c - r},${c + r * 0.9} Q ${c - r * 0.4},${c - r * 1.5} ${c + r * 0.85},${c - r * 0.55}`}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={1.6}
+        strokeDasharray={off ? '2 1.6' : undefined}
+        opacity={off ? 0.45 : 0.95}
       />
     );
   } else if (shape === 'diamond') {

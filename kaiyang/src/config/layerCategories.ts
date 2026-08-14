@@ -27,7 +27,8 @@ export type LayerCategory =
   | 'conflict' // 冲突事件
   | 'chokepoint' // 战略要地（前端硬编码地标）
   // ── P2 规划（后端 feed 门控）─────────────────────────
-  | 'air' // 空域活动
+  | 'air' // 全球航线网（静态结构数据，OpenFlights）
+  | 'aircraft' // 实时航班（OpenSky 快照，air 图层实时子层）
   | 'thermal' // 热异常
   | 'maritime' // 海上监视
   | 'space' // 太空活动
@@ -37,9 +38,9 @@ export type LayerCategory =
 // 见 docs/DATA_CONTRACT.md §2.6 第 8 项。不得再加回。
 
 /** 点位符号形状。P0 只实现 circle / diamond，其余为 P1+ 预留。
- *  'arrow' 为方向型渲染模式（08-14 新增）：air 空域活动图层使用——
- *   2D 平面地图只画航向旋转箭头、不画圆点圈（用户拍板：有箭头就不需要圈）。 */
-export type PointShape = 'circle' | 'diamond' | 'triangle' | 'square' | 'arrow';
+ *  'arrow' = 方向型渲染模式（08-14）：aircraft 实时航班——2D 只画航向旋转箭头、不画圆点圈（用户拍板）；
+ *  'arc' = 弧线型（08-14）：air 全球航线网图例图标（图层本体是 RiskArc 弧，无点位）。 */
+export type PointShape = 'circle' | 'diamond' | 'triangle' | 'square' | 'arrow' | 'arc';
 
 /** 点位数据状态：ok=有数；missing=该点无有效数值（元状态，覆盖类别色）。 */
 export type PointStatus = 'ok' | 'missing';
@@ -132,13 +133,23 @@ export const LAYER_CATEGORIES: LayerCategoryDef[] = [
   },
   {
     key: 'air',
-    label: '空域活动',
+    label: '全球航线',
     color: CATEGORY_PALETTE.air,
-    shape: 'arrow', // 08-14：2D 只画航向箭头不画圆点圈（用户拍板），图例与地图一致
+    shape: 'arc',
+    defaultVisible: false,
+    phase: 'P2',
+    feed: 'airroutes',
+    desc: '全球主要航线走廊（OpenFlights 静态结构数据，08-14 替代实时点——无 ADS-B 覆盖盲区）',
+  },
+  {
+    key: 'aircraft',
+    label: '实时航班',
+    color: CATEGORY_PALETTE.aircraft,
+    shape: 'arrow',
     defaultVisible: false,
     phase: 'P2',
     feed: 'airtraffic',
-    desc: '航空器活动与航迹（需后端 feed）',
+    desc: 'OpenSky 众包 ADS-B 实时航班（非洲/中国/俄罗斯内陆接收器稀疏，不代表真实空情）',
   },
   {
     key: 'thermal',
@@ -217,11 +228,11 @@ export const MISSING_COLOR: string = CATEGORY_PALETTE.missing;
 export const MAX_POINTS_PER_LAYER = 2000;
 
 /**
- * 不受单图层护栏限制的类别（08-14 用户拍板：air 空域活动全量显示，截断后缺一部分没意义）。
- * 后端已全量输出在飞航班（OpenSky 按请求计费不按条数，全量零额外成本；当前约 6184 点），
+ * 不受单图层护栏限制的类别（08-14 用户拍板：aircraft 实时航班全量显示，截断后缺一部分没意义）。
+ * 后端已全量输出在飞航班（OpenSky 按请求计费不按条数，全量零额外成本；当前约 6182 点），
  * 前端不再截断。其余图层仍受 MAX_POINTS_PER_LAYER 护栏保护（防 feed 突发膨胀打死帧率）。
  */
-export const UNCAPPED_LAYERS: ReadonlySet<LayerCategory> = new Set(['air']);
+export const UNCAPPED_LAYERS: ReadonlySet<LayerCategory> = new Set(['aircraft']);
 
 /** 类别 → 定义；未知类别返回 undefined（调用方自行降级为 FALLBACK_CATEGORY）。 */
 export function categoryDef(category: LayerCategory | undefined): LayerCategoryDef | undefined {

@@ -428,6 +428,25 @@ export interface AirTrafficRaw extends RiskSignalBase {
   coordinates?: AirTrafficPoint[];
 }
 
+/** airroutes.json（OpenFlights 全球航线网，08-14 开阳 air 图层静态航线网）。 */
+export interface AirRouteRaw {
+  from: string;
+  from_lat: number;
+  from_lng: number;
+  to: string;
+  to_lat: number;
+  to_lng: number;
+  /** 该机场对在 routes.dat 的出现频次（≈运营航司数，视觉权重 = 航线繁忙度） */
+  flights: number;
+}
+export interface AirRoutesRaw extends RiskSignalBase {
+  scope?: string;
+  // schema_version 继承 RiskSignalBase（string）
+  routes_count?: number;
+  airports_indexed?: number;
+  routes?: AirRouteRaw[];
+}
+
 export interface NewsRiskRaw extends RiskSignalBase {
   source?: string;
   gdelt?: {
