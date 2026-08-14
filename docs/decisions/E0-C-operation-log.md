@@ -53,6 +53,15 @@
 
 ## 四、操作记录（按时间倒序，每动作含 时间/动作/证据/结论）
 
+### 2026-08-14 08:39 P6 — 删除 3 SQLite + 2 僵尸，E0-C 全部闭环
+- 动作：`bash 核心代码/delete_sqlite_e0c.sh`。门禁 4/4 全过（marker 存在 / env WORLDSIM_SQLITE_OFF=1 / 探针 OK / P4 备份存在）→ 快照 4 db → `backups/e0c-p6-20260814-083910/` → 删除 news.db / forecast_tracker.db / narrative.db / tianji.db → 验证原路径无 .db + 探针删后 OK。
+- 删后观察（90s+）：无 .db 复生、心跳 08:41 新鲜、日志零 sqlite 错误、探针 verdict OK / NON_OK 0、commodity/crypto 产物正常。**无遗漏代码触碰 SQLite**。
+- 探针 PG-only 分支已正确处理"SQLite 文件不存在"（sq_mtime=0 → 冻结确认 OK），无需改动。
+- 数据安全：news/forecast/tianji 数据全在 worldsim-pg（PG-only 一夜 +105 articles 增长验证）；双备份（e0c-p4 + e0c-p6 快照）。
+- **E0-C 全部闭环**：P1 读层 → P2 14 reader → P3 synthesis_log 对账 → P4 写路径 PG 主写 → P5 PG-only 切换 → P6 删库。SQLite 时代结束。
+
+
+
 
 ### 2026-08-13 21:4x P6 准备 — 删除脚本就绪 + synthesis_log 写路径收尾
 - 发现：P5 后探针 WARN「SQLite 仍被写」——synthesis_log 写路径（signal_synthesizer._write_log 与 Live 模式 UPDATE）未加 PG-only 分支，仍写 SQLite news.db（21:32 mtime 证据）。
