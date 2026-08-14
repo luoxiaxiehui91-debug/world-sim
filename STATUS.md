@@ -2,7 +2,7 @@
 
 ## 新 session 冷启动（3 分钟，防迷路）
 
-> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-14 09:15 GMT+8。
+> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-14 14:10 GMT+8。
 
 **项目是什么**：world-sim 世界推演系统——个人内部宏观推演系统（非商业产品）。逻辑 5 层：天枢（观测采集）→ 天璇（仿真，17 Agent）→ 天玑（验证）→ 玉衡（权重，未运转）→ 开阳（展示）；横切 crucix 信号总线（AGPL，**已退场 2026-08-12 G1 停容器**）+ 摇光 SRE。
 
@@ -20,6 +20,7 @@
 4. **worldsim-pg 统一采集库（08-12 晚 DB-first 地基，主线新增）**：独立 PostgreSQL 容器（`pgvector/pgvector:pg16`，端口 127.0.0.1:5434，vol2 bind `/vol2/1000/software/worldsim-pg/pgdata`），与 macro-scan / 天玑 跨 `worldsim_default` 网互联（A0 完成）。macro-scan 重建 v8 装 psycopg（A0.5 完成）。news.db 时区抢救（C1 完成：published_at 22017 行虚假冲突归零）。weight_matrix.py 补入 git 树 + 修 3 处 utcnow（C 方案完成）。部署脚本 deploy-pg.sh 修爆 + 固化 pg_hba（C 完成）。**锁定顺序**：A0→A0.5→C1→A1-min→B1(双写证通 ✅)→C0(加权 ✅)→**B0(迁 news.db+forecast ✅)**→D0(迁 chroma→pgvector ✅)→**E0(应用整合收尾 ✅：A 双写 worldsim-pg 证通 + B 退役 ChromaDB)**。详见「当前状态」worldsim-pg 段。
 
 5. **全量审计 + 双 P0 修复（08-13，已闭环）**：worldsim-audit 4 路 × 3 round 全量审计产出 3 P0 / 4 P1 / 12 P2（登记表 `docs/decisions/audit-2026-08-13-risk-register.md`）。**P0-1 双写静默丢数**（C3 硬化 + 124 行回填 + 五表零差集 + `silent_failure_probe.py` I120 兜底）、**P0-2 forecast 时区 +8h**（7 站点改 `now_iso_utc()` + 120 行 −8h 回填，铁证样本对齐至 2 秒内）、**P0-3 自动推演停摆**（commit 2d7bffa）**三条全部 RESOLVED**，容器内实测验收 10/10 PASS。**→ E0-C 读路径重写已启动并全闭环（P1-P6：PG-only + SQLite 退役，见下条第 6 条）。**
+7. **采集实时化（08-14，50% 水位×源更新速度双约束）**：commodity_yahoo 日频→I15（+ change_pct 基准错位修复 + spark5 迷你走势）；fetch_news 主源改 **GDELT DOC 2.0**（免费无 key）+ **MarketAux**（key 已配，双源并行），日频→I30（MarketAux 48/日=48% 贴线）；**7 源批量提频**（OpenSky 日→I30 航班实时 6242 架 / 地震 I5 / 灾害 I15 / 加密 I10=43% / 加密冗余 I5 / 防务 RSS I60 / 能源 I60）；前端新闻双轨（news_all 全量 + news_export 风险流）、conflict 图层接入 news_geo、新闻风险卡片 top5；探针扩至 26 项（check_news_risk 2h/4h + check_fred_lag + check_sqlite_gone 零残留断言）。
 6. **E0-C 读路径重写 + PG-only（08-13 晚，P1-P6 全闭环）**：`pg_read.py` 只读层（行边界归一化 datetime→UTC 文本）→ 14 个 reader 全切 PG（双读校验台 `verify_reads_e0c.py` 31/0/0）→ synthesis_log 25 行对账 + 双写补全 → news_db 写路径 PG 主写（`WORLDSIM_SQLITE_OFF` 开关）→ **P5 切换生效**（运行区 compose 注入 `WORLDSIM_SQLITE_OFF=1` + `up -d`，探针 PG-only 模式 VERDICT OK，直接激活 + 真实采集验证 PG 写 / SQLite 冻结，删除脚本 `delete_sqlite_e0c.sh` 门禁 dry-run 4/4 全绿）。**P6 删 4 SQLite 已于 08-14 08:39 执行**（commit 1ba002a，快照 `e0c-p6-20260814-083910`，删后观察无复生 / 探针 OK）。
 
 **必读顺序**：本文件 → README.md → .workbuddy/memory/MEMORY.md（红线）→ 按需 macro-sim/docs/calib/（校准评审权威）；详细待办见下文「待做/已知遗留」节。
@@ -27,6 +28,8 @@
 ---
 
 ## 当前状态
+
+**08-14：采集实时化 + 前端图层接通（50% 水位×源更新速度双约束）**：commodity_yahoo 日频→I15（08-14 07:15）+ 修 change_pct 基准错位（Yahoo closes 对 A股最近 10 天全 None → 改上次良值推进，csi300=-0.57% 等全对）+ spark5 迷你走势；market_quotes 删幽灵 MORTGAGE30US + spark5 透传；fetch_news 主源 GDELT DOC 2.0（免费无 key，5s 限速 + 5000/天；OR 关键词括号、timespan=1d 防旧闻、seendate 解析）+ MarketAux key 配置（`S:\KEY\MarketAux-API.txt`，40 字符 key 第一行 + 邮箱第二行，注入运行区 compose），日频→**I30**（MarketAux 48/日≈48% 贴 50% 上限，15min=96% 破线禁）；**7 源提频**：OpenSky 日→I30（48/日=12%，airtraffic flights_in_air=6242 实时）、地震 I15→I5、灾害 I30→I15、加密 I15→I10（4320/月=43%）、加密冗余 I15→I5、防务 RSS 日→I60、能源日→I60；慢源（FRED/FX ECB 日更 16:00/FAO 月）维持（提频无意义）；前端：新闻面板双轨 C 方案（news_all.json 全量 100 篇含未分类 + news_export 风险流）、conflict 图层接入 news_geo（51→14 条真地缘冲突，美国枪击 38 条国内治安过滤 + intensity 相对烈度校准）、新闻风险卡片 top5 标题；GDELT 校准器（天玑 tianji_calibrator 9 维 P95 反推 + tone_base -7.97，scan/GRV 统一读 gdelt_calib.json）；探针扩至 **26 项**（check_news_risk 内容 updated 2h/4h、check_fred_lag 13 序列、check_sqlite_gone 零残留、check_backup 备份新鲜）；采集频率矩阵同步（07-31 建，08-14 更新 news + 7 源）。
 
 **08-13 晚：E0-C 读路径重写（P1-P6 全闭环，PG-only 生效）**：P1 `pg_read.py` 只读层（_Row 行边界归一化 datetime→UTC 文本 / Decimal→float / bool→int；DML row_factory 兼容）。P2 14 reader 切 PG（news_exporter/ntfy/geo_risk/grv/daily_narrative/detector/tracker/synth/obs/web/forecast_tracker/tianji_db/narrative_processor），双读校验台 31 PASS / 0 GAP / 0 FAIL。P3 synthesis_log 对账 25 行回填 + `upsert_synthesis_log` 双写（read-after-write 断裂 catch）。P4 news_db 写路径 PG 主写（`_next_id` 生成 id / 查重走 PG / get_trigger_titles 残留读切 PG）。P5 切换生效（compose `WORLDSIM_SQLITE_OFF=1` + `up -d` + `.sqlite_frozen_at` marker；探针 PG-only 分支防误报；直接激活测试 PG 写 / SQLite 冻结；真实采集 scan_weak_signals PG ctx 402→403）。全量验收 14/14 PASS，容器日志零错误。备份 4 db → `backups/e0c-p4-20260813/`。**P6 删库已于 08-14 08:39 执行**（commit 1ba002a，快照 `e0c-p6-20260814-083910`）：删 4 db + 观察无复生 / 探针 OK。
 - **08-13：全量审计 + P0-1 / P0-2 双 P0 闭环（重型 SOP 三路设计 → 用户拍板 → 主理人落码 → 容器内实测）**：
