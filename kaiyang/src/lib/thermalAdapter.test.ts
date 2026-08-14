@@ -33,32 +33,33 @@ describe('adaptThermal（08-14 FIRMS 1° 网格火点 → RiskPoint[]）', () =>
     expect(adaptThermal(mixed)).toHaveLength(3); // 200/80/50 保留，49/1 滤掉
   });
 
-  it('正常转换：id 前缀 thermal:，count 归一化 value（最密网格=100）', () => {
+  it('正常转换：id 前缀 thermal:，weight = count 归一化（最密网格=1）', () => {
     const pts = adaptThermal(sampleRaw);
     expect(pts).toHaveLength(3);
     expect(pts[0].id).toBe('thermal:12.5,105.5');
     expect(pts[0].lat).toBe(12.5);
     expect(pts[0].lng).toBe(105.5);
-    expect(pts[0].value).toBe(100); // 200/max200
-    expect(pts[1].value).toBe(40);  // 80/max200
-    expect(pts[2].value).toBe(25);  // 50/max200
+    expect(pts[0].weight).toBe(1);   // 200/max200
+    expect(pts[1].weight).toBeCloseTo(0.4); // 80/max200
+    expect(pts[2].weight).toBeCloseTo(0.25); // 50/max200
     expect(pts[0].category).toBe('thermal');
   });
 
-  it('aggCount = 网格火点数（渲染计数徽标）；note 含 FRP 与高置信', () => {
-    const pts = adaptThermal(sampleRaw);
-    expect(pts[0].aggCount).toBe(200);
-    expect(pts[0].note).toContain('130 MW');
-    expect(pts[0].note).toContain('高置信 2');
-    expect(pts[2].aggCount).toBe(50);
-    expect(pts[2].note).not.toContain('高置信');
+  it('value 恒 null + severity 中性「火点活跃」（非风险语义，air 教训复用）', () => {
+    for (const p of adaptThermal(sampleRaw)) {
+      expect(p.value).toBeNull();
+      expect(p.severity).toBe('火点活跃');
+      expect(p.aggCount).toBeUndefined();
+    }
   });
 
-  it('颜色/severity 走常规风险档位（火点密度 = 热异常强度）', () => {
+  it('note 含真实火点数 / FRP / 高置信（hover 看详情，替代风险值数字）', () => {
     const pts = adaptThermal(sampleRaw);
-    expect(pts[0].color).toBe(categoryColor('thermal', 'ok'));
-    expect(pts[0].severity).not.toBe('SDR');
-    expect(pts[0].severity).toBeTruthy();
+    expect(pts[0].note).toContain('200 个火点');
+    expect(pts[0].note).toContain('130 MW');
+    expect(pts[0].note).toContain('高置信 2');
+    expect(pts[2].note).toContain('50 个火点');
+    expect(pts[2].note).not.toContain('高置信');
   });
 
   it('坐标越界网格跳过（双保险）', () => {
