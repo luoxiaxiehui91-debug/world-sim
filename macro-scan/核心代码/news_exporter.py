@@ -28,6 +28,15 @@ DAYS_BACK = 7
 
 # E0-C: PG 占位符 %s（原 SQLite ?）；news. 前缀显式 schema
 _PLACEHOLDERS = ",".join(["%s"] * len(CATEGORY_MAP))
+# 全量新闻通道（08-14 C 方案：开阳新闻面板读 news_all.json，含未分类文章；news_export.json 保持风险信号流）
+NEWS_ALL_PATH = os.path.join(DATA_DIR, "news_all.json")
+SQL_ALL = (
+    "SELECT a.title, a.url, a.source, a.published_at "
+    "FROM news.articles a "
+    "ORDER BY a.published_at DESC "
+    "LIMIT 100"
+)
+
 SQL = (
     "SELECT a.title, a.url, a.source, ac.category, a.published_at "
     "FROM news.articles a "
@@ -94,5 +103,42 @@ def export_news_for_sim():
     print(f"[news_exporter] exported {len(articles)} articles -> {NEWS_EXPORT_PATH}")
 
 
+def export_all_news() -> None:
+    """全量新闻导出（08-14 C 方案）：最新 100 篇含未分类，供开阳新闻面板（news_all.json）。"""
+    conn = pg_read.connect()
+    if conn is None:
+        print("[news_exporter] PG 读连接不可用（worldsim-pg），跳过全量导出")
+        return
+    try:
+        rows = conn.execute(SQL_ALL).fetchall()
+    finally:
+        conn.close()
+
+    articles = []
+    cutoff = (datetime.date.today() - datetime.timedelta(days=DAYS_BACK)).isoformat()
+    for row in rows:
+        d = _parse_date(row["published_at"])
+        if d and d >= cutoff:
+            articles.append({
+                "title":    row["title"],
+                "url":      row["url"] or None,
+                "source":   row["source"] or None,
+                "category": None,   # 未分类/全量：category 交给前端兜底
+                "date":     d,
+            })
+
+    payload = {
+        "_schema_version": "1.0",
+        "exported_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "updated":     datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "articles":    articles,
+    }
+    os.makedirs(os.path.dirname(NEWS_ALL_PATH), exist_ok=True)
+    with open(NEWS_ALL_PATH, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    print(f"[news_exporter] exported {len(articles)} all-news -> {NEWS_ALL_PATH}")
+
+
 if __name__ == "__main__":
     export_news_for_sim()
+    export_all_news()

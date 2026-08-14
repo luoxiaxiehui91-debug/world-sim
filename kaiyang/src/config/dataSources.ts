@@ -52,7 +52,14 @@ export const FEEDS: Record<string, FeedConfig> = {
     path: 'news_export.json',
     type: 'json',
     schemaVersion: '1.0',
-    description: '新闻 / 叙事导出',
+    description: '新闻 / 叙事导出（风险信号流）',
+  },
+  newsAll: {
+    name: 'newsAll',
+    path: 'news_all.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '全量新闻流（含未分类，08-14 C 方案双轨）',
   },
   simTrigger: {
     name: 'simTrigger',

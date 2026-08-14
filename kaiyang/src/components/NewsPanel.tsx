@@ -78,7 +78,7 @@ function NewsCard({ item }: { item: NewsItem }) {
 }
 
 export function NewsPanel() {
-  const { data, loading, error } = useFeed<NewsItem[]>('news');
+  const { data, loading, error } = useFeed<NewsItem[]>('newsAll');
   const { setTimestamp } = useStatus();
   // 兼容数组或 { items: [...] } 包装（含 schema_version）
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
