@@ -288,18 +288,27 @@ def check_news_risk() -> list:
     return out
 
 
+# P6 零残留断言的过渡期豁免（P0-D 中间态, 2026-08-15）：forecast_tracker.db 是
+# 天璇/天玑预测链的过渡载体（D1 天璇幂等建表落 SQLite / D3 天玑读同一文件），
+# P6 删它的前置 = 写路径补 PG-only（D2 转 PG）。D2 未完成前文件存在是**预期中间态**，
+# 不应 CRIT；D2 转 PG 完成后移除本豁免恢复零残留断言。
+_SQLITE_GONE_EXEMPT = {"forecast_tracker.db"}
+
+
 def check_sqlite_gone() -> list:
     """SQLite 零残留断言（P6 删库后自动化守护）：data 目录出现任何 .db = 某代码复活了它。
-    发现即 CRIT（防定时炸弹：scheduler 任务或验收工具静默建文件）。"""
+    发现即 CRIT（防定时炸弹：scheduler 任务或验收工具静默建文件）。
+    注：forecast_tracker.db 处于 P0-D 过渡期豁免（见 _SQLITE_GONE_EXEMPT）。"""
     out = []
     try:
         hits = [f for f in os.listdir(DATA_DIR) if f.endswith(".db")]
     except Exception as e:
         return [(CRIT, "sqlite_gone: 扫描 data 失败 %s" % e)]
-    if hits:
-        out.append((CRIT, "sqlite_gone: 检测到 SQLite 复生文件 %s（P6 已删库，某代码静默重建）" % hits))
+    real = [f for f in hits if f not in _SQLITE_GONE_EXEMPT]
+    if real:
+        out.append((CRIT, "sqlite_gone: 检测到 SQLite 复生文件 %s（P6 已删库，某代码静默重建）" % real))
     else:
-        out.append((OK, "sqlite_gone: data 目录无 .db 残留"))
+        out.append((OK, "sqlite_gone: data 目录无违规 .db 残留" + (f"（豁免过渡态 {hits}）" if hits else "")))
     return out
 
 
