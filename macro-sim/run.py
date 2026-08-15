@@ -490,6 +490,51 @@ def _tianji_conn():
     conn = _sq3.connect(str(_TIANJI_DB_PATH))
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=5000")   # P0-D D4: 天璇/天玑/watchdog 多写者防 database is locked
+    # P0-D D1 (2026-08-15, 全量审查 H20 修复): 幂等建表——此前无 CREATE TABLE，
+    # P6 删库后空库被 sqlite3.connect 重建、INSERT 报 no such table 被宽 except 吞掉 → 存档静默 0 条。
+    # 列定义对齐 macro-ji/tianji_db.py TIANJI_DDL（predictions/reasoning_trace 两张表）。
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS predictions (
+        id                    TEXT PRIMARY KEY,
+        created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        due_at                DATETIME NOT NULL,
+        scenario_id           TEXT,
+        type                  TEXT NOT NULL CHECK(type IN ('quantitative','geopolitical')),
+        prediction_target_type TEXT NOT NULL,
+        content               TEXT NOT NULL,
+        outcome_definition    TEXT NOT NULL,
+        target_metric         TEXT,
+        target_direction      TEXT,
+        target_threshold      REAL,
+        b_prob                REAL,
+        b_sample_count        INTEGER,
+        b_max_similarity      REAL,
+        llm_adj               REAL,
+        final_prob            REAL,
+        prob_low              REAL,
+        prob_high             REAL,
+        confidence_tier       TEXT CHECK(confidence_tier IN ('HIGH','LOW','VERY_LOW','NOVEL')),
+        time_horizon          TEXT CHECK(time_horizon IN ('weekly','monthly','quarterly','yearly')),
+        status                TEXT NOT NULL DEFAULT 'pending',
+        outcome_value         REAL,
+        brier_score           REAL,
+        brier_skill_score     REAL,
+        verified_at           DATETIME,
+        verified_by           TEXT
+    );
+    CREATE TABLE IF NOT EXISTS reasoning_trace (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        prediction_id       TEXT NOT NULL REFERENCES predictions(id),
+        agent_id            TEXT,
+        input_signals       TEXT,
+        historical_match    TEXT,
+        confidence_basis    TEXT,
+        llm_adjustment      REAL,
+        causal_chains       TEXT,
+        reasoning           TEXT
+    );
+    """)
     conn.commit()
     return conn
 
@@ -620,6 +665,12 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
     except Exception as e:
         print(f"[tianji] 存档失败（不影响主流程）：{e}")
         import traceback; traceback.print_exc()
+        # P0-D D4 (2026-08-15, 全量审查 H20 去静默): 存档失败不再静默——
+        # 之前宽 except 吞错导致"仿真成功但 0 条落表"数月无人察觉。
+        try:
+            _send_ntfy_simple("天璇预测存档失败", f"{e}\nscenario 未落表，玉衡反馈链将无样本。")
+        except Exception:
+            pass
     finally:
         conn.close()
 

@@ -121,6 +121,13 @@ def get_connection() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=5000")
+    # P0-D D3 (2026-08-15, 全量审查 H20 + P6 复生): 打开即幂等建表——
+    # P6 删库后 sqlite3.connect 重建空库无表，verifier 直接 'no such table' 崩。
+    # 每次连接确保 schema 存在（run_migration 幂等），替代"exists 文件判断"
+    # （挡不住"已存在的空库"）。注：天璇 macro-sim/run.py 的 _tianji_conn 已同步补
+    # 同款 DDL；等 P0-D2（天璇/天玑转 PG）完成后，本函数再补 _PG_ONLY raise。
+    conn.executescript(TIANJI_DDL)
     return conn
 
 
