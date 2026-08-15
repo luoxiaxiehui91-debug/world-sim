@@ -1,9 +1,36 @@
 # Changelog · 开阳（Kaiyang）操作面板
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-08-06（记录类文档随部署持续更新）
+> 最后核对时间：2026-08-15（记录类文档随部署持续更新）
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
+
+## [1.11.11] - 2026-08-15 · 布局错乱自动修复 + 强制 remount + P0 emoji 清理
+
+**修改理由**：用户报开阳排版「乱套了」——3D 地球被压成细条、左右面板挤压。根因判定为 localStorage 中持久化的拖拽布局异常（例如 world 面板 h 被缩到很小），react-grid-layout 直接恢复该异常尺寸；「重置布局」因组件未重新 mount 也可能不生效。
+
+### 修改
+
+- **`App.tsx` 布局健康检查 `isLayoutHealthy`**：
+  - world 面板缺失或 h < minH（5）/ w < 4 时视为异常
+  - 坐标/尺寸为非正数、NaN、超出 12 栅格时视为异常
+  - 总高度 max(y+h) < 18 时视为异常
+  - 检测到异常布局时自动删除 `kaiyang.v6.panelLayout` 并回退默认布局
+- **`loadLayout` 加载时自动校验**： unhealthy persisted layout 不再被直接采用，避免异常布局复发
+- **`onLayoutChange` 保存前校验**：拖拽/缩放产生的异常布局不写回 localStorage，防止用户误操作把面板压到不可见
+- **重置/自动布局强制 remount**：新增 `layoutResetNonce`，重置时改变 `ResponsiveGridLayout` 的 `key`，强制 React 重新 mount，根治「点了重置但 grid 内部状态没刷新」
+- **彻底清理 kaiyang 缓存**：`clearAllKaiyangStorage` 删除所有 `kaiyang.*` localStorage 键，避免 layerVisibility/region/strategicSites 等旧偏好交叉污染
+- **按钮 emoji 替换为 SVG**：`⚡`/`↺` → 内联 `AutoLayoutIcon`/`ResetIcon`（P0 规则：禁止 emoji 作 UI 元素）
+- **footer 版本号同步 `VERSION`**：`1.8.0` → `1.11.11`
+
+### 验证
+
+- `npm test` 20 files / 352 tests 全绿
+- `vite build` 本地构建成功（新 bundle `index-Cd9Ut8y6.js` / `index-Zi8GR3W0.css`）
+- scp 原地覆盖 `/vol2/1000/software/kaiyang/dist/` + `chmod -R a+rX`
+- dist/assets 清理：动态核对 `index.html` 引用后删除 12 个最旧残留 bundle，保留最近 3 版 6 个 bundle
+- NAS 本机验证：`http://127.0.0.1:8080/` 200；`index.html` 引用新 bundle；js/css 200
+- 注：因 `index.html` 已被 nginx 配置为 no-cache，正常刷新即可拿到新布局修复；如仍异常请点底部「重置布局」或按 `Ctrl+Shift+R` 强制刷新
 
 ## [1.10.3] - 2026-08-11 · 视觉微调：地缘要地图标 +20% / 事件点弧光收窄（by arch-map）
 
