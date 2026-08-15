@@ -19,7 +19,6 @@ import os
 import json
 import time
 import datetime
-import sqlite3
 import threading
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -297,20 +296,21 @@ def daily_health_push() -> None:
             degraded_count = -1  # 无法读取
 
         # ── 数字3：predictions 表当前行数 ─────────────────────────────────
-        # P0-C 口径纠偏 (2026-08-15, 全量审查 Track B): 当前天璇 D1 落 SQLite
-        # forecast_tracker.db、天玑 D3 读同一文件（D2 转 PG 尚未完成）——真实权威源是
-        # SQLite，PG tianji.predictions 仅 7 行历史迁移数据，查它会造成
-        # "链路已断但显示健康"的假象（此前 verifier 连崩 2 天，PG 却显示 7 行不告警）。
-        # 优先读 SQLite（mode=ro 只读，不违反 P6 纪律）；D2 转 PG 完成后切回 PG 查询。
+        # P0-D2 (2026-08-15): 天璇落表/天玑验证已直连 PG tianji.predictions，
+        # SQLite forecast_tracker.db 过渡态结束——权威源是 PG，直接查它。
         predictions_rows = 0
         try:
-            _db = os.path.join(DATA_DIR, "forecast_tracker.db")
-            if os.path.exists(_db):
-                _c = sqlite3.connect(f"file:{_db}?mode=ro", uri=True)
-                predictions_rows = _c.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
-                _c.close()
+            import pg_read as _pg
+            _conn = _pg.connect()
+            if _conn is None:
+                predictions_rows = -1  # PG 连接不可用（WORLDSIM_APP_PW 缺失/连不上）
             else:
-                predictions_rows = -1  # 文件不存在（P6 删库后 D2 未完成中间态）
+                try:
+                    predictions_rows = _conn.execute(
+                        "SELECT COUNT(*) FROM tianji.predictions"
+                    ).fetchone()[0]
+                finally:
+                    _conn.close()
         except Exception:
             predictions_rows = -1
 

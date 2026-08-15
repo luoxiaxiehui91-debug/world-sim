@@ -205,7 +205,7 @@ def _check_consecutive_direction(source_id: str, target_type: str, is_increase: 
         conn = get_connection()
         rows = conn.execute("""
             SELECT weight_before, weight_after FROM weight_update_log
-            WHERE signal_name=? AND target_type=?
+            WHERE signal_name=%s AND target_type=%s
             ORDER BY updated_at DESC LIMIT 4
         """, (source_id, target_type)).fetchall()
         conn.close()

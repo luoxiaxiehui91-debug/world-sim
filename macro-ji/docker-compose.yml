@@ -16,6 +16,7 @@ services:
       - TIANJI_DATA_DIR=/app/macro_data
       - FRED_API_KEY=REDACTED_FRED_KEY
       - NTFY_URL=https://ntfy.sh/***REMOVED***
+      - WORLDSIM_APP_PW=${WORLDSIM_APP_PW}
       - TZ=Asia/Shanghai
     volumes:
       # 目录挂载铁律：读天枢 data（forecast_tracker.db / fred_history/ / grv_history.jsonl）

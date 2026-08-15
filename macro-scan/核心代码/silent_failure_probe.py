@@ -361,25 +361,36 @@ PRED_CHAIN_CRIT_DAYS = 30   # 30 天无新增 → CRIT（链条断裂数月无�
 
 
 def check_predictions_chain() -> list:
-    """预测链活动监测（H09 盲区补齐）：forecast_tracker.db predictions 行数增量。
+    """预测链活动监测（H09 盲区补齐）：PG tianji.predictions 行数增量（P0-D2 转 PG）。
 
     设计：探针 2h 一次，state 文件记上次行数与变化时间；本次行数 > 上次 = 有新增预测
     （天璇落表/天玑验证都在写行）；连续 N 天无新增 = 预测生成或验证可能静默停止。
-    只读 mode=ro 连接，不违反 P6 纪律（不创建/不写 SQLite）。
+    PG 只读 COUNT（天枢已有 psycopg + WORLDSIM_APP_PW + worldsim_default 网络）。
     """
     from datetime import datetime as _dt, timezone as _tz
     out = []
-    db = os.path.join(DATA_DIR, "forecast_tracker.db")
-    if not os.path.exists(db):
-        out.append((WARN, "预测链: forecast_tracker.db 不存在（天璇从未落表或已删库）"))
+    try:
+        import psycopg
+    except Exception as e:
+        out.append((WARN, f"预测链: psycopg 不可用，跳过（{e}）"))
         return out
     try:
-        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-        cnt = conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
-        conn.close()
+        p = psycopg.connect(**PG_DSN)
     except Exception as e:
-        out.append((WARN, f"预测链: forecast_tracker.db 读取失败 {e}"))
+        out.append((WARN, f"预测链: PG 连接失败 {e}"))
         return out
+    try:
+        with p.cursor() as c:
+            c.execute("SELECT COUNT(*) FROM tianji.predictions")
+            cnt = c.fetchone()[0]
+    except Exception as e:
+        out.append((WARN, f"预测链: tianji.predictions 读取失败 {e}"))
+        return out
+    finally:
+        try:
+            p.close()
+        except Exception:
+            pass
     state = {}
     try:
         with open(PRED_COUNT_STATE, encoding="utf-8") as f:

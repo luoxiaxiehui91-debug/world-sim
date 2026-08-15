@@ -418,7 +418,7 @@ def run_monthly_verification():
             conn = get_connection()
             try:
                 conn.execute(
-                    "UPDATE predictions SET status='awaiting_human' WHERE id=?",
+                    "UPDATE predictions SET status='awaiting_human' WHERE id=%s",
                     (pred["id"],)
                 )
                 conn.commit()
@@ -450,7 +450,7 @@ def confirm_geopolitical(prediction_id: str, occurred: bool):
     conn = get_connection()
     try:
         pred = conn.execute(
-            "SELECT final_prob FROM predictions WHERE id=?", (prediction_id,)
+            "SELECT final_prob FROM predictions WHERE id=%s", (prediction_id,)
         ).fetchone()
     finally:
         conn.close()

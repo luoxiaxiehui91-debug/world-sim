@@ -476,85 +476,71 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
         return None
 
 
-# ── 天玑存档钩子 ─────────────────────────────────────────
+# ── 天玑存档钩子（P0-D2: SQLite → PG tianji schema）───────────────────────
 
-# DB 路径：macro-scan/data/ 挂载在 /app/macro_data（docker-compose rw）
-_TIANJI_DB_PATH = Path(os.environ.get("TIANJI_DB_PATH", "/app/macro_data/forecast_tracker.db"))
-
+_PG_CONN = None  # 模块级缓存连接（连接丢失自动重连）
 
 
+def _pg_connect_with_retry(psycopg_mod, pw: str):
+    """建立 psycopg 连接，失败重试 3 次指数退避（2^0 / 2^1 / 2^2 秒）。"""
+    last_err = None
+    for attempt in range(3):
+        try:
+            return psycopg_mod.connect(
+                host="worldsim-pg",
+                port=5432,
+                dbname="worldsim",
+                user="worldsim_app",
+                password=pw,
+                options="-c search_path=tianji,public",
+            )
+        except Exception as e:
+            last_err = e
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+    raise RuntimeError(f"连接 worldsim-pg 失败（重试 3 次）：{last_err}")
 
-def _tianji_conn():
-    import sqlite3 as _sq3
-    _TIANJI_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = _sq3.connect(str(_TIANJI_DB_PATH))
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=5000")   # P0-D D4: 天璇/天玑/watchdog 多写者防 database is locked
-    # P0-D D1 (2026-08-15, 全量审查 H20 修复): 幂等建表——此前无 CREATE TABLE，
-    # P6 删库后空库被 sqlite3.connect 重建、INSERT 报 no such table 被宽 except 吞掉 → 存档静默 0 条。
-    # 列定义对齐 macro-ji/tianji_db.py TIANJI_DDL（predictions/reasoning_trace 两张表）。
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS predictions (
-        id                    TEXT PRIMARY KEY,
-        created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        due_at                DATETIME NOT NULL,
-        scenario_id           TEXT,
-        type                  TEXT NOT NULL CHECK(type IN ('quantitative','geopolitical')),
-        prediction_target_type TEXT NOT NULL,
-        content               TEXT NOT NULL,
-        outcome_definition    TEXT NOT NULL,
-        target_metric         TEXT,
-        target_direction      TEXT,
-        target_threshold      REAL,
-        b_prob                REAL,
-        b_sample_count        INTEGER,
-        b_max_similarity      REAL,
-        llm_adj               REAL,
-        final_prob            REAL,
-        prob_low              REAL,
-        prob_high             REAL,
-        confidence_tier       TEXT CHECK(confidence_tier IN ('HIGH','LOW','VERY_LOW','NOVEL')),
-        time_horizon          TEXT CHECK(time_horizon IN ('weekly','monthly','quarterly','yearly')),
-        status                TEXT NOT NULL DEFAULT 'pending',
-        outcome_value         REAL,
-        brier_score           REAL,
-        brier_skill_score     REAL,
-        verified_at           DATETIME,
-        verified_by           TEXT
-    );
-    CREATE TABLE IF NOT EXISTS reasoning_trace (
-        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-        prediction_id       TEXT NOT NULL REFERENCES predictions(id),
-        agent_id            TEXT,
-        input_signals       TEXT,
-        historical_match    TEXT,
-        confidence_basis    TEXT,
-        llm_adjustment      REAL,
-        causal_chains       TEXT,
-        reasoning           TEXT
-    );
-    """)
-    conn.commit()
-    return conn
+
+def _pg_conn():
+    """返回 PG 连接（search_path=tianji,public）；模块级缓存，连接丢失自动重连。
+
+    psycopg 未安装或 WORLDSIM_APP_PW 缺失 → raise RuntimeError（fail-fast，不静默）。
+    """
+    global _PG_CONN
+    try:
+        import psycopg
+    except ImportError as e:
+        raise RuntimeError(
+            f"psycopg 未安装，无法连接 worldsim-pg（P0-D2 需 psycopg[binary]>=3.1）：{e}"
+        ) from e
+    pw = os.environ.get("WORLDSIM_APP_PW")
+    if not pw:
+        raise RuntimeError("WORLDSIM_APP_PW 未注入，无法连接 worldsim-pg（fail-fast，不静默）")
+    if _PG_CONN is None or _PG_CONN.closed:
+        _PG_CONN = _pg_connect_with_retry(psycopg, pw)
+    return _PG_CONN
 
 
 def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level: int, report_path):
     """
-    推演完成后把可验证预测写入 forecast_tracker.db predictions 表。
-    失败时打印错误但不阻断主流程。
+    推演完成后把可验证预测写入 PG tianji.predictions / reasoning_trace（P0-D2 转 PG）。
+    失败时 ntfy 告警 + return，不阻断主流程（保留去静默语义）。
     """
     import uuid, json as _json
-    from datetime import timedelta
+    from datetime import timedelta, timezone
 
     try:
-        conn = _tianji_conn()
+        conn = _pg_conn()
     except Exception as e:
-        print(f"[tianji] 无法打开数据库 {_TIANJI_DB_PATH}：{e}")
+        print(f"[tianji] 无法连接 worldsim-pg：{e}")
+        try:
+            _send_ntfy_simple("天璇预测存档失败", f"无法连接 worldsim-pg：{e}\nscenario 未落表，玉衡反馈链将无样本。")
+        except Exception:
+            pass
         return
 
     try:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)  # aware，psycopg 写 TIMESTAMPTZ 必须 aware（防 TZ 差 8h）
         scenario_id = f"sim_{now.strftime('%Y%m%d_%H%M')}_{event[:20]}"
         archived = 0
 
@@ -576,12 +562,13 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
                 pred_id = str(uuid.uuid4())
 
                 conn.execute("""
-                    INSERT OR IGNORE INTO predictions
+                    INSERT INTO predictions
                       (id, created_at, due_at, scenario_id, type, prediction_target_type,
                        content, outcome_definition, target_metric, target_direction,
                        target_threshold, b_prob, b_sample_count,
                        final_prob, confidence_tier, time_horizon, status)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT (id) DO NOTHING
                 """, (
                     pred_id,
                     now.isoformat(),
@@ -602,6 +589,7 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
                     round(path.probability, 4),    # final_prob
                     conf_tier,
                     "quarterly",
+                    "pending",
                 ))
 
                 # 推理溯源
@@ -616,7 +604,7 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
                     INSERT INTO reasoning_trace
                       (prediction_id, agent_id, input_signals, historical_match,
                        confidence_basis, llm_adjustment, causal_chains, reasoning)
-                    VALUES (?,?,?,?,?,?,?,?)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
                 """, (
                     pred_id,
                     "macro-sim",
@@ -639,11 +627,12 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
                     continue
                 geo_id = str(uuid.uuid4())
                 conn.execute("""
-                    INSERT OR IGNORE INTO predictions
+                    INSERT INTO predictions
                       (id, created_at, due_at, scenario_id, type, prediction_target_type,
                        content, outcome_definition,
                        final_prob, confidence_tier, time_horizon, status)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,'monthly','awaiting_human')
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'awaiting_human')
+                    ON CONFLICT (id) DO NOTHING
                 """, (
                     geo_id,
                     now.isoformat(),
@@ -656,11 +645,12 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
                     f"6个月内是否发生：{ev.get('event', '')}",
                     round(ev.get("frequency", 0.5), 4),
                     "LOW",
+                    "monthly",
                 ))
                 archived += 1
 
         conn.commit()
-        print(f"[tianji] ✅ 存档 {archived} 条预测 → {_TIANJI_DB_PATH}  scenario_id={scenario_id}")
+        print(f"[tianji] ✅ 存档 {archived} 条预测 → PG tianji.predictions  scenario_id={scenario_id}")
 
     except Exception as e:
         print(f"[tianji] 存档失败（不影响主流程）：{e}")
