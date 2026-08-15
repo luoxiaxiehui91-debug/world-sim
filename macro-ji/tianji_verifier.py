@@ -110,17 +110,23 @@ def _compute_brier_score(predicted_prob: float, outcome: float) -> float:
     return round((predicted_prob - outcome) ** 2, 6)
 
 
-def _compute_bss(brier_scores: list[float]) -> Optional[float]:
+def _compute_bss(brier_scores: list[float], outcomes: Optional[list[float]] = None) -> Optional[float]:
     """
     Brier Skill Score = 1 - BS / BS_climatology
-    BS_climatology = 平均 Brier Score（用历史基准频率0.5计算）
+    BS_climatology = 用**观测 base-rate** 计算的气候学 Brier = p_bar*(1-p_bar)
+    （P1-A 修复，2026-08-15 审查 H03）：原实现硬编码 0.25（假设基准率 0.5），
+    对低基准率的地缘事件会系统性高估技能。outcomes 为二值结果序列（0/1）时
+    用真实基准率；未提供时 fallback 0.25（向后兼容）。
     BSS > 0 表示有增量价值。
     """
     if len(brier_scores) < 5:
         return None
     bs_mean = sum(brier_scores) / len(brier_scores)
-    # 气候基准：所有预测都说 0.5
     bs_clim = 0.25
+    if outcomes:
+        p_bar = sum(outcomes) / len(outcomes)
+        if 0 < p_bar < 1:
+            bs_clim = p_bar * (1 - p_bar)
     if bs_clim == 0:
         return None
     return round(1.0 - bs_mean / bs_clim, 4)
@@ -179,8 +185,10 @@ def verify_quantitative(pred: dict) -> Optional[dict]:
     elif direction == "below" and threshold is not None:
         outcome = 1.0 if actual_val <= threshold else 0.0
     else:
-        # 无阈值：方向性预测（与起始值比较）
-        outcome = 0.5  # 无法判断
+        # P1-A (2026-08-15, 审查 H04): 无方向/无阈值 → 无法判断 → 返回 None 跳过验证，
+        # 不再用 outcome=0.5 硬算 Brier（曾污染 BSS/反哺均值，且被永久标记 verified）。
+        print(f"[tianji_verifier] 跳过验证：pred {str(pred.get('id', ''))[:8]} 无方向/无阈值，不可测")
+        return None
 
     brier = _compute_brier_score(prob, outcome)
     return {"outcome_value": actual_val, "brier_score": brier}
@@ -347,7 +355,8 @@ def print_accuracy_report():
         status_counts = {r["status"]: r["cnt"] for r in rows}
 
         verified = conn.execute("""
-            SELECT brier_score, final_prob FROM predictions
+            SELECT brier_score, final_prob, target_direction, target_threshold, outcome_value
+            FROM predictions
             WHERE status='verified' AND brier_score IS NOT NULL
         """).fetchall()
     finally:
@@ -370,17 +379,30 @@ def print_accuracy_report():
 
     briers = [r["brier_score"] for r in verified]
     probs  = [r["final_prob"] for r in verified]
+    # P1-A (2026-08-15, 审查 H03): 从 outcome_value + target_direction/threshold 重建
+    # 二值 outcome，计算观测 base-rate 气候学 Brier（p_bar*(1-p_bar)），替代硬编码 0.25。
+    outcomes = []
+    for r in verified:
+        d, th, av = r["target_direction"], r["target_threshold"], r["outcome_value"]
+        if d and th is not None and av is not None:
+            if d == "up":      outcomes.append(1.0 if av > th else 0.0)
+            elif d == "down":  outcomes.append(1.0 if av < th else 0.0)
+            elif d == "above": outcomes.append(1.0 if av >= th else 0.0)
+            elif d == "below": outcomes.append(1.0 if av <= th else 0.0)
     bs_mean = sum(briers) / len(briers)
-    bss = _compute_bss(briers)
+    bss = _compute_bss(briers, outcomes or None)
     sharpness = _compute_sharpness(probs)
 
     print(f"\nBrier Score 均值：{bs_mean:.4f}（越低越好，随机猜=0.25）")
-    if bss is not None:
+    if bss is not None and v_count >= 20:
+        # P1-A (2026-08-15, 审查 H05): 样本 ≥20 才给结论性趋势；5-19 仅展示数值不判趋势
         bss_str = f"{bss:+.4f}"
         trend = "✅ 有增量价值" if bss > 0 else "❌ 不如随机猜"
         print(f"Brier Skill Score：{bss_str} {trend}")
+    elif bss is not None:
+        print(f"Brier Skill Score：{bss:+.4f}（样本 {v_count}，<20 仅供参考，不判趋势）")
     else:
-        print(f"Brier Skill Score：样本不足（需 ≥ 5）")
+        print(f"Brier Skill Score：样本不足或基准率极端（需 ≥ 20 且基准率非 0/1）")
     print(f"锐度（>30%或<70%比例）：{sharpness:.1%}（目标 >40%）")
     print("="*50)
 
