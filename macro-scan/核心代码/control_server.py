@@ -54,10 +54,16 @@ SCHEDULER_STALE_SECONDS = 240
 # 操作状态缓存（in-memory，进程重启丢失，可接受）
 _operations: dict = {}
 
-app = FastAPI(title="天枢控制 API", version="1.0.0")
+app = FastAPI(title="天枢控制 API", version="1.1.0")
+# P1-D (2026-08-15, 审查 C03/H15): CORS 收窄——从 allow_origins=["*"] 改为开阳面板实际来源，
+# 阻止任意网站跨域驱动控制 API（配合 fail-closed token）。
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://192.168.31.108:8080",  # 开阳面板（NAS nginx）
+        "http://localhost:8080",       # 本地开发
+        "http://127.0.0.1:8080",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -66,7 +72,11 @@ app.add_middleware(
 # ── 鉴权 ──────────────────────────────────────────────────────
 def _check_token(request: Request):
     if not CONTROL_TOKEN:
-        return  # 未配置 token 则跳过鉴权（开发环境）
+        # P1-D (2026-08-15, 审查 C02): fail-closed——未配置 token 时拒绝所有控制操作，
+        # 不再"跳过鉴权"。原 fail-open 使生产环境运控 API 零鉴权（全仓 compose 均未设
+        # 该变量）。若需启用控制 API：运行区 compose environment 设 CONTROL_TOKEN +
+        # 开阳面板填同值 token。
+        raise HTTPException(status_code=503, detail="CONTROL_TOKEN 未配置，控制 API 已禁用（fail-closed）")
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer ") or auth[7:] != CONTROL_TOKEN:
         raise HTTPException(status_code=401, detail="Unauthorized")
