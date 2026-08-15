@@ -26,7 +26,7 @@
 ### 验证
 
 - `npm test` 20 files / 352 tests 全绿
-- `vite build` 本地构建成功（新 bundle `index-Cd9Ut8y6.js` / `index-Zi8GR3W0.css`）
+- `vite build` 本地构建成功（新 bundle `index-Cf8Cz6sn.js` / `index-Zi8GR3W0.css`）
 - scp 原地覆盖 `/vol2/1000/software/kaiyang/dist/` + `chmod -R a+rX`
 - dist/assets 清理：动态核对 `index.html` 引用后删除 12 个最旧残留 bundle，保留最近 3 版 6 个 bundle
 - NAS 本机验证：`http://127.0.0.1:8080/` 200；`index.html` 引用新 bundle；js/css 200
