@@ -77,6 +77,7 @@ JOBS = [
     ("airtraffic_opensky", "I30", "1-7", None, [PYTHON, "fetch_airtraffic_opensky.py"]), # P0 OpenSky 航空（30min；08-14 提频 48/日=12%≪200/日 50% 水位，观察后评估 I15）
     ("airroutes",       "0950", "1-7", None, [PYTHON, "fetch_airroutes.py"]), # P2 OpenFlights 全球航线网（日档 0950；结构数据日更远超所需，08-14 air 图层静态航线网）
     ("spacelaunch",     "0705", "1-7", None, [PYTHON, "fetch_spacelaunch.py"]), # P2 Next Spaceflight 发射记录（日档 0705；发射事件低频，08-14 space 图层）
+    ("health_geo",      "I60", "1-7", None, [PYTHON, "fetch_health_geo.py"]), # P2 GDELT 卫生事件（60min；增量拉新 slot，08-15 health 图层）
     ("energy_eia",         "0630", "1-7", None, [PYTHON, "fetch_energy_eia.py"]),          # P0 EIA 能源（日频，错峰 commodity_yahoo 0626）
     ("china_meso",         "0930", "1-7", 1,    [PYTHON, "fetch_china_meso.py"]),          # P0 AkShare 中观（每月1日，错峰 fao 0925）
     # 地震为实时外生冲击，日内再刷 3 次（错峰，不与白天任务冲突）
@@ -150,6 +151,7 @@ LOG_FILES = {
     "airtraffic_opensky":f"{LOG_DIR}/airtraffic_opensky.log",
     "airroutes":f"{LOG_DIR}/airroutes.log",
     "spacelaunch":f"{LOG_DIR}/spacelaunch.log",
+    "health_geo":f"{LOG_DIR}/health_geo.log",
     "energy_eia":        f"{LOG_DIR}/energy_eia.log",
     "china_meso":        f"{LOG_DIR}/china_meso.log",
     "weekly_synthesis": f"{LOG_DIR}/weekly_synthesis.log",

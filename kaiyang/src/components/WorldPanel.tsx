@@ -15,6 +15,7 @@ import { adaptAirRoutes } from '@/lib/airRoutesAdapter';
 import { adaptSdr } from '@/lib/sdrAdapter';
 import { adaptThermal } from '@/lib/thermalAdapter';
 import { adaptSpace } from '@/lib/spaceAdapter';
+import { adaptHealth } from '@/lib/healthAdapter';
 import { buildEventBars, buildRiskArcs, buildRiskPoints, downsampleLayer, type RiskPoint } from '@/lib/mapData';
 import { buildNuclearPoints, mergeNuclear } from '@/lib/nuclearData';
 import {
@@ -44,7 +45,7 @@ import {
 import { severityColor, withAlpha } from '@/config/theme';
 import { fmtNum } from '@/lib/format';
 import type { GrvRaw, MarketQuotesRaw, NewsGeoRaw, NuclearSitesRaw ,
-  AirTrafficRaw, AirRoutesRaw, SdrSummaryRaw, FirmsRaw, SpaceLaunchRaw} from '@/types/contracts';
+  AirTrafficRaw, AirRoutesRaw, SdrSummaryRaw, FirmsRaw, SpaceLaunchRaw, HealthGeoRaw} from '@/types/contracts';
 
 /** 视图模式：3D 地球 / 2D 平面地图。 */
 export type WorldViewMode = 'globe' | 'flat';
@@ -159,6 +160,8 @@ export function WorldPanel() {
   const { data: firmsRaw } = useFeed<FirmsRaw>('firms');
   // 08-14 space 图层：全球航天发射记录（日档，feed 缺失 → []）
   const { data: spaceRaw } = useFeed<SpaceLaunchRaw>('spacelaunch');
+  // 08-15 health 图层：GDELT 卫生事件（I60 增量，feed 缺失 → []）
+  const { data: healthRaw } = useFeed<HealthGeoRaw>('health_geo');
   // 1.6.0 预埋：市场行情读取层仅触发 fetch，本批无面板（不为它分配 RingPoint）
   const { data: marketRaw } = useFeed<MarketQuotesRaw>('market_quotes');
   const { report } = useStatus();
@@ -185,6 +188,8 @@ export function WorldPanel() {
   const thermalPoints = useMemo(() => adaptThermal(firmsRaw ?? null), [firmsRaw]);
   // 08-14 space 图层：全球航天发射活动点位（非风险语义）
   const spacePoints = useMemo(() => adaptSpace(spaceRaw ?? null), [spaceRaw]);
+  // 08-15 health 图层：全球卫生事件点位（非风险语义）
+  const healthPoints = useMemo(() => adaptHealth(healthRaw ?? null), [healthRaw]);
   // 核设施：feed 缺失时 mergeNuclear 回落静态种子，读数为空 ⇒ 灰色虚线菱形（不白屏、不编数）
   const nuclearRows = useMemo(() => mergeNuclear(nuclearRaw ?? null), [nuclearRaw]);
   const nuclearPoints = useMemo(() => buildNuclearPoints(nuclearRows), [nuclearRows]);
@@ -192,15 +197,15 @@ export function WorldPanel() {
   // K7 层叠顺序：海量点(P2 暂无) → 常规点 → 事件点 → 地理新闻 → 固定设施
   // 地理新闻位于「事件点」之后、「核设施」之前：与 event 同属增量信息但更稳定，
   // 落在固定设施之下避免海量时淹没核读数菱形。
-  // 08-14 追加顺序：aircraft 实时航班 → sdr 接收器 → thermal 火点（均为常规点，
-  // 排在 event/news 之后、nuclear 之前，避免压住核读数）。
+  // 08-14 追加顺序：aircraft 实时航班 → sdr 接收器 → thermal 火点 → space 发射 → health 卫生
+  // （均为常规点，排在 event/news 之后、nuclear 之前，避免压住核读数）。
   void marketRaw; // 显式标记已消费（仅 fetch 不渲染，预埋备查）
   const allPoints = useMemo(
     () => capPointsPerLayer([
       ...points, ...eventPoints, ...newsGeoPoints,
-      ...airPoints, ...sdrPoints, ...thermalPoints, ...spacePoints, ...nuclearPoints,
+      ...airPoints, ...sdrPoints, ...thermalPoints, ...spacePoints, ...healthPoints, ...nuclearPoints,
     ]),
-    [points, eventPoints, newsGeoPoints, airPoints, sdrPoints, thermalPoints, spacePoints, nuclearPoints],
+    [points, eventPoints, newsGeoPoints, airPoints, sdrPoints, thermalPoints, spacePoints, healthPoints, nuclearPoints],
   );
 
   const visibleSet = useMemo<ReadonlySet<LayerCategory>>(

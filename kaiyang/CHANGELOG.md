@@ -527,6 +527,37 @@ docs/operations/20260805-world-deduction-time-audit-fixed.md。
 - npm test 14 files / 311 tests 全绿；vite build 本地构建（新 bundle index-oJgF4qMk.js / css 沿用 S7YTSnTj）
 - scp 原地覆盖 + chmod -R a+rX；root/js/css/news_geo 200；旧 bundle 按 DEPLOYMENT 规范留 3 版清理（v1.10.0-1.10.4 共 9 个删除）
 
+## [1.11.10] - 2026-08-15 · P2 收官：health 卫生监视图层（GDELT GKG 卫生事件）
+
+**修改理由**：P2 最后一块拼图。maritime 数据源受阻（AISStream 服务端哑 / AISHub 贡献制 / ShipXplorer 参数未破解）暂缓；health 用 GDELT GKG（免费无 key、坐标现成）落地。
+
+### 修改
+
+- **后端天枢**（fetch_health_geo.py，新建）：GDELT 2.0 GKG 增量（27 列 .gkg.csv.zip，V1Locations 含坐标）→ 卫生爆发级关键词过滤（outbreak/epidemic/pandemic + 具体疾病，排除 pandemic loan 类噪声）→ 坐标事件提取；I60 增量（state 记录已处理 slot，最多补拉 8 slot）；保留 72h 窗口去重累积；实测 2h 窗口 26 条事件坐标全合法
+- **前端**：
+  - `contracts.ts`：HealthGeoRaw / HealthEventRaw
+  - `dataSources.ts`：+ health_geo feed
+  - `layerCategories.ts`：health def 更新（feed 'health_geo'、shape dot、desc）——**P2 7 类全部接入，feed null 占位清零**
+  - `lib/healthAdapter.ts`（新建）：events → RiskPoint[]（**air/thermal/space 教训复用：value null + severity 中性「卫生」+ weight 0.5 + note 关键词/地点/时间**）
+  - `WorldPanel.tsx`：healthPoints 合并（K7 常规点区）
+  - 测试：+healthAdapter.test（6 用例）
+- **运维**：NAS 意外断电 + fnOS 升级排查（天枢 exit 126 根因 = 升级把 entrypoint.sh 权限 755→700，chmod 修复；.sh 统一修回 755）
+
+### 验证
+
+- 后端实跑：26 条卫生事件（cyclosporiasis 爆发/麻疹/霍乱等）/ 坐标全合法 / 72h 窗口增量正确
+- tsc + vitest（本地沙箱规避方案）+ vite build 后 scp 部署
+- 视觉项由主理人浏览器复核
+
+## [1.11.9] - 2026-08-14 · 3D 地球移除 aircraft 实时航班（用户拍板）
+
+**修改理由**：用户拍板「实时航班放 3D 无意义且 12503 点耗资源」——globe 模式过滤 aircraft，flat 保持降采样；3D 保留航线网/弧和其他图层。
+
+### 修改
+
+- `WorldPanel.tsx`：displayPoints 视图分层——flat 降采样 aircraft / globe 过滤 aircraft
+- 验证：346 tests 全绿；vite build（`index-Bh70v3Zd.js`）scp 部署
+
 ## [1.11.8] - 2026-08-14 · P2 续接：space 太空活动图层（Next Spaceflight 发射记录）
 
 **修改理由**：用户问「继续推进」→ P2 剩余三源调研：space 实测可达（免费无 key，需浏览器 UA 否则 403）、health 的 WHO RSS 已 404（暂缓）、maritime 免费源覆盖受限（暂缓，需注册 key）→ space 先接入。

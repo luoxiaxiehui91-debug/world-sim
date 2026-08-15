@@ -89,6 +89,13 @@ export const FEEDS: Record<string, FeedConfig> = {
     schemaVersion: '1.0',
     description: '全球航天发射记录（Next Spaceflight，日档，08-14 space 图层）',
   },
+  health_geo: {
+    name: 'health_geo',
+    path: 'health_geo.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: 'GDELT 卫生事件地理提取（I60，08-15 health 图层）',
+  },
   newsAll: {
     name: 'newsAll',
     path: 'news_all.json',

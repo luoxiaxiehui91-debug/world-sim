@@ -509,6 +509,21 @@ export interface SpaceLaunchRaw extends RiskSignalBase {
   launches?: SpaceLaunchItemRaw[];
 }
 
+/** health_geo.json（GDELT GKG 卫生事件地理提取，08-15 开阳 health 图层）。 */
+export interface HealthEventRaw {
+  doc: string;
+  date: string;
+  lat: number;
+  lng: number;
+  loc_name: string;
+  keywords: string[];
+}
+export interface HealthGeoRaw extends RiskSignalBase {
+  scope?: string;
+  events_count?: number;
+  events?: HealthEventRaw[];
+}
+
 export interface NewsRiskRaw extends RiskSignalBase {
   source?: string;
   gdelt?: {
