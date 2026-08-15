@@ -521,6 +521,17 @@ def _pg_conn():
     return _PG_CONN
 
 
+def _invalidate_pg_conn():
+    """A1 (2026-08-15, QA 实测): 失效模块级缓存连接，置 None。
+
+    事务失败后连接处于 aborted 态（InFailedSqlTransaction），psycopg 要求先 rollback
+    才能继续；若缓存仍指向已关/aborted 连接，daemon 周期存档会持续失败。置 None 后
+    下次 _pg_conn() 重建新连接（自愈）。
+    """
+    global _PG_CONN
+    _PG_CONN = None
+
+
 def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level: int, report_path):
     """
     推演完成后把可验证预测写入 PG tianji.predictions / reasoning_trace（P0-D2 转 PG）。
@@ -655,6 +666,13 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
     except Exception as e:
         print(f"[tianji] 存档失败（不影响主流程）：{e}")
         import traceback; traceback.print_exc()
+        # A1 (2026-08-15, QA 实测): 事务失败后连接处于 aborted 态（InFailedSqlTransaction），
+        # psycopg 要求先 rollback 才能继续——先 rollback 清 aborted 事务（close 前安全收尾），
+        # 模块级缓存由 finally 统一失效，下次 _pg_conn() 重建新连接（自愈）。
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         # P0-D D4 (2026-08-15, 全量审查 H20 去静默): 存档失败不再静默——
         # 之前宽 except 吞错导致"仿真成功但 0 条落表"数月无人察觉。
         try:
@@ -663,6 +681,7 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
             pass
     finally:
         conn.close()
+        _invalidate_pg_conn()  # A1: close 后同步清缓存，避免缓存仍指向已关/aborted 连接
 
 
 # ── 天玑 V1 评分 ──────────────────────────────────────────
