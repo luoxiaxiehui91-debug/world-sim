@@ -419,6 +419,58 @@ def check_predictions_chain() -> list:
     return out
 
 
+# P1-B (2026-08-15, 审查 GED 静默退化): GED 过期已通知标记（首次 WARN 推一次，后续 INFO 不刷屏）
+GED_NOTIFY_STATE = os.path.join(DATA_DIR, ".probe_ged_notified")
+
+
+def check_ged_stale() -> list:
+    """GED v26.1 数据陈旧监控（P1-B, 2026-08-15）：GED 冻结在 2024-12，超
+    _GED_STALE_MONTHS=18 个月窗口后 GRV 的 GED 权重退化为 0（russia_europe /
+    middle_east_energy 补强失效）——此前该退化静默无人察觉（08-04 接入即超窗）。
+    首次超窗 WARN 推送一次 + 落标记；后续同状态 INFO 不重复告警（防噪音）；
+    GED 数据更新后自动恢复并清标记。"""
+    from datetime import datetime as _dt
+    import csv as _csv
+    out = []
+    path = os.path.join(DATA_DIR, "ged", "ged_agg_country_month.csv")
+    if not os.path.exists(path):
+        out.append((WARN, "GED: 数据文件不存在（russia_europe/middle_east_energy GED 补强失效）"))
+        return out
+    try:
+        latest = None
+        with open(path, encoding="utf-8") as f:
+            for row in _csv.DictReader(f):
+                ym = (row.get("year_month") or "").strip()
+                if ym:
+                    latest = ym
+        if not latest:
+            out.append((WARN, "GED: CSV 无 year_month 数据行"))
+            return out
+        y, m = int(latest[:4]), int(latest[5:7])
+        now = _dt.now()
+        months_stale = (now.year - y) * 12 + (now.month - m)
+        if months_stale > 18:
+            if os.path.exists(GED_NOTIFY_STATE):
+                out.append((INFO, f"GED: 数据仍过期 {months_stale} 个月（已通知过，不重复告警）"))
+            else:
+                try:
+                    with open(GED_NOTIFY_STATE, "w", encoding="utf-8") as f:
+                        f.write(latest)
+                except Exception:
+                    pass
+                out.append((WARN, f"GED: 数据冻结在 {latest}（{months_stale} 个月）超 18 个月窗，GRV GED 权重已退化 0"))
+        else:
+            if os.path.exists(GED_NOTIFY_STATE):
+                try:
+                    os.remove(GED_NOTIFY_STATE)
+                except Exception:
+                    pass
+            out.append((OK, f"GED: 最新 {latest}（{months_stale} 个月前，窗内）"))
+    except Exception as e:
+        out.append((WARN, f"GED: 读取异常 {e}"))
+    return out
+
+
 def check_fred_lag() -> list:
     """FRED 关键序列最新数据日期滞后监控（源断更/停更时告警）。"""
     from datetime import datetime, date as _date
@@ -460,7 +512,7 @@ def check_fred_lag() -> list:
 def run_probe(alert: bool = True) -> tuple:
     """执行全部检查。返回 (worst_level, results)。"""
     results = []
-    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_sqlite_gone, check_feed_fresh, check_predictions_chain):
+    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_sqlite_gone, check_feed_fresh, check_predictions_chain, check_ged_stale):
         try:
             results.extend(fn())
         except Exception as e:

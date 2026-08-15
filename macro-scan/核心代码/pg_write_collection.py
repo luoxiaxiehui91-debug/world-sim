@@ -70,6 +70,26 @@ _STATS = {"connect_fail": 0, "retry": 0, "fail": 0, "ok": 0}
 
 _alert_hook = None  # 默认 None → 用 _log.error；ops 可 set_alert_hook 挂载监控
 
+# P1-B (2026-08-15, 审查 H12): 接线 set_alert_hook 的"零 caller"问题——
+# 双写实际发生在 scheduler 派生的各子进程（Popen spawn 各自独立），在主进程接线无法覆盖。
+# 改为模块级默认：_alert_hook 为 None 时用内置 ntfy 推送（同 key 去抖防噪音）。
+_last_alert_key = None
+_last_alert_ts = 0.0
+_ALERT_MIN_INTERVAL = 300.0  # 同 key 5 分钟去抖（连接故障期每次失败不刷屏）
+
+
+def _default_alert_hook(table, pk_repr, sqlstate, err):
+    """默认告警：ntfy 推送（失败不影响主流程）。"""
+    try:
+        from ntfy_utils import push_text_with_priority
+        push_text_with_priority(
+            "PG 双写失败",
+            f"table={table} pk={pk_repr} sqlstate={sqlstate}\n{err}",
+            priority=5,
+        )
+    except Exception:
+        pass
+
 
 def set_alert_hook(fn):
     """挂载告警回调 fn(table, pk_repr, sqlstate, err) → 供部署侧监控（Pushgateway/告警文件）。"""
@@ -86,11 +106,19 @@ def get_pg_write_stats() -> dict:
 def _emit_alert(table, pk_repr, sqlstate, err):
     _log.error("PG dual-write FAILED table=%s pk=%s sqlstate=%s err=%s",
                table, pk_repr, sqlstate, err)
-    if _alert_hook is not None:
-        try:
-            _alert_hook(table, pk_repr, sqlstate, err)
-        except Exception:
-            pass
+    global _last_alert_key, _last_alert_ts
+    hook = _alert_hook if _alert_hook is not None else _default_alert_hook
+    key = f"{table}|{sqlstate}"
+    now = time.time()
+    if key == _last_alert_key and (now - _last_alert_ts) < _ALERT_MIN_INTERVAL:
+        _log.warning("PG dual-write alert 去抖（%s 已推过，%ds 内不重复）", key, int(_ALERT_MIN_INTERVAL))
+        return
+    _last_alert_key = key
+    _last_alert_ts = now
+    try:
+        hook(table, pk_repr, sqlstate, err)
+    except Exception:
+        pass
 
 
 def _classify(exc) -> bool:
