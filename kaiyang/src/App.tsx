@@ -15,6 +15,8 @@ import { PANELS } from '@/panels/registry';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 const STORAGE_KEY = 'kaiyang.v6.panelLayout';
+const LAYOUT_KEY_PREFIX = 'kaiyang.';
+const APP_VERSION = '1.11.10';
 
 /** 从 panelRegistry 推导初始布局（3 行 × 12 栅格，Bloomberg/Grafana 情报面板范式）。 */
 function buildDefaultLayout(): Layout[] {
@@ -55,6 +57,10 @@ function buildDefaultLayout(): Layout[] {
 /** 默认布局（惰性计算，仅首次挂载时调用一次）。 */
 const defaultLayouts: Layout[] = buildDefaultLayout();
 
+/** 默认布局索引，用于快速校验。 */
+const defaultLayoutMap = new Map(defaultLayouts.map((l) => [l.i, l]));
+const DEFAULT_PANEL_IDS = new Set(defaultLayouts.map((l) => l.i));
+
 /** 合并缓存布局与默认布局：registry 中有但缓存中没有的新面板追加到末尾（Q6）。 */
 function mergeWithDefaults(saved: Layout[], defaults: Layout[]): Layout[] {
   const savedIds = new Set(saved.map((l) => l.i));
@@ -72,20 +78,112 @@ function mergeWithDefaults(saved: Layout[], defaults: Layout[]): Layout[] {
   ];
 }
 
-/** 从 localStorage 加载布局（失败时回退默认布局）。 */
+/**
+ * 布局健康检查：自动修复/拒绝明显异常的 persisted 布局。
+ * 08-15 用户报「排版乱套」：地球被压成细条、面板挤压。根因多为 localStorage
+ * 中保存了拖拽后的异常尺寸（例如 world 面板 h 被拖成 1）。
+ */
+function isLayoutHealthy(layout: Layout[]): boolean {
+  if (!Array.isArray(layout) || layout.length === 0) return false;
+
+  // 1. 关键面板必须存在且尺寸不小于默认最小值
+  const world = layout.find((l) => l.i === 'world');
+  if (!world) return false;
+  if (world.h < (defaultLayoutMap.get('world')?.minH ?? 5)) return false;
+  if (world.w < 4) return false;
+
+  // 2. 不允许坐标/尺寸为非正数或 NaN
+  for (const l of layout) {
+    if (!DEFAULT_PANEL_IDS.has(l.i)) continue; // 未知面板由 mergeWithDefaults 处理
+    if (
+      !Number.isFinite(l.x) || !Number.isFinite(l.y) ||
+      !Number.isFinite(l.w) || !Number.isFinite(l.h)
+    ) {
+      return false;
+    }
+    if (l.w <= 0 || l.h <= 0 || l.x < 0 || l.y < 0) return false;
+    if (l.x + l.w > 12) return false; // 超出 12 栅格
+  }
+
+  // 3. 总高度不得异常小（至少能放下 world + grv + news 三行）
+  const maxYh = Math.max(...layout.map((l) => l.y + l.h), 0);
+  if (maxYh < 18) return false;
+
+  return true;
+}
+
+/** 从 localStorage 加载布局（异常/损坏时自动回退默认布局）。 */
 function loadLayout(): Layout[] {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed: Layout[] = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return mergeWithDefaults(parsed, defaultLayouts);
+        const merged = mergeWithDefaults(parsed, defaultLayouts);
+        if (isLayoutHealthy(merged)) return merged;
+        // 不健康：删除缓存，回退默认
+        try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
       }
     }
   } catch {
     /* localStorage 不可用或数据损坏 → 回退默认布局 */
   }
   return defaultLayouts;
+}
+
+/** 清除所有 kaiyang.* localStorage 键（彻底重置布局/偏好）。 */
+function clearAllKaiyangStorage() {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(LAYOUT_KEY_PREFIX)) keys.push(k);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 自动布局图标：闪电（SVG，替代 emoji ⚡）。 */
+function AutoLayoutIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </svg>
+  );
+}
+
+/** 重置布局图标：逆时针箭头（SVG，替代 emoji ↺）。 */
+function ResetIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+    </svg>
+  );
 }
 
 // ---- 根组件 ----
@@ -105,6 +203,9 @@ export default function App() {
 
   const [layout, setLayout] = useState<Layout[]>(() => loadLayout());
   const [dynamicRowHeight, setDynamicRowHeight] = useState<number>(72);
+  // 08-15 修复：重置布局时改变 key，强制 ResponsiveGridLayout 重新 mount，
+  // 避免 react-grid-layout 内部仍按旧尺寸/位置渲染导致「重置了但没完全重置」。
+  const [layoutResetNonce, setLayoutResetNonce] = useState<number>(0);
 
   /** 自动布局：根据视口高度调整 rowHeight，再 compact 面板填满可视区。 */
   const onAutoLayout = useCallback(() => {
@@ -116,9 +217,10 @@ export default function App() {
     const rowH = Math.max(60, Math.floor(availH / totalRows));
     setDynamicRowHeight(rowH);
 
-    // 清除缓存、恢复默认布局并用 compact 消灭空隙
-    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    // 彻底清除所有 kaiyang 缓存，防止某一项旧布局/偏好污染
+    clearAllKaiyangStorage();
     setLayout(defaultLayouts);
+    setLayoutResetNonce((n) => n + 1);
 
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultLayouts)); } catch { /* ignore */ }
   }, []);
@@ -127,6 +229,8 @@ export default function App() {
   const onLayoutChange = useCallback((currentLayout: Layout[], allLayouts: Layouts) => {
     // 优先取 allLayouts.lg（Responsive 模式下跨断点布局），回退 currentLayout
     const lgLayout: Layout[] = allLayouts?.lg ?? currentLayout;
+    // 只保存健康布局：如果拖拽产生异常（例如 h 被缩到 0），丢弃此次持久化
+    if (!isLayoutHealthy(lgLayout)) return;
     setLayout(lgLayout);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(lgLayout));
@@ -135,14 +239,11 @@ export default function App() {
     }
   }, []);
 
-  /** 重置布局：清除缓存，恢复默认。 */
+  /** 重置布局：彻底清除缓存，恢复默认，并强制 grid 重新 mount。 */
   const onResetLayout = useCallback(() => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* 忽略 */
-    }
+    clearAllKaiyangStorage();
     setLayout(defaultLayouts);
+    setLayoutResetNonce((n) => n + 1);
   }, []);
 
   return (
@@ -155,9 +256,10 @@ export default function App() {
             <StatusBar />
 
             {/* 面板区：react-grid-layout 可拖拽网格（1.7.0） */}
-            <main className="flex-1">
+            <main className="flex min-h-0 flex-1 flex-col">
               <ResponsiveGridLayout
-                className="layout min-h-screen"
+                key={`grid-${layoutResetNonce}`}
+                className="layout min-h-0 flex-1"
                 layouts={{ lg: layout }}
                 breakpoints={{ lg: 1024, md: 768, sm: 0 }}
                 cols={{ lg: 12, md: 1, sm: 1 }}
@@ -181,7 +283,7 @@ export default function App() {
                           {panel.title}
                         </h3>
                       </div>
-                      <div className="flex-1 overflow-auto p-2">
+                      <div className="flex-1 overflow-auto p-2 min-h-0">
                         <Panel />
                       </div>
                     </div>
@@ -191,25 +293,25 @@ export default function App() {
             </main>
 
             <footer className="relative z-[60] flex items-center justify-between px-4 pb-4 text-[11px] text-white/30">
-              <span>世界推演系统 · 开阳 Wave 2 v1.8.0 · 操作面板</span>
+              <span>世界推演系统 · 开阳 Wave 2 v{APP_VERSION} · 操作面板</span>
               <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={onAutoLayout}
-                  className="rounded-md border border-emerald-400/50 bg-emerald-500/15 px-3 py-1 text-[13px] font-medium text-emerald-200 hover:border-emerald-400 hover:bg-emerald-500/30 hover:text-emerald-100 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-emerald-400/50 bg-emerald-500/15 px-3 py-1 text-[13px] font-medium text-emerald-200 hover:border-emerald-400 hover:bg-emerald-500/30 hover:text-emerald-100 transition-colors"
                   title="根据屏幕高度自动调整面板布局"
-                  style={{ zIndex: 9999, position: 'relative' }}
                 >
-                  ⚡ 自动布局
+                  <AutoLayoutIcon />
+                  自动布局
                 </button>
                 <button
                   type="button"
                   onClick={onResetLayout}
-                  className="rounded-md border border-cyan-400/50 bg-cyan-500/15 px-3 py-1 text-[13px] font-medium text-cyan-200 hover:border-cyan-400 hover:bg-cyan-500/30 hover:text-cyan-100 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-cyan-400/50 bg-cyan-500/15 px-3 py-1 text-[13px] font-medium text-cyan-200 hover:border-cyan-400 hover:bg-cyan-500/30 hover:text-cyan-100 transition-colors"
                   title="重置面板布局到默认排列"
-                  style={{ zIndex: 9999, position: 'relative' }}
                 >
-                  ↺ 重置布局
+                  <ResetIcon />
+                  重置布局
                 </button>
               </div>
             </footer>
