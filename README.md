@@ -12,11 +12,14 @@
 world-sim/
 ├── macro-scan/              宏观信号观测系统（天枢）
 ├── macro-sim/               宏观演化仿真系统（天璇）
-├── kaiyang/                 可视化操作面板（开阳）v1.10.8
+├── kaiyang/                 可视化操作面板（开阳）v1.11.11
 ├── macro-ji/                天玑（验证层）macro-ji v1.0.0（独立容器）
 ├── docs/
 │   ├── overview.md          系统总览（功能/架构/运维一页通）
 │   ├── tianji-design.md     天玑（验证层）设计文档 v1.0
+│   ├── reviews/             审查闭环归档（Track A/B + 回复 + 再复核，2026-08-15）
+│   ├── decisions/           决策/实施记录（ADR + 20260815-p0p1-implementation + OPEN-DECISIONS）
+│   ├── archive/             历史归档（已退场组件/旧会话产物）
 │   └── calib/               校准评审实录（calib-*.md，08-10 同步）
 ├── deploy.sh                统一部署脚本
 ├── docs/roadmap.md          路线图（crucix/开阳/R4 状态，2026-08-12 从根迁来）
@@ -41,16 +44,16 @@ world-sim/
 - 详见 [macro-sim/README.md](macro-sim/README.md)
 
 ### kaiyang — 可视化操作面板（开阳）
-- 功能：只读展示天枢产出数据，3D地球 + 经济面板 + 控制抽屉（MOCK_ENABLED=false，A3a 控制 API 已接入，HTTP REST :8900）
+- 功能：只读展示天枢产出数据，3D地球 + 经济面板 + 控制抽屉（MOCK_ENABLED=false，控制 API :8900；**P1-D fail-closed 后需填 CONTROL_TOKEN 才能操作**）
 - NAS 访问：`http://192.168.31.108:8080`
-- 版本：`v1.10.8`（as-of 2026-08-12；权威版本记录见 [CHANGELOG.md](kaiyang/CHANGELOG.md)，本行仅导航不断言）
+- 版本：`v1.11.11`（as-of 2026-08-15；权威版本记录见 [CHANGELOG.md](kaiyang/CHANGELOG.md)，本行仅导航不断言）
 - 详见 [kaiyang/README.md](kaiyang/README.md)
 
 ### macro-ji — 天玑（验证层）
 - 功能：对天枢/天璇产出的预测做事后验证与校准（narrative_chunks / predictions / forecasts）
 - NAS 运行路径：`/vol2/1000/software/world-sim/macro-ji`（源码仓库，构建源；容器 = macro-tianji:latest 镜像 COPY，无独立运行区）
 - 版本：`v1.0.0`（as-of 2026-08-06；权威版本记录见 [CHANGELOG.md](macro-ji/CHANGELOG.md)；独立容器 `macro-scan-tianji-1`，healthy，08-04 22:37 上线，代码 ≡ 仓库）
-- 与天璇共享 `forecast_tracker.db`（两容器共用同一数据目录）
+- **预测链已转 PG（08-15 D2）**：天璇落表 / 天玑验证均直连 worldsim-pg `tianji.predictions` + `reasoning_trace`，不再共享 SQLite forecast_tracker.db（死文件待 P6 删除）
 
 ## 部署
 

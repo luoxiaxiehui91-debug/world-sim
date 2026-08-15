@@ -17,11 +17,15 @@
 
 ---
 
-## 数据架构现状（E0-C，2026-08-14）
+## 数据架构现状（E0-C + P0-D2，2026-08-15）
 
-**读路径已统一 worldsim-pg**（`核心代码/pg_read.py` 只读层，行边界归一化 UTC 文本；14 个 reader 已切）。**写路径 PG 主写**（`WORLDSIM_SQLITE_OFF=1` 已生效：news_db 6 写函数 + synthesis_log 写路径 PG-only 分支；`data/.sqlite_frozen_at` marker 留存）。**SQLite 已删（P6 08-14 08:39 闭环，commit 1ba002a，快照 `e0c-p6-20260814-083910`）——任何代码不得再 sqlite3.connect 创建 news.db，读走 pg_read（08-14 P0 修复：init_db/_conn fail-fast + _check_data_maturity PG 分支）。**
+**读路径已统一 worldsim-pg**（`核心代码/pg_read.py` 只读层，行边界归一化 UTC 文本；14 个 reader 已切）。**写路径 PG 主写**（`WORLDSIM_SQLITE_OFF=1` 已生效：news_db 6 写函数 + synthesis_log 写路径 PG-only 分支；`data/.sqlite_frozen_at` marker 留存）。**天枢侧 SQLite 已删（P6 08-14 08:39 闭环，commit 1ba002a）——任何代码不得再 sqlite3.connect 创建 news.db，读走 pg_read。**
 
-涉及 P0/E0-C 排障先查 `docs/decisions/E0-C-operation-log.md` 与 `docs/decisions/ADR-00{1,2,3}.md`；对账/探针：`verify_reads_e0c.py`（双读校验台，PG-only 语义）/ `reconcile_synthesis.py` / `silent_failure_probe.py`（PG-only 模式）。
+**⛔ 08-15 D2 预测链转 PG（`afe1311`+`f7cf689`）**：天璇 `macro-sim/run.py` `_archive_to_tianji` 与天玑 `macro-ji/tianji_db.py`/`tianji_verifier.py` 全部 psycopg 直连 worldsim-pg `tianji.predictions` + `reasoning_trace`（search_path=tianji,public）。**forecast_tracker.db 现为死文件**（三端都不写），待 P6 观察窗后删除（`delete_sqlite_e0c.sh`）+ 同步移除探针 `_SQLITE_GONE_EXEMPT` 豁免。
+
+**⚠️ 运行区 compose 纪律（08-15 实测教训）**：必须显式含 `networks: worldsim_default(external)` + `WORLDSIM_APP_PW`/`WORLDSIM_SQLITE_OFF=1`——手动 `docker network connect` 在 `docker compose up -d` recreate 后即丢（PG 断连实测）；env 丢失会回归 SQLite 双写。控制 API（:8900）已 **fail-closed**（P1-D）：未配 CONTROL_TOKEN 一律 503/401，开阳面板需填 token。
+
+涉及 P0/E0-C 排障先查 `docs/decisions/E0-C-operation-log.md` 与 `docs/decisions/ADR-00{1,2,3}.md`；对账/探针：`verify_reads_e0c.py`（双读校验台，PG-only 语义）/ `reconcile_synthesis.py` / `silent_failure_probe.py`（**31 项**，PG-only 模式 + check_predictions_chain + check_ged_stale）。审查/实施记录：`docs/reviews/` + `docs/decisions/20260815-p0p1-implementation.md`。
 
 ## 新 session 阅读路径
 
