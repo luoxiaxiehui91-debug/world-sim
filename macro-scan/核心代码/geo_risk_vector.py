@@ -91,6 +91,26 @@ def _compute_gdelt_p95_dynamic() -> dict:
         _GDELT_P95 = dict(_GDELT_P95_FALLBACK)
         return _GDELT_P95
 
+# ===== C01 修复（2026-08-15）：af752ea「GDELT 校准器落地」误删的 5 个模块常量，按 f6142dd 版原样补回 =====
+_CONFLICT_FLOOR = {
+    "russia_europe": 35.0,
+}
+_CONFLICT_FLOOR_MIN_ARTICLES = 5  # 触发 floor 所需的近30天冲突文章数
+
+
+# GED P95 基准锚点（ged_agg_country_month.csv，1989-2024，地区月度聚合，state+one-sided）
+# 多 agent 辩论结论（地缘政治理论+数据科学+怀疑者，2026-08-04）：
+#   P95 = 3570 死亡/地区/月；log1p(3570) ≈ 8.18
+#   权重：GED×0.30 + GDELT×0.70（保守起步，3个月后校准）
+#   适用维度：russia_europe（Europe）/ middle_east_energy（Middle East）
+#   不适用：taiwan_strait / us_china_strategic（威慑型风险，死亡数无意义）
+_GED_P95_ANCHOR = 3570.0
+_GED_REGION_MAP = {
+    "russia_europe":    "Europe",
+    "middle_east_energy": "Middle East",
+}
+_GED_STALE_MONTHS = 18  # 超过此月数无数据则权重自动降为 0
+
 def _load_ged_conflict_signal(dimension: str) -> float | None:
     """
     读取 GED v26.1 月度聚合数据，为指定 GRV 维度计算冲突死亡信号（0-100）。
