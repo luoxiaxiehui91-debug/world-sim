@@ -345,6 +345,60 @@ def check_feed_fresh() -> list:
     return out
 
 
+# P0-C (2026-08-15, 全量审查 H09 盲区补齐): 预测链活动监测状态文件
+PRED_COUNT_STATE = os.path.join(DATA_DIR, ".probe_pred_count.json")
+PRED_CHAIN_WARN_DAYS = 14   # 天璇仿真落表是低频事件（GRV 阈值触发），14 天无新增 → WARN
+PRED_CHAIN_CRIT_DAYS = 30   # 30 天无新增 → CRIT（链条断裂数月无人察觉的 H09 场景）
+
+
+def check_predictions_chain() -> list:
+    """预测链活动监测（H09 盲区补齐）：forecast_tracker.db predictions 行数增量。
+
+    设计：探针 2h 一次，state 文件记上次行数与变化时间；本次行数 > 上次 = 有新增预测
+    （天璇落表/天玑验证都在写行）；连续 N 天无新增 = 预测生成或验证可能静默停止。
+    只读 mode=ro 连接，不违反 P6 纪律（不创建/不写 SQLite）。
+    """
+    from datetime import datetime as _dt, timezone as _tz
+    out = []
+    db = os.path.join(DATA_DIR, "forecast_tracker.db")
+    if not os.path.exists(db):
+        out.append((WARN, "预测链: forecast_tracker.db 不存在（天璇从未落表或已删库）"))
+        return out
+    try:
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        cnt = conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
+        conn.close()
+    except Exception as e:
+        out.append((WARN, f"预测链: forecast_tracker.db 读取失败 {e}"))
+        return out
+    state = {}
+    try:
+        with open(PRED_COUNT_STATE, encoding="utf-8") as f:
+            state = json.load(f)
+    except Exception:
+        pass
+    now = _dt.now(_tz.utc).timestamp()
+    last_cnt = int(state.get("count", 0))
+    last_chg = float(state.get("changed_at", now))
+    if cnt > last_cnt:
+        state = {"count": cnt, "changed_at": now, "last_growth": cnt - last_cnt}
+        try:
+            with open(PRED_COUNT_STATE, "w", encoding="utf-8") as f:
+                json.dump(state, f)
+        except Exception:
+            pass
+        out.append((OK, f"预测链: predictions {cnt} 行（较上次新增 {cnt - last_cnt}）"))
+    else:
+        days = (now - last_chg) / 86400.0
+        if days >= PRED_CHAIN_CRIT_DAYS:
+            out.append((CRIT, f"预测链: {days:.0f} 天无新增预测（{cnt} 行），链条可能静默断裂"))
+        elif days >= PRED_CHAIN_WARN_DAYS:
+            out.append((WARN, f"预测链: {days:.0f} 天无新增预测（{cnt} 行）"))
+        else:
+            out.append((OK, f"预测链: {cnt} 行，{days:.0f} 天无新增（正常窗口）"))
+    return out
+
+
 def check_fred_lag() -> list:
     """FRED 关键序列最新数据日期滞后监控（源断更/停更时告警）。"""
     from datetime import datetime, date as _date
@@ -386,7 +440,7 @@ def check_fred_lag() -> list:
 def run_probe(alert: bool = True) -> tuple:
     """执行全部检查。返回 (worst_level, results)。"""
     results = []
-    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_sqlite_gone, check_feed_fresh):
+    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_sqlite_gone, check_feed_fresh, check_predictions_chain):
         try:
             results.extend(fn())
         except Exception as e:
