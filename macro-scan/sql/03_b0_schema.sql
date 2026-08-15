@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS news.articles (
 );
 CREATE INDEX IF NOT EXISTS idx_articles_published_at ON news.articles (published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_articles_source ON news.articles (source);
-CREATE INDEX IF NOT EXISTS idx_articles_content_hash ON news.articles (content_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS news_uq_articles_hash ON news.articles (content_hash) WHERE content_hash IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS news_uq_articles_url ON news.articles (url) WHERE url IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS news.article_categories (
     article_id      BIGINT NOT NULL,
@@ -77,8 +78,8 @@ CREATE TABLE IF NOT EXISTS news.synthesis_log (
     llm_success     INTEGER,
     ntfy_success    INTEGER,
     suppress_reason TEXT,
-    report_excerpt  TEXT
-);
+    report_excerpt  TEXT,
+    pg_synced_at    TIMESTAMPTZ DEFAULT now());
 CREATE INDEX IF NOT EXISTS idx_synthesis_log_triggered ON news.synthesis_log (triggered_at DESC);
 
 -- forecast schema --------------------------------------------------------
@@ -162,8 +163,8 @@ CREATE TABLE IF NOT EXISTS tianji.predictions (
     brier_score             DOUBLE PRECISION,
     brier_skill_score       DOUBLE PRECISION,
     verified_at             TIMESTAMPTZ,
-    verified_by             TEXT
-);
+    verified_by             TEXT,
+    pg_synced_at    TIMESTAMPTZ DEFAULT now());
 
 CREATE TABLE IF NOT EXISTS tianji.reasoning_trace (
     id                  BIGSERIAL PRIMARY KEY,
@@ -174,8 +175,8 @@ CREATE TABLE IF NOT EXISTS tianji.reasoning_trace (
     confidence_basis    TEXT,
     llm_adjustment      DOUBLE PRECISION,
     causal_chains       TEXT,
-    reasoning           TEXT
-);
+    reasoning           TEXT,
+    pg_synced_at    TIMESTAMPTZ DEFAULT now());
 
 CREATE TABLE IF NOT EXISTS tianji.weight_update_log (
     id                  BIGSERIAL PRIMARY KEY,
@@ -186,8 +187,8 @@ CREATE TABLE IF NOT EXISTS tianji.weight_update_log (
     weight_before       DOUBLE PRECISION,
     weight_after        DOUBLE PRECISION,
     reason              TEXT,
-    notes               TEXT
-);
+    notes               TEXT,
+    pg_synced_at    TIMESTAMPTZ DEFAULT now());
 
 CREATE TABLE IF NOT EXISTS tianji.narrative_chunks (
     id                  BIGSERIAL PRIMARY KEY,
@@ -200,13 +201,13 @@ CREATE TABLE IF NOT EXISTS tianji.narrative_chunks (
     token_count         INTEGER,
     staleness_tau       INTEGER,
     embedding           BYTEA,
-    created_at          TIMESTAMPTZ
-);
+    created_at          TIMESTAMPTZ,
+    pg_synced_at    TIMESTAMPTZ DEFAULT now());
 CREATE INDEX IF NOT EXISTS idx_narrative_chunks_dim ON tianji.narrative_chunks (primary_dimension, secondary_dimension);
 
 CREATE TABLE IF NOT EXISTS tianji.narrative_density_flags (
     dimension       TEXT PRIMARY KEY,
     flagged_at      TIMESTAMPTZ,
     z_score         DOUBLE PRECISION,
-    consumed        INTEGER
-);
+    consumed        INTEGER,
+    pg_synced_at    TIMESTAMPTZ DEFAULT now());
