@@ -434,7 +434,18 @@ def check_ged_stale() -> list:
     out = []
     path = os.path.join(DATA_DIR, "ged", "ged_agg_country_month.csv")
     if not os.path.exists(path):
-        out.append((WARN, "GED: 数据文件不存在（russia_europe/middle_east_energy GED 补强失效）"))
+        # 实测（2026-08-15）：GED CSV 从未部署到运行数据目录（git 树也只有 etl 脚本无数据），
+        # GRV 的 GED 补强从未生效。首次 WARN 推送一次 + 落标记，后续 INFO 不刷屏；
+        # 是否补 GED 数据是 P2 数据决策（审计方 Q4：刷数据/调窗 → P2 门控）。
+        if os.path.exists(GED_NOTIFY_STATE):
+            out.append((INFO, "GED: 数据文件未部署（已通知过，不重复告警；补数据= P2 决策）"))
+        else:
+            try:
+                with open(GED_NOTIFY_STATE, "w", encoding="utf-8") as f:
+                    f.write("missing")
+            except Exception:
+                pass
+            out.append((WARN, "GED: 数据文件不存在（russia_europe/middle_east_energy GED 补强从未生效）"))
         return out
     try:
         latest = None
