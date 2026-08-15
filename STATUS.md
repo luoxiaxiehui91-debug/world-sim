@@ -120,12 +120,20 @@
 
 ## 待做 / 已知遗留
 
+> **08-15 审查遗留待办（完整映射见 `docs/decisions/audit-todo-20260815.md`）**：
+> - **P0-A 密钥轮换**（GitHub PAT / FRED / LLM / EIA / ntfy 1900；用户暂缓，触发=仓库转公开/外部共享前）
+> - **P6 删 SQLite**：forecast_tracker.db 死文件，观察 1-2 天无复生 → `delete_sqlite_e0c.sh` + 移除 `_SQLITE_GONE_EXEMPT`（同步骤）
+> - **P1-E causal_assumptions 补全**（P2 天权公式输入）
+> - **审查未修 High**：H21（VIX 恐慌放大永不触发）/ H22（MC 概率不归一）/ H19 天璇侧（GRV null 守卫）/ H01+H02（开阳 randomUUID + token 外泄）/ H08+H11（非原子写）/ H18（sim_trigger 三端契约）/ H14+H16（密钥，归 P0-A）
+> - **用户操作项**：开阳控制面板填 CONTROL_TOKEN（P1-D fail-closed 后）
+> - **P2 全部门控**（MIN_TRIGGER_N=8 触达，≈3 个月）：玉衡 V2 / 天权公式 / 新数据源 / 新 Agent / 契约 schema / GED 数据决策
+
 1. **R4h ① 挂起项（转 silence 治理立项）**：credit 回池（silence 0.531>0.50）、p̂ 过 partial 0.55、S2≤0.60 三项未达成。seed123（silence 0.633 / n_active 9<12）为容器残余弱项；已证 0.80 参数无收益、方案预期 0.5729 为假复现（勿再引用）。qa/data 已表态可参与下一轮方案评审与验收预置
 2. **news_geo 空渲染 ✅ 已解决（08-11 M-1）**：路线 A 落地——news_geo.json 由 fetch_gdelt_geo.py I15 派生（137B→527 事件），旧 NER 链退役；验收 48h 判定 08-13 自动化。**浏览器复核 17 项待主理人**（事件点渲染/性能/XSS/时间戳/图例/降级/聚合观感等，清单见 arg-map-qa-acceptance）
 3. **FRED 上游源停更（观察中）**：DCOILWTICO 卡 07-27 / ICSA 07-25（经代理实测，非本地问题）；fresh=False 已暴露 + ntfy 告警覆盖；BAA10Y/DTWEXBGS 卡 07-31 根因待查
 4. **航班走廊线（air 图层）待拍板**：P2 路线图已排（CRUCIX_UPGRADE air=空域活动三角+航迹弧）；天枢 airtraffic_opensky 日跑已有全球快照（8529 架），画 crucix 式区域走廊需天枢按战略区域加工（增量）；建议 news_geo 验收后做 B 完整版
 5. **天璇 deploy.sh macro-sim 目标内部 ssh 密码验证失败**：重建改手动 docker build（脚本本身无 bug，NAS 自身 ssh 配置问题）
-6. **天玑 weight_update_log 仍 0 为正常**：MIN_TRIGGER_N=8，当前 predictions=7（孤儿段实测 forecasts=304 / narrative_chunks=347），链路已验证可跑
+6. **天玑 weight_update_log 仍 0 为正常（08-15 更新）**：MIN_TRIGGER_N=8，当前 predictions=10（08-15 D2 转 PG 后 7→10；新落表 quantitative 90 天到期、月度验证），链路已验证可跑，需 ≈3 个月数据积累触达
 7. **工作区历史遗留 M**：多为 CRLF 幻影，判脏须 `git diff --ignore-all-space`
 8. **天璇 sim_log（死代码）**：`sim_log.py` 的 `insert_run` writer 全仓 0 调用（08-12 审计），空库为预期、非功能损坏，已从 P0 降级（见孤儿段 #4）；天璇 /app/output 校准产物随重建丢失（已知）
 9. **时区 OPEN 3 条**：news.db ingested_at/last_scan 展示层未统一（web_server /status）；web_server.py:530 /grv-history 本地↔UTC 混合比较边界差 8h；gdelt_history.date 纯日期键维持 UTC 语义（低优先）
