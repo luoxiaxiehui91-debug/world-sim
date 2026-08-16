@@ -178,6 +178,10 @@ class MacroAgent:
     # 运行时状态（不参与构造）
     activation_countdown: int = field(init=False, default=0)
     forced_activate:      bool = field(init=False, default=False)
+    # 08-17 主权降频：red_line 冷却（决策计数制——红线命中后冷却期内不重复强制升级，
+    # 修复全激活试验暴露的每步 NUCLEAR_SIGNAL/MILITARY_DEPLOYMENT 高频失真）
+    _decision_count:      int = field(init=False, default=0)
+    _last_redline_count:  int = field(init=False, default=-999)
 
     # 子类声明自己的合法动作列表
     VALID_ACTIONS: ClassVar[list[str]] = ["HOLD"]
@@ -243,12 +247,20 @@ class MacroAgent:
         # flag_* 布尔派生（v1.2 P2-1：从 visible_actions 派生，走 info_delay 分层）
         ctx = self._derive_soul_flags(ctx)
 
+        # 08-17 主权降频：red_line 冷却期判定（决策计数制）
+        self._decision_count += 1
+        # 主权类（VALID_ACTIONS 含核信号/军事）冷却 6 次决策，其余 2 次
+        rl_cooldown = 6 if "NUCLEAR_SIGNAL" in self.VALID_ACTIONS else 2
+        rl_cooling = (self._decision_count - self._last_redline_count) < rl_cooldown
+
         # ① red_line_triggers（v2.2 D2：数值表达式；red_lines 中文仅叙事）
         # 支持两种格式：list[str]（走 _escalation_action，S 类格式）/
         #               dict{trigger: action}（金融 soul 格式，指定强制行动）
         rl_spec = self.soul.get("red_line_triggers", []) or []
         rl_items = rl_spec.items() if isinstance(rl_spec, dict) else [(x, None) for x in rl_spec]
         for rl, rl_action in rl_items:
+            if rl_cooling:
+                break  # 冷却期内红线不生效，走正常派系决策
             if _eval_trigger(rl, ctx, missing_strategy=missing_strategy):
                 if rl_action:
                     esc = rl_action if rl_action in self.VALID_ACTIONS else "HOLD"
@@ -256,6 +268,7 @@ class MacroAgent:
                     esc = self._escalation_action(ctx)
                     if esc not in self.VALID_ACTIONS:
                         esc = "HOLD"
+                self._last_redline_count = self._decision_count
                 return ActionDecision(
                     action=esc,
                     reason=f"red_line 触发：{rl}",

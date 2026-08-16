@@ -212,7 +212,7 @@ agents:
     class: sovereign.SovereignAgent
     soul_file: A1_usa.yaml
     info_delay: 0        # 试点：去冷却
-    activation_prob: 0.35   # 试点（验证后回调 0.15-0.25）
+    activation_prob: 0.2   # 08-17 试点回调：0.35→0.2（全激活试验暴露 S 类高频失真；配合 red_line 冷却 6 步）
     transmission_coefficients:
       to_A3: 0.30   # 制裁/军事行动 → 对冲基金风险感知
       to_A10: 0.20  # 地缘紧张 → 散户情绪
@@ -228,7 +228,7 @@ agents:
     class: sovereign.SovereignAgent
     soul_file: A2_china.yaml
     info_delay: 0        # 试点：去冷却
-    activation_prob: 0.35   # 试点（验证后回调 0.15-0.25）
+    activation_prob: 0.2   # 08-17 试点回调：0.35→0.2（全激活试验暴露 S 类高频失真；配合 red_line 冷却 6 步）
     transmission_coefficients:
       to_A7: 0.25   # 中国地缘行动 → 新兴市场
       to_A3: 0.28   # 台海紧张 → 对冲基金
@@ -244,7 +244,7 @@ agents:
     class: sovereign.SovereignAgent
     soul_file: A3_eu.yaml
     info_delay: 0        # 试点：去冷却
-    activation_prob: 0.35   # 试点（验证后回调 0.15-0.25）
+    activation_prob: 0.2   # 08-17 试点回调：0.35→0.2（全激活试验暴露 S 类高频失真；配合 red_line 冷却 6 步）
     transmission_coefficients:
       to_A2: 0.25   # 欧盟制裁/能源政策 → 商业银行
       to_A3: 0.30   # 欧盟行动 → 对冲基金
@@ -260,7 +260,7 @@ agents:
     class: sovereign.SovereignAgent   # v2.1 P1-3：复合行为体（军事/能源/信息战）→ 基类
     soul_file: S4_russia.yaml
     info_delay: 0        # 试点：去冷却
-    activation_prob: 0.35   # 试点（验证后回调 0.15-0.25）
+    activation_prob: 0.2   # 08-17 试点回调：0.35→0.2（全激活试验暴露 S 类高频失真；配合 red_line 冷却 6 步）
     transmission_coefficients:
       to_A4: 0.35   # 俄能源行动 → 能源国（A4 挂起，作为传导接收端存在）
       to_A6: 0.30   # 信息战 → 媒体
@@ -276,7 +276,7 @@ agents:
     class: sovereign.EnergyGovSovereignAgent   # v2.1 P1-3：纯 OPEC 产量行为体 → 能源特化类
     soul_file: S5_saudi.yaml
     info_delay: 0        # 试点：去冷却
-    activation_prob: 0.35   # 试点（验证后回调 0.15-0.25）
+    activation_prob: 0.2   # 08-17 试点回调：0.35→0.2（全激活试验暴露 S 类高频失真；配合 red_line 冷却 6 步）
     transmission_coefficients:
       to_A4: 0.30   # 产量决策 → 能源国感知（A4 挂起，作为传导接收端存在）
       to_A7: 0.25   # 油价冲击 → 新兴市场
