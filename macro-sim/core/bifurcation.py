@@ -172,12 +172,27 @@ def _cluster_runs(final_grv_values: list[float], n_clusters: int = 2) -> list[li
         prev = sp + 1
     clusters.append(sorted_idx[prev:])
 
-    # 过滤低于10%的簇
-    filtered = [c for c in clusters if len(c) / n >= MIN_PATH_PROBABILITY]
-    if not filtered:
-        filtered = [list(range(n))]
+    # 过滤低于 MIN_PATH_PROBABILITY 的簇 → 合并到 GRV 终值最近的保留簇
+    # （H22 修复, 2026-08-16）：原实现直接丢弃小簇 → 被丢弃 run 的概率质量消失
+    # → 路径概率和 <100%（如 97%≠100%，下游把概率当权重用会失真），且与
+    # 上方注释"低于10%的簇会被合并到最近的簇"的设计意图不符。
+    retained = [c for c in clusters if len(c) / n >= MIN_PATH_PROBABILITY]
+    dropped  = [c for c in clusters if len(c) / n < MIN_PATH_PROBABILITY]
+    if retained and dropped:
+        for dc in dropped:
+            dc_center = statistics.mean([final_grv_values[i] for i in dc])
+            best = min(
+                retained,
+                key=lambda fc: abs(
+                    statistics.mean([final_grv_values[i] for i in fc]) - dc_center
+                ),
+            )
+            best.extend(dc)
+        # retained 已含合并后全部 run；顺序保持原簇顺序（被合并簇索引消失）
+    if not retained:
+        retained = [list(range(n))]
 
-    return filtered
+    return retained
 
 
 def _extract_key_events(history_list: list[list[dict]], run_indices: list[int]) -> list[dict]:
