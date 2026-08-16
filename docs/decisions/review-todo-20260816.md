@@ -17,6 +17,7 @@
 
 | ID | 位置 | 问题 | 建议修法 |
 |----|------|------|---------|
+| **NEW-08-16 主权高频失真** | `config/agents.yaml` S1-S5（activation_prob=0.35 试点）+ 主权 agent 决策 | 全激活试验暴露：S1-S5 每步军事/核动作（中国 MILITARY_DEPLOYMENT×2139/100runs、俄罗斯 NUCLEAR_SIGNAL×2078、欧盟制裁×2309、沙特 EMBARGO_SIGNAL×2144）——**现实不可信**；普通模式 0.35 概率 × 24 步也可能出现多次军事动作 | ① 回调 activation_prob 至 0.15-0.25（注释已预留）；② 给主权 red_line 动作加冷却/频率上限；③ 校验军事/核动作的触发条件是否过松 |
 | **M31** | `macro-sim/run.py:573/582`（geo 侧 :639/646 同） | archival uuid4 主键 + `ON CONFLICT(id)` 去重恒 no-op → 重跑同 scenario 插重复行 | 改用内容/场景哈希主键或 (scenario_hash, generated_at) 唯一约束 |
 | **LLM③** | `macro-sim/core/llm_client.py:98-110` `_usage_cache` + `:33-49` 导入期常量 + `:113-120` client 缓存 | 三处均无 TTL/mtime/信号失效，改配置须**重启天璇容器**；与天枢每次开文件热更行为不一致 | 配置缓存加 TTL（如 60s）或 mtime 比对，client 惰性重建 |
 | **LLM①** | `llm_usage.py:196-200` `resolve()` | 静态默认平台/模型仅供前端展示，调用方 resolve 返 None 时回落 env——全新部署静默回落 env，静态值形同虚设 | resolve() 返 None 时回落静态默认 |
