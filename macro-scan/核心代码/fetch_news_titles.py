@@ -33,6 +33,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 from fetcher_base import FetcherBase, Status
+from llm_usage import get_model
 
 # ── 配置回退 ────────────────────────────────────────────
 _cfg = FetcherBase.load_config_with_fallback(
@@ -49,6 +50,7 @@ NEWS_GEO_FILE = os.path.join(DATA_DIR, "news_geo.json")
 OUT_FILE = os.path.join(DATA_DIR, "news_titles.json")
 NEW_MAX = 40          # 每轮最多抓新增标题数（08-16 从 20 调大：2h 增量追平存量更快；40 条翻译 ~4-5min 仍在 I120 调度内）
 CONCURRENCY = 4       # 并发抓取数
+TRANSLATE_MODEL = "mimo-v2.5"  # 翻译专用模型（08-16 用户指定；比默认 OPENAI_COMPAT_MODEL 更稳/省）
 TIMEOUT = 12          # 单 URL 超时（秒）
 MAX_TITLES = 600      # 缓存上限（72h 窗口事件 ~300，留余量）
 
@@ -108,6 +110,8 @@ def _translate_titles(titles: dict) -> dict:
                 f"把这条新闻标题翻译成简体中文，只输出中文译文，不要加引号：\n{title}",
                 system="你是新闻标题翻译器。",
                 max_tokens=200,
+                # 配置优先（llm_usage translate_titles，控制台可改）→ 默认 mimo-v2.5
+                model=get_model("translate_titles") or TRANSLATE_MODEL,
             )
             t = resp.strip().strip('"').strip("'").strip()
             return (url, t) if t else (url, None)

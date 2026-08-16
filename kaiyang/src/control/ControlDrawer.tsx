@@ -9,6 +9,7 @@ import { useControl } from '@/state/ControlContext';
 import { DRAWER_WIDTH, MOCK_ENABLED } from '@/config/controlConfig';
 import { TabBar } from '@/control/TabBar';
 import { TokenSetup } from '@/control/TokenSetup';
+import { LlmConfig } from '@/control/LlmConfig';
 import { TianshuTab } from '@/control/TianshuTab';
 import { PlaceholderTab } from '@/control/PlaceholderTab';
 import { ToastContainer } from '@/control/Toast';
@@ -74,6 +75,7 @@ export function ControlDrawer() {
         </div>
       )}
       <TokenSetup />
+      <LlmConfig />
       <TabBar />
       <div className="flex-1 overflow-y-auto px-3 pb-3">
         {activeTab === 'tianshu' && <TianshuTab />}

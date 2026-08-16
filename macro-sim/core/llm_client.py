@@ -7,6 +7,7 @@ Monte Carlo 模式：GLM-Z1-9B（硅基流动，免费）
 import os
 import re
 import time
+import json
 from typing import Optional
 
 try:
@@ -27,6 +28,25 @@ SILICONFLOW_MODEL      = SILICONFLOW_MODEL_GLM   # Monte Carlo 默认用 GLM-Z1-
 # MiniMax-M3（单次探索用，Anthropic 兼容）
 MINIMAX_BASE_URL = "https://api.minimaxi.com/v1"
 MINIMAX_MODEL    = "MiniMax-M3"
+
+
+def _apply_llm_config():
+    """08-16：读天枢共享 llm_config.json（天璇挂载 macro_scan/data → /app/macro_data），
+    开阳控制台改的模型在此覆盖代码常量。文件缺失/损坏 → 忽略走默认。"""
+    global SILICONFLOW_MODEL, SILICONFLOW_MODEL_QWEN_LARGE, MINIMAX_MODEL
+    try:
+        with open("/app/macro_data/llm_config.json", encoding="utf-8") as f:
+            cfg = json.load(f)
+        us = cfg.get("usages") or {}
+        SILICONFLOW_MODEL = us.get("sim_mc", {}).get("model") or SILICONFLOW_MODEL
+        SILICONFLOW_MODEL_QWEN_LARGE = (
+            us.get("sim_narrative", {}).get("model") or SILICONFLOW_MODEL_QWEN_LARGE)
+        MINIMAX_MODEL = us.get("sim_minimax", {}).get("model") or MINIMAX_MODEL
+    except Exception:
+        pass
+
+
+_apply_llm_config()
 
 # key 从环境变量读，fallback 到 key.txt
 def _load_key(env_var: str, fallback_path: str) -> str:

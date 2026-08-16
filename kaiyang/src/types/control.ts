@@ -78,6 +78,26 @@ export interface ApiErrorResponse {
   error: ApiErrorDetail;
 }
 
+/** LLM 使用点（GET /control/llm-usage；08-16 开阳控制台统一改模型） */
+export interface LlmUsage {
+  id: string;
+  name: string;
+  purpose: string;
+  /** 代码/环境默认模型；None 时展示 "（env 默认）" */
+  default_model: string | null;
+  endpoint: string;
+  container: 'tianshu' | 'tianxuan' | 'tianji' | string;
+  adjustable: boolean;
+  /** 当前生效模型（配置覆盖 > 默认） */
+  model: string;
+  /** 是否被 llm_config.json 覆盖 */
+  overridden: boolean;
+}
+
+export interface LlmUsageResponse {
+  usages: LlmUsage[];
+}
+
 /** 操作状态（GET /control/operations/{id} 响应） */
 export interface OperationStatus {
   operation_id: string;

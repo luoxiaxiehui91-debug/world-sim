@@ -17,6 +17,8 @@ import type {
   AllowedSchedulesResponse,
   ApiErrorResponse,
   Fetcher,
+  LlmUsage,
+  LlmUsageResponse,
 } from '@/types/control';
 
 // ── Mock 数据 ──────────────────────────────────────────────
@@ -416,4 +418,26 @@ export async function getNewsTitle(url: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/** 获取 LLM 使用点清单（08-16：控制台 LLM 配置面板） */
+export async function getLlmUsage(): Promise<LlmUsage[]> {
+  const res = await apiFetch<LlmUsageResponse>('/llm-usage', {}, true);
+  return res?.usages ?? [];
+}
+
+/** 修改 LLM 使用点模型（写 data/llm_config.json，下次调用生效） */
+export async function updateLlmUsage(
+  usageId: string,
+  model: string,
+): Promise<boolean> {
+  const res = await apiFetch<{ ok?: boolean }>(
+    `/llm-usage/${usageId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ model }),
+    },
+    true,
+  );
+  return res?.ok === true;
 }

@@ -464,6 +464,37 @@ def news_title(url: str = "", request: Request = None):
         return {"title": ""}
 
 
+# ── LLM 使用点配置（08-16：开阳控制台统一修改模型）─────────────────────
+@app.get("/api/v1/control/llm-usage")
+def llm_usage_list(request: Request = None):
+    """LLM 使用点清单 + 当前生效模型（开阳控制台 LLM 配置面板数据源）。"""
+    _check_token(request)
+    try:
+        from llm_usage import effective_models
+        return {"usages": effective_models()}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.put("/api/v1/control/llm-usage/{usage_id}")
+async def llm_usage_update(usage_id: str, request: Request):
+    """修改 LLM 使用点模型（写 data/llm_config.json，原子写，下次调用生效）。"""
+    _check_token(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    model = (body.get("model") or "").strip()
+    try:
+        from llm_usage import set_model
+        ok, msg = set_model(usage_id, model)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    if not ok:
+        return {"ok": False, "error": msg}
+    return {"ok": True, "usage_id": usage_id, "model": model}
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("CONTROL_PORT", "8900"))
     print(f"[control_server] 启动于 :{port}")
