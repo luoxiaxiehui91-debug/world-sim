@@ -348,12 +348,14 @@ export function WorldPanel() {
     return childrenByPointId.get(popupPoint.id) ?? [];
   }, [popupPoint, childrenByPointId]);
   // 点击地图点位 → 反向写回聚焦态（信号侧无 key 可给，故第一参传 null）；
-  // 仅新闻/冲突类别弹框（GRV/核设施点只聚焦，v1.10.8 明确边界）
+  // 仅新闻/冲突/卫生类别弹框（08-16：卫生事件点点击弹框显示媒体 + 原文链接；
+  // GRV/核设施点只聚焦，v1.10.8 明确边界）
   const handlePointClick = useCallback(
     (p: RiskPoint) => {
       const willFocus = focusPointId !== p.id;
       selectSignal(null, willFocus ? p.id : null);
-      const isNewsPoint = p.category === 'news' || p.category === 'conflict';
+      const isNewsPoint =
+        p.category === 'news' || p.category === 'conflict' || p.category === 'health';
       setPopupPoint(willFocus && isNewsPoint ? p : null);
     },
     [selectSignal, focusPointId],

@@ -48,8 +48,10 @@ export function adaptHealth(raw: HealthGeoRaw | null): RiskPoint[] {
       weight: 0.5, // 统一大小（事件无大小语义）
       category: 'health',
       shape: categoryShape('health'),
-      // 08-16：note 关联新闻——来源媒体 + 报道链接（doc URL）。GKG 无标题列，
-      // 媒体域名是"新闻关联"的最佳可用信号；标注来源可信度（媒体提及非官方确认）。
+      // 08-16：sourceUrl = 具体新闻原文（GKG DocumentIdentifier）——EventPopup
+      // 点击点显示"查看新闻原文"链接；note 关联来源媒体（GKG 无标题列，媒体域名
+      // 是"新闻关联"的最佳可用信号；标注来源可信度：媒体提及非官方确认）。
+      sourceUrl: e.doc,
       note: [
         kw ? `类型 ${kw}` : '',
         media ? `${media} 报道` : '',
