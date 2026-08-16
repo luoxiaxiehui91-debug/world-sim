@@ -5,6 +5,19 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.20] - 2026-08-16 · 地区新闻弹框标题真正生效（聚合路径 buildPointFromEvent 同步）
+
+**修改理由**：v1.11.19 只改了 `adaptNewsGeo`，但用户实测弹框依旧只有地点名、无标题——WorldPanel 实际消费入口是 `aggregateNewsGeo`（geoAggregate.ts），事件走**独立实现** `buildPointFromEvent`（label 仍是 location_name）。改错路径，本轮补齐。
+
+### 修改
+
+- **`lib/geoAggregate.ts`**：`buildPointFromEvent` 同步 slug/中文逻辑——import `urlSlugToTitle` / `EVENT_TYPE_ZH` / `COUNTRY_ZH`；label = slug 还原英文标题 → 中文类型兜底（`政治 类报道`）；group 中文（`政治 · 国家`）
+- **`lib/geoAggregate.test.ts`**：fixture slug 化 + 新增聚合 fallback 中文测试（+1）
+
+### 验证
+
+- `npm test` 367 tests 全绿；vite build（`index-D5991URI.js`）；bundle 确认含新逻辑
+
 ## [1.11.19] - 2026-08-16 · 地区新闻弹框 label 改写（URL slug 还原标题 + 中文类型兜底）
 
 **修改理由**：用户反馈地区新闻点击弹框只显示地点名（`Xisha, Hunan, China`），不是新闻描述；和卫生图层（中文疾病名）相比少了"发生了什么"。
