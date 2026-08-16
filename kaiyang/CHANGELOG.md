@@ -5,6 +5,22 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.13] - 2026-08-16 · H18 sim_trigger 三端契约（schema tile 读取失败清零）+ schema_version 显示
+
+**修改理由**：审查 H18——sim_trigger.json 三方语义冲突：天枢写触发标志 → 天璇读后 `write_text("")` 清空（0 字节）→ 开阳当持久状态 fetch → `JSON.parse('')` 崩 → schema tile 显示「读取失败:sim_trigger.json」；另 schema tile 有 6 条版本告警（3 缺字段 + 3 写 "1"≠"1.0"）。
+
+### 修改
+
+- **`types/contracts.ts`**：`SimTriggerRaw` 对齐新契约——`level?: number`（天枢写 int）、`event/reason/consumed/consumed_at/triggered_at` 字段
+- **`config/dataSources.ts`**：`FeedConfig` 加 `tolerateEmpty?`；simTrigger 配置启用（历史 0 字节残留静默 null）
+- **`hooks/useFeed.ts`**：`tolerateEmpty` feed 解析失败 → 静默 null，不上报「读取失败」
+- **`components/StatusBar.tsx`**：推演状态三态显示——触发（rose）/ 上次触发已消费（cyan，H18 新契约）/ 未触发（emerald）
+
+### 验证
+
+- `npm test` 352 tests 全绿；vite build（`index-Bqe4jC0L.js` / `index-1XkBUX4y.css`）
+- playwright 实测：schema tile `读取失败:sim_trigger.json` 消失；simStatus=「推演未触发」；4 个 fetcher 手动重跑后 `airroutes:1.0 sdr:1.0 spacelaunch:1.0 safecast_nuke:1.0`（firms 等下次调度）
+
 ## [1.11.12] - 2026-08-16 · footer 滚动盖层修复 + 控制台 Token 配置 UI
 
 **修改理由**：用户报两个问题——① 左下角「世界推演系统 · 开阳 Wave 2 v1.11.11 · 操作面板」滚动页面时跟着动、盖在正常界面上面；② 控制台天枢 tab 只显示「Token 无效」且无任何配置入口（P1-D fail-closed 后遗症）。

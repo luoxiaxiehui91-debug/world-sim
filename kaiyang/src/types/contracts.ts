@@ -108,12 +108,22 @@ export interface FredSeries extends FredSeriesMeta {
   points: FredPoint[];
 }
 
-/** 推演触发状态（sim_trigger.json，可选）。 */
+/**
+ * 推演触发状态（sim_trigger.json，可选）。
+ * H18 统一契约（2026-08-16）：文件永远合法 JSON，两态——
+ *  触发态：天枢 grv_threshold 写 {triggered: true, level: number, event/reason, triggered_at}
+ *  已消费态：天璇 run.py daemon 读后写 {triggered: false, consumed: true, level, event/reason,
+ *           triggered_at, consumed_at}（原 write_text("") 清空导致开阳 JSON.parse('') 崩）
+ */
 export interface SimTriggerRaw {
   schema_version?: string;
   triggered?: boolean;
-  level?: string;
+  consumed?: boolean;
+  level?: number;
+  event?: string;
   reason?: string;
+  triggered_at?: string;
+  consumed_at?: string;
   updated?: string;
   [key: string]: unknown;
 }

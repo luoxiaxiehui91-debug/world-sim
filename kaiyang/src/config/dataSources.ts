@@ -37,6 +37,12 @@ export interface FeedConfig {
   description: string;
   /** 可选轮询刷新间隔（ms）；缺省 = 仅在挂载时拉取一次；仅高频 feed 启用 */
   refreshMs?: number;
+  /**
+   * 容忍空内容（H18, 2026-08-16）：true = 内容为空/解析失败时静默返回 null，
+   * 不上报"读取失败"告警。用于 simTrigger——历史残留 0 字节文件（旧天璇清空
+   * 契约）在新契约（永远合法 JSON）生效前的过渡容错。
+   */
+  tolerateEmpty?: boolean;
 }
 
 export const FEEDS: Record<string, FeedConfig> = {
@@ -109,6 +115,7 @@ export const FEEDS: Record<string, FeedConfig> = {
     type: 'json',
     schemaVersion: '1.0',
     description: '推演触发状态（可选）',
+    tolerateEmpty: true,
   },
   fred: {
     name: 'fred',

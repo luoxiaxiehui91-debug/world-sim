@@ -75,6 +75,12 @@ export function useFeed<T = unknown>(feedName: string): FeedState<T> {
         setState({ data: data as T, loading: false, error: null });
       } catch (e) {
         if (cancelled) return;
+        // H18 (2026-08-16): tolerateEmpty feed（simTrigger）——历史残留 0 字节文件
+        // （旧天璇 write_text("") 契约）JSON.parse 失败 → 静默 null，不上报"读取失败"
+        if (cfg.tolerateEmpty) {
+          setState({ data: null, loading: false, error: null });
+          return;
+        }
         const err = e instanceof Error ? e : new Error(String(e));
         report({ feed: cfg.name, field: '__load__', message: `读取失败：${cfg.path}` });
         setState({ data: null, loading: false, error: err });

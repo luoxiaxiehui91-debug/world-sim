@@ -73,6 +73,7 @@ export function StatusBar() {
 
   const simData = sim ?? null;
   const triggered = simData?.triggered === true;
+  const consumed = simData?.consumed === true;
   const warningText = warnings.map((w) => `· ${w.message}`).join('\n');
   // P2 修复（sim-trigger-flag-missing）：与 StatusMiniPanel:27 一致——结构性缺失
   // （market_quotes 无面板/nuclear 静态种子/news_geo 延迟/simTrigger 空文件合法静止）
@@ -136,6 +137,13 @@ export function StatusBar() {
       {triggered ? (
         <span className="chip border-rose-400/50 text-rose-300" title={simData?.reason}>
           ⚠ 推演触发
+        </span>
+      ) : consumed ? (
+        <span
+          className="chip border-cyan-400/40 text-cyan-300/80"
+          title={`上次触发已消费（${simData?.event ?? ''}，${simData?.consumed_at ?? ''}）`}
+        >
+          上次触发已消费
         </span>
       ) : (
         <span className="chip border-emerald-400/40 text-emerald-300">推演未触发</span>
