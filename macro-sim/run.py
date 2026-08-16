@@ -767,6 +767,14 @@ if __name__ == "__main__":
             if TRIGGER_PATH.exists() and TRIGGER_PATH.stat().st_size > 0:
                 try:
                     trigger_data = json.loads(TRIGGER_PATH.read_text())
+                    # ⛔ 08-16 21:4x 修复（死循环）：H18 契约下触发判定必须是
+                    # triggered == true——原"文件存在且 >0 字节即触发"与"写回
+                    # 已消费合法 JSON（存在且 >0 字节）"冲突 → 每次跑完写回又
+                    # 触发 → 每 ~2 分钟跑一次完整仿真 + 推一条 ntfy（实测 13:24
+                    # 起 9+ 次）。已消费态（triggered:false）必须跳过。
+                    if trigger_data.get("triggered") is not True:
+                        time.sleep(10)
+                        continue
                     level  = int(trigger_data.get("level", 2))
                     event  = trigger_data.get("event", "自动触发")
                     print(f"[daemon] 触发：L{level} — {event}")
