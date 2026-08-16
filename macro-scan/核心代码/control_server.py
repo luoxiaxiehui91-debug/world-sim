@@ -451,11 +451,13 @@ def news_title(url: str = "", request: Request = None):
         return {"title": ""}
     req = urllib.request.Request(url, headers=_NEWS_UA)
     # 天枢容器直连外网不可达 → 走 NAS 代理（与 fetch_* 一致）；失败静默返回空
+    # ⚠ 超时 6s → 15s（08-16 实测：globalsecurity.org 经代理抓取 >6s 会超时
+    #   → 用户弹框"标题：加载中…"后消失。点击是按需单次抓取，15s 可接受）
     try:
         proxy = urllib.request.ProxyHandler(
             {"http": _NEWS_PROXY_URL, "https": _NEWS_PROXY_URL})
         opener = urllib.request.build_opener(proxy)
-        with opener.open(req, timeout=6) as r:
+        with opener.open(req, timeout=15) as r:
             body = r.read(65536)
         return {"title": _extract_title(body)}
     except Exception:
