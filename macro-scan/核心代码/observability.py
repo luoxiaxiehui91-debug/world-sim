@@ -316,7 +316,10 @@ def daily_health_push() -> None:
 
         # ── 推送 ──────────────────────────────────────────────────────────
         # 判断整体健康状态
-        alert = predictions_rows == 0 or grv_updated == "读取失败"
+        # 2026-08-16 (review M08 邻项修复): predictions_rows 为 -1 表示 PG 连接/凭据
+        # 异常（数据链状态未知），必须与 0（空表）一样触发告警——此前只判 ==0，
+        # 宕机时每天 21:00 推 🟢 default，数据链断了却报健康。
+        alert = predictions_rows <= 0 or grv_updated == "读取失败"
         icon = "🔴" if alert else "🟢"
 
         title = f"{icon} 世界推演 日健康摘要 {today}"
@@ -325,7 +328,9 @@ def daily_health_push() -> None:
             f"降级fetcher: {degraded_count if degraded_count >= 0 else '无法读取'}\n"
             f"predictions表行数: {predictions_rows if predictions_rows >= 0 else 'DB不存在'}"
         )
-        if predictions_rows == 0:
+        if predictions_rows < 0:
+            body += "\n⚠️ predictions表不可读——PG 连接/凭据异常，数据链状态未知"
+        elif predictions_rows == 0:
             body += "\n⚠️ predictions表为空——天璇→天玑数据链断路"
 
         data = body.encode("utf-8")

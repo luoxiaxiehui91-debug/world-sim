@@ -270,7 +270,7 @@ def check_and_generate_reweight_suggestions():
     for (src, tgt), briers in groups.items():
         if len(briers) < MIN_TRIGGER_N:
             continue
-        group_mean = sum(briers[-MIN_TRIGGER_N:]) / MIN_TRIGGER_N
+        group_mean = sum(briers[:MIN_TRIGGER_N]) / MIN_TRIGGER_N
         if group_mean > global_mean * 0.8:  # 差于全体均值 80%
             continue
         # 读取当前权重
