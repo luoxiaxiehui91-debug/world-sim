@@ -263,8 +263,7 @@ def call_claude(prompt: str, system: str = "", max_tokens: int = 4096) -> str:
 
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     msg = client.messages.create(
-        # 08-16：接入 llm_usage 统一配置（claude_reason 可被控制台覆盖）
-        model=llm_usage_get_model("claude_reason") or _CLAUDE_MODEL,
+        model=_CLAUDE_MODEL,
         max_tokens=max_tokens,
         system=system or MACRO_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": prompt}],

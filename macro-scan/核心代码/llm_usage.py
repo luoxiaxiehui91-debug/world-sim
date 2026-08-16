@@ -69,12 +69,6 @@ PLATFORMS = {
         "models": ["gpt-4o", "gpt-4o-mini", "o3-mini"],
         "default_model": "gpt-4o",
     },
-    "anthropic": {
-        "name": "Anthropic Claude",
-        "base_url": "https://api.anthropic.com/v1",
-        "models": ["claude-sonnet-4-6", "claude-opus-4-6"],
-        "default_model": "claude-sonnet-4-6",
-    },
 }
 
 
@@ -100,11 +94,11 @@ LLM_USAGES = [
         "adjustable": True,
     },
     {
-        "id": "claude_reason",
-        "name": "Claude 推理",
-        "purpose": "hybrid_llm.call_claude（reason mode=claude；Anthropic 协议，仅改模型）",
-        "platform": "anthropic",
-        "default_model": "claude-sonnet-4-6",
+        "id": "rag_embedding",
+        "name": "知识库嵌入",
+        "purpose": "RAG 向量检索（rag_engine 入库 + 查询；bge-m3，SiliconFlow /v1/embeddings）",
+        "platform": "siliconflow",
+        "default_model": "BAAI/bge-m3",
         "container": "tianshu",
         "adjustable": True,
     },
@@ -216,6 +210,19 @@ def resolve(usage_id: str) -> dict | None:
         }
     except Exception:
         return None
+
+
+def resolve_embedding(usage_id: str = "rag_embedding") -> dict | None:
+    """嵌入模型专用解析：返回 {embed_url, api_key, model}——embed_url = base_url
+    + '/embeddings'（OpenAI 兼容端点，chat 与 embeddings 路径不同）。"""
+    cfg = resolve(usage_id)
+    if not cfg:
+        return None
+    return {
+        "embed_url": f"{cfg['base_url']}/embeddings",
+        "api_key": cfg.get("api_key"),
+        "model": cfg.get("model"),
+    }
 
 
 def set_usage(usage_id: str, platform: str, model: str,

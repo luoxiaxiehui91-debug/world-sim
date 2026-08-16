@@ -53,14 +53,28 @@ def _get_embedding(text: str) -> Optional[List[float]]:
 
 
 def _get_embeddings_batch(texts: List[str]) -> List[Optional[List[float]]]:
-    """批量获取向量，一次 API 调用处理多条文本。失败返回空列表。"""
+    """批量获取向量，一次 API 调用处理多条文本。失败返回空列表。
+    08-16：优先走 llm_usage 配置（rag_embedding 使用点——平台/模型/API key
+    开阳控制台可改），未配置 fallback env SILICONFLOW_API_KEY + 常量。"""
+    embed_url = SILICONFLOW_EMBED_URL
+    embed_model = EMBED_MODEL
     api_key = os.environ.get("SILICONFLOW_API_KEY", "")
+    try:
+        from llm_usage import resolve_embedding
+        r = resolve_embedding()
+        if r and r.get("embed_url"):
+            embed_url = r["embed_url"]
+            embed_model = r.get("model") or embed_model
+            if r.get("api_key"):
+                api_key = r["api_key"]
+    except Exception:
+        pass
     if not api_key:
         print("    [RAG] SILICONFLOW_API_KEY 未设置，跳过向量检索")
         return []
-    payload = json.dumps({"model": EMBED_MODEL, "input": texts, "encoding_format": "float"}).encode("utf-8")
+    payload = json.dumps({"model": embed_model, "input": texts, "encoding_format": "float"}).encode("utf-8")
     req = urllib.request.Request(
-        SILICONFLOW_EMBED_URL,
+        embed_url,
         data=payload,
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     )
