@@ -18,7 +18,7 @@ fetch_health_geo.py — GDELT GKG 卫生事件地理提取（开阳 health 卫�
     "source": "GDELT 2.0 GKG (health keyword filter)",
     "as_of": "2026-08-15T01:30:00Z",
     "scope": "global",
-    "schema_version": "1",
+    "schema_version": "1.0",
     "events_count": 12,
     "events": [
       {"doc": "https://...", "date": "20260815013000", "lat": 38.8951, "lng": -77.0364,
@@ -239,7 +239,7 @@ class HealthGeoFetcher(FetcherBase):
             "source": "GDELT 2.0 GKG (health keyword filter)",
             "as_of": as_of,
             "scope": "global",
-            "schema_version": "1",
+            "schema_version": "1.0",
             "events_count": len(events),
             "events": events,
         }
@@ -268,7 +268,7 @@ def main():
                 "source": "GDELT 2.0 GKG",
                 "as_of": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "scope": "global",
-                "schema_version": "1",
+                "schema_version": "1.0",
                 "events_count": 0,
                 "events": [],
             })

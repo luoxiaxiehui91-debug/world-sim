@@ -252,6 +252,7 @@ def build_summary(data: list) -> dict:
             })
 
     return {
+        "schema_version": "1.0",
         "fetched_at": fetched_at,
         "source": KIWISDR_URL,
         "total": total,
@@ -276,6 +277,7 @@ def _degraded_payload() -> dict:
     return {
         "fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "source": KIWISDR_URL,
+        "schema_version": "1.0",
         "total": 0, "online": 0, "offline": 0,
         "zones": [], "receivers": [],
         "zones_rule": {z: {"dimension": r["dimension"], "bbox": r["bbox"]}

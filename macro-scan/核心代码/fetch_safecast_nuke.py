@@ -188,6 +188,7 @@ def fetch_and_save() -> dict:
     os.makedirs(os.path.dirname(OUT_JSON), exist_ok=True)
     sites, degraded = collect_sites()
     payload = {
+        "schema_version": "1.0",
         "fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "source": BASE_URL,
         "sites": sites,

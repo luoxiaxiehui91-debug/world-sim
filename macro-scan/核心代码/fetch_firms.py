@@ -179,6 +179,7 @@ def fetch_and_save(date_str=None):
         # 2026-08-10 加固（D6 静默降级红线 #8）：全源失败必须落 0 值失败文件（明确失败态），
         # 禁止静默缺文件——否则下游 fetch_climate_signals 读旧文件误以为数据新鲜
         failed_result = {
+            'schema_version': '1.0',
             'fetched_at': now_iso_utc(),
             'date': date_str,
             'total_hotspots': 0,
@@ -216,6 +217,7 @@ def fetch_and_save(date_str=None):
             print(f'[fetch_firms] fail-loud 告警失败: {e}')
 
     result = {
+        'schema_version': '1.0',
         'fetched_at': now_iso_utc(),
         'date': date_str,
         'total_hotspots': total,

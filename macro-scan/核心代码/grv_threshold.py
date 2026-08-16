@@ -235,8 +235,13 @@ def _write_sim_trigger(event: str, level: int = 3) -> None:
     trigger_path = os.path.join(DATA_DIR, "sim_trigger.json")
     try:
         payload = {
+            # H18 (2026-08-16, 全量审查): sim_trigger.json 统一契约——
+            # schema_version 供开阳 schema tile 校验；reason 兼容前端 M04 字段名
+            # （原只写 event，前端 SimTriggerRaw 读 reason → 不匹配）。
+            "schema_version": "1.0",
             "level":        level,
             "event":        event[:200],
+            "reason":       event[:200],
             "triggered_at": datetime.now(timezone.utc).isoformat(),
             # P1 修复（sim-trigger-flag-missing）：contracts.ts:114 定义 triggered 字段，
             # 缺此字段 StatusBar「推演触发」badge 永不亮

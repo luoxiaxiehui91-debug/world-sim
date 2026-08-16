@@ -770,7 +770,24 @@ if __name__ == "__main__":
                     level  = int(trigger_data.get("level", 2))
                     event  = trigger_data.get("event", "自动触发")
                     print(f"[daemon] 触发：L{level} — {event}")
-                    TRIGGER_PATH.write_text("")  # 清空
+                    # H18 (2026-08-16, 全量审查): 清空改写"已消费"状态——原 write_text("")
+                    # 把文件变 0 字节，开阳前端当持久状态 fetch → JSON.parse('') 崩 →
+                    # '读取失败:sim_trigger.json'。新契约：sim_trigger.json 永远合法 JSON
+                    # （触发态 triggered:true / 已消费态 consumed:true + last 信息），
+                    # 开阳可显示"上次触发已消费"而不报错。写失败不影响仿真主流程。
+                    try:
+                        TRIGGER_PATH.write_text(json.dumps({
+                            "schema_version": "1.0",
+                            "triggered":      False,
+                            "consumed":       True,
+                            "level":          level,
+                            "event":          event,
+                            "reason":         event,
+                            "triggered_at":   trigger_data.get("triggered_at"),
+                            "consumed_at":    datetime.now(timezone.utc).isoformat(),
+                        }, ensure_ascii=False), encoding="utf-8")
+                    except Exception:
+                        pass
                     run_full_simulation(level=level, event=event, config_path=CONFIG_PATH)
                 except Exception as e:
                     print(f"[daemon] 仿真失败：{e}")

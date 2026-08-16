@@ -22,7 +22,7 @@ fetch_spacelaunch.py — Next Spaceflight Launch Library 2 API 发射记录
     "source": "The Space Devs Launch Library 2 (Next Spaceflight)",
     "as_of": "2026-08-14T14:00:00Z",
     "scope": "global",
-    "schema_version": "1",
+    "schema_version": "1.0",
     "launches_count": 395,
     "launches": [
       {"name": "Falcon 9 Block 5 | USSF-366", "net": "2026-08-20T05:00:00Z",
@@ -150,7 +150,7 @@ class SpaceLaunchFetcher(FetcherBase):
             "source": "The Space Devs Launch Library 2 (Next Spaceflight)",
             "as_of": as_of,
             "scope": "global",
-            "schema_version": "1",
+            "schema_version": "1.0",
             "launches_count": len(launches),
             "launches": launches,
         }
@@ -163,7 +163,7 @@ def _make_unavailable():
         "source": "The Space Devs Launch Library 2 (Next Spaceflight)",
         "as_of": datetime.datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "scope": "global",
-        "schema_version": "1",
+        "schema_version": "1.0",
         "launches_count": 0,
         "launches": [],
     }
