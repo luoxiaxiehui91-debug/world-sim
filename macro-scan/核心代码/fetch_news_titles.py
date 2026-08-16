@@ -13,7 +13,7 @@ hybrid_llm.call_openai_compat），输出 titles_zh（url→中文标题），�
 增量策略（72h 窗口滚动，事件不断轮换）：
   - 读 news_geo.json events → 去重 URL 集合
   - 读已有 news_titles.json 缓存（不重抓已有、不重翻已有）
-  - 每轮只抓新增 URL（上限 NEW_MAX=20，并发 4，单 URL 12s 超时）
+  - 每轮只抓新增 URL（上限 NEW_MAX=40，并发 4，单 URL 12s 超时）
   - 对新增标题 LLM 翻译（每批 25 个；失败保留英文，容错）
   - 写回 news_titles.json（保留 72h 内事件的标题）
 
@@ -47,7 +47,7 @@ PROXY_URL = _cfg["PROXY_URL"]
 
 NEWS_GEO_FILE = os.path.join(DATA_DIR, "news_geo.json")
 OUT_FILE = os.path.join(DATA_DIR, "news_titles.json")
-NEW_MAX = 20          # 每轮最多抓新增标题数（增量，防长时间停机后一次抓爆）
+NEW_MAX = 40          # 每轮最多抓新增标题数（08-16 从 20 调大：2h 增量追平存量更快；40 条翻译 ~4-5min 仍在 I120 调度内）
 CONCURRENCY = 4       # 并发抓取数
 TIMEOUT = 12          # 单 URL 超时（秒）
 MAX_TITLES = 600      # 缓存上限（72h 窗口事件 ~300，留余量）
