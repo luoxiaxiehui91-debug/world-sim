@@ -3,8 +3,8 @@
 **路径：** `macro-scan/config/causal_assumptions.md`  
 **维护者：** 天权（玉衡 V2 反馈入口）  
 **创建：** 2026-08-02（arch_review 铁律第5条）  
-**最后更新：** 2026-08-06（energy_grid_risk 数据源修复复核）  
-**状态：** 初稿，尚未经天玑校准  
+**最后更新：** 2026-08-16（P1-E 补全：GED 从未生效事实 + C01 回归 + H19 消费端守卫）  
+**状态：** v5——初稿 + 4 次修订；天玑 Brier 闭环链路已通（P1-A 去污染，2026-08-15），待真实样本（MIN_TRIGGER_N=8，≈3 个月）  
 
 > **维护规则：** 每次 `geo_risk_vector.py` 混合权重或 `grv_weights.yaml` 发生变更时，必须同步更新本文档对应维度的"当前权重"节。天玑启动后，所有权重调整必须在此留下修改记录。
 
@@ -87,6 +87,7 @@ BIS Working Paper 1348（2025）"Geopolitical risk in the euro area"：俄乌冲
 
 **当前权重：** `GDELT × 0.4 + GPRC_RUS × 0.6`；持续冲突 floor = 35.0（触发条件：news.db 近 30 天冲突文章 ≥5 篇）[经验假设，2026 拍定]  
 **GED 接入（v3.8.10，2026-08-04）：** GDELT 子信号先与 GED 融合：`GDELT_sub = GDELT×0.70 + GED_europe×0.30`，再按原公式与 GPR 混合。多 agent 辩论（地缘政治理论+数据科学+怀疑者）结论：GED 0.30 保守起步，3 个月后校准。P95_anchor=3570（1989-2024 地区月度 P95）。GED >18 个月无数据时权重自动退化为 0。  
+**⛔ GED 从未生效（08-15 实测，P2 待决）：** `ged_agg_country_month.csv` 从未生成/部署——etl_ged.py 从未执行（原始 261MB 快照 GEDEvent_v26_1.csv 已在 S:/20260729/data/，但 ETL 管道没跑），`geo_risk_vector._load_ged_conflict_signal` 因 `os.path.exists` 恒 False 返回 None → **GED×0.30 补强从未贡献过任何权重**。且 2024-12 冻结数据即使补跑 ETL 也超 `_GED_STALE_MONTHS=18` 窗（2026-08 = 20 个月）→ 仍退化 0。**是否刷数据/调窗/跑 ETL = P2 数据决策**（审计方 Q4 门控）；探针 `check_ged_stale` 已监控该状态（首次 WARN 通知一次，不刷屏）。C01 修复（08-15 `0eb25d3`）已把 `_GED_REGION_MAP` 等 5 常量补回，此死路径保持可见。  
 **Floor 理论建议（待实现）：** 改为基于 ACLED 地理扩散半径动态校准，而非硬编码 35.0。
 
 **上升触发事件：** 冲突线扩大到新州/地区、北约成员国军事直接介入、核威胁信号（GPRC_RUS 核子类激活）  
@@ -106,6 +107,7 @@ Smith & Pinchetti（2024，Bank of England）：中东冲突主要通过 Channel
 
 **当前权重：** `GDELT × 1.0`（纯 GDELT，设计决策 CFG-1——防止与 global_composite 相关性虚高）[已知缺陷]  
 **GED 接入（v3.8.10，2026-08-04）：** GDELT 子信号先与 GED 融合：`GDELT_sub = GDELT×0.70 + GED_mideast×0.30`，再接入 WTI Channel B。同 russia_europe：GED >18 个月无数据时自动退化。  
+**⛔ GED 从未生效（同 §4，08-15 实测）：** middle_east_energy 的 GED×0.30 同样从未贡献过权重（ETL 未跑 + 超窗）。目标权重中的 WTI Channel B 部分（§5 目标公式）仍未接入——维持 [已知缺陷]。  
 **目标权重（待实现）：** `GDELT × 0.35 + WTI_oil_price_signal × 0.40 + 霍尔木兹_Channel_B_激活 × 0.25`
 
 油价信号归一化：WTI 60-120 USD/bbl 映射到 0-100，超过 120 触发 Channel B 激活乘数（参照 BIS 1348 阈值研究）。数据来源：commodity_yahoo（已采集，未接入）。
@@ -321,6 +323,8 @@ GRV[dim] = 0.6 * GRV_T[dim] + 0.4 * GRV_A[dim]
 
 ## 17. 待校准参数清单（天玑 V2 输入）
 
+> **链路状态（08-15/16 更新）**：天玑 Brier 验证链路已全通（D2 预测链转 PG + P1-A 去污染），但当前 predictions 仅 10 行（1 verified 历史 + 新落表 3 条待 90 天到期）——**MIN_TRIGGER_N=8 尚未触达，需 ≈3 个月数据积累**。P1-A 已修：BSS 用观测 base-rate 气候学、无阈值预测跳过不污染、样本 <20 不判趋势。
+
 天玑月度 Brier 验证启动后应纳入自动校准：
 
 1. GDELT/GPR 各维度混合权重（当前全部经验拍定）
@@ -328,6 +332,30 @@ GRV[dim] = 0.6 * GRV_T[dim] + 0.4 * GRV_A[dim]
 3. social_stress 三成分权重（0.35/0.40/0.25 是理论建议初值）
 4. narrative SIR 模型的 β 基础传染率（按事件类型分类）
 5. russia_europe conflict floor（建议改为基于 ACLED 地理扩散动态计算）
+6. **GED 数据补全（P2 门控）**：跑 ETL 生成 `ged_agg_country_month.csv`（原始快照已在 S:/20260729/data/）+ 裁决"年度冻结禁作当前信号"设计冲突 + 是否刷数据/调窗——未决前 GED 补强恒为死路径
+
+---
+
+## 18. 天璇消费端守卫（GRV 值边界契约，H19）
+
+天璇 `macro-sim/core/world_state.py` 从 `grv_latest.json` 读 GRV 构建初始世界。**边界契约（08-16 H19 修复后强制）：**
+
+- GRV 维度值必须为 0-100 数值；**键存在但值为 null 时 `dict.get(key, default)` 返回 None**（默认值只对缺键生效）→ 进算术崩（如 `vix = 15.0 + grv_composite*0.15`）
+- 修复（H19，commit `57ef58fd`）：主入口 5 维度（global_composite/middle_east_energy/russia_europe/taiwan_strait/us_china_strategic）+ 历史序列 smoothed fallback + result 组装统一 `or 默认值` 兜底
+- 天枢侧写入端保证：`geo_risk_vector.py` 落盘时维度值永远数值（异常时中性化/默认值），但**消费端不得依赖写入端承诺**——这是单向防御
+
+---
+
+## 19. 变更记录（2026-08 关键事件）
+
+| 日期 | 事件 | 影响 | 处置 |
+|------|------|------|------|
+| 08-04 | GED v26.1 接入 russia_europe/middle_east_energy（f6142dd） | GED×0.30 融合逻辑落地 | v3 文档更新 |
+| 08-06 | energy_grid_risk 数据源修复（commodity_yahoo 优先） | 维度值真实反映能源价 | v4 文档更新 |
+| **08-14** | **C01 回归：af752ea「GDELT 校准器落地」删 5 常量未清引用** | **GRV 每日 06:10 崩溃 34h+（全系统吃陈旧数据）** | 08-15 `0eb25d3` 补回常量 + GRV_DRY_RUN 首日抑制；探针 grv 检查恢复 |
+| **08-15** | **GED 从未生效实锤**（ETL 从未跑 + 超窗） | russia_europe/middle_east_energy GED 补强恒 None | 登记 P2 数据决策；探针 `check_ged_stale` 监控 |
+| 08-15 | 天玑 Brier 链路转 PG + 去污染（D2 + P1-A） | 反馈闭环可跑，等样本 | §17 状态更新 |
+| **08-16** | **H19 天璇 GRV null 守卫**（dict.get 不兜底 None） | 防 GRV null 进算术崩 | §18 契约化；commit `57ef58fd` |
 
 ---
 
@@ -383,3 +411,4 @@ grv_weights.yaml（情景评分权重矩阵，与上述混合权重独立）
 *v2 更新：补充文献引用、玉衡禁止调整清单、双层衰减架构、social_stress/cultural_friction 参数化方案（2026-08-03）*  
 *v3 更新：GED v26.1 接入 russia_europe / middle_east_energy（多 agent 辩论结论，2026-08-04）*  
 *v4 更新：energy_grid_risk 数据源修复复核——commodity_yahoo 能源价优先（NG2-8 / Brent·WTI 50-110），降级 UK Carbon Intensity（2026-08-06）*  
+*v5 更新（P1-E，2026-08-16）：GED 从未生效实锤（ETL 未跑 + 超窗，登记 P2）；C01 回归与修复记录；H19 天璇消费端 GRV null 守卫契约（§18）；天玑 Brier 链路状态与 GED 数据决策入待校准清单（§17）；变更记录表（§19）*  
