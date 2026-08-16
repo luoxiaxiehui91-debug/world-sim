@@ -5,6 +5,20 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.17] - 2026-08-16 · 卫生点点击弹框显示新闻（health 加入可弹框类别）
+
+**修改理由**：用户反馈"点击卫生点没有新闻显示"。根因：`WorldPanel.handlePointClick` 只对 news/conflict 类别弹框（EventPopup），health 点点击只聚焦不弹。
+
+### 修改
+
+- **`components/WorldPanel.tsx`**：`isNewsPoint` 加入 `health`——卫生点点击弹出 EventPopup
+- **`lib/healthAdapter.ts`**：填 `sourceUrl = e.doc`（GKG DocumentIdentifier 原文 URL）→ EventPopup 显示"查看新闻原文"链接 + note（类型/媒体/地点/时间）
+- 基础设施（EventPopup 的 sourceUrl 链接）本已就绪，缺的只是类别放行
+
+### 验证
+
+- `npm test` 352 tests 全绿；vite build（`index-adinh1uk.js` / `index-1XkBUX4y.css`）
+
 ## [1.11.16] - 2026-08-16 · 卫生图层关联新闻（source_media 媒体名）
 
 **修改理由**：用户反馈卫生检测没关联新闻。实测纠错（08-15 旧分析有误）：GKG 2.0 27 列实测确认 `cols[4]=URL`（doc 字段一直正确）、`cols[3]=SourceCommonName` 媒体域名、`cols[9]=V1Locations`；**GKG CSV 无标题列**（标题只在 DOC 2.0 API）——准确缺口是事件没有"哪个媒体报的"。
