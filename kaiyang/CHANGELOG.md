@@ -5,6 +5,34 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.19] - 2026-08-16 · 地区新闻弹框 label 改写（URL slug 还原标题 + 中文类型兜底）
+
+**修改理由**：用户反馈地区新闻点击弹框只显示地点名（`Xisha, Hunan, China`），不是新闻描述；和卫生图层（中文疾病名）相比少了"发生了什么"。
+
+### 修改
+
+- **`lib/newsGeoAdapter.ts`**：新增 `urlSlugToTitle`（source_url 路径最后一段 → Title Case 还原英文标题）+ `EVENT_TYPE_ZH`（political→政治 / conflict→冲突 / protest→抗议）+ `COUNTRY_ZH`（USA→美国 / CHN→中国 / RUS→俄罗斯 等）；label 优先 slug 还原的英文标题，fallback 中文类型（`政治 类报道`）；group 中文（`政治 · 美国`）
+- **不依赖 DOC API**：实测数据源 GDELT GKG events 字段（id / lat / lng / event_type=3 个值 / intensity / country / location_name / source_url / mention_count / event_date / theme 空），theme 全空无 title 字段，但 source_url 100% 有 URL——URL 路径可还原英文"伪标题"（信息密度高），不需等 DOC API 限流恢复
+- **`lib/newsGeoAdapter.test.ts`**：新增 urlSlugToTitle / EVENT_TYPE_ZH / COUNTRY_ZH / label 三态（slug→中文→未知）/ group 中文化 测试，+12 用例
+
+### 验证
+
+- `npm test` 366 tests 全绿；vite build（`index-LNGSGQ5U.js` / `index-1XkBUX4y.css`）
+
+## [1.11.18] - 2026-08-16 · 卫生弹框标题中文化（不用点开就知道发生了什么）
+
+**修改理由**：用户反馈——卫生点应与地区新闻一样在弹框直接显示"发生了什么"，且尽量中文。
+
+### 修改
+
+- **`lib/healthAdapter.ts`**：新增 `DISEASE_ZH` 疾病中英映射（cholera→霍乱 / measles→麻疹 / ebola→埃博拉 / mpox→猴痘 等 18 项）；label 优先 `title`（新闻原标题），无 title 时用中文疾病名（`卫生事件 · 霍乱（cholera）`）；group 中文；note 疫情类型中文 + 英文兜底
+- **后端同批（fetch_health_geo）**：`_fetch_doc_titles()`（GDELT DOC 2.0 关键词查询 72h，限速 5s/次）→ url→title 映射回填事件 `title` 字段；**DOC API 429（NAS IP 限流，直连+代理均拒）时静默降级**——标题增强不影响主流程，IP 冷却后自动生效
+- **`types/contracts.ts`**：`HealthEventRaw` 加 `title?`
+
+### 验证
+
+- `npm test` 354 tests 全绿（+2：中文映射 / title 优先 + sourceUrl）；vite build（`index-BY-VGnoe.js`）
+
 ## [1.11.17] - 2026-08-16 · 卫生点点击弹框显示新闻（health 加入可弹框类别）
 
 **修改理由**：用户反馈"点击卫生点没有新闻显示"。根因：`WorldPanel.handlePointClick` 只对 news/conflict 类别弹框（EventPopup），health 点点击只聚焦不弹。
