@@ -10,6 +10,7 @@ import { useFetchers } from '@/hooks/useControlApi';
 import { useOperationPolling } from '@/hooks/useOperationPolling';
 import { rerunFetchers } from '@/lib/controlApi';
 import { FetcherCard } from '@/control/FetcherCard';
+import { TokenSetup } from '@/control/TokenSetup';
 import type { Fetcher } from '@/types/control';
 
 /** 搜索过滤 fetcher */
@@ -185,9 +186,14 @@ export function TianshuTab() {
   // ── 错误态 ──────────────────────────────────────────────
 
   if (error) {
+    // 08-16：401（Token 无效/未配置）时内联显示 Token 配置，保存后自动重试
+    const isAuthError = error.includes('Token');
     return (
-      <div className="flex h-48 flex-col items-center justify-center gap-3 text-center">
-        <p className="text-[12px] text-red-400">加载失败：{error}</p>
+      <div className="flex h-48 flex-col items-center justify-center gap-3 px-3 text-center">
+        <p className="text-[12px] text-red-400">
+          {isAuthError ? 'API 鉴权失败：Token 无效或未配置' : `加载失败：${error}`}
+        </p>
+        {isAuthError && <TokenSetup onSaved={refresh} />}
         <button
           type="button"
           onClick={refresh}

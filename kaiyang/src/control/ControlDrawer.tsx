@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useControl } from '@/state/ControlContext';
 import { DRAWER_WIDTH, MOCK_ENABLED } from '@/config/controlConfig';
 import { TabBar } from '@/control/TabBar';
+import { TokenSetup } from '@/control/TokenSetup';
 import { TianshuTab } from '@/control/TianshuTab';
 import { PlaceholderTab } from '@/control/PlaceholderTab';
 import { ToastContainer } from '@/control/Toast';
@@ -72,6 +73,7 @@ export function ControlDrawer() {
           控制功能未连接（天枢侧 API 未实现）
         </div>
       )}
+      <TokenSetup />
       <TabBar />
       <div className="flex-1 overflow-y-auto px-3 pb-3">
         {activeTab === 'tianshu' && <TianshuTab />}

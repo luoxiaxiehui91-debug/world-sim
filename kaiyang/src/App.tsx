@@ -16,7 +16,7 @@ import { PANELS } from '@/panels/registry';
 const ResponsiveGridLayout = WidthProvider(Responsive);
 const STORAGE_KEY = 'kaiyang.v6.panelLayout';
 const LAYOUT_KEY_PREFIX = 'kaiyang.';
-const APP_VERSION = '1.11.11';
+const APP_VERSION = '1.11.12';
 
 /** 从 panelRegistry 推导初始布局（3 行 × 12 栅格，Bloomberg/Grafana 情报面板范式）。 */
 function buildDefaultLayout(): Layout[] {
@@ -251,12 +251,15 @@ export default function App() {
       <ControlProvider>
         {/* 选中/聚焦共享态：信号流点选 ↔ 地图聚焦（R-P1-03），与上面两个 Provider 并列 */}
         <SelectionProvider>
-          <div className="relative flex min-h-full flex-col">
+          <div className="relative flex h-screen flex-col overflow-hidden">
             <div className="starfield" aria-hidden="true" />
             <StatusBar />
 
-            {/* 面板区：react-grid-layout 可拖拽网格（1.7.0） */}
-            <main className="flex min-h-0 flex-1 flex-col">
+            {/* 面板区：react-grid-layout 可拖拽网格（1.7.0）
+                08-16 修复：外层 h-screen overflow-hidden + main overflow-y-auto——
+                此前 min-h-full 被面板超高撑成整页滚动（实测 docH=3783 为视口 4 倍），
+                footer 悬浮在面板内容中间随滚动移动盖住界面（z=1 高于 grid items）。 */}
+            <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
               <ResponsiveGridLayout
                 key={`grid-${layoutResetNonce}`}
                 className="layout min-h-0 flex-1"

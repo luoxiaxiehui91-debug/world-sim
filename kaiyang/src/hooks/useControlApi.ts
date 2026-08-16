@@ -24,7 +24,7 @@ interface AsyncState<T> {
 
 /** 获取全部采集源列表，支持手动刷新 */
 export function useFetchers(): AsyncState<Fetcher[]> & { refresh: () => void } {
-  const { setToken } = useControl();
+  const { token, setToken } = useControl();
   const [state, setState] = useState<AsyncState<Fetcher[]>>({
     data: null,
     loading: true,
@@ -53,13 +53,14 @@ export function useFetchers(): AsyncState<Fetcher[]> & { refresh: () => void } {
     }
   }, [setToken]);
 
+  // 08-16：token 变化（配置/清除）时自动重新拉取，免手动重试
   useEffect(() => {
     mountedRef.current = true;
     fetch();
     return () => {
       mountedRef.current = false;
     };
-  }, [fetch]);
+  }, [fetch, token]);
 
   return { ...state, refresh: fetch };
 }

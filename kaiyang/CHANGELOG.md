@@ -1,9 +1,27 @@
 # Changelog · 开阳（Kaiyang）操作面板
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-08-15（记录类文档随部署持续更新）
+> 最后核对时间：2026-08-16（记录类文档随部署持续更新）
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
+
+## [1.11.12] - 2026-08-16 · footer 滚动盖层修复 + 控制台 Token 配置 UI
+
+**修改理由**：用户报两个问题——① 左下角「世界推演系统 · 开阳 Wave 2 v1.11.11 · 操作面板」滚动页面时跟着动、盖在正常界面上面；② 控制台天枢 tab 只显示「Token 无效」且无任何配置入口（P1-D fail-closed 后遗症）。
+
+### 修改
+
+- **footer 盖层修复（`App.tsx`）**：外层 `min-h-full` → `h-screen overflow-hidden` + main 加 `overflow-y-auto`。实测根因：ResponsiveGridLayout 面板超高（文档高 3783px = 视口 4 倍）撑破 `min-h-full` 外层，footer（z=1 高于 grid items）悬浮在面板内容中间随滚动移动盖住界面。修复后文档高度 = 视口，面板在 main 内部滚动，footer 常驻视口底部。
+- **新增 `control/TokenSetup.tsx`**：折叠式 API Token 配置组件（状态行 → 展开输入 + 保存 + 清除），经 ControlContext.setToken 写入（同步 setApiToken + localStorage）。此前前端无任何 token 配置入口。
+- **`ControlDrawer.tsx`**：TabBar 上方接入 TokenSetup（所有 tab 可见）。
+- **`TianshuTab.tsx`**：401 错误态改为「API 鉴权失败：Token 无效或未配置」+ 内联 TokenSetup（onSaved 自动重试）。
+- **`hooks/useControlApi.ts`**：useFetchers 依赖 token，配置/清除 token 后自动重新拉取，免手动重试。
+
+### 验证
+
+- `npm test` 352 tests 全绿；vite build 成功（`index-CTh5HUrs.js` / `index-BWF2WuTh.css`）
+- playwright 实测：文档高度 966 = 视口（原 3783）、footer 贴底 y=921、面板 main 内滚动；控制台打开 → 填 token → 保存 → **自动重试加载 53 个 fetcher 全部分组**（宏观·FRED 8 / 地缘 2 / 新闻 / 市场 / 灾害 / 卫星 / 推演/验证），真实数据来自天枢 control API
+- 部署 bundle `index-CTh5HUrs.js`，旧 bundle 已清理
 
 ## [1.11.11] - 2026-08-15 · 布局错乱自动修复 + 强制 remount + P0 emoji 清理
 

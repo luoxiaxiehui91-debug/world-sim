@@ -1,5 +1,21 @@
 # 审查遗留待办清单（Track A 79 条 → 已修/待办映射）
 
+## 执行顺序规划（2026-08-16 确认，B0-B5）
+
+> 排序原则：先清"无依赖确定性账"→ 修"影响核心产出的正确性"→ 修"显示/契约层"→ 前端体验 → 健壮性 → 等数据的 P2。数据时滞（MIN_TRIGGER_N=8 / 90 天到期）为硬约束。
+
+| 批次 | 内容 | 依赖/时机 | 预计 |
+|------|------|----------|------|
+| B0 清账三件 | P6 删 SQLite（核查 narrative 写路径 → delete_sqlite_e0c.sh + 移除豁免，同步骤）/ P1-E causal_assumptions / H19 天璇 GRV null 守卫 | P6 观察窗 08-16 到点；其余零依赖 | 半天 |
+| B1 天璇正确性 | H21 VIX 恐慌放大永不触发 + H22 MC 路径概率不归一 | 需读懂天璇仿真逻辑 | 1 天 |
+| B2 契约一致性 | H18 sim_trigger 三端契约 + schema_version 统一（sdr/firms/safecast_nuke 缺字段 + airroutes/health_geo/spacelaunch 写 "1"） | 修完开阳 schema tile 告警清零 | 1 天 |
+| B3 开阳前端 | H01 LAN randomUUID 崩 + H02 token 外泄 + token 配置 UI（用户当前被 401 卡住，已提前） | 需用户填 CONTROL_TOKEN | 半天 |
+| B4 健壮性 | H08/H11 非原子写（GPR CSV / predictions_log） | 无依赖 | 半天 |
+| B5 P2 门控 | 玉衡 V2 通数据 → Brier/BSS 真实样本 → 天权公式 → 新源/新 Agent/契约 schema 单一化 | MIN_TRIGGER_N=8 + 90 天到期 ≈ 3 个月（约 11 月中） | — |
+
+穿插触发式待办：P0-A 密钥（仓库转公开前）/ GED 数据决策（P2 门控内）/ 中央知识库每周巡检。
+
+
 - **关联**：`../reviews/code-review-20260815.md`（Track A 79 条）+ `../reviews/roadmap-recommendations-20260815.md`（Track B 规划）+ `20260815-p0p1-implementation.md`（已实施记录）
 - **日期**：2026-08-15
 - **性质**：执行清单（逐条销项用）。**中央权威 = STATUS.md「待做/已知遗留」节**，本文档为审查发现维度的完整映射。
