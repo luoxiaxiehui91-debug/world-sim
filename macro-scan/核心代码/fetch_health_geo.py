@@ -31,9 +31,11 @@ fetch_health_geo.py — GDELT GKG 卫生事件地理提取（开阳 health 卫�
 语义：卫生事件活动可视化（非风险评分）——前端 value null + 中性标签。
 """
 import datetime
+import html
 import io
 import json
 import os
+import re
 import sys
 import time
 import urllib.parse
@@ -61,6 +63,11 @@ UA = {
         "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
     ),
 }
+
+# 08-16 v3：标题抓取参数（绕开 DOC API 429——直接抓 doc URL 页面 <title>）
+TITLE_BATCH = 20            # 每轮抓缺 title 事件数（I60 增量，268 存量 ≈ 14 轮）
+TITLE_CONCURRENCY = 4       # 并发抓取
+TITLE_FETCH_TIMEOUT = 12    # 单 URL 超时（s）
 # 卫生关键词（爆发级，降噪）：全小写匹配
 HEALTH_KEYWORDS = (
     "outbreak", "epidemic", "pandemic", "cholera", "ebola", "mpox", "monkeypox",
@@ -175,9 +182,8 @@ class HealthGeoFetcher(FetcherBase):
     # ── 采集入口 ─────────────────────────────────────────────
     def collect(self):
         now = datetime.datetime.utcnow()
-        # 08-16：GDELT DOC 2.0 关键词查询（限速 5s/次，I60 一次无压力）→ url→title
-        # 映射——GKG CSV 无标题列，标题只能从 DOC API 拿（实测 429 响应体明示限速规则）
-        title_map = self._fetch_doc_titles()
+        # 08-16 v3：标题改抓 doc URL 页面 <title>（绕开 DOC API 429——NAS IP 被限流
+        # 已持续 >7h；直接抓具体报道页面标题与 news_titles 同一已验证机制，走代理）
         # 对齐 15 分钟粒度，构造当前 slot
         cur_slot = now.replace(minute=(now.minute // 15) * 15, second=0, microsecond=0)
         state = self._load_state()
@@ -196,8 +202,8 @@ class HealthGeoFetcher(FetcherBase):
         if not slots:
             self.logger.info("[health_geo] 无新 slot（已是最新）")
             # 08-16：无新事件也走回填 + 落盘（历史事件补 source_media / title）
-            events = self._backfill_titles(
-                self._backfill_source_media(self._load_events()), title_map)
+            events = self._backfill_source_media(self._load_events())
+            events = self._backfill_titles(events, self._fetch_pending_titles(events))
             as_of = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             self._persist(events, as_of)
             return {"status": Status.OK, "new_events": 0, "slots_checked": 0, "events": events}
@@ -215,8 +221,9 @@ class HealthGeoFetcher(FetcherBase):
                                  s.strftime("%H%M"), len(parsed))
             else:
                 self.logger.warning("[health_geo] slot %s 下载失败", s.strftime("%H%M"))
-        # 去重 + 合并历史（保留 72h）+ 标题回填（DOC API url→title）
-        events = self._backfill_titles(self._merge_events(new_events), title_map)
+        # 去重 + 合并历史（保留 72h）+ 标题回填（抓 doc URL 页面 <title>）
+        events = self._merge_events(new_events)
+        events = self._backfill_titles(events, self._fetch_pending_titles(events))
         self._save_state(cur_slot.strftime("%Y%m%d%H%M%S"))
         as_of = now.strftime("%Y-%m-%dT%H:%M:%SZ")
         self._persist(events, as_of)
@@ -224,29 +231,62 @@ class HealthGeoFetcher(FetcherBase):
 
     # ── 合并/持久化 ──────────────────────────────────────────
     def _fetch_doc_titles(self):
-        """GDELT DOC 2.0 关键词查询（卫生词，72h）→ {url: title}。
-        ⚠ 限速纪律：免费 API 5 秒 1 次（429 响应体明示）；I60 调度一次无压力，
-        失败静默返回空（标题回填是增强，不影响卫生事件主流程）。"""
+        """⚠ 废弃（08-16 v3）：DOC API 对 NAS 出口 IP 持续 429（>7h 实测），
+        标题改抓 doc URL 页面 <title>（_fetch_pending_titles，走代理，与
+        news_titles 同一已验证机制）。此函数保留仅为兼容引用检查，不再调用。"""
+        return {}
+
+    def _extract_title(self, body: bytes) -> str:
+        """从 HTML 提取 <title>（正则 + 实体解码 + 截断）。"""
         try:
-            query = '("outbreak" OR "epidemic" OR "pandemic" OR "cholera" OR "ebola" OR "mpox" OR "monkeypox" OR "zika" OR "bird flu" OR "h5n1" OR "marburg" OR "lassa" OR "dengue" OR "polio" OR "measles" OR "cyclosporiasis" OR "whooping cough" OR "pertussis") sourcelang:eng'
-            q = urllib.parse.quote(query)
-            url = (f"https://api.gdeltproject.org/api/v2/doc/doc?query={q}"
-                   "&mode=artlist&format=json&timespan=72h&maxrecords=250")
+            text = body.decode("utf-8", "ignore")
+        except Exception:
+            text = ""
+        m = re.search(r"<title[^>]*>(.*?)</title>", text, re.IGNORECASE | re.DOTALL)
+        if not m:
+            return ""
+        title = re.sub(r"<[^>]+>", "", m.group(1))
+        title = html.unescape(title).strip()
+        title = re.sub(r"\s+", " ", title)
+        return title[:200]
+
+    def _fetch_one_title(self, url: str) -> tuple:
+        """抓单个 doc URL 页面标题（代理，12s 超时，只读 64KB）。"""
+        try:
             req = urllib.request.Request(url, headers=UA)
-            try:
-                r = urllib.request.urlopen(req, timeout=45)
-            except Exception:
-                proxy = urllib.request.ProxyHandler({"http": PROXY_URL, "https": PROXY_URL})
-                opener = urllib.request.build_opener(proxy)
-                r = opener.open(req, timeout=45)
-            d = json.loads(r.read())
-            return {
-                (a.get("url") or "").strip(): (a.get("title") or "").strip()
-                for a in d.get("articles", []) if a.get("url") and a.get("title")
-            }
-        except Exception as e:
-            self.logger.warning(f"[health_geo] DOC API 标题查询失败（跳过）：{e}")
-            return {}
+            proxy = urllib.request.ProxyHandler({"http": PROXY_URL, "https": PROXY_URL})
+            opener = urllib.request.build_opener(proxy)
+            with opener.open(req, timeout=TITLE_FETCH_TIMEOUT) as r:
+                body = r.read(65536)
+            return url, self._extract_title(body)
+        except Exception:
+            return url, ""
+
+    def _fetch_pending_titles(self, events):
+        """抓缺 title 事件的 doc URL 页面标题（每轮 TITLE_BATCH 个，并发 4）。
+        GKG 无标题列 + DOC API 429 → 直接抓具体报道页面 <title>（08-16 v3）。"""
+        from concurrent.futures import ThreadPoolExecutor
+        pending = [
+            (e.get("doc") or "").strip()
+            for e in events
+            if not e.get("title") and (e.get("doc") or "").strip()
+        ]
+        # 去重 + 限批
+        seen, urls = set(), []
+        for u in pending:
+            if u not in seen:
+                seen.add(u)
+                urls.append(u)
+        urls = urls[:TITLE_BATCH]
+        out = {}
+        if urls:
+            with ThreadPoolExecutor(max_workers=TITLE_CONCURRENCY) as ex:
+                for url, title in ex.map(self._fetch_one_title, urls):
+                    if title:
+                        out[url] = title
+            if out:
+                self.logger.info("[health_geo] 抓取标题 %d/%d", len(out), len(urls))
+        return out
 
     def _backfill_titles(self, events, title_map):
         """08-16：事件补新闻标题（DOC API url→title 映射匹配）。原地修改并返回。"""
