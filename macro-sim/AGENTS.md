@@ -28,7 +28,7 @@ macro-sim/                ← 本地工作目录（S:\world-sim\macro-sim\，git
 │   ├── simulation.py       # 主调度器（action_history 队列 + 延迟可见）
 │   ├── calibrator.py       # 前50步校准循环
 │   ├── bifurcation.py      # 路径分叉检测 + Monte Carlo × 100
-│   ├── llm_client.py       # LLM 调用封装（GLM / MiniMax）
+│   ├── llm_client.py       # LLM 调用封装（GLM / MiniMax；08-16 起走开阳统一配置 llm_config.json——sim_mc/sim_narrative/sim_minimax 可换平台/模型/API key，读 /app/macro_data/llm_config.json）
 │   └── sim_log.py          # sim_log.db 持久化
 ├── config/
 │   └── agents.yaml         # 17个 Agent 配置（A1-A12 金融 + S1-S5 主权，热更新）

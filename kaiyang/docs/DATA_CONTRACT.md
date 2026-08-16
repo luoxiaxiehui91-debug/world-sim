@@ -373,6 +373,35 @@
 
 ---
 
+### 2.13 `llm_config.json`（LLM 统一配置，**v1.11.27 定稿**）
+
+> **状态：已上线（v1.11.26-27）。** 天枢 `llm_usage.py` 读写（原子写），开阳控制台「LLM 配置」面板操作（`GET/PUT /api/v1/control/llm-usage`）。**配置优先于 env/代码常量**；天枢热挂载即时生效，天璇读共享文件（`/app/macro_data/llm_config.json`）。
+
+| 顶层字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `schema_version` | string | `2.0` |
+| `updated` | string(ISO) | 最后修改时间（UTC） |
+| `platforms` | Record\<id, PlatformDef\> | 用户自定义平台（内置平台见 llm_usage.PLATFORMS：mimo / siliconflow / minimax / openai） |
+| `usages` | Record\<usage_id, UsageCfg\> | 使用点覆盖（只存被修改过的） |
+
+**UsageCfg**：`{platform, model, base_url（落盘展开，跨容器消费者无需平台清单）, api_key（明文存 NAS 本地，控制台只回显脱敏 sk-***abcd；PUT 传空保留原值）}`
+
+**使用点清单（6）**：
+
+| id | 名称 | 默认平台 | 默认模型 | 消费方 |
+| --- | --- | --- | --- | --- |
+| `translate_titles` | 新闻标题翻译 | mimo | mimo-v2.5 | fetch_news_titles.py（usage="translate_titles"） |
+| `openai_compat` | 通用 OpenAI 兼容 | mimo | env | hybrid_llm.call_openai_compat 无显式 usage（含宏观分析） |
+| `rag_embedding` | 知识库嵌入 | siliconflow | BAAI/bge-m3 | rag_engine.py（resolve_embedding，`{base_url}/embeddings`） |
+| `sim_mc` | 天璇 Monte Carlo | siliconflow | GLM-Z1-9B-0414 | macro-sim llm_client.call_llm(use_minimax=False) |
+| `sim_narrative` | 天璇 叙事合成 | siliconflow | Qwen3.5-27B | macro-sim llm_client.call_llm(use_minimax=True) |
+| `sim_minimax` | 天璇 MiniMax | minimax | MiniMax-M3 | 预留（当前无活跃调用方） |
+
+> 平台 = OpenAI 兼容 `/chat/completions` 或 `/embeddings` 端点；Anthropic 协议（call_claude）**不纳入**（08-16 移除，系统无 ANTHROPIC key）。
+> API key 安全：明文存 `data/llm_config.json`（NAS 本地，与 compose env 明文同级）；控制台 GET 只回显脱敏；PUT 传空 key 保留原值。
+
+---
+
 ### 2.8 `reports_index.json`（报告索引，R-1 **已上线**）
 
 > **状态：已上线（1.10.0）。** 天枢 `generate_reports_index.py` 产出（扫描 `docs/分析报告` + `docs/仿真报告`，复制 .md 到 `data/reports/`，nginx 容器只读挂载 `macro-scan/data` → `/usr/share/nginx/html/data`，开阳浏览器可直接 fetch）。

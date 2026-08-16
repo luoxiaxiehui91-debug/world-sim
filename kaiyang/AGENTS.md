@@ -4,11 +4,11 @@
 
 ## 当前状态快照
 
-**版本**：v1.9.0（2026-08-06）  
-**主要变更**：实时化收尾——market_quotes 行情面板 60s 轮询、news_geo GDELT geo feed 上线上图、控制面走真实 HTTP REST :8900（MOCK=false）  
-**已完成**：2D 地图 D3 geoNaturalEarth1 重写（1.8.0，Leaflet 方案废弃）+ react-grid-layout 可拖拽布局（1.8.0，非规划）；A3a 控制 API 接入（1.7.2）  
-**待处理**：`docs/DECISION_MATRIX.md` 决策矩阵 D2-D5 已文档化（D5 已改 D3 方案定案）  
-**下一里程碑**：实时化已收尾，后续为 P2 图层逐类接入（等天枢 feed）
+**版本**：v1.11.27（2026-08-16）  
+**主要变更（08-16 大迭代）**：审查 B0-B4 全清（H18 sim_trigger 契约 / H01 randomUUID / H02 token 外泄 / H08+H11 原子写）；卫生+地区新闻图层功能链齐（source_media / 中文疾病名 / 新闻标题预抓+LLM 翻译 / 弹框真实标题）；地图交互补背景取消；**LLM 配置面板（平台/模型/API key 统一切换，v1.11.26-27）**；控制台内置 token（构建带 `VITE_CONTROL_API_TOKEN`）  
+**已完成**：2D 地图 D3 geoNaturalEarth1 重写（1.8.0）+ react-grid-layout；A3a 控制 API（1.7.2）；实时化（1.9.0）；事件弹框+聚合（1.10.5-8）  
+**待处理**：`docs/DECISION_MATRIX.md` D2（前端 bbox 聚类，点位超阈值时触发）；P2 图层逐类接入（等天枢 feed）  
+**下一里程碑**：P2 门控等数据（自动化每月 13 日检查）；Medium M33/M09（天璇侧，非开阳）
 
 ---
 
@@ -45,6 +45,9 @@
 | **改后必做** | bump `VERSION` + `package.json` → 追加 `CHANGELOG.md` → `npm run build` 绿 + `npm test` 全过 |
 | **dist/ 不进 git** | 构建产物在 .gitignore，NAS 部署需手动 `npm run build` + scp |
 | **MOCK_ENABLED** | 默认 `false`（v1.7.2+），连接真实控制 API（HTTP REST :8900）；调试时用 `VITE_CONTROL_MOCK=true` 恢复 mock |
+| **⛔ 构建必带 token** | `VITE_CONTROL_API_TOKEN=<compose 的 CONTROL_TOKEN> npm run build`（v1.11.15+，控制台开箱即用；不带 → 前端无内置 token → 控制台 401；token 轮换同步更新，见 `docs/DEPLOYMENT.md` §1） |
+| **LLM 配置面板** | 控制台 TokenSetup 下方「LLM 使用点 N 个 · 配置」——6 使用点 × 4 平台（MiMo/SiliconFlow/MiniMax/OpenAI）可换平台+模型+API key（后端 `llm_usage.py`，写 `data/llm_config.json` 原子写；key 不回显明文）；改动后端 `llm_usage.py` / `hybrid_llm.py` 后须重启 control_server（:8900）并 curl 验证新路由生效 |
+| **d3 事件 + React 重渲染** | 在 d3 元素挂 click 且 handler 触发 setState → 节点重建 → 冒泡到祖先时 target detached → closest 误判。**子元素 handler 有副作用必须 `event.stopPropagation()`**（v1.11.24→25 血泪）；验证用真实鼠标序列（dispatchEvent 会假通过） |
 
 ---
 
@@ -76,8 +79,10 @@
 
 | 文件 | 内容 | 何时读 |
 |:-----|:-----|:-------|
-| `docs/DATA_CONTRACT.md` | 数据契约权威标准（字段/路径/schema_version） | 消费新数据源时 |
-| `docs/A3a-控制API-开阳对接文档.md` | 控制 API 对接规范（HTTP REST :8900 / 命令格式） | 改控制面逻辑时 |
+| `docs/DATA_CONTRACT.md` | 数据契约权威标准（字段/路径/schema_version，含 §2.12 news_titles / §2.13 llm_config） | 消费新数据源时 |
+| `docs/A3a-控制API-开阳对接文档.md` | 控制 API 对接规范（HTTP REST :8900 / 命令格式 / news-title / llm-usage 端点） | 改控制面逻辑时 |
+| `docs/DEPLOYMENT.md` | 部署规范（构建必带 VITE_CONTROL_API_TOKEN / scp 覆盖 / 清理规则） | 构建部署时 |
+| `docs/NEXT_SESSION_HANDOFF.md` | **接手快照**（版本链 / 重点 / gotcha，比本文档更细） | 新 session 必读 |
 | `docs/DESIGN.md` | 设计总纲（定位/边界/技术栈/Wave规划） | 做架构决策时 |
 | `docs/ARCH_1.8.0.md` | v1.8.0 架构计划（**ARCHIVED**：Leaflet 迁移方案未实施，实际用 D3 geoNaturalEarth1 重写；react-grid-layout 已实现） | 规划下个版本时（先看 ARCHIVED 标注，勿按 Leaflet 方案执行） |
 | `docs/CRUCIX_UPGRADE_DESIGN.md` | ~~P0 主设计：对标 crucix 升级系统设计~~ **DEPRECATED（crucix 08-12 退场）**，历史参考 | 做 crucix 相关工作时 |
@@ -92,14 +97,14 @@
 kaiyang/
 ├── AGENTS.md               ← 本文件（唯一 AI 工作入口）
 ├── CLAUDE.md               ← Claude Code 兼容层（指向本文件）
-├── VERSION                 ← 当前版本号（1.9.0）
+├── VERSION                 ← 当前版本号（1.11.27）
 ├── CHANGELOG.md            ← 变更记录
 ├── src/
 │   ├── config/             ← dataSources / layerCategories / theme / regions / controlConfig
-│   ├── components/         ← WorldPanel / GlobePanel / FlatMapPanel / LayerTreePanel …
-│   ├── control/            ← ControlDrawer / TianshuTab / FetcherCard …
+│   ├── components/         ← WorldPanel / GlobePanel / FlatMapPanel / EventPopup / StatusBar …
+│   ├── control/            ← ControlDrawer / TianshuTab / FetcherCard / TokenSetup / LlmConfig / TabBar
 │   ├── hooks/              ← useFeed / useControlApi / useOperationPolling …
-│   ├── lib/                ← adaptGrv / nuclearData / newsGeoAdapter / controlApi …
+│   ├── lib/                ← adaptGrv / nuclearData / newsGeoAdapter / geoAggregate / healthAdapter / controlApi / uuid …
 │   ├── panels/             ← registry.ts（面板注册表）+ 各面板组件
 │   ├── state/              ← ControlContext / SelectionContext / StatusContext
 │   └── types/              ← contracts.ts / control.ts

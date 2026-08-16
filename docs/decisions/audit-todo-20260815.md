@@ -68,7 +68,8 @@
 | M26 | pg_read | 无法区分 PG 宕机 vs 无数据（[]/None） | P0-C/P1-B 延续 |
 | M27/M28 | control_server | get_logs 路径穿越 / fetcher_id 无白名单 | P1-D 延续 |
 | M31 | run.py | archival uuid4 主键 INSERT OR IGNORE 永不 dedupe | P0-D 延续 |
-| M33 | bifurcation | n_clusters==1 强拆 3 簇 | 天璇正确性（与 H22 同批） |
+| **M33** ⬆ | bifurcation | n_clusters==1 强拆 3 簇 | **08-16 置顶：下一轮优先（与 H22 同族，路径坍缩正确性）** |
+| **M09** ⬆ | weight_matrix | Herfindahl 恒 1.0 恒不告警（权重集中度监控失效） | **08-16 置顶：下一轮优先（反馈闭环空转一部分）** |
 | M34 | agents/base | soul 文件缺失静默降级 | 天璇 |
 
 ## 4. 宏观待办（决策/运维类）

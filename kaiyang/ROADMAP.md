@@ -1,7 +1,7 @@
 # 开阳（Kaiyang）操作面板 — ROADMAP
 
 > 此文件是开阳项目内权威 todo，与源代码同行。
-> 版本参考：`VERSION`（当前 1.9.0）
+> 版本参考：`VERSION`（当前 1.11.27）
 > 跨项目视角：`S:\docs\backlog\world-deduction.md`
 > AI 工作入口：`AGENTS.md`
 
@@ -23,6 +23,12 @@
 | **1.7.2** | **2026-08-03** | A3a 控制 API 接入（MOCK_ENABLED=false，HTTP REST :8900） |
 | **1.8.0** | **2026-08-04** | ✅ 2D 地图 D3 geoNaturalEarth1 重写（Leaflet 方案废弃）；✅ react-grid-layout 可拖拽布局 |
 | **1.9.0** | **2026-08-06** | ✅ 实时化收尾：market_quotes 行情面板 60s 轮询；news_geo GDELT geo feed 上线上图；控制面真实 REST 链路 |
+| **1.10.5-8** | **2026-08-10~15** | ✅ 事件弹框 + 同地点聚合（bbox + 拼写变体合并） |
+| **1.11.12-15** | **2026-08-16** | ✅ footer 盖层 + Token 配置 UI + H18 sim_trigger 契约 + schema_version 统一 + H01 randomUUID + H02 token 外泄 + 内置 CONTROL_TOKEN |
+| **1.11.16-18** | **2026-08-16** | ✅ 卫生图层功能链：source_media 媒体名 + 点击弹框 + DISEASE_ZH 中文疾病名 + DOC API 标题回填 |
+| **1.11.19-23** | **2026-08-16** | ✅ 地区新闻标题真实化：URL slug（废弃）→ 按需抓取（/news-title）→ 预抓缓存（news_titles.json I120）→ LLM 中文翻译（titles_zh） |
+| **1.11.24-25** | **2026-08-16** | ✅ 地图交互：点击空白/关闭弹框取消选中（v1.11.24）→ 回归修复（点位 click 阻断冒泡，v1.11.25） |
+| **1.11.26-27** | **2026-08-16** | ✅ LLM 配置体系：使用点清单 + 控制台改模型（v1.11.26）→ 平台化（平台/模型/API key 统一切换，v1.11.27）；翻译模型 mimo-v2.5 |
 
 ---
 

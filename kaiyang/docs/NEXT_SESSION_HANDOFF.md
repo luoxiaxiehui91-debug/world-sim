@@ -1,6 +1,6 @@
 # 开阳 · 下个 Session 接手文档（HANDOFF）
 
-> 更新：2026-08-16 ｜ 对应版本 **`VERSION = 1.11.25`** ｜ 维护：齐活林（主理人）
+> 更新：2026-08-16 ｜ 对应版本 **`VERSION = 1.11.27`** ｜ 维护：齐活林（主理人）
 > **权威状态源**：`../.workbuddy/memory/MEMORY.md`（项目记忆，若与本文档冲突以 MEMORY.md 为准）
 > 本文档是给**下一个 AI session / 接手者**的 60 秒快照，不是设计文档。深入细节请走 §6 的文件指针。
 
@@ -40,7 +40,7 @@ Wave2 ├─ 线 a：控制面 ──────── P0 ✅（T01-T03），A3
 | **2D 地图 D3 重写 + 可拖拽布局** | **1.8.0** | FlatMapPanel D3 geoNaturalEarth1 + SVG；react-grid-layout 8 面板 | 基线 |
 | **实时化收尾** | **1.9.0** | market_quotes 60s 轮询 + news_geo 上线 + 控制面真实链路 | 基线 |
 | **事件弹框 → 聚合组** | **1.10.5 → 1.10.8** | 点击新闻点弹框 + 同地点聚合（bbox + 拼写变体合并） | 基线 |
-| **08-16 大迭代** | **1.11.12 → 1.11.25** | 见 §3.8 版本链 | **364/20 files** |
+| **08-16 大迭代** | **1.11.12 → 1.11.27** | 见 §3.9 版本链 | **364/20 files** |
 
 > 测试基线说明：以当前代码基线为准（`src/` 下 **20 个测试文件**，364 例，`npm test` 全绿为验收标准）。
 
@@ -101,7 +101,16 @@ Wave2 ├─ 线 a：控制面 ──────── P0 ✅（T01-T03），A3
 - **⛔ d3 事件 + React 重渲染冲突**：点位 click handler **必须 `event.stopPropagation()`**——选点触发 setState → 点位 group 重建 → 冒泡到 svg 的 background handler 时 target 是 detached 旧 circle，closest 返回 null 误判背景 → 立即取消选中（v1.11.24 回归实测）
 - **playwright 验证纪律**：真实鼠标序列（mouse.down/up）+ 等 2 拍查状态；`dispatchEvent` 会假通过（React 异步重建时序差异）；`querySelector('svg')` 会拿到 starfield 的 svg 不是地图的
 
-### 3.8 08-16 大迭代版本链（1.11.12 → 1.11.25）
+### 3.8 LLM 统一配置体系（v1.11.26-27）
+
+- **后端 `macro-scan/核心代码/llm_usage.py`**：6 使用点静态清单（translate_titles / openai_compat / rag_embedding / sim_mc / sim_narrative / sim_minimax）× 4 平台（mimo / siliconflow / minimax / openai）+ `data/llm_config.json`（v2.0 schema，原子写，**base_url 落盘展开**——天璇等跨容器消费者无需平台清单）；`resolve(usage_id)` 返回 (base_url, api_key, model)，`resolve_embedding()` 拼 `/embeddings` 路径
+- **接入**：`hybrid_llm.call_openai_compat(usage=...)`（翻译走 `translate_titles`）；`rag_engine._get_embeddings_batch` 走 `resolve_embedding`（bge-m3）；天璇 `llm_client._resolve_client`（配置覆盖 → 动态 OpenAI 兼容客户端，缓存 by url+key；**改 llm_client.py 代码后必须重建容器**——COPY 模式）
+- **控制 API**：`GET /api/v1/control/llm-usage`（usages + platforms，**key 脱敏 sk-***abcd**）、`PUT /api/v1/control/llm-usage/{id}`（{platform, model, api_key?}，key 缺省保留原值，空模型/未知平台拒绝）
+- **前端 `control/LlmConfig.tsx`**：平台下拉 + 模型 datalist 可手输 + key password 输入 + 保存（TokenSetup 下方）
+- **⛔ 部署纪律**：改 `llm_usage.py`/`hybrid_llm.py`/`control_server.py` 后**必须重启 control_server 并 curl 验证**（kill 循环可能不匹配 → 旧进程服务旧代码假象；用 python os.kill 指定 PID + curl 新路由验证）
+- **Claude 已移除**（08-16）：call_claude 是历史分支（无 ANTHROPIC key），使用点清单和平台都不含
+
+### 3.9 08-16 大迭代版本链（1.11.12 → 1.11.27）
 
 | 版本 | 内容 | 关联审查项 |
 |------|------|-----------|
@@ -119,6 +128,8 @@ Wave2 ├─ 线 a：控制面 ──────── P0 ✅（T01-T03），A3
 | 1.11.23 | 新闻标题中文化（LLM 翻译 titles_zh 优先） | 用户需求 |
 | 1.11.24 | 点击空白/关闭弹框取消选中 ⚠ 引入回归 | 用户需求 |
 | 1.11.25 | **回归修复：点位 click 阻断冒泡**（detached target 误判背景） | 用户反馈 |
+| 1.11.26 | **LLM 使用点统一配置面板**（6 使用点清单 + 控制台改模型）+ 翻译模型 mimo-v2.5 | 用户需求 |
+| 1.11.27 | **LLM 配置平台化**（平台/模型/API key 统一切换；移除 Claude + 补 rag_embedding 嵌入使用点） | 用户需求 |
 
 ---
 
@@ -162,7 +173,7 @@ B0 ✅  B1 ✅  B2 ✅  B3 ✅  B4 ✅（审查 High 全部清完）
 
 ## 5. 新 session 开场话术
 
-> **「继续开阳。VERSION 1.11.25，20 个测试文件 364 例全绿。08-16 大迭代完成：审查 B0-B4 全清（H18 sim_trigger 契约 + schema_version 统一 / H01 randomUUID / H02 token 外泄 / H08+H11 原子写），卫生+地区新闻图层功能链齐（source_media / 中文疾病名 / 新闻标题预抓+LLM 翻译 / 弹框），地图交互补背景取消（v1.11.24→25 回归已修）。控制台内置 token（构建必须带 VITE_CONTROL_API_TOKEN）。剩 P2 等数据（自动化每月 13 日检查）+ P0-A 密钥轮换待触发。」**
+> **「继续开阳。VERSION 1.11.27，20 个测试文件 364 例全绿。08-16 大迭代完成：审查 B0-B4 全清（H18 sim_trigger 契约 + schema_version 统一 / H01 randomUUID / H02 token 外泄 / H08+H11 原子写），卫生+地区新闻图层功能链齐（source_media / 中文疾病名 / 新闻标题预抓+LLM 翻译 / 弹框），地图交互补背景取消（v1.11.24→25 回归已修）。控制台内置 token（构建必须带 VITE_CONTROL_API_TOKEN）。剩 P2 等数据（自动化每月 13 日检查）+ P0-A 密钥轮换待触发。LLM 配置体系（llm_usage + 控制台面板）已就位，见 §3.8。」**
 
 ---
 

@@ -11,7 +11,7 @@
 | `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 维度向量（18 项，含 global_composite 汇总 + 4 GDELT 国别推导维度 + gpr_twn_raw，08-07 实测） | **热挂载**（改代码即生效；scheduler.py 改动需 restart） | v3.8.17 · [CHANGELOG](macro-scan/TuiYan_CHANGELOG.md) | `/vol2/1000/software/macro-scan` |
 | `macro-sim`  | 仿真引擎层：**17个 Agent**（12 金融 + 5 主权 S1-S5，08-07 A 类激活），Monte Carlo×100，月度时间步长 | **COPY 模式**（改代码需 rebuild 镜像；deploy.sh 仓库直构） | **v2.0.40** · [CHANGELOG](macro-sim/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-sim` |
 | `macro-ji`   | 验证层（天玑）：读天枢 data 做推演验证/反哺（T2 共享触发文件驱动，2026-08-04 独立容器上线） | **COPY 模式**（macro-ji/ 目录 rebuild） | v1.0.0 · [CHANGELOG](macro-ji/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-ji` |
-| `kaiyang`    | 可视化操作面板：只读展示天枢数据 + 控制台（:8080，control API :8900） | nginx 静态站（MOCK_ENABLED=false，A3a 已接入，index.html no-cache） | v1.10.8 · [CHANGELOG](kaiyang/CHANGELOG.md) | `/vol2/1000/software/kaiyang` |
+| `kaiyang`    | 可视化操作面板：只读展示天枢数据 + 控制台（:8080，control API :8900） | nginx 静态站（MOCK_ENABLED=false，A3a 已接入，index.html no-cache） | **v1.11.27** · [CHANGELOG](kaiyang/CHANGELOG.md) | `/vol2/1000/software/kaiyang` |
 
 **数据流**：macro-scan 每日写入 `data/*.json` → macro-sim 只读消费 → kaiyang 只读展示；天玑（macro-ji）读天枢 data / worldsim-pg（E0-C 起读路径统一 PG）做验证闭环。
 
@@ -21,7 +21,9 @@
 
 **读路径已统一 worldsim-pg**（`核心代码/pg_read.py` 只读层，行边界归一化 UTC 文本；14 个 reader 已切）。**写路径 PG 主写**（`WORLDSIM_SQLITE_OFF=1` 已生效：news_db 6 写函数 + synthesis_log 写路径 PG-only 分支；`data/.sqlite_frozen_at` marker 留存）。**天枢侧 SQLite 已删（P6 08-14 08:39 闭环，commit 1ba002a）——任何代码不得再 sqlite3.connect 创建 news.db，读走 pg_read。**
 
-**⛔ 08-15 D2 预测链转 PG（`afe1311`+`f7cf689`）**：天璇 `macro-sim/run.py` `_archive_to_tianji` 与天玑 `macro-ji/tianji_db.py`/`tianji_verifier.py` 全部 psycopg 直连 worldsim-pg `tianji.predictions` + `reasoning_trace`（search_path=tianji,public）。**forecast_tracker.db 现为死文件**（三端都不写），待 P6 观察窗后删除（`delete_sqlite_e0c.sh`）+ 同步移除探针 `_SQLITE_GONE_EXEMPT` 豁免。
+**⛔ 08-15 D2 预测链转 PG（`afe1311`+`f7cf689`）**：天璇 `macro-sim/run.py` `_archive_to_tianji` 与天玑 `macro-ji/tianji_db.py`/`tianji_verifier.py` 全部 psycopg 直连 worldsim-pg `tianji.predictions` + `reasoning_trace`（search_path=tianji,public）。**⛔ P6 已收官（08-16 `8905fa01`）**：forecast_tracker.db 已删除（快照 `backups/e0c-p6-20260816-092548/`），探针 `_SQLITE_GONE_EXEMPT` 豁免已移除——**全系统 PG-only，data 目录出现任何 .db 复生 = CRIT**。
+
+**08-16 LLM 统一配置（`llm_usage.py` + `data/llm_config.json`）**：6 使用点（translate_titles / openai_compat / rag_embedding / sim_mc / sim_narrative / sim_minimax）× 4 平台（mimo / siliconflow / minimax / openai），开阳控制台「LLM 配置」面板可换平台/模型/API key（`GET/PUT /api/v1/control/llm-usage`）；配置优先于 env/代码常量，天枢热挂载即时、天璇读共享文件（`/app/macro_data/llm_config.json`）。翻译模型 mimo-v2.5；RAG 嵌入 bge-m3（`rag_engine.py`）。
 
 **⚠️ 运行区 compose 纪律（08-15 实测教训）**：必须显式含 `networks: worldsim_default(external)` + `WORLDSIM_APP_PW`/`WORLDSIM_SQLITE_OFF=1`——手动 `docker network connect` 在 `docker compose up -d` recreate 后即丢（PG 断连实测）；env 丢失会回归 SQLite 双写。控制 API（:8900）已 **fail-closed**（P1-D）：未配 CONTROL_TOKEN 一律 503/401，开阳面板需填 token。
 

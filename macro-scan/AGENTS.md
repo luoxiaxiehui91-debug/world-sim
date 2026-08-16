@@ -197,6 +197,7 @@ pre-commit install   # 在源码区 S:\world-sim\macro-scan\ 执行一次即可
 | rsshub | :12000 | 中文财经 RSS（财新/第一财经/华尔街见闻/东方财富研报）|
 
 > ⚠️ Ollama（192.168.31.56）已停用。LLM 降级链：MiniMax-M3 → MiMo v2.5 Pro → SiliconFlow Qwen3.5-27B → 纯数据报告
+> **08-16 LLM 统一配置**：`核心代码/llm_usage.py` 静态清单 6 使用点（translate_titles / openai_compat / rag_embedding / sim_mc / sim_narrative / sim_minimax）× 4 平台（mimo / siliconflow / minimax / openai），运行时配置 `data/llm_config.json`（开阳控制台「LLM 配置」面板读写，`GET/PUT /api/v1/control/llm-usage`）。**配置优先于 env/常量**；天璇读共享文件。翻译模型 mimo-v2.5（`fetch_news_titles.py` 走 `usage="translate_titles"`）；RAG 嵌入 `rag_engine.py` 走 `resolve_embedding()`（bge-m3）。改 `llm_usage.py`/`hybrid_llm.py` 后须重启 control_server（:8900）并 curl 验证新路由生效。
 
 ---
 
