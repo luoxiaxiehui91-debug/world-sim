@@ -151,6 +151,16 @@ export const FEEDS: Record<string, FeedConfig> = {
     schemaVersion: '1.0',
     description: 'GDELT 地理化新闻事件（actor 坐标 + 强度；详细字段见 §2.7）',
   },
+  // 08-16：新闻标题预抓缓存（fetch_news_titles.py 2h 增量；弹框真实标题静态读取，
+  // 点击零 API 占用；未命中时前端走 control /news-title 兜底）
+  news_titles: {
+    name: 'news_titles',
+    path: 'news_titles.json',
+    refreshMs: 120_000,
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '新闻标题预抓缓存（url→title 映射，2h 增量）',
+  },
   // ── 1.6.0 追加（市场行情读取层预埋）：本批无对应面板，仅 fetch 备查 ──
   market_quotes: {
     name: 'market_quotes',

@@ -43,27 +43,36 @@ interface EventPopupProps {
   point: RiskPoint;
   /** 同地点事件列表（v1.10.8 起 = 聚合组 children，WorldPanel 按聚合 key 匹配，含拼写变体合并） */
   related: NewsGeoEvent[];
+  /** 08-16：新闻标题预抓缓存 map（fetch_news_titles.py 2h 增量，静态读取秒开） */
+  titleMap?: Record<string, string>;
   onClose: () => void;
 }
 
 /**
  * v1.10.5 事件弹框：点击地图事件点后展示详情 + 同地点事件列表。
  * v1.10.8 聚合语义：related = 同地点全部事件（同新闻按 source_url 去重，dup 徽标 ×N）。
+ * 08-16 v1.11.22：标题三级取数——① titleMap 静态缓存（秒开、零 API）；② localStorage
+ * 缓存；③ 后端 /news-title 按需抓取兜底（点过的秒开，新点加载中→失败隐藏）。
  * 安全：所有文本经 React 默认转义渲染；链接 href 经 sanitizeUrl 消毒（仅 http/https）。
  */
-export function EventPopup({ point, related, onClose }: EventPopupProps) {
-  // 08-16：真实新闻标题按需抓取（后端 news-title 端点，代理抓 <title>）——
-  // GDELT events 无 title 字段 + DOC API 429，这是拿真实标题的可行路径。
+export function EventPopup({ point, related, titleMap, onClose }: EventPopupProps) {
+  // 08-16：真实新闻标题——优先 titleMap（预抓缓存）→ localStorage → API 兜底。
   const [newsTitle, setNewsTitle] = useState<string | null>(null);
   const [loadingTitle, setLoadingTitle] = useState(false);
   useEffect(() => {
     const url = point.sourceUrl;
     if (!url) return;
+    // ① 静态预抓缓存命中 → 秒开
+    if (titleMap?.[url]) {
+      setNewsTitle(titleMap[url]);
+      return;
+    }
     const cache = loadTitleCache();
     if (cache[url]) {
       setNewsTitle(cache[url]);
       return;
     }
+    // ③ API 兜底（预抓未覆盖的新事件）
     let cancelled = false;
     setLoadingTitle(true);
     getNewsTitle(url).then((t) => {
@@ -83,7 +92,7 @@ export function EventPopup({ point, related, onClose }: EventPopupProps) {
     return () => {
       cancelled = true;
     };
-  }, [point.sourceUrl]);
+  }, [point.sourceUrl, titleMap]);
 
   // v1.10.6 同新闻去重：同 source_url（GDELT 一篇报道常拆成多条事件）合并为一条，
   // 保留 mention_count 最高的条目，dup 标注合并数；无 URL 的按 id 保留。

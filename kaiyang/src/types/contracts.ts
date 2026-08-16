@@ -244,6 +244,15 @@ export interface NewsGeoRaw {
   events: NewsGeoEvent[];
 }
 
+/** news_titles.json（08-16：新闻标题预抓缓存，url→title 映射）。 */
+export interface NewsTitlesRaw {
+  schema_version?: string;
+  fetched_at?: string;
+  total?: number;
+  covered?: number;
+  titles?: Record<string, string>;
+}
+
 /* ------------------------------------------------------------------ */
 /* 市场报价（market_quotes.json，1.6.0 新增 / 读取层预埋无面板）           */
 /* ------------------------------------------------------------------ */

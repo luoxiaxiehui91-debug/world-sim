@@ -78,6 +78,7 @@ JOBS = [
     ("airroutes",       "0950", "1-7", None, [PYTHON, "fetch_airroutes.py"]), # P2 OpenFlights 全球航线网（日档 0950；结构数据日更远超所需，08-14 air 图层静态航线网）
     ("spacelaunch",     "0705", "1-7", None, [PYTHON, "fetch_spacelaunch.py"]), # P2 Next Spaceflight 发射记录（日档 0705；发射事件低频，08-14 space 图层）
     ("health_geo",      "I60", "1-7", None, [PYTHON, "fetch_health_geo.py"]), # P2 GDELT 卫生事件（60min；增量拉新 slot，08-15 health 图层）
+    ("news_titles",     "I120", "1-7", None, [PYTHON, "fetch_news_titles.py"]), # P2 新闻标题预抓（2h 增量；news_geo 弹框真实标题静态缓存，08-16）
     ("energy_eia",         "0630", "1-7", None, [PYTHON, "fetch_energy_eia.py"]),          # P0 EIA 能源（日频，错峰 commodity_yahoo 0626）
     ("china_meso",         "0930", "1-7", 1,    [PYTHON, "fetch_china_meso.py"]),          # P0 AkShare 中观（每月1日，错峰 fao 0925）
     # 地震为实时外生冲击，日内再刷 3 次（错峰，不与白天任务冲突）
