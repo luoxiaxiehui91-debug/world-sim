@@ -9,6 +9,13 @@
   1. 本地（Windows）`npm run build`（`tsc --noEmit && vite build`）
   2. SSH 到 NAS 在非 SMB 挂载路径构建
 - 构建前 `npm test` 必须全绿（基线 311+，只增不减）。
+- **⛔ 构建必须带 `VITE_CONTROL_API_TOKEN`**（v1.11.15 起，控制台开箱即用）：
+  ```bash
+  VITE_CONTROL_API_TOKEN=<运行区 compose 的 CONTROL_TOKEN> npm run build
+  ```
+  - 不带此参数 → 产物无内置 token → 控制台 401（除非用户在浏览器 localStorage 手填）。
+  - **token 轮换（P0-A）时必须同步更新此构建参数**。
+  - 注入值**不进 git**（构建参数传入，`getEnvToken()` 优先于 localStorage 读取）。
 
 ## 2. 部署（nginx 静态托管）
 

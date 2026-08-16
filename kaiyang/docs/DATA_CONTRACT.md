@@ -50,6 +50,8 @@
 | `hdx_risk` | `hdx_risk.json` | json | `1.0` | 人道危机风险信号（R-4，见 §2.10） |
 | `news_risk` | `news_risk.json` | json | `1.0` | 新闻风险信号（R-4，见 §2.10） |
 | `safecast_nuke` | `safecast_nuke.json` | json | `1.0` | SafeCast 6 核电站 CPM 读数（fetch_safecast_nuke.py，I60，历史归档均值） |
+| `health_geo` | `health_geo.json` | json | `1.0` | GDELT 卫生事件（fetch_health_geo.py，I60，见 §2.11） |
+| `news_titles` | `news_titles.json` | json | `1.0` | 新闻标题预抓缓存（fetch_news_titles.py，I120，url→title + LLM 中文，见 §2.12） |
 
 > 新增 feed：仅在 `src/config/dataSources.ts` 的 `FEEDS` 登记一项，读取层（`useFeed` / `readLayer`）**无需改动**。
 
@@ -102,15 +104,26 @@
 > ⚠ **Wave1 实际偏差**：上游实际文件名为 `latest_news.json`（纯数组）。本仓库快照已包装为 `{schema_version, updated, items}` 以统一契约；读取层兼容「纯数组」与「包装对象」两种形态。
 
 ### 2.3 `sim_trigger.json`（对象，**可选**）
+
+> **v1.11.13 起为 H18 三端统一契约（2026-08-16）**：文件**永远是合法 JSON**，两态：
+> - **触发态**：天枢 `grv_threshold.py` 写入 `{triggered: true, level, event/reason, triggered_at}`；
+> - **已消费态**：天璇 `run.py` daemon 读后改写 `{triggered: false, consumed: true, level, event/reason, triggered_at, consumed_at}`（原 `write_text("")` 清空为 0 字节导致开阳 `JSON.parse('')` 崩——已废弃）。
+>
+> 开阳 StatusBar 三态显示：触发（rose）/ 上次触发已消费（cyan）/ 未触发（emerald）。
+
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `schema_version` | string | ✅ | `1.0` |
-| `triggered` | boolean | ⬜ | 是否触发推演 |
-| `level` | string | ⬜ | 触发等级 |
-| `reason` | string | ⬜ | 触发原因 |
-| `updated` | string | ⬜ | 时间戳 |
+| `triggered` | boolean | ✅ | 是否触发推演（当前态） |
+| `consumed` | boolean | ⬜ | 已消费态标记（天璇读后置 true；触发态无此字段） |
+| `level` | number | ⬜ | 触发等级（天枢写 int） |
+| `event` | string | ⬜ | 触发事件描述（≤200 字符） |
+| `reason` | string | ⬜ | 触发原因（= event，兼容前端 M04 字段名） |
+| `triggered_at` | string(ISO) | ⬜ | 触发时间（UTC aware） |
+| `consumed_at` | string(ISO) | ⬜ | 消费时间（天璇写，UTC aware） |
+| `updated` | string | ⬜ | 旧字段，兼容保留 |
 
-> 文件缺失不报错，状态条显示「推演未触发」。
+> 文件缺失 / 历史 0 字节残留不报错：前端 `tolerateEmpty` 容错为「未触发」态。
 >
 > ⚠ **双角色说明**：`sim_trigger.json` 既作为开阳**读入**的推演状态（展示"是否已触发"），也是开阳**写侧**指令通道的候选载体（写入以触发 macro-sim 推演 / 切换场景）。写侧协议（端点 / 文件流向 / 鉴权）**暂缓设计**，待天璇 / 玉衡等后端闭环搭起后再定，沿用上方隔离铁律——开阳只发指令、绝不自连数据源。
 
@@ -314,6 +327,49 @@
 > 1. `event_type` 四类枚举是否够用？CAMEO `EventRootCode` → 四类的映射表由天枢维护并在回填时附出。
 > 2. `intensity` 0–100 的合成公式与分级口径（属领域判断，开阳不代定）。
 > 3. 过滤条件：关注国家清单 + 高提及阈值，直接决定单次落盘条数量级；若可能超过 2000 条，请沿用第 5 项的预聚合思路，否则开阳 `MAX_POINTS_PER_LAYER=2000` 护栏会触发截断（截断为下策）。
+
+---
+
+### 2.11 `health_geo.json`（GDELT 卫生事件，**v1.11.16+ 定稿**）
+
+> **状态：已上线（1.9.0 卫生图层）。** 天枢 `fetch_health_geo.py`（scheduler **I60**，15 分钟粒度增量拉新 slot，保留 72h 窗口）。数据源 = GDELT GKG CSV（卫生关键词过滤 + 坐标解析），**非 WHO 官方源**——事件是"媒体提及"信号，非官方确认（前端弹框已标注来源可信度）。
+
+| 顶层字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `schema_version` | string | ✅ | `1.0` |
+| `fetched_at` | string(ISO) | ✅ | 导出时间（UTC） |
+| `events` | HealthEvent[] | ✅ | 卫生事件清单（72h 窗口滚动） |
+
+**HealthEvent**：
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `doc` | string(URL) | ✅ | GKG DocumentIdentifier（具体报道原文 URL；前端弹框「查看新闻原文」） |
+| `date` | string(YYYYMMDDHHMMSS) | ✅ | GKG SQLDATE（15 分钟粒度） |
+| `lat` / `lng` | number | ✅ | 坐标（GKG V1Locations 解析，4 位小数） |
+| `loc_name` | string | ✅ | 地点名（V1Locations FullName） |
+| `keywords` | string[] | ✅ | 命中的卫生关键词（`cholera` / `mpox` / `ebola` 等） |
+| `source_media` | string | ⬜ | **v1.11.16 新增**：来源媒体域名（GKG `SourceCommonName`，cols[3]）；历史事件从 doc URL 提取 netloc 回填（`_backfill_source_media`），**100% 带值** |
+| `title` | string | ⬜ | **v1.11.18 新增**：新闻标题（GDELT DOC 2.0 回填，NAS IP 429 限流时缺省——前端用 `DISEASE_ZH` 中文疾病名兜底，恢复后自动落盘） |
+
+> ⚠ **GKG CSV 无标题列**（实测确认，标题只在 DOC 2.0 API）——`title` 是增强字段，缺失属正常降级，不告警。
+
+---
+
+### 2.12 `news_titles.json`（新闻标题预抓缓存，**v1.11.22+ 定稿**）
+
+> **状态：已上线（v1.11.22）。** 天枢 `fetch_news_titles.py`（scheduler **I120**，2h 增量，每轮 NEW_MAX=20 并发 4）——读 `news_geo.json` 全部事件 URL，**提前批量抓取**页面 `<title>`（代理 7890、12s 超时），LLM 翻译中文（`hybrid_llm.call_openai_compat`，MiMo，逐条并发 4）。72h 窗口滚动裁剪 + 600 上限。**开阳前端读静态文件（秒开、零 API 占用），点击兜底走控制 API `/news-title`**（见 A3a 文档）。
+
+| 顶层字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `schema_version` | string | ✅ | `1.0` |
+| `fetched_at` | string(ISO) | ✅ | 导出时间（UTC） |
+| `total` | number | ✅ | 当前 news_geo 事件 URL 总数 |
+| `covered` | number | ✅ | 已缓存标题数（≤ total） |
+| `titles` | Record\<url, string\> | ✅ | url → **英文标题**（抓取原文） |
+| `titles_zh` | Record\<url, string\> | ⬜ | url → **中文标题**（LLM 翻译；缺失时前端 fallback `titles` 英文） |
+
+> 前端 `WorldPanel` 合并 `{...titles, ...titles_zh}`（中文覆盖英文）→ `EventPopup` 标题三级取数：① 静态缓存命中（秒开）→ ② localStorage → ③ 控制 API `/news-title` 兜底。
 
 ---
 

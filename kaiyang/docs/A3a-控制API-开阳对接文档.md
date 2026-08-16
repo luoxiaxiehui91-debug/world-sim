@@ -18,6 +18,7 @@
   - `PUT  /api/v1/control/fetchers/{id}/schedule` — 调整频率
   - `GET  /api/v1/control/fetchers/{id}/logs?lines=N` — 日志
   - `GET  /api/v1/control/operations/{op_id}` — 操作状态轮询
+  - `GET  /api/v1/control/news-title?url=...` — **v1.11.21 新增**：按需抓取新闻 URL 页面 `<title>`（开阳 EventPopup 弹框真实标题兜底；天枢容器走 NAS 代理 7890，SSRF 公网校验 `ipaddress`，超时 15s，只读 64KB，失败/不可信返回 `{"title": ""}`）
 - 鉴权：Bearer Token（`CONTROL_TOKEN` 环境变量；未设置则跳过鉴权——生产建议设置）
 - CORS：已内置 allow_origins=["*"]（开阳纯静态直连可用；如需收敛可改 allowlist）
 - 开阳侧客户端：`kaiyang/src/lib/controlApi.ts` + `src/config/controlConfig.ts`
