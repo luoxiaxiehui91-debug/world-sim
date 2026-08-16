@@ -341,12 +341,17 @@ def run_verification(dry_run: bool = False):
         results.append(entry)
 
     # 写回日志（只更新已验证的条目）
+    # H11 (2026-08-16, 全量审查): 原子写——原直接 open("w") 写目标文件，
+    # 写一半崩溃留半截 JSON（下游 JSON.load 损坏）。tmp + os.replace 保证
+    # 读者永远看到完整文件（prediction_logger.py 已原子写，此处补齐）。
     id_map = {e["id"]: e for e in results}
     for i, e in enumerate(log):
         if e["id"] in id_map:
             log[i] = id_map[e["id"]]
-    with open(PREDICTIONS_LOG, "w", encoding="utf-8") as f:
+    tmp = PREDICTIONS_LOG + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(log, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, PREDICTIONS_LOG)
     print(f"已更新 {len(results)} 条记录。")
 
     report = build_report(results)

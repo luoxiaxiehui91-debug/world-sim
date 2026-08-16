@@ -113,7 +113,12 @@ def save_series(series_id: str, dates: pd.Series, values: pd.Series) -> int:
         "value": values.round(3),
     }).dropna()
     path = os.path.join(HIST_DIR, f"{series_id}.csv")
-    out.to_csv(path, index=False)
+    # H08 (2026-08-16, 全量审查): 原子写——原直接 to_csv(path) 写目标文件，
+    # 写一半崩溃留半截 CSV（下游 pandas 读取损坏）。tmp + os.replace 保证
+    # 读者永远看到完整文件。
+    tmp = path + ".tmp"
+    out.to_csv(tmp, index=False)
+    os.replace(tmp, path)
     return len(out)
 
 

@@ -369,8 +369,11 @@ def generate_dashboard():
 </html>"""
 
     os.makedirs(os.path.dirname(DASHBOARD_OUTPUT), exist_ok=True)
-    with open(DASHBOARD_OUTPUT, "w", encoding="utf-8") as f:
+    # B4 原子写（2026-08-16）：开阳面板数据文件，写一半崩溃留半截 HTML。
+    tmp = DASHBOARD_OUTPUT + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         f.write(html)
+    os.replace(tmp, DASHBOARD_OUTPUT)
 
     print(f"\nDashboard 已生成：{DASHBOARD_OUTPUT}")
     print("用浏览器打开即可查看（支持离线，无需网络）。")
