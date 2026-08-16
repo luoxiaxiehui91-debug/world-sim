@@ -5,6 +5,21 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.24] - 2026-08-16 · 点击空白/关闭弹框取消选中（不再只能再点同点取消）
+
+**修改理由**：用户反馈——点击地图点出现选中圈 + 菜单后，只有再点同点/其他点才能取消；点空白、关闭菜单都不行。
+
+### 修改
+
+- **`components/FlatMapPanel.tsx`**：新增 `onBackgroundClick` prop + `svg.on('click.background')`——`closest` 判断 `.fm-point-group / .fm-focus-ring / .fm-site-group` 命中跳过（交给点位自身 handler），否则视为背景点击（点陆地/海洋即触发）
+- **`components/GlobePanel.tsx`**：新增 `onBackgroundClick` + `world.onClick`（globe.gl 背景点击回调）；effect 依赖数组补 `onBackgroundClick`
+- **`components/WorldPanel.tsx`**：新增 `handleBackgroundClick`（`selectSignal(null, null)` 清信号行选中 + 地图聚焦 + `setPopupPoint(null)`）；两面板传参；**EventPopup onClose 复用 handleBackgroundClick**——关闭弹框同时取消选中圈
+
+### 验证
+
+- `npm test` 364 tests 全绿；vite build（`index-fEfkIfc9.js`）
+- playwright 实测：选中圈出现 → 点 `.fm-land` 空白 → ring 消失；弹框点 × → ring 消失 + 弹框关闭；再点同点取消逻辑不受影响
+
 ## [1.11.23] - 2026-08-16 · 新闻标题中文化（LLM 翻译 + titles_zh 优先显示）
 
 **修改理由**：用户看到英文标题后要求"换成中文"。
