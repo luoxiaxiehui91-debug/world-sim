@@ -5,6 +5,22 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.26] - 2026-08-16 · LLM 使用点统一配置面板（控制台可改模型）+ 翻译模型 mimo-v2.5
+
+**修改理由**：用户需求——① 翻译模型 `mimo-v2.5-pro` → `mimo-v2.5`（实测快 4 倍：1.4s vs 5-8s）；② 统计所有用 LLM 模型的地方，统一在开阳控制台修改。
+
+### 修改
+
+- **新增 `control/LlmConfig.tsx`**：折叠式 LLM 配置面板（TokenSetup 旁）——状态行（使用点数 + 覆盖数）+ 展开表格（使用点 / 容器 / 用途 / 模型输入框 / 保存）；修改写天枢 `data/llm_config.json`（原子写，下次调用生效）
+- **`lib/controlApi.ts` / `types/control.ts`**：`getLlmUsage()` / `updateLlmUsage(id, model)` + `LlmUsage` 类型
+- 后端同批（llm_usage.py 新增 + hybrid_llm / fetch_news_titles / control_server / 天璇 llm_client 接入）：6 使用点清单（新闻标题翻译 / 通用 OpenAI 兼容 / Claude 推理 / 天璇 MC / 天璇 叙事 / 天璇 MiniMax）+ `GET/PUT /api/v1/control/llm-usage` 端点
+
+### 验证
+
+- `npm test` 364 tests 全绿；vite build（`index-D99cNQZb.js`）
+- playwright 实测：控制台展开 LLM 配置 → 6 使用点全显示；mimo-v2.5 实测 1.4s 翻译成功；PUT 落盘 → 天璇容器读取覆盖生效（重建后）
+- 新闻标题存量补齐：covered 155/159、**中文 155（97.5%）**——点击几乎所有点都显示中文标题（4 个抓取失败 URL 属正常）
+
 ## [1.11.25] - 2026-08-16 · 修复点选被立即取消（v1.11.24 回归——点位 click 阻断冒泡）
 
 **修改理由**：用户反馈 v1.11.24 加了背景取消后「选不了点了」。
