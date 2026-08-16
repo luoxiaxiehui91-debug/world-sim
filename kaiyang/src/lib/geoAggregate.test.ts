@@ -50,18 +50,19 @@ describe('aggregateNewsGeo: 坐标格聚合', () => {
     expect(points).toHaveLength(1);
     expect(points[0].aggCount).toBe(2);
     // 代表事件 = mention 最高（Peking 20 > Beijing 10）
-    // 08-16 v1.11.19：label = URL slug 还原标题（聚合路径 buildPointFromEvent 同步）
-    expect(points[0].label).toBe('Beijing Protests Escalate');
+    // v1.11.21 定稿：label 回退 location_name（用户确认"第一行显示地址没问题"；
+    // 真实标题点击时按需抓取，见 EventPopup news-title 端点）
+    expect(points[0].label).toBe('Peking, Beijing, China');
     expect(childrenByPointId.get(points[0].id)).toHaveLength(2);
   });
 
-  it('08-16 v1.11.19：无 source_url → 聚合点 label fallback 中文事件类型；group 中文', () => {
+  it('v1.11.21：聚合点 label = location_name；group 中文（类型 · 国家）', () => {
     const { points } = aggregateNewsGeo(
       rawOf([
-        baseEvent({ id: 'e1', source_url: undefined }),
+        baseEvent({ id: 'e1' }),
       ]),
     );
-    expect(points[0].label).toBe('政治 类报道');
+    expect(points[0].label).toBe('Beijing, Beijing, China');
     // country 'China' 不在 COUNTRY_ZH（只有 CHN/USA 等码）→ 保留原值
     expect(points[0].group).toBe('政治 · China');
   });

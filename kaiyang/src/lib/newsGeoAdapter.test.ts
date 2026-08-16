@@ -178,61 +178,26 @@ describe('adaptNewsGeo: 字段容错与规整', () => {
 });
 
 /* ------------------------------------------------------------------ */
-/* 展示字段（08-16 v2：label = slug → 中文类型兜底；group 中文）           */
+/* 展示字段（v1.11.21 定稿：label = 地点名第一行；group 中文；真实标题    */
+/* 由点击时按需抓取——EventPopup news-title 端点）                        */
 /* ------------------------------------------------------------------ */
 describe('adaptNewsGeo: 展示字段', () => {
-  it('08-16 v2 label：source_url 有有效 slug → 取 slug 还原的英文标题（首字母大写）', () => {
-    const pts = adaptNewsGeo({
+  it('v1.11.21 label：第一行显示地点名（用户确认"地址没问题"）；缺失 → 回落 country', () => {
+    const withLoc = adaptNewsGeo({
       events: [
-        {
-          id: 'a',
-          lat: 0,
-          lng: 0,
-          event_type: 'political',
-          intensity: 30,
-          country: 'USA',
-          source_url: 'https://www.themarysue.com/federal-judge-threatens-doj-with-contempt-as.html',
-        },
+        { id: 'a', lat: 0, lng: 0, event_type: 'political', intensity: 30, country: 'USA', location_name: 'Xisha, Hunan, China' },
       ],
     });
-    // slug "federal-judge-threatens-doj-with-contempt-as" 47 字符 < 70 → 不截断，无 …
-    expect(pts[0].label).toBe('Federal Judge Threatens Doj With Contempt As');
+    const withoutLoc = adaptNewsGeo({
+      events: [
+        { id: 'b', lat: 0, lng: 0, event_type: 'political', intensity: 30, country: 'USA' },
+      ],
+    });
+    expect(withLoc[0].label).toBe('Xisha, Hunan, China');
+    expect(withoutLoc[0].label).toBe('USA');
   });
 
-  it('08-16 v2 label：无 source_url → fallback 到中文事件类型「政治 类报道」', () => {
-    const pts = adaptNewsGeo({
-      events: [
-        { id: 'a', lat: 0, lng: 0, event_type: 'political', intensity: 30, country: 'X' },
-      ],
-    });
-    expect(pts[0].label).toBe('政治 类报道');
-  });
-
-  it('08-16 v2 label：event_type=conflict → 「冲突 类报道」；protest → 「抗议 类报道」', () => {
-    const c = adaptNewsGeo({
-      events: [
-        { id: 'c', lat: 0, lng: 0, event_type: 'conflict', intensity: 30, country: 'X' },
-      ],
-    });
-    const p = adaptNewsGeo({
-      events: [
-        { id: 'p', lat: 0, lng: 0, event_type: 'protest', intensity: 30, country: 'X' },
-      ],
-    });
-    expect(c[0].label).toBe('冲突 类报道');
-    expect(p[0].label).toBe('抗议 类报道');
-  });
-
-  it('08-16 v2 label：未知 event_type → fallback 「unknown 类报道」（中文映射表兜底）', () => {
-    const pts = adaptNewsGeo({
-      events: [
-        { id: 'a', lat: 0, lng: 0, event_type: 'mysterious_type', intensity: 30, country: 'X' },
-      ],
-    });
-    expect(pts[0].label).toBe('mysterious_type 类报道');
-  });
-
-  it('08-16 v2 group：含中文事件类型 + 中文国家「冲突 · 伊朗」', () => {
+  it('v1.11.21 group：中文事件类型 + 中文国家「冲突 · 伊朗」', () => {
     const pts = adaptNewsGeo({
       events: [
         { id: 'a', lat: 0, lng: 0, event_type: 'conflict', intensity: 30, country: 'IRN' },
@@ -241,7 +206,7 @@ describe('adaptNewsGeo: 展示字段', () => {
     expect(pts[0].group).toBe('冲突 · 伊朗');
   });
 
-  it('08-16 v2 group：未映射国家保留 ISO 码「政治 · X」', () => {
+  it('v1.11.21 group：未映射国家保留 ISO 码「政治 · X」', () => {
     const pts = adaptNewsGeo({
       events: [
         { id: 'a', lat: 0, lng: 0, event_type: 'political', intensity: 30, country: 'X' },
@@ -443,9 +408,8 @@ describe('adaptNewsGeo: XSS 输入消毒', () => {
         },
       ],
     });
-    // 不可信 URL 被 sanitizeUrl 拒 → source_url=undefined → slug=null → label fallback 中文类型
-    expect(pts[0].label).not.toContain('<');
+    // 不可信 URL 被 sanitizeUrl 拒 → source_url=undefined；label 显示地点名
+    expect(pts[0].sourceUrl).toBeUndefined();
     expect(pts[0].label).not.toContain('javascript');
-    expect(pts[0].label).toBe('政治 类报道');
   });
 });

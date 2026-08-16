@@ -398,3 +398,22 @@ export async function getAllowedSchedules(
     true, // 补充端点
   );
 }
+
+/**
+ * 按需抓取新闻 URL 页面标题（08-16，EventPopup 弹框显示真实标题用）。
+ * 后端 /api/v1/control/news-title（天枢容器代理抓 <title>，SSRF 公网校验）。
+ * 失败/空标题 → null（弹框隐藏标题行，不阻塞）。
+ */
+export async function getNewsTitle(url: string): Promise<string | null> {
+  try {
+    const res = await apiFetch<{ title?: string }>(
+      `/news-title?url=${encodeURIComponent(url)}`,
+      {},
+      true, // 补充端点：失败静默
+    );
+    const t = (res?.title ?? '').trim();
+    return t ? t : null;
+  } catch {
+    return null;
+  }
+}

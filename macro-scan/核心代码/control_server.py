@@ -15,10 +15,15 @@ control_server.py — 天枢控制 API（A3a）
 
 鉴权：Bearer Token（CONTROL_TOKEN 环境变量，未设置则跳过鉴权）
 """
+import html
+import ipaddress
 import json
 import os
+import re
 import subprocess
 import time
+import urllib.parse
+import urllib.request
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -384,6 +389,77 @@ def get_operation(operation_id: str, request: Request):
 @app.get("/api/v1/control/health")
 def health():
     return {"status": "ok", "time": datetime.now().astimezone().isoformat(timespec="seconds")}
+
+
+# ── 新闻标题按需抓取（08-16，开阳弹框显示真实新闻标题）─────────────────────
+# GDELT GKG 事件无 title 字段；DOC API 标题回填被 429 限流。此端点按需抓取
+# 用户点击的新闻 URL 页面 <title>——比 URL slug 伪标题（v1.11.19 实测无意义）
+# 可靠得多。前端点击时调用 + localStorage 缓存，量小。
+_NEWS_UA = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+    ),
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+}
+# 天枢容器直连外网不可达（实测 Network unreachable）——抓标题必须走 NAS 代理
+_NEWS_PROXY_URL = os.environ.get("PROXY_URL", "http://192.168.31.108:7890")
+
+
+def _is_public_url(url: str) -> bool:
+    """SSRF 防护：仅放行公网 http/https（拒绝内网/回环/链路本地/保留地址）。"""
+    try:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        host = parsed.hostname
+        if not host:
+            return False
+        # 域名类直接放行（DNS 后可能指向内网，但那是页面自身内容，非本服务内网探测）
+        ip = None
+        try:
+            ip = ipaddress.ip_address(host)
+        except ValueError:
+            return True  # 域名，非字面 IP
+        return not (ip.is_private or ip.is_loopback or ip.is_link_local
+                    or ip.is_multicast or ip.is_reserved or ip.is_unspecified)
+    except Exception:
+        return False
+
+
+def _extract_title(body: bytes) -> str:
+    """从 HTML 提取 <title>（正则 + 实体解码 + 截断）。"""
+    try:
+        text = body.decode("utf-8", "ignore")
+    except Exception:
+        text = ""
+    m = re.search(r"<title[^>]*>(.*?)</title>", text, re.IGNORECASE | re.DOTALL)
+    if not m:
+        return ""
+    title = re.sub(r"<[^>]+>", "", m.group(1))
+    title = html.unescape(title).strip()
+    title = re.sub(r"\s+", " ", title)
+    return title[:200]
+
+
+@app.get("/api/v1/control/news-title")
+def news_title(url: str = "", request: Request = None):
+    """按需抓取新闻 URL 页面 <title>。返回 {"title": "..."}，失败/不可信返回空。
+    超时 6s + 只读前 64KB + SSRF 公网校验。"""
+    _check_token(request)
+    if not url or not _is_public_url(url):
+        return {"title": ""}
+    req = urllib.request.Request(url, headers=_NEWS_UA)
+    # 天枢容器直连外网不可达 → 走 NAS 代理（与 fetch_* 一致）；失败静默返回空
+    try:
+        proxy = urllib.request.ProxyHandler(
+            {"http": _NEWS_PROXY_URL, "https": _NEWS_PROXY_URL})
+        opener = urllib.request.build_opener(proxy)
+        with opener.open(req, timeout=6) as r:
+            body = r.read(65536)
+        return {"title": _extract_title(body)}
+    except Exception:
+        return {"title": ""}
 
 
 if __name__ == "__main__":

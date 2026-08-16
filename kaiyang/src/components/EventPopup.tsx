@@ -1,8 +1,21 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PALETTE, withAlpha } from '@/config/theme';
+import { getNewsTitle } from '@/lib/controlApi';
 import { sanitizeUrl } from '@/lib/newsGeoAdapter';
 import type { RiskPoint } from '@/lib/mapData';
 import type { NewsGeoEvent } from '@/types/contracts';
+
+/** 新闻标题缓存（url → title，localStorage FIFO 200 条）——点击过的点秒开不重复抓 */
+const TITLE_CACHE_KEY = 'kaiyang.newsTitles';
+
+function loadTitleCache(): Record<string, string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TITLE_CACHE_KEY) ?? '{}') as Record<string, string>;
+    return typeof raw === 'object' && raw !== null ? raw : {};
+  } catch {
+    return {};
+  }
+}
 
 /** 事件类型徽标色（四枚举 + 兜底；复用主题令牌，不硬编码新色）。 */
 function typeColor(eventType: string): string {
@@ -39,6 +52,39 @@ interface EventPopupProps {
  * 安全：所有文本经 React 默认转义渲染；链接 href 经 sanitizeUrl 消毒（仅 http/https）。
  */
 export function EventPopup({ point, related, onClose }: EventPopupProps) {
+  // 08-16：真实新闻标题按需抓取（后端 news-title 端点，代理抓 <title>）——
+  // GDELT events 无 title 字段 + DOC API 429，这是拿真实标题的可行路径。
+  const [newsTitle, setNewsTitle] = useState<string | null>(null);
+  const [loadingTitle, setLoadingTitle] = useState(false);
+  useEffect(() => {
+    const url = point.sourceUrl;
+    if (!url) return;
+    const cache = loadTitleCache();
+    if (cache[url]) {
+      setNewsTitle(cache[url]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingTitle(true);
+    getNewsTitle(url).then((t) => {
+      if (cancelled) return;
+      setLoadingTitle(false);
+      setNewsTitle(t);
+      if (t) {
+        const c = loadTitleCache();
+        c[url] = t;
+        const keys = Object.keys(c);
+        if (keys.length > 200) delete c[keys[0]]; // 简单 FIFO 淘汰
+        try {
+          localStorage.setItem(TITLE_CACHE_KEY, JSON.stringify(c));
+        } catch { /* 配额满静默 */ }
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [point.sourceUrl]);
+
   // v1.10.6 同新闻去重：同 source_url（GDELT 一篇报道常拆成多条事件）合并为一条，
   // 保留 mention_count 最高的条目，dup 标注合并数；无 URL 的按 id 保留。
   const items = useMemo(() => {
@@ -83,6 +129,10 @@ export function EventPopup({ point, related, onClose }: EventPopupProps) {
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
           {/* 选中点详情 */}
           <div className="mb-1.5 space-y-0.5 text-[10px] leading-snug text-white/50">
+            {loadingTitle && <div className="text-white/30">标题：加载中…</div>}
+            {!loadingTitle && newsTitle && (
+              <div className="text-[10px] font-medium text-white/70">标题：{newsTitle}</div>
+            )}
             {point.note && <div>时间：{point.note}</div>}
             {point.rawMetric && <div>强度：{point.rawMetric}</div>}
             <div>等级：{point.severity}</div>

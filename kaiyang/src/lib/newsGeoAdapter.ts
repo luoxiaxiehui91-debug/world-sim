@@ -231,19 +231,17 @@ export function adaptNewsGeo(
     const status: PointStatus = resolvePointStatus(undefined, value);
     const category: 'news' | 'conflict' = norm.event_type === 'conflict' ? 'conflict' : 'news';
 
-    // 08-16 v2：弹框第一行 label = "发生了什么"
-    // 优先 = URL slug 还原的伪标题（如 "Federal Judge Threatens Doj..."）；
-    // fallback = 中文事件类型（"政治类报道" / "冲突事件" / "抗议活动"）。
-    const slugTitle = urlSlugToTitle(norm.source_url);
+    // 08-16 v1.11.21：label 回退 location_name（用户确认"第一行显示地址没问题"；
+    // URL slug 伪标题实测无意义——slug 与真实新闻标题对不上）。真实标题改由
+    // 点击时按需抓取（后端 /api/v1/control/news-title，EventPopup 展示）。
     const typeZh = EVENT_TYPE_ZH[norm.event_type] ?? norm.event_type;
-    const label = slugTitle ?? `${typeZh} 类报道`;
 
     // 国家码中文
     const countryZh = COUNTRY_ZH[norm.country] ?? norm.country;
 
     out.push({
       id: `newsgeo:${norm.id}`,
-      label,
+      label: norm.location_name ?? norm.country,
       lat: norm.lat,
       lng: norm.lng,
       value,
