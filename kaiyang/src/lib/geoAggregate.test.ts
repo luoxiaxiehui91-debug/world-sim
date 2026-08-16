@@ -16,7 +16,7 @@ const baseEvent = (over: Partial<NewsGeoRaw['events'][number]> & { id: string })
   event_date: '20260810',
   theme: 'test',
   location_name: 'Beijing, Beijing, China',
-  source_url: 'https://example.com/a',
+  source_url: 'https://example.com/beijing-protests-escalate',
   ...over,
 });
 
@@ -50,8 +50,20 @@ describe('aggregateNewsGeo: 坐标格聚合', () => {
     expect(points).toHaveLength(1);
     expect(points[0].aggCount).toBe(2);
     // 代表事件 = mention 最高（Peking 20 > Beijing 10）
-    expect(points[0].label).toBe('Peking, Beijing, China');
+    // 08-16 v1.11.19：label = URL slug 还原标题（聚合路径 buildPointFromEvent 同步）
+    expect(points[0].label).toBe('Beijing Protests Escalate');
     expect(childrenByPointId.get(points[0].id)).toHaveLength(2);
+  });
+
+  it('08-16 v1.11.19：无 source_url → 聚合点 label fallback 中文事件类型；group 中文', () => {
+    const { points } = aggregateNewsGeo(
+      rawOf([
+        baseEvent({ id: 'e1', source_url: undefined }),
+      ]),
+    );
+    expect(points[0].label).toBe('政治 类报道');
+    // country 'China' 不在 COUNTRY_ZH（只有 CHN/USA 等码）→ 保留原值
+    expect(points[0].group).toBe('政治 · China');
   });
 
   it('不同坐标（不同格）→ 不合并，各自单点', () => {

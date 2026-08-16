@@ -6,7 +6,13 @@ import {
 } from '@/config/layerCategories';
 import { severityLabel } from '@/config/theme';
 import type { RiskPoint } from '@/lib/mapData';
-import { adaptNewsGeo, normalizeEvent } from '@/lib/newsGeoAdapter';
+import {
+  adaptNewsGeo,
+  normalizeEvent,
+  urlSlugToTitle,
+  EVENT_TYPE_ZH,
+  COUNTRY_ZH,
+} from '@/lib/newsGeoAdapter';
 import type { NewsGeoEvent, NewsGeoRaw } from '@/types/contracts';
 
 /**
@@ -94,21 +100,28 @@ interface GeoGroup {
   children: NewsGeoEvent[];
 }
 
-/** 单事件 → RiskPoint（与 adaptNewsGeo 循环体同构；独立实现避免跨模块重构回归）。 */
+/** 单事件 → RiskPoint（与 adaptNewsGeo 循环体同构；独立实现避免跨模块重构回归）。
+ * 08-16 v1.11.19 同步：label = URL slug 还原英文标题 → 中文事件类型兜底；
+ * group 中文（类型 · 国家）。此前只改了 adaptNewsGeo，聚合路径（WorldPanel 实际
+ * 消费入口）buildPointFromEvent 仍是 location_name 当 label —— 用户实测弹框
+ * 只有地点名，没有标题（v1.11.19 修漏的路径）。 */
 function buildPointFromEvent(norm: NewsGeoEvent): RiskPoint {
   const value = norm.intensity;
   const status: PointStatus = resolvePointStatus(undefined, value);
   const category: 'news' | 'conflict' =
     norm.event_type === 'conflict' ? 'conflict' : 'news';
+  const typeZh = EVENT_TYPE_ZH[norm.event_type] ?? norm.event_type;
+  const countryZh = COUNTRY_ZH[norm.country] ?? norm.country;
+  const slugTitle = urlSlugToTitle(norm.source_url);
   return {
     id: `newsgeo:${norm.id}`,
-    label: norm.location_name ?? norm.country,
+    label: slugTitle ?? `${typeZh} 类报道`,
     lat: norm.lat,
     lng: norm.lng,
     value,
     uncertainty: null,
     uncertaintyEstimated: false,
-    group: `${norm.event_type} · ${norm.country}`,
+    group: `${typeZh} · ${countryZh}`,
     status,
     color: categoryColor(category, status),
     severity: severityLabel(value),

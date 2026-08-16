@@ -16,7 +16,7 @@ import { PANELS } from '@/panels/registry';
 const ResponsiveGridLayout = WidthProvider(Responsive);
 const STORAGE_KEY = 'kaiyang.v6.panelLayout';
 const LAYOUT_KEY_PREFIX = 'kaiyang.';
-const APP_VERSION = '1.11.19';
+const APP_VERSION = '1.11.20';
 
 /** 从 panelRegistry 推导初始布局（3 行 × 12 栅格，Bloomberg/Grafana 情报面板范式）。 */
 function buildDefaultLayout(): Layout[] {
