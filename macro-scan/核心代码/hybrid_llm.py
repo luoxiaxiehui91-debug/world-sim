@@ -7,6 +7,7 @@ import requests
 import concurrent.futures
 from optim_config import ANTHROPIC_API_KEY
 from llm_usage import get_model as llm_usage_get_model
+from llm_usage import resolve
 
 _TMP_DIR = os.environ.get("TMPDIR", "/tmp")
 CLAUDECODE_PROMPT_FILE   = os.path.join(_TMP_DIR, "llm_prompt.txt")
@@ -196,14 +197,16 @@ def call_local(prompt: str, system: str = "", max_tokens: int = 2048) -> str:
 
 
 def call_openai_compat(prompt: str, system: str = "", max_tokens: int = 4096,
-                       model: str | None = None) -> str:
+                       model: str | None = None, usage: str | None = None) -> str:
     """用 OpenAI 兼容端点调用 LLM（如 MiMo），无需 openai 包，直接用 requests。
-    model 参数优先 → 配置覆盖（llm_usage openai_compat）→ 环境变量 OPENAI_COMPAT_MODEL。
-    08-16：接入 llm_usage 统一配置（开阳控制台可改）。"""
-    base_url = os.environ.get("OPENAI_COMPAT_URL", "").rstrip("/")
-    api_key  = os.environ.get("OPENAI_COMPAT_KEY") or ANTHROPIC_API_KEY
+    优先级：usage 配置（llm_usage resolve：base_url/api_key/model 全配置化）→
+    显式 model 参数 → env OPENAI_COMPAT_MODEL。08-16：接入 llm_usage 统一配置。"""
+    resolved = resolve(usage) if usage else None
+    base_url = (resolved or {}).get("base_url") or os.environ.get("OPENAI_COMPAT_URL", "").rstrip("/")
+    api_key  = (resolved or {}).get("api_key") or os.environ.get("OPENAI_COMPAT_KEY") or ANTHROPIC_API_KEY
     model    = (model
-                or llm_usage_get_model("openai_compat")
+                or (resolved or {}).get("model")
+                or llm_usage_get_model(usage or "openai_compat")
                 or os.environ.get("OPENAI_COMPAT_MODEL")
                 or os.environ.get("CLAUDE_MODEL", "gpt-4o"))
     if not base_url:

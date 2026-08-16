@@ -92,10 +92,28 @@ export interface LlmUsage {
   model: string;
   /** 是否被 llm_config.json 覆盖 */
   overridden: boolean;
+  /** 当前平台 id（08-16 v2：平台化配置） */
+  platform: string;
+  /** 平台显示名 */
+  platform_name: string;
+  /** 平台 base_url（展示用） */
+  base_url: string;
+  /** API key 脱敏（sk-***abcd）；未配置 = null */
+  api_key_masked: string | null;
+}
+
+/** 平台选项（内置 + 自定义；08-16 v2） */
+export interface LlmPlatform {
+  id: string;
+  name: string;
+  base_url: string;
+  models: string[];
+  default_model: string;
 }
 
 export interface LlmUsageResponse {
   usages: LlmUsage[];
+  platforms: LlmPlatform[];
 }
 
 /** 操作状态（GET /control/operations/{id} 响应） */

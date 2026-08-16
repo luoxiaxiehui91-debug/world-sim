@@ -3,20 +3,29 @@
 llm_usage.py — LLM 使用点统一登记 + 运行时配置（08-16，开阳控制台统一修改模型）
 
 背景：系统多处调用 LLM（MiMo / Claude / SiliconFlow / MiniMax），模型散落在环境变量
-与代码常量里，改模型要改代码或 compose env。此模块提供：
-  1. LLM_USAGES 静态清单（每个使用点的 id/名称/用途/默认模型/端点/所属容器）
-  2. llm_config.json 运行时配置（data 目录，天枢/天璇/天玑共享；配置优先于默认）
-  3. get_model(usage_id) —— 各调用点读取"配置覆盖的模型"（未配置返回 None，走默认）
+与代码常量里。此模块提供：
+  1. LLM_USAGES 静态清单（每个使用点的 id/名称/用途/默认平台/默认模型）
+  2. PLATFORMS 内置平台清单（id/名称/默认 base_url/预置模型列表）
+  3. llm_config.json 运行时配置（data 目录，天枢/天璇共享；配置优先于默认）
+  4. resolve(usage_id) —— 调用方按使用点解析 (base_url, api_key, model)
+  5. get_model / set_usage —— 控制 API 读写
 
-配置文件契约（data/llm_config.json，原子写）：
+配置文件契约（data/llm_config.json，v2.0，原子写）：
   {
-    "schema_version": "1.0",
+    "schema_version": "2.0",
     "updated": "ISO",
-    "usages": { "<usage_id>": {"model": "<model-name>"} }   # 只存被修改过的
+    "platforms": {                        # 用户自定义平台（可选；内置平台见 PLATFORMS）
+      "custom1": {"name": "公司内网", "base_url": "https://.../v1", "models": ["m1", "m2"]}
+    },
+    "usages": {                           # 使用点覆盖（只存被修改过的）
+      "translate_titles": {"platform": "mimo", "model": "mimo-v2.5", "api_key": "sk-..."}
+    }
   }
 
-接入方式（各调用点）：
-  model = get_model("translate_titles") or TRANSLATE_MODEL   # 配置优先，默认兜底
+接入方式：
+  from llm_usage import resolve, get_model
+  cfg = resolve("translate_titles")   # dict(base_url, api_key, model) 或 None
+  model = get_model("translate_titles") or TRANSLATE_MODEL
 """
 
 import datetime
@@ -33,33 +42,69 @@ DATA_DIR = os.environ.get(
 CONFIG_PATH = os.path.join(DATA_DIR, "llm_config.json")
 
 
+# ── 内置平台清单 ────────────────────────────────────────────────────
+# id → {name, base_url, models[预置模型，供前端下拉], default_model}
+PLATFORMS = {
+    "mimo": {
+        "name": "小米 MiMo",
+        "base_url": "https://token-plan-cn.xiaomimimo.com/v1",
+        "models": ["mimo-v2.5", "mimo-v2.5-pro"],
+        "default_model": "mimo-v2.5",
+    },
+    "siliconflow": {
+        "name": "硅基流动 SiliconFlow",
+        "base_url": "https://api.siliconflow.cn/v1",
+        "models": ["THUDM/GLM-Z1-9B-0414", "Qwen/Qwen3-8B", "Qwen/Qwen3.5-27B"],
+        "default_model": "THUDM/GLM-Z1-9B-0414",
+    },
+    "minimax": {
+        "name": "MiniMax",
+        "base_url": "https://api.minimaxi.com/v1",
+        "models": ["MiniMax-M3"],
+        "default_model": "MiniMax-M3",
+    },
+    "openai": {
+        "name": "OpenAI",
+        "base_url": "https://api.openai.com/v1",
+        "models": ["gpt-4o", "gpt-4o-mini", "o3-mini"],
+        "default_model": "gpt-4o",
+    },
+    "anthropic": {
+        "name": "Anthropic Claude",
+        "base_url": "https://api.anthropic.com/v1",
+        "models": ["claude-sonnet-4-6", "claude-opus-4-6"],
+        "default_model": "claude-sonnet-4-6",
+    },
+}
+
+
 # ── LLM 使用点静态清单 ────────────────────────────────────────────
-# default_model: None = 跟随环境变量/代码常量（配置未覆盖时）；str = 代码默认值
+# platform: 默认平台 id；default_model: None = 跟随平台默认/环境变量
 LLM_USAGES = [
     {
         "id": "translate_titles",
         "name": "新闻标题翻译",
         "purpose": "fetch_news_titles.py 标题英→中（LLM 逐条并发 4）",
+        "platform": "mimo",
         "default_model": "mimo-v2.5",
-        "endpoint": "MiMo (OPENAI_COMPAT_URL)",
         "container": "tianshu",
         "adjustable": True,
     },
     {
         "id": "openai_compat",
         "name": "通用 OpenAI 兼容",
-        "purpose": "hybrid_llm.call_openai_compat 无显式 model 的调用（含 run_macro_analysis 宏观分析）",
-        "default_model": None,  # 跟随 OPENAI_COMPAT_MODEL env
-        "endpoint": "MiMo (OPENAI_COMPAT_URL)",
+        "purpose": "hybrid_llm.call_openai_compat 无显式 usage 的调用（含 run_macro_analysis 宏观分析）",
+        "platform": "mimo",
+        "default_model": None,  # 跟随环境变量 OPENAI_COMPAT_MODEL
         "container": "tianshu",
         "adjustable": True,
     },
     {
         "id": "claude_reason",
         "name": "Claude 推理",
-        "purpose": "hybrid_llm.call_claude（reason mode=claude）",
+        "purpose": "hybrid_llm.call_claude（reason mode=claude；Anthropic 协议，仅改模型）",
+        "platform": "anthropic",
         "default_model": "claude-sonnet-4-6",
-        "endpoint": "Anthropic",
         "container": "tianshu",
         "adjustable": True,
     },
@@ -67,8 +112,8 @@ LLM_USAGES = [
         "id": "sim_mc",
         "name": "天璇 Monte Carlo",
         "purpose": "macro-sim llm_client SILICONFLOW_MODEL（MC 默认 GLM-Z1-9B）",
+        "platform": "siliconflow",
         "default_model": "THUDM/GLM-Z1-9B-0414",
-        "endpoint": "SiliconFlow",
         "container": "tianxuan",
         "adjustable": True,
     },
@@ -76,8 +121,8 @@ LLM_USAGES = [
         "id": "sim_narrative",
         "name": "天璇 叙事合成",
         "purpose": "macro-sim llm_client QWEN_LARGE（叙事用更强模型）",
+        "platform": "siliconflow",
         "default_model": "Qwen/Qwen3.5-27B",
-        "endpoint": "SiliconFlow",
         "container": "tianxuan",
         "adjustable": True,
     },
@@ -85,8 +130,8 @@ LLM_USAGES = [
         "id": "sim_minimax",
         "name": "天璇 MiniMax",
         "purpose": "macro-sim llm_client MINIMAX_MODEL（单次探索）",
+        "platform": "minimax",
         "default_model": "MiniMax-M3",
-        "endpoint": "MiniMax",
         "container": "tianxuan",
         "adjustable": True,
     },
@@ -105,14 +150,14 @@ def load_config() -> dict:
             return cfg
     except Exception:
         pass
-    return {"schema_version": "1.0", "usages": {}}
+    return {"schema_version": "2.0", "platforms": {}, "usages": {}}
 
 
 def save_config(cfg: dict) -> bool:
     """原子写 llm_config.json。返回是否成功。"""
     try:
         os.makedirs(DATA_DIR, exist_ok=True)
-        cfg["schema_version"] = "1.0"
+        cfg["schema_version"] = "2.0"
         cfg["updated"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         tmp = CONFIG_PATH + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -122,6 +167,18 @@ def save_config(cfg: dict) -> bool:
     except Exception as e:
         print(f"[llm_usage] 写配置失败: {e}")
         return False
+
+
+def _all_platforms() -> dict:
+    """内置平台 + 用户自定义平台合并。"""
+    cfg = load_config()
+    p = dict(PLATFORMS)
+    p.update(cfg.get("platforms") or {})
+    return p
+
+
+def get_platform(pid: str) -> dict | None:
+    return _all_platforms().get(pid)
 
 
 def get_model(usage_id: str) -> str | None:
@@ -134,36 +191,113 @@ def get_model(usage_id: str) -> str | None:
         return None
 
 
-def set_model(usage_id: str, model: str) -> tuple[bool, str]:
-    """控制台修改使用点模型。model 空 → 删除覆盖（回默认）。"""
+def resolve(usage_id: str) -> dict | None:
+    """按使用点解析完整调用配置 {base_url, api_key, model}。
+    配置覆盖（平台 + 模型 + key）> 使用点默认平台 + 默认模型。
+    未配置 → 返回 None（调用方走环境变量/代码默认）。
+    api_key 只从配置取；未配置 key 时返回 None（调用方 fallback env）。"""
+    if usage_id not in _USAGE_IDS:
+        return None
+    try:
+        u = load_config().get("usages", {}).get(usage_id) or {}
+        pid = u.get("platform")
+        plat = _all_platforms().get(pid) if pid else None
+        if not plat:
+            return None
+        base_url = (plat.get("base_url") or "").rstrip("/")
+        if not base_url:
+            return None
+        model = u.get("model") or plat.get("default_model")
+        return {
+            "base_url": base_url,
+            "api_key": u.get("api_key") or None,
+            "model": model,
+            "platform": pid,
+        }
+    except Exception:
+        return None
+
+
+def set_usage(usage_id: str, platform: str, model: str,
+              api_key: str | None = None) -> tuple[bool, str]:
+    """控制台修改使用点（平台 + 模型 + 可选 key）。platform 必须在清单内。
+    落盘时附带 base_url 展开值——天璇等跨容器消费者无需平台清单即可解析。"""
     if usage_id not in _USAGE_IDS:
         return False, f"未知使用点: {usage_id}"
+    platform = (platform or "").strip()
     model = (model or "").strip()
+    if not platform:
+        return False, "平台不能为空"
     if not model:
         return False, "模型名不能为空"
+    plat = _all_platforms().get(platform)
+    if not plat:
+        return False, f"未知平台: {platform}"
     cfg = load_config()
     cfg.setdefault("usages", {})
-    cfg["usages"][usage_id] = {"model": model}
+    entry = dict(cfg["usages"].get(usage_id) or {})
+    entry["platform"] = platform
+    entry["model"] = model
+    entry["base_url"] = (plat.get("base_url") or "").rstrip("/")
+    # api_key：显式传非空 → 更新；传 None → 保留原值（前端不发回显，避免覆盖）
+    if api_key is not None:
+        entry["api_key"] = api_key.strip() or None
+    cfg["usages"][usage_id] = entry
     if save_config(cfg):
         return True, "ok"
     return False, "写配置失败"
 
 
+def _mask_key(k: str | None) -> str | None:
+    if not k:
+        return None
+    if len(k) <= 8:
+        return "***"
+    return f"{k[:4]}***{k[-4:]}"
+
+
 def effective_models() -> list[dict]:
-    """清单 + 当前生效模型 + 是否被配置覆盖（给控制 API / 开阳展示）。"""
+    """清单 + 当前生效配置（给控制 API / 开阳展示；key 脱敏）。"""
     cfg = load_config().get("usages", {})
+    platforms = _all_platforms()
     out = []
     for u in LLM_USAGES:
-        override = cfg.get(u["id"], {}).get("model")
+        override = cfg.get(u["id"]) or {}
+        pid = override.get("platform") or u["platform"]
+        plat = platforms.get(pid) or {}
+        default_model = (u["default_model"]
+                         or plat.get("default_model")
+                         or "（env 默认）")
+        model = override.get("model") or default_model
         out.append({
             **u,
-            "model": override or u["default_model"] or "（env 默认）",
-            "overridden": bool(override),
+            "platform": pid,
+            "platform_name": plat.get("name") or pid,
+            "base_url": plat.get("base_url") or "",
+            "model": model,
+            "default_model": default_model,
+            "api_key_masked": _mask_key(override.get("api_key")),
+            "overridden": bool(override.get("platform") or override.get("model")),
         })
     return out
 
 
+def platform_options() -> list[dict]:
+    """平台选项清单（开阳下拉；内置 + 自定义）。"""
+    return [
+        {"id": pid, "name": p.get("name") or pid,
+         "base_url": p.get("base_url") or "", "models": p.get("models") or [],
+         "default_model": p.get("default_model") or ""}
+        for pid, p in _all_platforms().items()
+    ]
+
+
 if __name__ == "__main__":
+    print("=== 平台 ===")
+    for p in platform_options():
+        print(" ", p["id"], "|", p["name"], "|", p["base_url"])
+    print("=== 使用点 ===")
     for u in effective_models():
-        flag = " [配置覆盖]" if u["overridden"] else ""
-        print(f"{u['id']:<20} {u['container']:<10} {u['model']}{flag}  ({u['purpose'][:40]})")
+        flag = " [已覆盖]" if u["overridden"] else ""
+        key = f" | key={u['api_key_masked']}" if u["api_key_masked"] else ""
+        print(f"  {u['id']:<18} {u['platform']:<12} {u['model']}{flag}{key}")

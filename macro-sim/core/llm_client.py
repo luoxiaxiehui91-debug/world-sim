@@ -69,6 +69,7 @@ MINIMAX_KEY = _load_key("MINIMAX_API_KEY", "")
 # ── 客户端单例 ────────────────────────────────────────────
 _sf_client: Optional["OpenAI"] = None
 _mm_client: Optional["OpenAI"] = None
+_dynamic_clients: dict = {}   # base_url|keyprefix -> OpenAI 客户端（配置覆盖的平台）
 
 def _get_sf_client():
     global _sf_client
@@ -93,6 +94,47 @@ def _get_mm_client():
     return _mm_client
 
 
+# ── 配置解析（08-16：开阳控制台统一配置——平台/模型/API key 可换）─────────
+_usage_cache: Optional[dict] = None
+
+def _load_usage_cfg(usage_id: str) -> dict:
+    """读天枢共享 llm_config.json（挂载 /app/macro_data），返回该使用点配置。
+    配置由开阳控制台写（含 base_url/api_key/model 展开值）。"""
+    global _usage_cache
+    if _usage_cache is None:
+        try:
+            with open("/app/macro_data/llm_config.json", encoding="utf-8") as f:
+                _usage_cache = json.load(f).get("usages") or {}
+        except Exception:
+            _usage_cache = {}
+    return _usage_cache.get(usage_id) or {}
+
+
+def _get_dynamic_client(base_url: str, api_key: str) -> Optional["OpenAI"]:
+    """按配置的 base_url/api_key 建 OpenAI 兼容客户端（缓存 by url+key 前缀）。"""
+    if not HAS_OPENAI or not base_url or not api_key:
+        return None
+    key = base_url + "|" + api_key[:8]
+    if key not in _dynamic_clients:
+        _dynamic_clients[key] = OpenAI(api_key=api_key, base_url=base_url)
+    return _dynamic_clients[key]
+
+
+def _resolve_client(usage_id: str, default_client, default_key: str,
+                    default_base: str, default_model: str):
+    """返回 (client, model)。配置覆盖（platform 展开的 base_url+key+model）→ 动态客户端；
+    否则默认客户端 + 模型（含 _apply_llm_config 的常量覆盖）。"""
+    u = _load_usage_cfg(usage_id)
+    cfg_base = (u.get("base_url") or "").rstrip("/")
+    cfg_key = u.get("api_key") or ""
+    cfg_model = u.get("model") or ""
+    if cfg_base and cfg_key:
+        client = _get_dynamic_client(cfg_base, cfg_key)
+        if client is not None:
+            return client, cfg_model or default_model
+    return default_client(), cfg_model or default_model
+
+
 # ── 核心调用函数 ──────────────────────────────────────────
 def call_llm(
     prompt: str,
@@ -102,12 +144,17 @@ def call_llm(
 ) -> str:
     """
     调用 LLM，返回原始文本。
-    use_minimax=False → GLM-Z1-9B（硅基流动，免费，Monte Carlo 用）
-    use_minimax=True  → MiniMax-M3（单次探索用）
+    use_minimax=False → sim_mc（Monte Carlo，默认 GLM-Z1-9B / 硅基流动）
+    use_minimax=True  → sim_narrative（叙事，默认 Qwen3.5-27B）
+    08-16：走开阳控制台统一配置（llm_config.json 可换平台/模型/API key）；
     失败时返回空字符串，不抛异常。
     """
-    client = _get_sf_client()
-    model  = SILICONFLOW_MODEL_QWEN_LARGE if use_minimax else SILICONFLOW_MODEL
+    usage_id = "sim_narrative" if use_minimax else "sim_mc"
+    client, model = _resolve_client(
+        usage_id,
+        _get_sf_client, SILICONFLOW_KEY, SILICONFLOW_BASE_URL,
+        SILICONFLOW_MODEL_QWEN_LARGE if use_minimax else SILICONFLOW_MODEL,
+    )
 
     for attempt in range(max_retries):
         try:

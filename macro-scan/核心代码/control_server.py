@@ -467,32 +467,35 @@ def news_title(url: str = "", request: Request = None):
 # ── LLM 使用点配置（08-16：开阳控制台统一修改模型）─────────────────────
 @app.get("/api/v1/control/llm-usage")
 def llm_usage_list(request: Request = None):
-    """LLM 使用点清单 + 当前生效模型（开阳控制台 LLM 配置面板数据源）。"""
+    """LLM 使用点清单 + 当前生效配置 + 平台选项（开阳 LLM 配置面板数据源）。"""
     _check_token(request)
     try:
-        from llm_usage import effective_models
-        return {"usages": effective_models()}
+        from llm_usage import effective_models, platform_options
+        return {"usages": effective_models(), "platforms": platform_options()}
     except Exception as e:
         return {"error": str(e)}
 
 
 @app.put("/api/v1/control/llm-usage/{usage_id}")
 async def llm_usage_update(usage_id: str, request: Request):
-    """修改 LLM 使用点模型（写 data/llm_config.json，原子写，下次调用生效）。"""
+    """修改 LLM 使用点（平台 + 模型 + 可选 API key；写 data/llm_config.json，原子写）。
+    api_key 字段可选：传非空更新，缺省保留原值（前端不回显明文）。"""
     _check_token(request)
     try:
         body = await request.json()
     except Exception:
         body = {}
+    platform = (body.get("platform") or "").strip()
     model = (body.get("model") or "").strip()
+    api_key = body.get("api_key")
     try:
-        from llm_usage import set_model
-        ok, msg = set_model(usage_id, model)
+        from llm_usage import set_usage
+        ok, msg = set_usage(usage_id, platform, model, api_key)
     except Exception as e:
         return {"ok": False, "error": str(e)}
     if not ok:
         return {"ok": False, "error": msg}
-    return {"ok": True, "usage_id": usage_id, "model": model}
+    return {"ok": True, "usage_id": usage_id, "platform": platform, "model": model}
 
 
 if __name__ == "__main__":
