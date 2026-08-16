@@ -9,6 +9,26 @@ import type { ReportMeta, ReportsIndexRaw } from '@/types/contracts';
 /** 分组展示顺序（天枢产出的全部类型；未列出的类型追加在末尾）。 */
 const TYPE_ORDER = ['宏观分析', '月度简报', '假设推演', '演化仿真', '预测追踪'];
 
+/** 时间过滤分段（null = 全部）。 */
+const FILTER_OPTIONS: Array<{ label: string; days: number | null }> = [
+  { label: '全部', days: null },
+  { label: '近7天', days: 7 },
+  { label: '近30天', days: 30 },
+];
+
+/** 解析 YYYY-MM-DD 为本地 Date（显式拆分量，避免 JS 对 date-only 字符串按 UTC 解析的坑）。 */
+function parseDateOnly(s: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+/** 本地今天 YYYY-MM-DD。 */
+function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** 类型 → 主题色（走主题令牌，不硬编码新色）。 */
 function typeColor(type: string): string {
   const MAP: Record<string, string> = {
@@ -50,6 +70,26 @@ function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+/** 展开全部组（双下箭头，SVG）。 */
+function ExpandAllIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 12 15 18 9" />
+      <polyline points="6 3 12 9 18 3" />
+    </svg>
+  );
+}
+
+/** 收起全部组（双右箭头，SVG）。 */
+function CollapseAllIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 6 15 12 9 18" />
+      <polyline points="3 6 9 12 3 18" />
+    </svg>
+  );
+}
+
 /**
  * R-1 报告面板：按类型分组的报告列表 + markdown 内容阅读。
  * 数据源 = 天枢 reports_index.json（nginx 只读挂载 /data/）+ data/reports/*.md。
@@ -57,8 +97,18 @@ function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
  */
 export function ReportsPanel() {
   const { data, loading, error } = useFeed<ReportsIndexRaw>('reports_index');
-  const groups = useMemo(() => groupReports(data?.reports), [data]);
-  const total = useMemo(() => data?.reports?.length ?? 0, [data]);
+  // v1.11.28：时间过滤（全部 / 近7天 / 近30天），按 updated 日期裁剪
+  const [daysFilter, setDaysFilter] = useState<number | null>(null);
+  const filtered = useMemo(() => {
+    if (!data?.reports || daysFilter === null) return data?.reports;
+    const cutoff = Date.now() - daysFilter * 86_400_000;
+    return data.reports.filter((r) => {
+      const d = parseDateOnly(r.updated);
+      return d !== null && d.getTime() >= cutoff;
+    });
+  }, [data, daysFilter]);
+  const groups = useMemo(() => groupReports(filtered), [filtered]);
+  const total = useMemo(() => filtered?.length ?? 0, [filtered]);
 
   const [selected, setSelected] = useState<ReportMeta | null>(null);
   const [md, setMd] = useState<string>('');
@@ -70,6 +120,12 @@ export function ReportsPanel() {
   const [collapsed, setCollapsed] = useState(false);
   // v1.10.2 分类折叠：按报告 type 折叠/展开（默认全部展开；与 LayerTreePanel openPhases 同模式）
   const [collapsedTypes, setCollapsedTypes] = useState<ReadonlySet<string>>(new Set());
+
+  // v1.11.28 全开/全关：当前无折叠 → 收起全部组；否则展开全部
+  const allExpanded = collapsedTypes.size === 0;
+  const toggleAllGroups = useCallback(() => {
+    setCollapsedTypes((prev) => (prev.size === 0 ? new Set(groups.map((g) => g.type)) : new Set()));
+  }, [groups]);
 
   const toggleTypeCollapsed = useCallback((type: string) => {
     setCollapsedTypes((prev) => {
@@ -102,10 +158,13 @@ export function ReportsPanel() {
     window.addEventListener('mouseup', onUp);
   }
 
-  // 首次加载到数据时默认选中第一份（组序 + 组内排序的第一条）
+  // 选中跟随可见列表：首次加载选第一条；时间过滤后原选中被裁掉时，重置到过滤后第一条
   useEffect(() => {
-    if (!selected && groups.length > 0 && groups[0].items.length > 0) {
-      setSelected(groups[0].items[0]);
+    if (groups.length === 0) return;
+    const visibleIds = new Set(groups.flatMap((g) => g.items).map((r) => r.id));
+    if (!selected || !visibleIds.has(selected.id)) {
+      const first = groups[0]?.items[0];
+      if (first) setSelected(first);
     }
   }, [groups, selected]);
 
@@ -138,6 +197,15 @@ export function ReportsPanel() {
       <div className="panel-title flex items-center justify-between">
         <span className="flex items-center gap-1.5">
           报告中心
+          {/* v1.11.28 全开/全关（SVG：双下箭头=展开全部，双右箭头=收起全部） */}
+          <button
+            type="button"
+            onClick={toggleAllGroups}
+            title={allExpanded ? '收起全部分组' : '展开全部分组'}
+            className="rounded border border-white/10 p-0.5 text-white/40 transition-colors hover:border-white/30 hover:text-white/80"
+          >
+            {allExpanded ? <CollapseAllIcon /> : <ExpandAllIcon />}
+          </button>
           <button
             type="button"
             onClick={() => setCollapsed((v) => !v)}
@@ -147,8 +215,29 @@ export function ReportsPanel() {
             <SidebarToggleIcon collapsed={collapsed} />
           </button>
         </span>
-        <span className="text-[10px] font-normal text-white/30">
-          {loading ? '加载中…' : `${total} 份 · 更新 ${fmtRelative(data?.updated)}`}
+        <span className="flex items-center gap-2 text-[10px] font-normal text-white/30">
+          {/* v1.11.28 时间过滤分段 */}
+          <span className="flex items-center overflow-hidden rounded border border-white/10">
+            {FILTER_OPTIONS.map((opt) => {
+              const active = daysFilter === opt.days;
+              return (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => setDaysFilter(opt.days)}
+                  title={opt.days === null ? '显示全部报告' : `只看最近 ${opt.days} 天`}
+                  className={`px-1.5 py-0.5 text-[9px] leading-none transition-colors ${
+                    active ? 'bg-white/15 text-white/90' : 'text-white/35 hover:text-white/70'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </span>
+          <span>
+            {loading ? '加载中…' : `${total} 份 · 更新 ${fmtRelative(data?.updated)}`}
+          </span>
         </span>
       </div>
 
@@ -227,7 +316,13 @@ export function ReportsPanel() {
                               <div className="truncate text-[11px] leading-snug" style={{ color: active ? withAlpha(PALETTE.text, 0.95) : withAlpha(PALETTE.text, 0.72) }}>
                                 {r.title}
                               </div>
-                              <div className="text-[9px] text-white/30">{r.updated}</div>
+                              {/* v1.11.28：今天的报告以强调色显示"今天"，其余显示日期灰字 */}
+                              <div
+                                className="text-[9px]"
+                                style={{ color: r.updated === todayStr() ? withAlpha(PALETTE.teal, 0.85) : 'rgba(255,255,255,0.30)' }}
+                              >
+                                {r.updated === todayStr() ? '今天' : r.updated}
+                              </div>
                             </button>
                           );
                         })}
