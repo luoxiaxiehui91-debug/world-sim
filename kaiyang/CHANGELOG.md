@@ -5,6 +5,21 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.21] - 2026-08-16 · 真实新闻标题按需抓取 + label 回退地点名
+
+**修改理由**：用户实测反馈两件事——① "第一行显示地址是没问题的"（v1.11.19/20 的 URL slug 伪标题方案应回退）；② slug 与真实新闻标题对不上（如外交部记者会实录 URL 最后一段 `remarks-on-august-14-2026`，不是 "Foreign Ministry Spokesperson Guo Jiakun's Remarks"）——**要的是真实新闻标题**。
+
+### 修改
+
+- **后端 `control_server.py`**：新增 `GET /api/v1/control/news-title?url=`——按需抓取新闻 URL 页面 `<title>`（天枢容器走 NAS 代理 7890；SSRF 公网校验 `ipaddress`；超时 6s + 只读 64KB + html 实体解码 + 截断 200）。实测 `https://example.com` → `Example Domain`
+- **`lib/newsGeoAdapter.ts` / `lib/geoAggregate.ts`**：label 回退 `location_name`（第一行地址）；group 保留中文（`政治 · 美国`）
+- **`components/EventPopup.tsx`**：点击时按需抓取真实标题，详情区显示 `标题：xxx`（加载中/失败隐藏）；localStorage 缓存 url→title（FIFO 200 条）——点过的点秒开
+- **`lib/controlApi.ts`**：新增 `getNewsTitle(url)`（走 apiFetch 自动带 token + 信任校验，补充端点失败静默）
+
+### 验证
+
+- `npm test` 364 tests 全绿；vite build（`index-BzEZqWk_.js`）；后端实测 news-title 端点（example.com → Example Domain / 内网 IP 拒绝 / 无 token 401）
+
 ## [1.11.20] - 2026-08-16 · 地区新闻弹框标题真正生效（聚合路径 buildPointFromEvent 同步）
 
 **修改理由**：v1.11.19 只改了 `adaptNewsGeo`，但用户实测弹框依旧只有地点名、无标题——WorldPanel 实际消费入口是 `aggregateNewsGeo`（geoAggregate.ts），事件走**独立实现** `buildPointFromEvent`（label 仍是 location_name）。改错路径，本轮补齐。
