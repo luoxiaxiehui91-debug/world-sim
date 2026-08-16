@@ -5,6 +5,20 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.14] - 2026-08-16 · H01 randomUUID LAN 崩溃 + H02 token 外泄通道
+
+**修改理由**：审查 H01/H02——① LAN HTTP（非安全上下文）下 `crypto.randomUUID()` 不可用（抛 TypeError），控制面板 showToast/addLog/重跑 idempotencyKey 7 处调用点按钮即崩；② localStorage 可覆盖 API 地址 + token 无条件自动附带 = token 外泄通道（恶意 URL 注入 → Bearer token 发往任意服务器）。
+
+### 修改
+
+- **新增 `lib/uuid.ts` `safeUuid()`**：优先 `crypto.randomUUID()`，不可用时 fallback RFC4122 v4 拼装（不依赖 crypto.getRandomValues——LAN HTTP 同样受限）；替换 7 处调用（FetcherCard ×3 / ControlContext ×2 / TianshuTab ×1 / controlApi mock ×1）
+- **`lib/controlApi.ts` H02**：`buildHeaders()` 仅对**信任来源**（`192.168.31.108` / `localhost` / `127.0.0.1`）附带 Bearer token——localStorage 注入恶意 URL 时 token 不外泄（非信任 host 请求无 token → 后端 fail-closed 401）
+
+### 验证
+
+- `npm test` 352 tests 全绿；vite build（`index-BjI6VSDl.js` / `index-1XkBUX4y.css`）
+- playwright 实测（LAN HTTP）：控制台打开 → 点「重跑」→ **无 pageerror** + "重跑已提交 · op_c7b759f5" toast 正常（H01 fallback 生效）；fetcher 列表加载正常（token 信任校验下请求成功，H02 未破坏正常路径）
+
 ## [1.11.13] - 2026-08-16 · H18 sim_trigger 三端契约（schema tile 读取失败清零）+ schema_version 显示
 
 **修改理由**：审查 H18——sim_trigger.json 三方语义冲突：天枢写触发标志 → 天璇读后 `write_text("")` 清空（0 字节）→ 开阳当持久状态 fetch → `JSON.parse('')` 崩 → schema tile 显示「读取失败:sim_trigger.json」；另 schema tile 有 6 条版本告警（3 缺字段 + 3 写 "1"≠"1.0"）。

@@ -29,6 +29,7 @@ import {
 } from '@/config/controlConfig';
 import { setApiToken } from '@/lib/controlApi';
 import { readLogs, appendLog, writeLogs } from '@/lib/operationLog';
+import { safeUuid } from '@/lib/uuid';
 
 // ── 初始状态 ───────────────────────────────────────────────
 
@@ -169,7 +170,7 @@ export function ControlProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const showToast = useCallback((toast: Omit<ToastMessage, 'id'>) => {
-    const id = crypto.randomUUID();
+    const id = safeUuid();
     dispatch({ type: 'ADD_TOAST', toast: { ...toast, id } });
   }, []);
 
@@ -181,7 +182,7 @@ export function ControlProvider({ children }: { children: ReactNode }) {
     (entry: Omit<OperationLogEntry, 'id' | 'timestamp'>) => {
       const full: OperationLogEntry = {
         ...entry,
-        id: crypto.randomUUID(),
+        id: safeUuid(),
         timestamp: new Date().toISOString(),
       };
       dispatch({ type: 'ADD_LOG', entry: full });

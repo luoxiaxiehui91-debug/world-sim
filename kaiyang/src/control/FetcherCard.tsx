@@ -11,6 +11,7 @@ import { ProgressCard } from '@/control/ProgressCard';
 import { FrequencySelector } from '@/control/FrequencySelector';
 import { ConfirmDialog } from '@/control/ConfirmDialog';
 import type { Fetcher, PendingOperation } from '@/types/control';
+import { safeUuid } from '@/lib/uuid';
 
 /** 状态指示灯配置 */
 const STATUS_STYLES: Record<
@@ -125,7 +126,7 @@ export function FetcherCard({
 
   const handleRerun = useCallback(async () => {
     if (locked) return;
-    const idempotencyKey = crypto.randomUUID();
+    const idempotencyKey = safeUuid();
     lockFetcher(fetcher.id);
 
     try {
@@ -163,7 +164,7 @@ export function FetcherCard({
 
   const handlePause = useCallback(async () => {
     if (locked) return;
-    const idempotencyKey = crypto.randomUUID();
+    const idempotencyKey = safeUuid();
     lockFetcher(fetcher.id);
 
     try {
@@ -196,7 +197,7 @@ export function FetcherCard({
 
   const handleResume = useCallback(async () => {
     if (locked) return;
-    const idempotencyKey = crypto.randomUUID();
+    const idempotencyKey = safeUuid();
     lockFetcher(fetcher.id);
 
     try {

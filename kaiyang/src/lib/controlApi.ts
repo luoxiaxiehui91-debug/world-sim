@@ -5,6 +5,7 @@
  */
 
 import { API_BASE_URL, MOCK_ENABLED, API_TIMEOUT_MS } from '@/config/controlConfig';
+import { safeUuid } from '@/lib/uuid';
 import type {
   FetcherListResponse,
   RerunRequest,
@@ -103,7 +104,7 @@ function createMockOperation(
   fetcherIds: string[],
   idempotencyKey: string,
 ): RerunResponse {
-  const operationId = `op_mock_${crypto.randomUUID().slice(0, 8)}`;
+  const operationId = `op_mock_${safeUuid().slice(0, 8)}`;
   const now = new Date().toISOString();
 
   const status: OperationStatus = {
@@ -171,6 +172,22 @@ export function setApiToken(token: string | null): void {
   activeToken = token;
 }
 
+/**
+ * 信任的 Control API 来源（H02 修复, 2026-08-16）：
+ * localStorage 可覆盖 API_BASE_URL（kaiyang_control_api_base_url），若被注入
+ * 恶意 URL，token 自动附带会外泄。token 只发往本机回环或 NAS 局域网地址。
+ */
+const TRUSTED_CONTROL_HOSTS = new Set(['192.168.31.108', 'localhost', '127.0.0.1']);
+
+function isTrustedControlBase(): boolean {
+  try {
+    const u = new URL(API_BASE_URL);
+    return TRUSTED_CONTROL_HOSTS.has(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
 // ── 通用 fetch 封装 ────────────────────────────────────────
 
 /** 构建完整 API URL */
@@ -180,13 +197,13 @@ function apiUrl(path: string): string {
   return `${base}${p}`;
 }
 
-/** 构建请求头（含 Bearer Token） */
+/** 构建请求头（含 Bearer Token——仅对信任来源附带，H02） */
 function buildHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
   };
-  if (activeToken) {
+  if (activeToken && isTrustedControlBase()) {
     headers['Authorization'] = `Bearer ${activeToken}`;
   }
   return headers;

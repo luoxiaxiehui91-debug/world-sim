@@ -12,6 +12,7 @@ import { rerunFetchers } from '@/lib/controlApi';
 import { FetcherCard } from '@/control/FetcherCard';
 import { TokenSetup } from '@/control/TokenSetup';
 import type { Fetcher } from '@/types/control';
+import { safeUuid } from '@/lib/uuid';
 
 /** 搜索过滤 fetcher */
 function filterFetchers(fetchers: Fetcher[], query: string): Fetcher[] {
@@ -124,7 +125,7 @@ export function TianshuTab() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
 
-    const idempotencyKey = crypto.randomUUID();
+    const idempotencyKey = safeUuid();
     const lockedIds: string[] = [];
 
     // 先锁定所有选中的 fetcher
