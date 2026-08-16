@@ -45,6 +45,8 @@ export interface FlatMapPanelProps {
   region?: RegionKey;
   focusPointId?: string | null;
   onPointClick?: (point: RiskPoint) => void;
+  /** 08-16：点击地图空白处（未命中任何点位）→ 取消选中/聚焦（用户反馈：点空白无法取消选中圈） */
+  onBackgroundClick?: () => void;
 }
 
 /** tooltip 定位信息 */
@@ -129,6 +131,7 @@ export function FlatMapPanel({
   region = 'world',
   focusPointId = null,
   onPointClick,
+  onBackgroundClick,
 }: FlatMapPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -251,6 +254,15 @@ export function FlatMapPanel({
     svg.call(zoom);
     svg.on('dblclick.zoom', () => {
       svg.call(zoom.transform, d3zoom.zoomIdentity);
+    });
+
+    // 08-16：点击空白（未命中点位）→ 上层取消选中（用户反馈：选中圈无法通过点空白取消）。
+    // 点位 group 自带 click 处理（.on('click')）且冒泡到 svg——用 closest 判断 target
+    // 是否点位/聚焦环，是则跳过（交给点位自己的 handler），否则视为背景点击。
+    svg.on('click.background', (event: MouseEvent) => {
+      const t = event.target as Element | null;
+      if (t && t.closest?.('.fm-point-group, .fm-focus-ring, .fm-site-group')) return;
+      onBackgroundClick?.();
     });
 
     // 底图：陆地填充

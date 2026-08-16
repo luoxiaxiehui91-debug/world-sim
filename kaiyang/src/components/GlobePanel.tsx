@@ -32,6 +32,8 @@ export interface GlobePanelProps {
   focusPointId?: string | null;
   /** 点击点位回调（供上层反向选中） */
   onPointClick?: (point: RiskPoint) => void;
+  /** 08-16：点击空白（未命中任何对象）→ 取消选中/聚焦（与平面视图一致） */
+  onBackgroundClick?: () => void;
 }
 
 /**
@@ -131,6 +133,7 @@ export function GlobePanel({
   region = 'world',
   focusPointId = null,
   onPointClick,
+  onBackgroundClick,
 }: GlobePanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   // globe.gl 无官方 TS 类型，统一按 any 处理（保持与既有实现一致）
@@ -346,6 +349,11 @@ export function GlobePanel({
       if (typeof world.onPointClick === 'function') {
         world.onPointClick(onPointClick ? (p: RiskPoint) => onPointClick(p) : () => {});
       }
+      // 08-16：点击空白（未命中点/弧/要地）→ 上层取消选中（globe.gl onClick = 背景点击回调；
+      // 与平面视图 onBackgroundClick 语义一致，用户反馈点空白无法取消选中圈）
+      if (typeof world.onClick === 'function') {
+        world.onClick(onBackgroundClick ? () => onBackgroundClick() : () => {});
+      }
 
       // 高风险点位脉冲光环（能力探测，缺失则跳过）；事件告警柱始终带光环。
       // 决策 C2-A：status='missing' 的点一律不参与光环——「无数据」不许看起来像「在活动」。
@@ -453,7 +461,7 @@ export function GlobePanel({
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [points, arcs, sites, siteLabelsOn, focusPointId, onPointClick, labeledPoints]);
+  }, [points, arcs, sites, siteLabelsOn, focusPointId, onPointClick, onBackgroundClick, labeledPoints]);
 
   return (
     <div ref={containerRef} className="globe-stage relative h-full w-full overflow-hidden rounded-xl">

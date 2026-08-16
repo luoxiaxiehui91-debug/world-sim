@@ -368,6 +368,13 @@ export function WorldPanel() {
     [selectSignal, focusPointId],
   );
 
+  // 08-16：点击地图空白 / 关闭弹框 → 取消选中 + 关弹框（用户反馈：只有再点同点/他点
+  // 才能取消——点空白、关菜单都不行）。selectSignal(null, null) 同时清信号行选中和地图聚焦。
+  const handleBackgroundClick = useCallback(() => {
+    selectSignal(null, null);
+    setPopupPoint(null);
+  }, [selectSignal]);
+
   return (
     <div className="glass-panel scanlines flex h-full min-h-[560px] flex-col">
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -457,6 +464,7 @@ export function WorldPanel() {
               region={region}
               focusPointId={focusPointId}
               onPointClick={handlePointClick}
+              onBackgroundClick={handleBackgroundClick}
             />
           </div>
 
@@ -472,6 +480,7 @@ export function WorldPanel() {
               region={region}
               focusPointId={focusPointId}
               onPointClick={handlePointClick}
+              onBackgroundClick={handleBackgroundClick}
             />
           </div>
 
@@ -492,7 +501,7 @@ export function WorldPanel() {
               point={popupPoint}
               related={popupChildren}
               titleMap={newsTitleMap}
-              onClose={() => setPopupPoint(null)}
+              onClose={handleBackgroundClick}
             />
           )}
         </div>
