@@ -150,9 +150,13 @@ export function WorldPanel() {
   const { data: nuclearRaw } = useFeed<NuclearSitesRaw>('nuclearSites');
   // 1.6.0 新增：地理新闻读取层骨架。feed 缺失 / 空 events 适配为 []（K5 不白屏）
   const { data: newsGeoRaw } = useFeed<NewsGeoRaw>('news_geo');
-  // 08-16：新闻标题预抓缓存（静态文件；EventPopup 弹框真实标题秒读，未命中走 API 兜底）
+  // 08-16：新闻标题预抓缓存（静态文件；EventPopup 弹框真实标题秒读，未命中走 API 兜底）。
+  // titles_zh（LLM 中文翻译）覆盖 titles（英文）——弹框优先显示中文标题。
   const { data: newsTitlesRaw } = useFeed<NewsTitlesRaw>('news_titles');
-  const newsTitleMap = useMemo(() => newsTitlesRaw?.titles ?? {}, [newsTitlesRaw]);
+  const newsTitleMap = useMemo(
+    () => ({ ...(newsTitlesRaw?.titles ?? {}), ...(newsTitlesRaw?.titles_zh ?? {}) }),
+    [newsTitlesRaw],
+  );
   // 08-14 aircraft 子图层：OpenSky 实时航班（feed 缺失 → []，K5 不白屏）
   const { data: airRaw } = useFeed<AirTrafficRaw>('airtraffic');
   // 08-14 air 图层：全球航线网（OpenFlights 静态结构数据，feed 缺失 → []）

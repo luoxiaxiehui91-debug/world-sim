@@ -244,13 +244,15 @@ export interface NewsGeoRaw {
   events: NewsGeoEvent[];
 }
 
-/** news_titles.json（08-16：新闻标题预抓缓存，url→title 映射）。 */
+/** news_titles.json（08-16：新闻标题预抓缓存，url→title 映射 + LLM 中文翻译）。 */
 export interface NewsTitlesRaw {
   schema_version?: string;
   fetched_at?: string;
   total?: number;
   covered?: number;
   titles?: Record<string, string>;
+  /** LLM 翻译的中文标题（url→中文；缺失时前端 fallback 英文 titles） */
+  titles_zh?: Record<string, string>;
 }
 
 /* ------------------------------------------------------------------ */
