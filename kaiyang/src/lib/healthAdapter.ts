@@ -31,6 +31,7 @@ export function adaptHealth(raw: HealthGeoRaw | null): RiskPoint[] {
       continue;
     }
     const kw = (e.keywords ?? []).join('/');
+    const media = (e.source_media ?? '').trim();
     const when = e.date ? `${e.date.slice(0, 4)}-${e.date.slice(4, 6)}-${e.date.slice(6, 8)} ${e.date.slice(8, 10)}:${e.date.slice(10, 12)} UTC` : '';
     points.push({
       id: `health:${i}:${(e.doc ?? 'x').slice(-40)}`,
@@ -47,7 +48,15 @@ export function adaptHealth(raw: HealthGeoRaw | null): RiskPoint[] {
       weight: 0.5, // 统一大小（事件无大小语义）
       category: 'health',
       shape: categoryShape('health'),
-      note: [kw ? `类型 ${kw}` : '', e.loc_name ?? '', when].filter(Boolean).join(' · '),
+      // 08-16：note 关联新闻——来源媒体 + 报道链接（doc URL）。GKG 无标题列，
+      // 媒体域名是"新闻关联"的最佳可用信号；标注来源可信度（媒体提及非官方确认）。
+      note: [
+        kw ? `类型 ${kw}` : '',
+        media ? `${media} 报道` : '',
+        e.loc_name ?? '',
+        when,
+        e.doc ? `原文 ${e.doc}` : '',
+      ].filter(Boolean).join(' · '),
     });
   }
   return points;

@@ -134,6 +134,9 @@ class HealthGeoFetcher(FetcherBase):
                     "lng": round(loc[2], 4),
                     "loc_name": loc[0],
                     "keywords": kw,
+                    # 08-16 补充：来源媒体域名（GKG cols[3] SourceCommonName，
+                    # 实测确认；GKG 2.0 CSV 无标题列，媒体名是"新闻关联"的最佳可用信号）
+                    "source_media": (cols[3] or "").strip() if len(cols) > 3 else "",
                 })
         return events
 
@@ -188,7 +191,11 @@ class HealthGeoFetcher(FetcherBase):
             slots.reverse()
         if not slots:
             self.logger.info("[health_geo] 无新 slot（已是最新）")
-            return {"status": Status.OK, "new_events": 0, "slots_checked": 0, "events": self._load_events()}
+            # 08-16：无新事件也走回填 + 落盘（历史事件补 source_media）
+            events = self._backfill_source_media(self._load_events())
+            as_of = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            self._persist(events, as_of)
+            return {"status": Status.OK, "new_events": 0, "slots_checked": 0, "events": events}
 
         new_events = []
         checked = 0
@@ -211,6 +218,19 @@ class HealthGeoFetcher(FetcherBase):
         return {"status": Status.OK, "new_events": len(new_events), "slots_checked": checked, "events": events}
 
     # ── 合并/持久化 ──────────────────────────────────────────
+    def _backfill_source_media(self, events):
+        """08-16：旧事件补 source_media——历史事件无 cols[3] 原始值，
+        从 doc URL 提取域名（urlparse.netloc）作为媒体名兜底。原地修改并返回。"""
+        from urllib.parse import urlparse
+        for e in events:
+            if not e.get("source_media"):
+                try:
+                    host = urlparse(e.get("doc", "") or "").netloc
+                    e["source_media"] = host or ""
+                except Exception:
+                    e["source_media"] = ""
+        return events
+
     def _load_events(self):
         try:
             with open(self.events_path, encoding="utf-8") as f:
@@ -220,7 +240,7 @@ class HealthGeoFetcher(FetcherBase):
             return []
 
     def _merge_events(self, new_events):
-        old = self._load_events()
+        old = self._backfill_source_media(self._load_events())
         seen = {e["doc"] for e in old}
         merged = list(old)
         for e in new_events:

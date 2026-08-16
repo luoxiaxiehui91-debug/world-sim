@@ -527,6 +527,8 @@ export interface HealthEventRaw {
   lng: number;
   loc_name: string;
   keywords: string[];
+  /** 来源媒体域名（GKG SourceCommonName；GKG CSV 无标题列，媒体名是新闻关联信号） */
+  source_media?: string;
 }
 export interface HealthGeoRaw extends RiskSignalBase {
   scope?: string;
