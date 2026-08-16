@@ -5,6 +5,23 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.25] - 2026-08-16 · 修复点选被立即取消（v1.11.24 回归——点位 click 阻断冒泡）
+
+**修改理由**：用户反馈 v1.11.24 加了背景取消后「选不了点了」。
+
+### 根因（playwright 埋点实测）
+
+点位 click handler 选点 → WorldPanel setState → FlatMapPanel 重建点位 group → 原 circle 从 DOM 移除 → click 冒泡到 svg 的 `click.background` 时 `event.target` 是**脱离 DOM 的旧 circle**，`closest` 返回 null → 被误判为背景点击 → `onBackgroundClick` 立即取消刚选中的点。**dispatchEvent 测试时无重建（React 同步）所以之前假通过**。
+
+### 修改
+
+- **`components/FlatMapPanel.tsx`**：点位 click handler 加 `event.stopPropagation()`——点位事件到 group 即停，不冒泡到 svg 的 `click.background`；空白点击（无点位）照常冒泡 → 正常取消
+
+### 验证
+
+- `npm test` 364 tests 全绿；vite build（`index-60zkKTjd.js`）
+- playwright **真实鼠标序列**（mouse.down/up）实测：点选 ring 出现且 700ms 后仍在（不消失）；点空白 ring 消失 ✓
+
 ## [1.11.24] - 2026-08-16 · 点击空白/关闭弹框取消选中（不再只能再点同点取消）
 
 **修改理由**：用户反馈——点击地图点出现选中圈 + 菜单后，只有再点同点/其他点才能取消；点空白、关闭菜单都不行。
