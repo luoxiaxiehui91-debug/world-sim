@@ -5,6 +5,20 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.15] - 2026-08-16 · 内置 CONTROL_TOKEN（控制台开箱即用）
+
+**修改理由**：用户反馈控制台「缺 token」——服务端 token 正常（compose/容器 env/401 均验证），根因是前端 localStorage 无 token（未填过或被「重置布局」的 clearAllKaiyangStorage 清掉）。手动填流程不顺畅。
+
+### 修改
+
+- 构建时注入 `VITE_CONTROL_API_TOKEN`（**不进 git 源码**，构建参数传入）→ `getEnvToken()` 优先于 localStorage 读取 → **控制台开箱即用，无需手动填 token**
+- 安全模型：token 与运行区 compose 明文同级（LAN 内部系统），且 H02 信任校验保证 token 只发往 `192.168.31.108`（非信任 host 不带）
+
+### 验证
+
+- playwright 实测：**清空 localStorage token → 刷新 → 控制台直接「API Token 已配置」+ 53 个 fetcher 加载正常**
+- bundle `index-DnxoRcXI.js` 含注入 token；352 tests 绿
+
 ## [1.11.14] - 2026-08-16 · H01 randomUUID LAN 崩溃 + H02 token 外泄通道
 
 **修改理由**：审查 H01/H02——① LAN HTTP（非安全上下文）下 `crypto.randomUUID()` 不可用（抛 TypeError），控制面板 showToast/addLog/重跑 idempotencyKey 7 处调用点按钮即崩；② localStorage 可覆盖 API 地址 + token 无条件自动附带 = token 外泄通道（恶意 URL 注入 → Bearer token 发往任意服务器）。
