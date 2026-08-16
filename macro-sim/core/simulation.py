@@ -404,12 +404,21 @@ def gm_resolve_rules(
     if world.bank_credit_tightening > 0.6:
         delta["energy_supply_risk"] = delta.get("energy_supply_risk", 0) + 0.10
 
-    # 连续3步负向 → 强制激活 A7 和 A12
+    # 连续3步负向 → 强制激活 A7 和 A12（H21 修复, 2026-08-16）
+    # 原实现：counter>=3 触发后立即归零 → apply_bleed_rules 的出血1（VIX 恐慌放大，
+    # 检查 counter >= vix_bleed_steps=3）永远看不到 >=3 → 结构性永不触发
+    # （代码注释自证：'sentiment bleed +2.0 从未触发，delta 分布 0/5.0'）。
+    # 修复：counter 不再归零（else 分支自然 -1 衰减，持续负向时单调累积使出血1
+    # 持续生效直到 vix_bleed_max 封顶）；A7/A12 改用上升沿检测（_vix_panic_armed
+    # 标记：2→3 跃迁触发一次，脱离负向区解除），避免每步重复强制激活。
     if world.consecutive_negative_steps >= 3:
-        for aid in ("A7", "A12"):
-            if aid in agents:
-                agents[aid].forced_activate = True
-        world.consecutive_negative_steps = 0
+        if not getattr(world, "_vix_panic_armed", False):
+            world._vix_panic_armed = True
+            for aid in ("A7", "A12"):
+                if aid in agents:
+                    agents[aid].forced_activate = True
+    if world.market_sentiment >= -0.5:
+        world._vix_panic_armed = False
 
     return delta
 
