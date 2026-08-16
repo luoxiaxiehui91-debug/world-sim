@@ -5,6 +5,21 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.27] - 2026-08-16 · LLM 配置平台化——换平台 + 选/输模型 + API key 完整切换
+
+**修改理由**：用户需求升级——LLM 配置不只是改模型名，要「URL 可换平台 → 选择平台 → 选择或输入模型名 → 输入 API key → 切换对应模块的模型」。
+
+### 修改
+
+- **`control/LlmConfig.tsx`** v2：每个使用点 → **平台下拉**（小米 MiMo / 硅基流动 / MiniMax / OpenAI / Anthropic 5 内置）+ **模型输入**（datalist 预置平台模型，可手输）+ **API key 输入**（password 类型，已配置显示脱敏 `sk-***abcd`，留空不换 key）+ 保存
+- **`lib/controlApi.ts` / `types/control.ts`**：`getLlmUsage()` 返回 `{usages, platforms}`；`updateLlmUsage(id, {platform, model, apiKey?})`；`LlmUsage` 加 platform / platform_name / base_url / api_key_masked；新增 `LlmPlatform`
+- 后端同批：`llm_usage.py` v2（PLATFORMS 内置平台清单 + 配置 schema v2 + `resolve()` 返回完整 base_url/api_key/model + base_url 落盘展开供跨容器解析）；`hybrid_llm` 加 `usage` 参数（翻译走 `translate_titles`）；天璇 `llm_client` `_resolve_client`（配置覆盖 → 动态 OpenAI 兼容客户端）；`control_server` GET/PUT 平台化（key 脱敏）
+
+### 验证
+
+- `npm test` 364 tests 全绿；vite build（`index-DALBfoQl.js`）
+- playwright 实测：5 平台下拉 + 6 使用点 select + 6 key 输入就位；PUT sim_mc→minimax/MiniMax-M3 落盘含 base_url → 天璇 resolve 动态客户端（base_url=minimaxi.com）验证通过；天璇容器已重建
+
 ## [1.11.26] - 2026-08-16 · LLM 使用点统一配置面板（控制台可改模型）+ 翻译模型 mimo-v2.5
 
 **修改理由**：用户需求——① 翻译模型 `mimo-v2.5-pro` → `mimo-v2.5`（实测快 4 倍：1.4s vs 5-8s）；② 统计所有用 LLM 模型的地方，统一在开阳控制台修改。
