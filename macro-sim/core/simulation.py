@@ -434,10 +434,14 @@ class MacroSimModel:
         use_llm: bool = False,
         config_path: str = "/app/config/agents.yaml",
         bleed_params_override: dict = None,
+        force_activate_all: bool = False,
     ):
         self.world   = world
         self.use_llm = use_llm
         self.bleed_params_override = bleed_params_override
+        # 08-16 全激活试验开关：跳过 activation_prob 掷骰，每步都给所有 Agent 决策机会
+        # （保留 info_delay 冷却，避免单 Agent 连续行动；阈值判定仍在 decide 内）
+        self.force_activate_all = force_activate_all
         if agents is not None:
             self.agents = agents
             self.global_cfg = {}
@@ -494,7 +498,10 @@ class MacroSimModel:
             elif agent.activation_countdown > 0:
                 agent.activation_countdown -= 1
                 step_actions[agent_id] = "NO_ACTION"
-            elif random.random() < agent.activation_prob:
+            elif ((self.force_activate_all and agent.activation_prob > 0)
+                  or random.random() < agent.activation_prob):
+                # 全激活模式：跳过掷骰但尊重 activation_prob==0 的"挂起"语义
+                # （A4 能源国挂起、由 S5_saudi 接管——08-16 试验暴露 force 绕过挂起）
                 ctx = self.world.get_agent_context(agent.role, soul=getattr(agent, "soul", None))
                 ctx["visible_actions"] = self._build_visible_actions(agent)
                 self._inject_board_ctx(ctx, agent)

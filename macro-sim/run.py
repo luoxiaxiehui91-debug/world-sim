@@ -28,6 +28,7 @@ def run_full_simulation(
     level: int = 2,
     event: str = "手动触发",
     config_path: str = "/app/config/agents.yaml",
+    force_activate_all: bool = False,
 ) -> dict:
     """
     完整仿真：校准（前50步）+ 预测（后50步）。
@@ -39,7 +40,7 @@ def run_full_simulation(
 
     print(f"\n{'='*60}")
     print(f"macro-sim v2 仿真启动")
-    print(f"触发：{event}（L{level}）")
+    print(f"触发：{event}（L{level}）{'  [全激活模式]' if force_activate_all else ''}")
     print(f"{'='*60}")
 
     # ── 0. 加载军事背景卡片（SIPRI静态，注入推演context）────────
@@ -78,6 +79,7 @@ def run_full_simulation(
         n_runs=100,
         predict_steps=24,
         config_path=config_path,
+        force_activate_all=force_activate_all,
     )
 
     # ── 生成报告 ──────────────────────────────────────────
@@ -137,6 +139,15 @@ def _read_version() -> str:
     return "?"
 
 
+def _readable_trigger(event: str) -> str:
+    """08-16：触发源可读化——占位值/空值转成人话，正常 GRV 触发原样保留。"""
+    if not event or event == "自动触发":
+        return "自动触发（GRV 超阈值）"
+    if event == "初始状态":
+        return "初始化触发（非 GRV 超阈值，sim_trigger 初始化/手动写入）"
+    return event
+
+
 def _write_report(world, calib_result: dict, paths: list, level: int, event: str) -> Path | None:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     score    = calib_result.get("score", 0)
@@ -182,7 +193,7 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
     lines = [
         f"# 宏观演化仿真报告 — {now_str[:10]}",
         f"",
-        f"**触发**：{event}  |  **级别**：L{level}  |  "
+        f"**触发**：{_readable_trigger(event)}  |  **级别**：L{level}  |  "
         f"**预测范围**：未来 24 个月  |  "
         f"**校准**：{score}/100 {'✅' if score >= 60 else '⚠️'}",
         f"",
@@ -324,6 +335,24 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
         if path.narrative:
             from core.narrative_format import format_narrative
             lines += format_narrative(path.narrative)
+
+        # 08-16 Agent 参与度（24 个月 × N runs 聚合）：谁动了、动了几次、谁在静默
+        if path.agent_participation:
+            lines.append("")
+            lines.append("**Agent 参与度**（24 个月 × 该路径 runs 聚合；行动=真正产出动作的步）")
+            lines.append("")
+            lines.append("| Agent | 行动次数 | 行动步数/24 | 无行动步数 | 主要行动 |")
+            lines.append("|-------|:--------:|:----------:|:----------:|---------|")
+            for aid, st in path.agent_participation.items():
+                top_acts = []
+                for act, cnt in list(st["actions"].items())[:2]:
+                    verb = _ACTION_VERB.get(f"{aid}:{act}", act)
+                    top_acts.append(f"{verb}×{cnt}")
+                lines.append(
+                    f"| {st['name']} | {st['acts']} | {st['steps']} | {st['silent_steps']} "
+                    f"| {'、'.join(top_acts) or '—'} |"
+                )
+            lines.append("")
 
         lines.append("---")
         lines.append("")
@@ -757,6 +786,8 @@ if __name__ == "__main__":
     parser.add_argument("--predict-only", action="store_true", help="跳过校准直接预测（测试）")
     parser.add_argument("--level",        type=int, default=2)
     parser.add_argument("--event",        type=str, default="手动触发")
+    parser.add_argument("--force-activate-all", action="store_true",
+                        help="试验：跳过 activation_prob 掷骰，每步给所有 Agent 决策机会（保留冷却）")
     args = parser.parse_args()
 
     CONFIG_PATH = str(Path(__file__).parent / "config/agents.yaml")
@@ -796,7 +827,8 @@ if __name__ == "__main__":
                         }, ensure_ascii=False), encoding="utf-8")
                     except Exception:
                         pass
-                    run_full_simulation(level=level, event=event, config_path=CONFIG_PATH)
+                    run_full_simulation(level=level, event=event, config_path=CONFIG_PATH,
+                                        force_activate_all=args.force_activate_all)
                 except Exception as e:
                     print(f"[daemon] 仿真失败：{e}")
                     try:
@@ -813,7 +845,8 @@ if __name__ == "__main__":
             time.sleep(60)
 
     elif args.run:
-        run_full_simulation(level=args.level, event=args.event, config_path=CONFIG_PATH)
+        run_full_simulation(level=args.level, event=args.event, config_path=CONFIG_PATH,
+                            force_activate_all=args.force_activate_all)
 
     elif args.predict_only:
         run_predict_only(level=args.level, event=args.event, config_path=CONFIG_PATH)

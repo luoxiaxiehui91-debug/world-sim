@@ -63,6 +63,9 @@ class PathResult:
     # 逐月演化数据（step 0 = 第1个月）
     monthly_grv: list[float] = field(default_factory=list)           # 每步路径均值 GRV
     monthly_sentiment: list[float] = field(default_factory=list)     # 每步路径均值 sentiment
+    # 08-16 参与度统计：{agent_id: {"name": 显示名, "acts": 总行动次数, "steps": 行动步数,
+    #                                "silent_steps": 无行动步数, "actions": {action: 次数}}}
+    agent_participation: dict = field(default_factory=dict)
 
 
 MIN_PATH_PROBABILITY = 0.05   # 低于此概率的路径不展开（设计文档确认10%，实测降至5%）
@@ -288,6 +291,58 @@ def _extract_key_events(history_list: list[list[dict]], run_indices: list[int]) 
     return key_events[:8]   # 最多8个关键节点
 
 
+def _compute_participation(
+    history_list: list[list[dict]],
+    run_indices: list[int],
+    n_steps: int,
+) -> dict:
+    """08-16：统计该路径所有 run 里每个 Agent 的行动/无行动步数（跨 24 步 × N runs 聚合）。
+
+    返回 {agent_id: {"name", "acts", "steps", "silent_steps", "actions"}}——
+    acts=总行动次数（一次可多 agent），steps=有行动的步数，silent_steps=无行动步数。
+    """
+    AGENT_NAMES = {
+        "A1": "美联储",       "A2": "商业银行",     "A3": "对冲基金",
+        "A4": "能源国",       "A5": "机构投资者",   "A6": "媒体/舆论",
+        "A7": "新兴市场央行", "A8": "中国央行",     "A9": "美国财政部",
+        "A10": "散户/羊群",   "A11": "欧洲央行",    "A12": "日本央行",
+        "S1_usa": "美国（主权）", "S2_china": "中国（主权）", "S3_eu": "欧盟（主权）",
+        "S4_russia": "俄罗斯（主权）", "S5_saudi": "沙特-OPEC（主权）",
+    }
+    from collections import Counter, defaultdict
+    stats: dict[str, dict] = {}
+    order: list[str] = []   # 保持首次出现顺序
+    for run_i in run_indices:
+        if run_i >= len(history_list):
+            continue
+        for snap in history_list[run_i]:
+            acts = snap.get("actions", {})  # 已过滤 NO_ACTION；HOLD 非真行动，跳过
+            for agent_id, action in acts.items():
+                if action in ("HOLD", "NO_ACTION"):
+                    continue
+                if agent_id not in stats:
+                    stats[agent_id] = {
+                        "name": AGENT_NAMES.get(agent_id, agent_id),
+                        "acts": 0, "steps": set(), "actions": Counter(),
+                    }
+                    order.append(agent_id)
+                st = stats[agent_id]
+                st["acts"] += 1
+                st["steps"].add(snap.get("cycle", 0))
+                st["actions"][action] += 1
+    result: dict[str, dict] = {}
+    for agent_id in order:
+        st = stats[agent_id]
+        result[agent_id] = {
+            "name":          st["name"],
+            "acts":          st["acts"],
+            "steps":         len(st["steps"]),
+            "silent_steps":  max(0, n_steps - len(st["steps"])),
+            "actions":       dict(st["actions"].most_common()),
+        }
+    return result
+
+
 def _generate_narrative(path: PathResult, world: MacroWorldState) -> str:
     """用 GLM-Z1-9B 为该路径生成叙事——含触发原因、因果链、整体定性"""
     try:
@@ -328,18 +383,20 @@ def _generate_narrative(path: PathResult, world: MacroWorldState) -> str:
         spread_final = f"spread={path.final_credit_spread_mean:.0f}bp"
 
         prompt = (
-            "你是宏观风险分析师，解读一条Monte Carlo仿真路径。\n\n"
+            "你是宏观风险分析师，把一条 Monte Carlo 仿真路径讲成一个连贯的故事。\n\n"
             f"起始：GRV={world.grv:.1f}，spread={world.credit_spread:.0f}bp，"
             f"t10y2y={world.t10y2y:.0f}bp，dff={world.dff:.2f}%\n"
             f"路径概率：{path.probability:.0%}\n"
             f"24个月走势：{grv_range}，{sent_final}，{spread_final}\n\n"
-            f"关键事件（含触发原因）：\n{events_str}\n\n"
+            f"关键事件（含触发原因，按时间顺序）：\n{events_str}\n\n"
             + (_get_military_backdrop_snippet()) +
-            "请按以下结构输出，每项一句话，共3句：\n"
-            "1. **情景定性** 这条路径是什么性质（金融危机/慢性高压/政策托底/平稳缓和等）\n"
-            "2. **核心传导链** 谁触发了谁，怎么演化的\n"
-            "3. **对你的影响** 投资者需要警惕什么\n"
-            "不要重复数字，语言直接简洁。"
+            "请输出一段 5-6 句的连贯叙事（不要列表、不要小标题、不要加粗标签），讲清楚因果链：\n"
+            "1. 开场：起点状态是什么（一句话）\n"
+            "2. 发展：关键事件如何一步步串起来——谁在哪个时间点触发了谁、为何触发、如何演化"
+            "（按时间顺序讲因果，不要只罗列事件名）\n"
+            "3. 结局：24 个月后系统处于什么状态（GRV/情绪/利差一句话）\n"
+            "4. 收尾：一句话警示或机会提示\n"
+            "像分析师在简报会上讲故事，语言直接简洁，不要重复数字表格内容。"
         )
 
         raw = call_llm(prompt, use_minimax=False)
@@ -358,6 +415,7 @@ def run_prediction(
     predict_steps: int = 24,
     config_path: str = "/app/config/agents.yaml",
     bleed_params_override: dict = None,
+    force_activate_all: bool = False,
 ) -> list[PathResult]:
     """
     预测循环主函数。
@@ -389,7 +447,8 @@ def run_prediction(
         world.total_cycles = predict_steps
         agents = copy.deepcopy(agents_template)
         model  = MacroSimModel(world, agents=agents, use_llm=False,
-                               bleed_params_override=bleed_params_override)
+                               bleed_params_override=bleed_params_override,
+                               force_activate_all=force_activate_all)
         history = model.run()
 
         # 一致性校验：检查该 run 是否存在跨 Agent 行动矛盾
@@ -489,6 +548,8 @@ def run_prediction(
         )
 
         path.key_events = _extract_key_events(all_histories, cluster)
+        # 08-16 参与度统计（报告"谁动了谁没动"）
+        path.agent_participation = _compute_participation(all_histories, cluster, predict_steps)
 
         # 汇总该路径内有矛盾的 run 比例
         issue_run_count = sum(
