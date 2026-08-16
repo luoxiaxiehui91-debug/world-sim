@@ -446,7 +446,8 @@ def load_monthly_history(
         smoothed = {}
         for k in _grv_keys:
             vals = [w[k] for w in window if k in w and w[k] is not None]
-            smoothed[k] = sum(vals) / len(vals) if vals else grv_monthly[dt].get(k, 50.0)
+            # H19: fallback 也可能命中"键存在但值为 null"（get 默认值只对缺键生效）
+            smoothed[k] = sum(vals) / len(vals) if vals else (grv_monthly[dt].get(k) or 50.0)
         _smoothed_grv.append(smoothed)
 
     result = []
@@ -455,10 +456,10 @@ def load_monthly_history(
         fred_d = fred_monthly.get(dt, {})
         result.append({
             "date":             dt,
-            "grv":              grv_d.get("grv", 50.0),
-            "grv_energy":       grv_d.get("grv_energy", 0.0),
-            "grv_military":     grv_d.get("grv_military", 0.0),
-            "grv_trade":        grv_d.get("grv_trade", 0.0),
+            "grv":              grv_d.get("grv") or 50.0,
+            "grv_energy":       grv_d.get("grv_energy") or 0.0,
+            "grv_military":     grv_d.get("grv_military") or 0.0,
+            "grv_trade":        grv_d.get("grv_trade") or 0.0,
             "us_china_grv":     grv_d.get("us_china_grv", 50.0),
             "t10y2y":           fred_d.get("t10y2y", -10.0),
             "credit_spread":    fred_d.get("credit_spread", 250.0),
@@ -553,11 +554,13 @@ def load_from_macro_scan(
     if grv_ver != _GRV_SCHEMA:
         raise RuntimeError(f"grv schema 不兼容：期望{_GRV_SCHEMA}，实际{grv_ver!r}")
 
-    grv_composite = grv.get("global_composite", 50.0)
-    grv_energy    = grv.get("middle_east_energy", 0.0)
-    grv_military  = (grv.get("russia_europe", 0) + grv.get("taiwan_strait", 0)) / 200
-    grv_trade     = grv.get("us_china_strategic", 0) / 100
-    us_china_grv  = grv.get("us_china_strategic", 50.0)
+    # H19 (2026-08-16, 全量审查): grv_latest.json 键存在但值为 null 时 dict.get 返回
+    # None（默认值只对缺键生效）→ None 进算术崩。统一 `or 默认值` 兜底。
+    grv_composite = grv.get("global_composite") or 50.0
+    grv_energy    = grv.get("middle_east_energy") or 0.0
+    grv_military  = ((grv.get("russia_europe") or 0) + (grv.get("taiwan_strait") or 0)) / 200
+    grv_trade     = (grv.get("us_china_strategic") or 0) / 100
+    us_china_grv  = grv.get("us_china_strategic") or 50.0
     # D7: 读取天枢产出的6个额外GRV维度（缺失时安全默认值）
     climate_risk     = float(grv.get("climate_risk") or 0.0)
     disaster_risk    = float(grv.get("disaster_risk") or 0.0)
