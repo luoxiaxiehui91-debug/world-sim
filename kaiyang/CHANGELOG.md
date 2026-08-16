@@ -5,6 +5,20 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.16] - 2026-08-16 · 卫生图层关联新闻（source_media 媒体名）
+
+**修改理由**：用户反馈卫生检测没关联新闻。实测纠错（08-15 旧分析有误）：GKG 2.0 27 列实测确认 `cols[4]=URL`（doc 字段一直正确）、`cols[3]=SourceCommonName` 媒体域名、`cols[9]=V1Locations`；**GKG CSV 无标题列**（标题只在 DOC 2.0 API）——准确缺口是事件没有"哪个媒体报的"。
+
+### 修改
+
+- **`types/contracts.ts`**：`HealthEventRaw` 加 `source_media?`（媒体域名）
+- **`lib/healthAdapter.ts`**：note 改为 `类型 {kw} · {media} 报道 · 地点 · 时间 · 原文 {doc URL}`——可读新闻关联 + 来源可信度标注（媒体提及非官方确认）
+- 后端同批（fetch_health_geo）：事件加 `source_media`（cols[3]）+ 历史事件从 doc URL 提取域名回填（233/233 100% 带媒体名）
+
+### 验证
+
+- `npm test` 352 tests 全绿；vite build（`index-C9bmxCsP.js` / `index-1XkBUX4y.css`）；后端容器重跑 health fetcher 全量回填确认
+
 ## [1.11.15] - 2026-08-16 · 内置 CONTROL_TOKEN（控制台开箱即用）
 
 **修改理由**：用户反馈控制台「缺 token」——服务端 token 正常（compose/容器 env/401 均验证），根因是前端 localStorage 无 token（未填过或被「重置布局」的 clearAllKaiyangStorage 清掉）。手动填流程不顺畅。
