@@ -36,6 +36,7 @@ import json
 import os
 import sys
 import time
+import urllib.parse
 import urllib.request
 import zipfile
 
@@ -174,6 +175,9 @@ class HealthGeoFetcher(FetcherBase):
     # ── 采集入口 ─────────────────────────────────────────────
     def collect(self):
         now = datetime.datetime.utcnow()
+        # 08-16：GDELT DOC 2.0 关键词查询（限速 5s/次，I60 一次无压力）→ url→title
+        # 映射——GKG CSV 无标题列，标题只能从 DOC API 拿（实测 429 响应体明示限速规则）
+        title_map = self._fetch_doc_titles()
         # 对齐 15 分钟粒度，构造当前 slot
         cur_slot = now.replace(minute=(now.minute // 15) * 15, second=0, microsecond=0)
         state = self._load_state()
@@ -191,8 +195,9 @@ class HealthGeoFetcher(FetcherBase):
             slots.reverse()
         if not slots:
             self.logger.info("[health_geo] 无新 slot（已是最新）")
-            # 08-16：无新事件也走回填 + 落盘（历史事件补 source_media）
-            events = self._backfill_source_media(self._load_events())
+            # 08-16：无新事件也走回填 + 落盘（历史事件补 source_media / title）
+            events = self._backfill_titles(
+                self._backfill_source_media(self._load_events()), title_map)
             as_of = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             self._persist(events, as_of)
             return {"status": Status.OK, "new_events": 0, "slots_checked": 0, "events": events}
@@ -210,14 +215,48 @@ class HealthGeoFetcher(FetcherBase):
                                  s.strftime("%H%M"), len(parsed))
             else:
                 self.logger.warning("[health_geo] slot %s 下载失败", s.strftime("%H%M"))
-        # 去重 + 合并历史（保留 72h）
-        events = self._merge_events(new_events)
+        # 去重 + 合并历史（保留 72h）+ 标题回填（DOC API url→title）
+        events = self._backfill_titles(self._merge_events(new_events), title_map)
         self._save_state(cur_slot.strftime("%Y%m%d%H%M%S"))
         as_of = now.strftime("%Y-%m-%dT%H:%M:%SZ")
         self._persist(events, as_of)
         return {"status": Status.OK, "new_events": len(new_events), "slots_checked": checked, "events": events}
 
     # ── 合并/持久化 ──────────────────────────────────────────
+    def _fetch_doc_titles(self):
+        """GDELT DOC 2.0 关键词查询（卫生词，72h）→ {url: title}。
+        ⚠ 限速纪律：免费 API 5 秒 1 次（429 响应体明示）；I60 调度一次无压力，
+        失败静默返回空（标题回填是增强，不影响卫生事件主流程）。"""
+        try:
+            query = '("outbreak" OR "epidemic" OR "pandemic" OR "cholera" OR "ebola" OR "mpox" OR "monkeypox" OR "zika" OR "bird flu" OR "h5n1" OR "marburg" OR "lassa" OR "dengue" OR "polio" OR "measles" OR "cyclosporiasis" OR "whooping cough" OR "pertussis") sourcelang:eng'
+            q = urllib.parse.quote(query)
+            url = (f"https://api.gdeltproject.org/api/v2/doc/doc?query={q}"
+                   "&mode=artlist&format=json&timespan=72h&maxrecords=250")
+            req = urllib.request.Request(url, headers=UA)
+            try:
+                r = urllib.request.urlopen(req, timeout=45)
+            except Exception:
+                proxy = urllib.request.ProxyHandler({"http": PROXY_URL, "https": PROXY_URL})
+                opener = urllib.request.build_opener(proxy)
+                r = opener.open(req, timeout=45)
+            d = json.loads(r.read())
+            return {
+                (a.get("url") or "").strip(): (a.get("title") or "").strip()
+                for a in d.get("articles", []) if a.get("url") and a.get("title")
+            }
+        except Exception as e:
+            self.logger.warning(f"[health_geo] DOC API 标题查询失败（跳过）：{e}")
+            return {}
+
+    def _backfill_titles(self, events, title_map):
+        """08-16：事件补新闻标题（DOC API url→title 映射匹配）。原地修改并返回。"""
+        for e in events:
+            if not e.get("title") and e.get("doc"):
+                t = title_map.get(e["doc"].strip())
+                if t:
+                    e["title"] = t
+        return events
+
     def _backfill_source_media(self, events):
         """08-16：旧事件补 source_media——历史事件无 cols[3] 原始值，
         从 doc URL 提取域名（urlparse.netloc）作为媒体名兜底。原地修改并返回。"""

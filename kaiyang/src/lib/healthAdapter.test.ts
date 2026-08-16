@@ -48,6 +48,30 @@ describe('adaptHealth（08-15 GDELT 卫生事件 → RiskPoint[]）', () => {
     expect(pts[1].note).toContain('Delaware');
   });
 
+  it('08-16 v2：中文疾病名映射（弹框标题不用点开就知道发生了什么）', () => {
+    const pts = adaptHealth(sampleRaw);
+    // label 中文优先：环孢子虫病 / 麻疹 / 霍乱
+    expect(pts[0].label).toContain('环孢子虫病');
+    expect(pts[1].label).toContain('麻疹');
+    expect(pts[2].label).toContain('霍乱');
+    // 英文关键词保留（可读性兜底）
+    expect(pts[0].label).toContain('cyclosporiasis');
+    // group 中文
+    expect(pts[2].group).toContain('霍乱');
+  });
+
+  it('08-16 v2：title（DOC API 回填）优先于中文疾病名 + sourceUrl 原文链接', () => {
+    const withTitle: HealthGeoRaw = {
+      ...sampleRaw,
+      events: [
+        { ...sampleRaw.events![0], title: 'FDA inspecting Mexico produce after cyclosporiasis outbreak' },
+      ],
+    };
+    const pts = adaptHealth(withTitle);
+    expect(pts[0].label).toBe('FDA inspecting Mexico produce after cyclosporiasis outbreak');
+    expect(pts[0].sourceUrl).toBe('https://abc.example/cyclosporiasis');
+  });
+
   it('坐标越界跳过（双保险）', () => {
     const bad: HealthGeoRaw = {
       ...sampleRaw,

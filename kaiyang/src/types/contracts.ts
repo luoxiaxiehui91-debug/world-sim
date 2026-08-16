@@ -529,6 +529,8 @@ export interface HealthEventRaw {
   keywords: string[];
   /** 来源媒体域名（GKG SourceCommonName；GKG CSV 无标题列，媒体名是新闻关联信号） */
   source_media?: string;
+  /** 新闻标题（GDELT DOC 2.0 回填；NAS IP 限流恢复后自动生效，无则前端用中文疾病名） */
+  title?: string;
 }
 export interface HealthGeoRaw extends RiskSignalBase {
   scope?: string;
