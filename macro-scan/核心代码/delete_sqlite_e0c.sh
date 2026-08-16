@@ -28,10 +28,13 @@ import sys; sys.path.insert(0, '/app')
 from silent_failure_probe import run_probe
 v, rs = run_probe(alert=False)
 print('  probe:', v)
-bad = [m for l, m in rs if l == 'CRIT']
-sys.exit(1 if v != 'OK' or bad else 0)
-" || { echo "FAIL: 探针非 OK（PG 不健康或 SQLite 未冻结）"; exit 1; }
-echo "  [ok] 探针 OK"
+# 08-16 修复：门禁从"v=='OK'"放宽为"无 CRIT/WARN 即健康"——
+# check_ged_stale 的"已通知过"INFO 项使整体 verdict=INFO（非错误），
+# 原 v=='OK' 判断会误 FAIL（08-15 新增 GED 检查后失效）。
+bad = [m for l, m in rs if l in ('CRIT', 'WARN')]
+sys.exit(1 if bad else 0)
+" || { echo "FAIL: 探针含 CRIT/WARN（PG 不健康或 SQLite 未冻结）"; exit 1; }
+echo "  [ok] 探针无 CRIT/WARN"
 [ -d "$BK/e0c-p4-20260813" ] || { echo "FAIL: 备份目录 $BK/e0c-p4-20260813 缺失"; exit 1; }
 echo "  [ok] P4 备份存在"
 
@@ -71,6 +74,7 @@ import sys; sys.path.insert(0, '/app')
 from silent_failure_probe import run_probe
 v, rs = run_probe(alert=False)
 print('  探针(删后):', v)
-sys.exit(0 if v == 'OK' else 1)
-" && echo "  [ok] PG 读路径健康（探针 OK）"
+bad = [m for l, m in rs if l in ('CRIT', 'WARN')]
+sys.exit(1 if bad else 0)
+" && echo "  [ok] PG 读路径健康（探针无 CRIT/WARN）"
 echo "== P6 删除完成：快照在 $DEST =="
