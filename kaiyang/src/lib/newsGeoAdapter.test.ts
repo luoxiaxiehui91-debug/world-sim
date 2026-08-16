@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { adaptNewsGeo } from '@/lib/newsGeoAdapter';
+import { adaptNewsGeo, urlSlugToTitle, EVENT_TYPE_ZH, COUNTRY_ZH } from '@/lib/newsGeoAdapter';
 import { CATEGORY_PALETTE } from '@/config/theme';
 import type { NewsGeoEvent, NewsGeoRaw } from '@/types/contracts';
 
@@ -73,7 +73,6 @@ describe('adaptNewsGeo: 类别 / 形状 / id 命名空间', () => {
   it('id 必须带 "newsgeo:" 命名空间前缀（K2，多图层合并防撞车）', () => {
     const pts = adaptNewsGeo(sample);
     expect(pts[0].id).toBe('newsgeo:gdelt-1');
-    // 绝对不带空名前缀
     expect(pts[0].id.startsWith('newsgeo:')).toBe(true);
   });
 
@@ -102,7 +101,7 @@ describe('adaptNewsGeo: 类别 / 形状 / id 命名空间', () => {
 /* 字段容错与规整                                                       */
 /* ------------------------------------------------------------------ */
 describe('adaptNewsGeo: 字段容错与规整', () => {
-  it('intensity 缺省 → 该条被跳过，不进 missing 通道（intensity 由天枢归一，不二次折算）', () => {
+  it('intensity 缺省 → 该条被跳过，不进 missing 通道', () => {
     const pts = adaptNewsGeo({
       events: [
         { id: 'no-intensity', lat: 0, lng: 0, event_type: 'protest', intensity: NaN, country: 'X' },
@@ -138,7 +137,7 @@ describe('adaptNewsGeo: 字段容错与规整', () => {
     expect(pts).toEqual([]);
   });
 
-  it('坐标越界（|lat|>90 / |lng|>180）→ 整条跳过，不画到 (0,0)', () => {
+  it('坐标越界 → 整条跳过', () => {
     const pts = adaptNewsGeo({
       events: [
         { id: 'oob-lat', lat: 95, lng: 10, event_type: 'x', intensity: 50, country: 'X' },
@@ -162,7 +161,7 @@ describe('adaptNewsGeo: 字段容错与规整', () => {
     expect(pts.map((p) => p.id)).toEqual(['newsgeo:good']);
   });
 
-  it('重复 id → 只保留先出现者（避免图层点位 id 撞车）', () => {
+  it('重复 id → 只保留先出现者', () => {
     const pts = adaptNewsGeo({
       events: [
         { id: 'dup', lat: 10, lng: 10, event_type: 'first', intensity: 50, country: 'A' },
@@ -171,42 +170,87 @@ describe('adaptNewsGeo: 字段容错与规整', () => {
     });
     expect(pts).toHaveLength(1);
     expect(pts[0].id).toBe('newsgeo:dup');
-    // 取先出现者 → 第一条的 lat/lng/group
     expect(pts[0].lat).toBe(10);
     expect(pts[0].lng).toBe(10);
+    // 'first' 不在 EVENT_TYPE_ZH → 原值保留；'A' 不在 COUNTRY_ZH → 原值
     expect(pts[0].group).toBe('first · A');
   });
 });
 
 /* ------------------------------------------------------------------ */
-/* 展示字段：label / group / rawMetric / note                            */
+/* 展示字段（08-16 v2：label = slug → 中文类型兜底；group 中文）           */
 /* ------------------------------------------------------------------ */
 describe('adaptNewsGeo: 展示字段', () => {
-  it('label: location_name 存在 → 取 location_name；缺失 → 回落 country', () => {
-    const withLoc = adaptNewsGeo({
+  it('08-16 v2 label：source_url 有有效 slug → 取 slug 还原的英文标题（首字母大写）', () => {
+    const pts = adaptNewsGeo({
       events: [
-        { id: 'a', lat: 0, lng: 0, event_type: 'protest', intensity: 30, country: 'IRN', location_name: 'Tehran, Iran' },
+        {
+          id: 'a',
+          lat: 0,
+          lng: 0,
+          event_type: 'political',
+          intensity: 30,
+          country: 'USA',
+          source_url: 'https://www.themarysue.com/federal-judge-threatens-doj-with-contempt-as.html',
+        },
       ],
     });
-    const withoutLoc = adaptNewsGeo({
-      events: [
-        { id: 'b', lat: 0, lng: 0, event_type: 'protest', intensity: 30, country: 'IRN' },
-      ],
-    });
-    expect(withLoc[0].label).toBe('Tehran, Iran');
-    expect(withoutLoc[0].label).toBe('IRN');
+    // slug "federal-judge-threatens-doj-with-contempt-as" 47 字符 < 70 → 不截断，无 …
+    expect(pts[0].label).toBe('Federal Judge Threatens Doj With Contempt As');
   });
 
-  it('group: 含 event_type + country，便于一眼看懂', () => {
+  it('08-16 v2 label：无 source_url → fallback 到中文事件类型「政治 类报道」', () => {
+    const pts = adaptNewsGeo({
+      events: [
+        { id: 'a', lat: 0, lng: 0, event_type: 'political', intensity: 30, country: 'X' },
+      ],
+    });
+    expect(pts[0].label).toBe('政治 类报道');
+  });
+
+  it('08-16 v2 label：event_type=conflict → 「冲突 类报道」；protest → 「抗议 类报道」', () => {
+    const c = adaptNewsGeo({
+      events: [
+        { id: 'c', lat: 0, lng: 0, event_type: 'conflict', intensity: 30, country: 'X' },
+      ],
+    });
+    const p = adaptNewsGeo({
+      events: [
+        { id: 'p', lat: 0, lng: 0, event_type: 'protest', intensity: 30, country: 'X' },
+      ],
+    });
+    expect(c[0].label).toBe('冲突 类报道');
+    expect(p[0].label).toBe('抗议 类报道');
+  });
+
+  it('08-16 v2 label：未知 event_type → fallback 「unknown 类报道」（中文映射表兜底）', () => {
+    const pts = adaptNewsGeo({
+      events: [
+        { id: 'a', lat: 0, lng: 0, event_type: 'mysterious_type', intensity: 30, country: 'X' },
+      ],
+    });
+    expect(pts[0].label).toBe('mysterious_type 类报道');
+  });
+
+  it('08-16 v2 group：含中文事件类型 + 中文国家「冲突 · 伊朗」', () => {
     const pts = adaptNewsGeo({
       events: [
         { id: 'a', lat: 0, lng: 0, event_type: 'conflict', intensity: 30, country: 'IRN' },
       ],
     });
-    expect(pts[0].group).toBe('conflict · IRN');
+    expect(pts[0].group).toBe('冲突 · 伊朗');
   });
 
-  it('event_type 未知/缺失 → 降级为 "unknown"，group 显示 unknown', () => {
+  it('08-16 v2 group：未映射国家保留 ISO 码「政治 · X」', () => {
+    const pts = adaptNewsGeo({
+      events: [
+        { id: 'a', lat: 0, lng: 0, event_type: 'political', intensity: 30, country: 'X' },
+      ],
+    });
+    expect(pts[0].group).toBe('政治 · X');
+  });
+
+  it('event_type 未知/缺失 → group 显示 "unknown · X"（country 不映射保留原值）', () => {
     const pts = adaptNewsGeo({
       events: [
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -219,7 +263,7 @@ describe('adaptNewsGeo: 展示字段', () => {
     expect(pts.every((p) => p.group === 'unknown · X')).toBe(true);
   });
 
-  it('country 缺失 → 降级为 "未知"，不留空白', () => {
+  it('country 缺失 → 降级为 "未知"', () => {
     const pts = adaptNewsGeo({
       events: [
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -233,21 +277,15 @@ describe('adaptNewsGeo: 展示字段', () => {
     const pts = adaptNewsGeo({
       events: [
         {
-          id: 'a',
-          lat: 0,
-          lng: 0,
-          event_type: 'x',
-          intensity: 30,
-          country: 'X',
-          mention_count: 42,
-          theme: 'TAX_FNCACT',
+          id: 'a', lat: 0, lng: 0, event_type: 'x', intensity: 30, country: 'X',
+          mention_count: 42, theme: 'TAX_FNCACT',
         },
       ],
     });
     expect(pts[0].rawMetric).toBe('提及 42 次 · TAX_FNCACT');
   });
 
-  it('rawMetric：仅有 theme（无 mention_count）→ 只显示 theme', () => {
+  it('rawMetric：仅有 theme → 只显示 theme', () => {
     const pts = adaptNewsGeo({
       events: [
         { id: 'a', lat: 0, lng: 0, event_type: 'x', intensity: 30, country: 'X', theme: 'TAX_FNCACT' },
@@ -275,13 +313,88 @@ describe('adaptNewsGeo: 展示字段', () => {
     expect(withDate[0].note).toBe('20260728');
     expect(withoutDate[0].note).toBeUndefined();
   });
+
+  it('sourceUrl：透传 source_url（弹框「查看新闻原文」用）', () => {
+    const pts = adaptNewsGeo({
+      events: [
+        {
+          id: 'a', lat: 0, lng: 0, event_type: 'political', intensity: 30, country: 'USA',
+          source_url: 'https://example.com/abc',
+        },
+      ],
+    });
+    expect(pts[0].sourceUrl).toBe('https://example.com/abc');
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* urlSlugToTitle 单元测试（08-16 v2 工具）                              */
+/* ------------------------------------------------------------------ */
+describe('urlSlugToTitle', () => {
+  it('标准 slug → Title Case + 去扩展名', () => {
+    expect(urlSlugToTitle('https://example.com/2026/08/15/federal-judge-threatens-doj.html'))
+      .toBe('Federal Judge Threatens Doj');
+  });
+
+  it('长 slug → 截断到 70 字符 + …', () => {
+    const longSlug = 'a'.repeat(100);
+    const url = `https://example.com/${longSlug}.html`;
+    const t = urlSlugToTitle(url);
+    expect(t).not.toBeNull();
+    expect(t!.endsWith('…')).toBe(true);
+    expect(t!.length).toBeLessThanOrEqual(71); // 70 + …
+  });
+
+  it('扩展名去 .htm / .aspx / .php', () => {
+    expect(urlSlugToTitle('https://example.com/foo.htm')).toBe('Foo');
+    expect(urlSlugToTitle('https://example.com/foo.aspx')).toBe('Foo');
+    expect(urlSlugToTitle('https://example.com/foo.php')).toBe('Foo');
+  });
+
+  it('纯数字 slug（如日期 / ID）→ null', () => {
+    expect(urlSlugToTitle('https://example.com/20260815')).toBeNull();
+    expect(urlSlugToTitle('https://example.com/12345678')).toBeNull();
+  });
+
+  it('无 slug（仅根路径）→ null', () => {
+    expect(urlSlugToTitle('https://example.com/')).toBeNull();
+    expect(urlSlugToTitle('https://example.com')).toBeNull();
+  });
+
+  it('null / 空 / 非 URL → null', () => {
+    expect(urlSlugToTitle(null)).toBeNull();
+    expect(urlSlugToTitle(undefined)).toBeNull();
+    expect(urlSlugToTitle('')).toBeNull();
+    expect(urlSlugToTitle('not a url')).toBeNull();
+  });
+
+  it('_ 和 - 都视为单词分隔符', () => {
+    expect(urlSlugToTitle('https://example.com/foo_bar-baz.html')).toBe('Foo Bar Baz');
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* EVENT_TYPE_ZH / COUNTRY_ZH 映射表测试                                 */
+/* ------------------------------------------------------------------ */
+describe('新闻映射表常量', () => {
+  it('EVENT_TYPE_ZH 覆盖实测 3 个 event_type 值', () => {
+    expect(EVENT_TYPE_ZH.political).toBe('政治');
+    expect(EVENT_TYPE_ZH.conflict).toBe('冲突');
+    expect(EVENT_TYPE_ZH.protest).toBe('抗议');
+  });
+
+  it('COUNTRY_ZH 含常用国家码', () => {
+    expect(COUNTRY_ZH.USA).toBe('美国');
+    expect(COUNTRY_ZH.CHN).toBe('中国');
+    expect(COUNTRY_ZH.RUS).toBe('俄罗斯');
+  });
 });
 
 /* ------------------------------------------------------------------ */
 /* 与图层体系的契约                                                    */
 /* ------------------------------------------------------------------ */
 describe('adaptNewsGeo: 与图层体系的契约', () => {
-  it('所有点位 category="news"，与现有图层类别一致 → LayerTreePanel 计数天然合并', () => {
+  it('所有点位 category="news"（conflict 例外），与现有图层类别一致', () => {
     const pts = adaptNewsGeo({
       events: [
         { id: '1', lat: 10, lng: 10, event_type: 'x', intensity: 50, country: 'X' },
@@ -291,7 +404,7 @@ describe('adaptNewsGeo: 与图层体系的契约', () => {
     expect(pts.every((p) => p.category === 'news')).toBe(true);
   });
 
-  it('intensity=0：weight=0，severity="低"（阈值 < 40）', () => {
+  it('intensity=0：weight=0，severity="低"', () => {
     const pts = adaptNewsGeo({
       events: [{ id: 'a', lat: 0, lng: 0, event_type: 'x', intensity: 0, country: 'X' }],
     });
@@ -299,7 +412,7 @@ describe('adaptNewsGeo: 与图层体系的契约', () => {
     expect(pts[0].severity).toBe('低');
   });
 
-  it('intensity=100：weight=1，severity="高"（≥66）', () => {
+  it('intensity=100：weight=1，severity="高"', () => {
     const pts = adaptNewsGeo({
       events: [{ id: 'a', lat: 0, lng: 0, event_type: 'x', intensity: 100, country: 'X' }],
     });
@@ -312,27 +425,6 @@ describe('adaptNewsGeo: 与图层体系的契约', () => {
 /* XSS 输入消毒（2026-08-11 路线 A 防线二）                              */
 /* ------------------------------------------------------------------ */
 describe('adaptNewsGeo: XSS 输入消毒', () => {
-  it('location_name 超长 → 截断到 120 字符并补省略号，label 不含原始尾段', () => {
-    const longName = 'A'.repeat(200);
-    const pts = adaptNewsGeo({
-      events: [
-        { id: 'a', lat: 0, lng: 0, event_type: 'x', intensity: 30, country: 'X', location_name: longName },
-      ],
-    });
-    expect(pts[0].label).toHaveLength(121); // 120 + '…'
-    expect(pts[0].label).toContain('…');
-  });
-
-  it('location_name 含控制字符 → 剥离控制字符（保留可见文本）', () => {
-    const dirty = 'Tehran\u0000\u0001Iran';
-    const pts = adaptNewsGeo({
-      events: [
-        { id: 'a', lat: 0, lng: 0, event_type: 'x', intensity: 30, country: 'X', location_name: dirty },
-      ],
-    });
-    expect(pts[0].label).toBe('TehranIran');
-  });
-
   it('theme 为空字符串 / 纯空白 → 降级 undefined，不进 rawMetric', () => {
     const pts = adaptNewsGeo({
       events: [
@@ -342,21 +434,18 @@ describe('adaptNewsGeo: XSS 输入消毒', () => {
     expect(pts[0].rawMetric).toBeUndefined();
   });
 
-  it('HTML 转义由渲染层 pointTooltipHtml 统一完成（此处不清洗 <>& 等字符，避免双重转义）', () => {
+  it('HTML 转义由渲染层 pointTooltipHtml 统一完成；不可信 URL（javascript:/data: 含特殊字符）被 sanitizeUrl 丢弃', () => {
     const pts = adaptNewsGeo({
       events: [
         {
-          id: 'a',
-          lat: 0,
-          lng: 0,
-          event_type: 'x',
-          intensity: 30,
-          country: 'X',
-          location_name: '<img src=x onerror=alert(1)>',
+          id: 'a', lat: 0, lng: 0, event_type: 'political', intensity: 30, country: 'USA',
+          source_url: 'javascript:alert(1)',
         },
       ],
     });
-    // 适配层保留原文（渲染层 escapeHtml 负责转义）
-    expect(pts[0].label).toBe('<img src=x onerror=alert(1)>');
+    // 不可信 URL 被 sanitizeUrl 拒 → source_url=undefined → slug=null → label fallback 中文类型
+    expect(pts[0].label).not.toContain('<');
+    expect(pts[0].label).not.toContain('javascript');
+    expect(pts[0].label).toBe('政治 类报道');
   });
 });
