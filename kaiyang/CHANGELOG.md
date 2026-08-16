@@ -5,6 +5,34 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.23] - 2026-08-16 · 新闻标题中文化（LLM 翻译 + titles_zh 优先显示）
+
+**修改理由**：用户看到英文标题后要求"换成中文"。
+
+### 修改
+
+- **后端 `fetch_news_titles.py`**：新增 LLM 翻译（复用 `hybrid_llm.call_openai_compat`，MiMo 端点）——逐条 + 并发 4；输出 `titles_zh`（url→中文标题），翻译失败保留英文容错。实测：MiMo 对批量 JSON 指令返回空 content（弃用批量），逐条 10-30s/条（并发 4 → 35 条约 2 分钟，I120 增量 20 条 ≈ 1.5 分钟可完成）
+- **`types/contracts.ts`**：`NewsTitlesRaw` 加 `titles_zh`
+- **`components/WorldPanel.tsx`**：`newsTitleMap` 合并 `{titles, titles_zh}`（中文覆盖英文）→ EventPopup 弹框优先显示中文标题
+- 实测翻译质量：`Despite Losing Their Homeland...` → `尽管失去家园，信德社区始终致力于国家建设`；`Taiwan tourism expo in Jakarta...` → `台湾观光博览会在雅加达举办，旨在吸引印尼游客`
+
+### 验证
+
+- `npm test` 364 tests 全绿；vite build（`index-DYTb_KAJ.js`）；后端 30/35 标题中文化
+
+## [1.11.22] - 2026-08-16 · 新闻标题预抓缓存——点击秒开、零 API 占用
+
+**修改理由**：用户反馈"15s 超时仍不稳" + 建议"提前加载"。
+
+### 修改
+
+- **后端新增 `fetch_news_titles.py`**（scheduler I120 2h 增量）：读 news_geo.json events URL → 并发 4 抓页面 `<title>`（代理 7890、12s 超时）→ 写 `news_titles.json`（url→title map，72h 窗口滚动裁剪 + 600 上限）。每轮只抓新增 URL（NEW_MAX=20），首轮实测 20 成功 18
+- **前端**：`dataSources` 加 `news_titles` feed（静态文件 refreshMs 120s）+ `NewsTitlesRaw` 类型 + WorldPanel `newsTitleMap`（useMemo 稳定引用）+ EventPopup **标题三级取数**：① titleMap 静态命中（秒开、零 API）→ ② localStorage → ③ `/news-title` API 兜底
+
+### 验证
+
+- `npm test` 364 tests 全绿；vite build（`index-JWasvDNT.js`）；news_titles.json nginx 200
+
 ## [1.11.21] - 2026-08-16 · 真实新闻标题按需抓取 + label 回退地点名
 
 **修改理由**：用户实测反馈两件事——① "第一行显示地址是没问题的"（v1.11.19/20 的 URL slug 伪标题方案应回退）；② slug 与真实新闻标题对不上（如外交部记者会实录 URL 最后一段 `remarks-on-august-14-2026`，不是 "Foreign Ministry Spokesperson Guo Jiakun's Remarks"）——**要的是真实新闻标题**。
