@@ -579,7 +579,14 @@ export function FlatMapPanel({
           pendingTooltipRef.current = null;
           setTooltip(null);
         })
-        .on('click', () => onPointClick?.(p));
+        .on('click', (event: MouseEvent) => {
+          // 08-16 修复（选点被立即取消）：点位 click 必须阻断冒泡——选点触发
+          // WorldPanel setState → 点位 group 重建 → 冒泡到 svg 的 click.background
+          // 时 event.target 已是脱离 DOM 的旧 circle，closest 返回 null 被误判为
+          // 背景点击 → onBackgroundClick 立即取消刚选中的点（用户实测"选不了点"）。
+          event.stopPropagation();
+          onPointClick?.(p);
+        });
     }
     // v1.10.2：重建后的新点组补上 zoom 反向缩放（根治缩放态切分类 → 全部放大）
     applyPointInvScale();
