@@ -491,7 +491,10 @@ class MacroAgent:
             if isinstance(fdata, dict):
                 fdata["weight"] = max(0.01, min(0.9, float(new_value)))
             elif self.soul:
-                raise ValueError(f"soul 无派系 {fname}（{self.agent_id}）")
+                # 08-17 防御：regime 切换/LLM 幻觉导致 soul 无该派系 → fail-loud 打印但跳过，
+                # 不抛异常终止校准（与无 soul 分支同语义；LLM 建议性调参不应阻塞校准）
+                print(f"[calibrator] ⚠️ {self.agent_id} soul 无派系 {fname}"
+                      f"（现有派系：{list(factions.keys())}），忽略派系权重指令（跳过）")
             else:
                 # v3 阶段 2 防御：无 soul Agent 收到派系权重指令 → fail-loud 打印但跳过，
                 # 不抛异常终止整个校准（校准 LLM 可能幻觉派系名/误判可调参数，如对照组的"看涨派系"）

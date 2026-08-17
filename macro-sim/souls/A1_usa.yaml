@@ -1,91 +1,140 @@
-# souls/A1_usa.yaml — 美国（主权国家 Agent 原型）
+# souls/A1_usa.yaml — 美国（主权国家 Agent）
 #
-# 对应 agent_taxonomy.md 中的 A1（美国），为 B+A/NOVEL 重写 Sprint 准备。
-# 当前 agents.yaml 中 A1 是"美联储"（货币政策），在 B+A/NOVEL 重写后：
-#   - 旧 A1（美联储）→ 重分类为 C1（货币当局 Agent）
-#   - 新 A1（美国主权）→ 使用本文件
-#
-# 本文件现在是只读设计文档，尚未在 agents.yaml 中激活（soul_file 未配置）。
-# 激活条件：B+A/NOVEL Sprint 创建 SovereignAgent 基类后。
+# 对应 agents.yaml S1_usa。08-17 政权分片改造：regimes 时间分片 + 红线阈值校准
+# （taiwan_strait p90=100 / us_china_strategic p75=65 p90=100 —— 旧 `taiwan>80` 约 90%+ 时间触发，
+# 真红线应取 p90 以上）。内容为 stylized 政策风格抽象（不指向具体个人），
+# 政权更迭（大选周期）是路径分叉来源。
 
-actor_id: A1
+actor_id: S1_usa
 actor_type: sovereign_state
 name: "美国"
 layer: state_agent
 
-doctrine: |
-  优先维护美元霸权、全球海上通道安全和盟友安全承诺。
-  对盟友安全承诺（北约第五条、台湾关系法）优先于短期经济成本。
-  避免与核大国直接军事冲突，优先使用经济制裁、代理施压和技术封锁。
-  在大国竞争中保持技术领先，半导体和 AI 出口管制是核心工具。
-  国内政治压力（通胀、就业）对外交决策的约束随选举周期显著变化。
+regimes:
+  # ── 现行路线（2022-2026，校准期拟合的实际风格）────────────────
+  - id: current
+    since: "2022-06"
+    until: "2026-08"
+    label: "现行路线"
+    doctrine: |
+      优先维护美元霸权、全球海上通道安全和盟友安全承诺。
+      对盟友安全承诺（北约第五条、地区防卫义务）优先于短期经济成本。
+      避免与核大国直接军事冲突，优先使用经济制裁、代理施压和技术封锁。
+      在大国竞争中保持技术领先，半导体和 AI 出口管制是核心工具。
+      国内政治压力（通胀、就业）对外交决策的约束随选举周期显著变化。
 
-red_lines:
-  - "台湾被武力封锁超过 72 小时"
-  - "北约成员国领土遭受直接军事攻击"
-  - "美元结算系统被规模性绕过（超过 20% 全球贸易份额）"
-  - "盟友核设施遭受攻击"
+    red_line_triggers:   # 08-17 校准：taiwan p90=100 → 真红线 90+（旧 >80 过松）
+      - "taiwan_strait > 90"
+      - "russia_europe > 85 AND global_composite > 80"
 
-# v2.2 D2：数值表达式版红线（_eval_trigger 可判定；red_lines 中文描述仅供叙事）
-# 变量均来自 S 类 ctx（GRV 维度 0-100 原生量纲）
-red_line_triggers:
-  - "taiwan_strait > 80"
-  - "russia_europe > 85"
-  - "russia_europe > 80 AND global_composite > 75"
+    resources:
+      military_capacity: 0.95
+      economic_buffer_months: 18
+      alliance_score: 0.88          # 北约 + 印太同盟网络
+      reserve_currency_dominance: 0.58
 
-resources:
-  military_capacity: 0.95
-  economic_buffer_months: 18
-  alliance_score: 0.88          # 北约 + 印太同盟网络
-  reserve_currency_dominance: 0.58  # 美元在全球外汇储备中的占比
+    cultural_prior:
+      conservatism_index: 0.42
+      nationalism_intensity: 0.55
+      religious_influence_coeff: 0.35
+      uncertainty_avoidance: 46
+      power_distance: 40
+      opinion_epsilon: 0.48         # 两党政治下政策摇摆大
 
-cultural_prior:
-  conservatism_index: 0.42
-  nationalism_intensity: 0.55
-  religious_influence_coeff: 0.35
-  uncertainty_avoidance: 46         # Hofstede UAI（低：可接受不确定性）
-  power_distance: 40                # Hofstede PDI（低：去中心化决策）
-  opinion_epsilon: 0.48             # 较高 epsilon：两党政治下政策摇摆大
+    internal_factions:   # 08-17 校准：hawks trigger 上调（russia 70→80 / taiwan 75→85）
+      hawks:
+        weight: 0.40
+        trigger: "russia_europe > 80 OR taiwan_strait > 85 OR us_china_strategic > 85"
+        bias: "倾向军事威慑、制裁升级和盟友部署"
+        bias_actions: ["MILITARY_DEPLOYMENT", "IMPOSE_SANCTIONS", "TECH_RESTRICTION"]
+      doves:
+        weight: 0.35
+        trigger: "global_composite < 40 AND economic_buffer_months > 12"
+        bias: "倾向外交谈判、多边框架和成本控制"
+        bias_actions: ["DIPLOMATIC_ENGAGE", "LIFT_SANCTIONS", "HOLD"]
+      domestic_lobby:
+        weight: 0.25
+        trigger: "domestic_political_pressure > 0.5"
+        bias: "优先国内经济指标（通胀/就业），反对高代价军事干预"
+        bias_actions: ["HOLD", "DIPLOMATIC_ENGAGE"]
 
-internal_factions:
-  hawks:
-    weight: 0.40
-    trigger: "russia_europe > 70 OR taiwan_strait > 75 OR us_china_strategic > 80"
-    bias: "倾向军事威慑、制裁升级和盟友部署"
-    bias_actions: ["MILITARY_DEPLOYMENT", "IMPOSE_SANCTIONS", "TECH_RESTRICTION"]   # v2.2 A2
-  doves:
-    weight: 0.35
-    trigger: "global_composite < 40 AND economic_buffer_months > 12"
-    bias: "倾向外交谈判、多边框架和成本控制"
-    bias_actions: ["DIPLOMATIC_ENGAGE", "LIFT_SANCTIONS", "HOLD"]                    # v2.2 A2
-  domestic_lobby:
-    weight: 0.25
-    trigger: "domestic_political_pressure > 0.5"
-    bias: "优先国内经济指标（通胀/就业），反对高代价军事干预"
-    bias_actions: ["HOLD", "DIPLOMATIC_ENGAGE"]                                      # v2.2 A2
+    grv_impact_map:
+      IMPOSE_SANCTIONS:
+        sanctions_risk: +15
+        us_china_strategic: +8
+      MILITARY_DEPLOYMENT:
+        taiwan_strait: -10      # 威慑降低直接冲突概率
+        global_composite: +5
+      DIPLOMATIC_ENGAGE:
+        us_china_strategic: -8
+        global_composite: -3
+      TECH_RESTRICTION:
+        sanctions_risk: +10
+        us_china_strategic: +12
+      ALLIANCE_REINFORCE:
+        taiwan_strait: -8
+        russia_europe: -5
 
-# 决策对 GRV 的影响方向（供未来 SovereignAgent._decide_rules 参考）
-grv_impact_map:
-  IMPOSE_SANCTIONS:
-    sanctions_risk: +15
-    us_china_strategic: +8
-  MILITARY_DEPLOYMENT:
-    taiwan_strait: -10      # 威慑降低直接冲突概率
-    global_composite: +5    # 但提升整体紧张度
-  DIPLOMATIC_ENGAGE:
-    us_china_strategic: -8
-    global_composite: -3
-  TECH_RESTRICTION:
-    sanctions_risk: +10
-    us_china_strategic: +12
-  ALLIANCE_REINFORCE:
-    taiwan_strait: -8
-    russia_europe: -5
+  # ── 更迭情景（2026-09 后）：鹰派主导 + 对华科技战深化 ────────
+  - id: next_assertive
+    since: "2026-09"
+    until: null
+    label: "更迭·鹰派主导假设"
+    doctrine: |
+      大国竞争全面优先：对华科技战深化、供应链脱钩加速。
+      盟友义务强化，安全承诺从威慑转向主动施压。
+      关税与产业政策工具使用频率上升，多边框架让位于双边谈判。
+      对俄维持高压但避免直接冲突，重点转向印太方向。
+
+    red_line_triggers:
+      - "taiwan_strait > 88"
+      - "us_china_strategic > 88"
+      - "russia_europe > 88 AND global_composite > 82"
+
+    resources:
+      military_capacity: 0.95
+      economic_buffer_months: 16
+      alliance_score: 0.90
+      reserve_currency_dominance: 0.56
+
+    internal_factions:
+      hawks:
+        weight: 0.50
+        trigger: "us_china_strategic > 80 OR taiwan_strait > 80"
+        bias: "倾向主动施压、科技封锁、盟友部署"
+        bias_actions: ["IMPOSE_SANCTIONS", "TECH_RESTRICTION", "MILITARY_DEPLOYMENT"]
+      doves:
+        weight: 0.28
+        trigger: "global_composite < 45 AND economic_buffer_months > 14"
+        bias: "倾向控制成本、外交降温"
+        bias_actions: ["DIPLOMATIC_ENGAGE", "HOLD"]
+      domestic_lobby:
+        weight: 0.22
+        trigger: "domestic_political_pressure > 0.55"
+        bias: "优先国内通胀与就业"
+        bias_actions: ["HOLD", "DIPLOMATIC_ENGAGE"]
+
+    grv_impact_map:
+      IMPOSE_SANCTIONS:
+        sanctions_risk: +18
+        us_china_strategic: +10
+      MILITARY_DEPLOYMENT:
+        taiwan_strait: -8
+        global_composite: +6
+      DIPLOMATIC_ENGAGE:
+        us_china_strategic: -10
+        global_composite: -3
+      TECH_RESTRICTION:
+        sanctions_risk: +12
+        us_china_strategic: +15
+      ALLIANCE_REINFORCE:
+        taiwan_strait: -9
+        russia_europe: -5
 
 internal_state:
   domestic_political_pressure: 0.0
   economic_buffer_months: 18
   active_commitments:
     - "NATO Article 5 obligations"
-    - "Taiwan Relations Act"
+    - "Regional defense treaties (Indo-Pacific)"
     - "US-Japan Mutual Defense Treaty"

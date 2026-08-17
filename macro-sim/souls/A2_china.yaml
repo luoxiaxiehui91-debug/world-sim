@@ -1,84 +1,142 @@
 # souls/A2_china.yaml — 中国（主权国家 Agent）
 #
-# 对应 agent_taxonomy.md 中的 A2（中国），为 B+A/NOVEL 重写 Sprint 准备。
-# 当前 agents.yaml 中 A8 是"中国央行/财政"——B+A/NOVEL 重写后
-# A2 升级为完整主权 Agent，A8 合并为 A2 的内部货币政策派系。
+# 对应 agents.yaml S2_china。08-17 政权分片改造：regimes 时间分片 + 红线阈值校准
+# （taiwan_strait p90=100 —— 旧 `>80` 约 90% 时间触发；sanctions_risk 历史仅 20 条且恒 83，
+# 旧 `>75` 恒真 = 每步红线）。内容为 stylized 政策风格抽象（政策连续性/宏观取向，
+# 不指向具体个人），政权更迭 = 路径分叉来源。
 
-actor_id: A2
+actor_id: S2_china
 actor_type: sovereign_state
 name: "中国"
 layer: state_agent
 
-doctrine: |
-  维护共产党执政合法性是所有对外政策的前提约束。
-  台海统一是不可讨价还价的核心利益，经济手段优先于军事手段。
-  在中美战略竞争中寻求"斗而不破"，避免触发美国主导的全面脱钩。
-  通过"一带一路"和多边机构构建平行于西方的规则体系。
-  国内经济稳定（就业+房地产）优先于对外冒险，内忧时对外趋于保守。
+regimes:
+  # ── 现行路线（2022-2026，校准期拟合的实际风格）────────────────
+  - id: current
+    since: "2022-06"
+    until: "2026-08"
+    label: "现行路线"
+    doctrine: |
+      维护国内政治稳定与经济发展是所有对外政策的前提约束。
+      台海统一是不可讨价还价的核心利益，经济手段优先于军事手段。
+      在中美战略竞争中寻求"斗而不破"，避免触发美国主导的全面脱钩。
+      通过"一带一路"和多边机构构建平行于西方的规则体系。
+      国内经济稳定（就业+房地产）优先于对外冒险，内忧时对外趋于保守。
 
-red_lines:
-  - "台湾宣布正式独立"
-  - "美国对中国发动金融制裁（SWIFT 切断或主权债违约）"
-  - "香港大规模武装骚乱威胁驻港部队"
-  - "南海军事基地遭受直接攻击"
+    red_line_triggers:   # 08-17 校准：taiwan p90=100 → 真红线 92+（旧 >80 过松）
+      - "taiwan_strait > 92"
+      - "sanctions_risk > 88 AND us_china_strategic > 85"
 
-# v2.2 D2：数值表达式版红线（S 类 ctx，GRV 维度 0-100 原生量纲）
-red_line_triggers:
-  - "taiwan_strait > 85"
-  - "sanctions_risk > 75 AND us_china_strategic > 70"
-  - "taiwan_strait > 80"
+    resources:
+      military_capacity: 0.82
+      economic_buffer_months: 12    # 外汇储备充裕但房地产压力持续
+      alliance_score: 0.42          # 无正式军事同盟体系，上合+金砖为主
+      manufacturing_dominance: 0.28
 
-resources:
-  military_capacity: 0.82
-  economic_buffer_months: 12    # 外汇储备约 3 万亿美元，但房地产压力持续
-  alliance_score: 0.42          # 无正式军事同盟体系，上合+金砖为主
-  manufacturing_dominance: 0.28 # 全球制造业产出占比
+    cultural_prior:
+      conservatism_index: 0.75
+      nationalism_intensity: 0.80
+      religious_influence_coeff: 0.15
+      uncertainty_avoidance: 30
+      power_distance: 80
+      opinion_epsilon: 0.20
 
-cultural_prior:
-  conservatism_index: 0.75
-  nationalism_intensity: 0.80
-  religious_influence_coeff: 0.15    # 宗教政策严格管控，公共决策影响有限
-  uncertainty_avoidance: 30          # Hofstede UAI（低：高度适应不确定性）
-  power_distance: 80                 # Hofstede PDI（高：集中决策）
-  opinion_epsilon: 0.20              # 低 epsilon：信息管控下舆论共识维持快，但一旦突破快速级联
+    internal_factions:   # 08-17 校准：nationalists trigger 上调（taiwan 65→82）
+      nationalists:
+        weight: 0.40
+        trigger: "taiwan_strait > 82 OR us_china_strategic > 85"
+        bias: "倾向强硬表态、军事演习、经济反制措施"
+        bias_actions: ["MILITARY_DEPLOYMENT", "IMPOSE_SANCTIONS", "TECH_RESTRICTION"]
+      pragmatists:
+        weight: 0.40
+        trigger: "global_composite < 50 AND economic_buffer_months > 8"
+        bias: "倾向维持贸易关系、谈判降温、货币政策刺激"
+        bias_actions: ["DIPLOMATIC_ENGAGE", "HOLD"]
+      stability_faction:
+        weight: 0.20
+        trigger: "market_sentiment < -0.3 OR domestic_political_pressure > 0.6"
+        bias: "优先国内稳定，反对激进对外行动，支持财政刺激"
+        bias_actions: ["HOLD", "DIPLOMATIC_ENGAGE"]
 
-internal_factions:
-  nationalists:
-    weight: 0.40
-    trigger: "taiwan_strait > 65 OR us_china_strategic > 75"
-    bias: "倾向强硬表态、军事演习、经济反制措施"
-    bias_actions: ["MILITARY_DEPLOYMENT", "IMPOSE_SANCTIONS", "TECH_RESTRICTION"]   # v2.2 A2
-  pragmatists:
-    weight: 0.40
-    trigger: "global_composite < 50 AND economic_buffer_months > 8"
-    bias: "倾向维持贸易关系、谈判降温、货币政策刺激"
-    bias_actions: ["DIPLOMATIC_ENGAGE", "HOLD"]                                      # v2.2 A2
-  stability_faction:
-    weight: 0.20
-    trigger: "market_sentiment < -0.3 OR domestic_political_pressure > 0.6"
-    bias: "优先国内稳定，反对激进对外行动，支持财政刺激"
-    bias_actions: ["HOLD", "DIPLOMATIC_ENGAGE"]                                      # v2.2 A2
+    grv_impact_map:
+      IMPOSE_SANCTIONS:
+        us_china_strategic: +12
+        sanctions_risk: +15
+        global_composite: +5
+      MILITARY_DEPLOYMENT:
+        taiwan_strait: +18
+        us_china_strategic: +10
+        global_composite: +8
+      DIPLOMATIC_ENGAGE:
+        us_china_strategic: -8
+        global_composite: -3
+      TECH_RESTRICTION:
+        sanctions_risk: +10
+        us_china_strategic: +8
+      FISCAL_STIMULUS_CN:
+        global_composite: -3
+      CNY_DEVALUATION:
+        us_china_strategic: +6
+        global_composite: +4
 
-grv_impact_map:
-  IMPOSE_SANCTIONS:
-    us_china_strategic: +12
-    sanctions_risk: +15
-    global_composite: +5
-  MILITARY_DEPLOYMENT:
-    taiwan_strait: +18
-    us_china_strategic: +10
-    global_composite: +8
-  DIPLOMATIC_ENGAGE:
-    us_china_strategic: -8
-    global_composite: -3
-  TECH_RESTRICTION:
-    sanctions_risk: +10
-    us_china_strategic: +8
-  FISCAL_STIMULUS_CN:
-    global_composite: -3     # 中国刺激→全球需求预期改善
-  CNY_DEVALUATION:
-    us_china_strategic: +6
-    global_composite: +4
+  # ── 更迭情景（2026-09 后）：经济优先 + 战略克制强化 ─────────
+  - id: next_pragmatic
+    since: "2026-09"
+    until: null
+    label: "更迭·经济优先假设"
+    doctrine: |
+      战略重心转向国内经济修复：内需扩张、房地产软着陆、科技自主。
+      对外维持"斗而不破"，主动管控台海与科技摩擦烈度。
+      扩大与全球南方的经贸合作，降低对单一市场的依赖。
+      军事手段使用门槛进一步提高，经济工具（反制/稀土）优先。
+
+    red_line_triggers:
+      - "taiwan_strait > 94"
+      - "sanctions_risk > 90 AND us_china_strategic > 88"
+
+    resources:
+      military_capacity: 0.82
+      economic_buffer_months: 14
+      alliance_score: 0.45
+      manufacturing_dominance: 0.30
+
+    internal_factions:
+      nationalists:
+        weight: 0.30
+        trigger: "taiwan_strait > 88 OR us_china_strategic > 90"
+        bias: "倾向反制表态、有限军事演训"
+        bias_actions: ["MILITARY_DEPLOYMENT", "IMPOSE_SANCTIONS"]
+      pragmatists:
+        weight: 0.50
+        trigger: "global_composite < 60"
+        bias: "倾向贸易维稳、谈判降温、财政与货币双宽松"
+        bias_actions: ["DIPLOMATIC_ENGAGE", "FISCAL_STIMULUS_CN", "HOLD"]
+      stability_faction:
+        weight: 0.20
+        trigger: "domestic_political_pressure > 0.55"
+        bias: "优先国内稳定与就业"
+        bias_actions: ["HOLD", "FISCAL_STIMULUS_CN"]
+
+    grv_impact_map:
+      IMPOSE_SANCTIONS:
+        us_china_strategic: +10
+        sanctions_risk: +12
+        global_composite: +4
+      MILITARY_DEPLOYMENT:
+        taiwan_strait: +15
+        us_china_strategic: +8
+        global_composite: +6
+      DIPLOMATIC_ENGAGE:
+        us_china_strategic: -10
+        global_composite: -4
+      TECH_RESTRICTION:
+        sanctions_risk: +8
+        us_china_strategic: +6
+      FISCAL_STIMULUS_CN:
+        global_composite: -4
+      CNY_DEVALUATION:
+        us_china_strategic: +5
+        global_composite: +3
 
 internal_state:
   domestic_political_pressure: 0.0

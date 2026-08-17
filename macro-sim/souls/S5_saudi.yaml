@@ -1,83 +1,130 @@
 # souls/S5_saudi.yaml — 沙特-OPEC（产量决策行为体）
 #
-# v2.2：由 A4_gulf_opec.yaml 重命名（S 编号体系）；定位 = OPEC 产量决策体
-# （有统一产量渠道），非中东政治代表（taxonomy §11.1）。
-# 激活：agents.yaml S5_saudi（class: sovereign.EnergyGovSovereignAgent，纯能源）。
-# 对应 agent_taxonomy.md 核心层 A5（沙特-OPEC）。
+# v2.2：由 A4_gulf_opec.yaml 重命名；定位 = OPEC 产量决策体（有统一产量渠道），
+# 非中东政治代表。08-17 政权分片改造：regimes 时间分片 + 红线阈值校准
+# （middle_east_energy p75=64 p90=76 max=92 —— 旧 `>75` 约 10-25% 时间触发偏松，真红线 88+）。
 
 actor_id: S5_saudi
 actor_type: sovereign_state
 name: "沙特 / OPEC+ 核心（产量决策行为体）"
 layer: state_agent
 
-doctrine: |
-  通过石油产量决策维护国家财政收入和地区政治影响力。
-  优先维持油价在 70-95 USD/bbl 区间（财政平衡点约 80 USD/bbl）。
-  在地区冲突中保持战略模糊，避免直接卷入但借势提升谈判筹码。
-  中美竞争中维持等距外交，避免选边以最大化经济利益。
-  对伊朗威胁保持高度警惕，但优先通过外交而非军事回应。
+regimes:
+  # ── 现行路线（2022-2026）────────────────────────────────
+  - id: current
+    since: "2022-06"
+    until: "2026-08"
+    label: "现行路线"
+    doctrine: |
+      通过石油产量决策维护国家财政收入和地区政治影响力。
+      优先维持油价在 70-95 USD/bbl 区间（财政平衡点约 80 USD/bbl）。
+      在地区冲突中保持战略模糊，避免直接卷入但借势提升谈判筹码。
+      中美竞争中维持等距外交，避免选边以最大化经济利益。
+      对伊朗威胁保持高度警惕，但优先通过外交而非军事回应。
 
-red_lines:
-  - "霍尔木兹海峡实际封锁超过 48 小时"
-  - "伊朗核武器试验或明确核威胁升级"
-  - "沙特本土遭受大规模军事打击"
-  - "油价跌破 55 USD/bbl 持续超过 60 天"
+    red_line_triggers:   # 08-17 校准：energy p90=76/max=92 → 真红线 88+（旧 >75/>80 过松）
+      - "middle_east_energy > 88"
+      - "wti_price < 55"
 
-# v2.2 D2：数值表达式版红线（S 类 ctx；wti_price 来自 soul internal_state.wti_price_ref）
-red_line_triggers:
-  - "middle_east_energy > 85"
-  - "middle_east_energy > 80"
-  - "middle_east_energy > 75"
-  - "wti_price < 55"
+    resources:
+      military_capacity: 0.45       # 依赖美国安全保障
+      economic_buffer_months: 24    # 石油财富主权基金缓冲充足
+      alliance_score: 0.62
+      oil_market_share: 0.27
 
-resources:
-  military_capacity: 0.45       # 依赖美国安全保障
-  economic_buffer_months: 24    # 石油财富主权基金缓冲充足
-  alliance_score: 0.62          # 美沙关系+阿拉伯联盟，但结构性张力上升
-  oil_market_share: 0.27        # OPEC+ 全球原油产量份额约 27%
+    cultural_prior:
+      conservatism_index: 0.82
+      nationalism_intensity: 0.70
+      religious_influence_coeff: 0.75
+      uncertainty_avoidance: 68
+      power_distance: 95
+      opinion_epsilon: 0.22
 
-cultural_prior:
-  conservatism_index: 0.82
-  nationalism_intensity: 0.70
-  religious_influence_coeff: 0.75   # 伊斯兰治国逻辑对决策有深度影响
-  uncertainty_avoidance: 68         # Hofstede UAI（沙特）
-  power_distance: 95                # Hofstede PDI（高度等级制）
-  opinion_epsilon: 0.22             # 低 epsilon：舆论极化快，共识难形成
+    internal_factions:   # 08-17 校准：security_hawks trigger 70→78
+      fiscal_hawks:
+        weight: 0.50
+        trigger: "middle_east_energy < 45 OR wti_price < 70"
+        bias: "倾向减产维价，保护财政收入"
+        bias_actions: ["CUT_OUTPUT", "EMBARGO_SIGNAL"]
+      modernization_wing:
+        weight: 0.30
+        trigger: "global_composite < 50 AND economic_buffer_months > 18"
+        bias: "倾向稳定油价吸引外资，支持经济多元化"
+        bias_actions: ["INCREASE_OUTPUT", "DIPLOMATIC_OUTREACH"]
+      security_hawks:
+        weight: 0.20
+        trigger: "middle_east_energy > 78 OR iran_threat_level > 0.6"
+        bias: "倾向借地区紧张局势提升军事采购和战略筹码"
+        bias_actions: ["MILITARY_DEPLOYMENT", "EMBARGO_SIGNAL"]
 
-internal_factions:
-  fiscal_hawks:
-    weight: 0.50
-    trigger: "middle_east_energy < 45 OR wti_price < 70"
-    bias: "倾向减产维价，保护财政收入"
-    bias_actions: ["CUT_OUTPUT", "EMBARGO_SIGNAL"]                      # v2.2 A2
-  modernization_wing:
-    weight: 0.30
-    trigger: "global_composite < 50 AND economic_buffer_months > 18"
-    bias: "倾向稳定油价吸引外资，支持 Vision 2030 经济多元化"
-    bias_actions: ["INCREASE_OUTPUT", "DIPLOMATIC_OUTREACH"]            # v2.2 A2
-  security_hawks:
-    weight: 0.20
-    trigger: "middle_east_energy > 70 OR iran_threat_level > 0.6"
-    bias: "倾向借地区紧张局势提升军事采购和战略筹码"
-    bias_actions: ["MILITARY_DEPLOYMENT", "EMBARGO_SIGNAL"]             # v2.2 A2
+    grv_impact_map:
+      CUT_OUTPUT:
+        middle_east_energy: +8
+        global_composite: +3
+      INCREASE_OUTPUT:
+        middle_east_energy: -6
+        global_composite: -2
+      EMBARGO_SIGNAL:
+        middle_east_energy: +20
+        global_composite: +10
+      DIPLOMATIC_OUTREACH:
+        middle_east_energy: -4
+        sanctions_risk: -3
 
-# 决策对 GRV 的影响方向（供 _decide_rules 参考）
-grv_impact_map:
-  CUT_OUTPUT:
-    middle_east_energy: +8     # 减产 → 供给减少 → 能源风险上升
-    global_composite: +3
-  INCREASE_OUTPUT:
-    middle_east_energy: -6
-    global_composite: -2
-  EMBARGO_SIGNAL:
-    middle_east_energy: +20
-    global_composite: +10
-  DIPLOMATIC_OUTREACH:
-    middle_east_energy: -4
-    sanctions_risk: -3
+  # ── 更迭情景（2026-09 后）：财政纪律 + 多元化加速 ─────────
+  - id: next_vision2030
+    since: "2026-09"
+    until: null
+    label: "更迭·改革加速假设"
+    doctrine: |
+      经济多元化（非油经济）成为第一优先，财政纪律让位于增长投资。
+      油价策略从"保价"转向"保份额"：接受较低油价换取市场份额与长期需求绑定。
+      地区外交更加主动，中美之间以能源供应为筹码扩大回旋空间。
+      对伊朗维持威慑但明显降低对抗烈度。
+
+    red_line_triggers:
+      - "middle_east_energy > 92"
+      - "wti_price < 50"
+
+    resources:
+      military_capacity: 0.48
+      economic_buffer_months: 28
+      alliance_score: 0.60
+      oil_market_share: 0.28
+
+    internal_factions:
+      fiscal_hawks:
+        weight: 0.35
+        trigger: "middle_east_energy < 40 OR wti_price < 65"
+        bias: "倾向保价减产"
+        bias_actions: ["CUT_OUTPUT", "EMBARGO_SIGNAL"]
+      modernization_wing:
+        weight: 0.45
+        trigger: "economic_buffer_months > 20"
+        bias: "倾向保份额、吸引外资、能源转型投资"
+        bias_actions: ["INCREASE_OUTPUT", "DIPLOMATIC_OUTREACH"]
+      security_hawks:
+        weight: 0.20
+        trigger: "middle_east_energy > 82 OR iran_threat_level > 0.65"
+        bias: "倾向防御性军事投入与战略筹码"
+        bias_actions: ["MILITARY_DEPLOYMENT", "EMBARGO_SIGNAL"]
+
+    grv_impact_map:
+      CUT_OUTPUT:
+        middle_east_energy: +6
+        global_composite: +2
+      INCREASE_OUTPUT:
+        middle_east_energy: -8
+        global_composite: -3
+      EMBARGO_SIGNAL:
+        middle_east_energy: +15
+        global_composite: +8
+      DIPLOMATIC_OUTREACH:
+        middle_east_energy: -5
+        sanctions_risk: -4
 
 internal_state:
-  domestic_political_pressure: 0.0   # 由 C5 social_stress 传入
+  domestic_political_pressure: 0.0
   economic_buffer_months: 24
-  wti_price_ref: 80.0                 # 运行时从 world.commodity_wti 更新（待 B+A/NOVEL 实现）
+  wti_price_ref: 80.0
   active_commitments: []

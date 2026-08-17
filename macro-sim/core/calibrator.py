@@ -64,7 +64,7 @@ from core.world_state import (
     load_monthly_history,
     make_world_from_history_row,
 )
-from core.simulation import MacroSimModel, load_agents
+from core.simulation import MacroSimModel, load_agents, _resolve_soul_by_month
 
 
 # C1-1a/C3-3a：权重改为 3 变量（C3 移除 em_capital_outflow），语义=一致性率评分权重
@@ -681,6 +681,13 @@ def run_probe(
 
     for i, row in enumerate(calibration_data):
         prev_row = calibration_data[i - 1] if i > 0 else baseline_row
+        # 08-17 政权分片：校准期按历史月份切换 soul regime（"当时政权风格"）
+        _month = row.get("date", "")
+        if _month:
+            for _aid, _ag in agents.items():
+                _raw = getattr(_ag, "_soul_raw", None)
+                if _raw:
+                    _ag.soul = _resolve_soul_by_month(_raw, _month)
         # R4d：A2 方向对齐——cs_delta 经 world 属性进 ctx。必须在 step 前设置（Phase 1
         # 决策读取），与 _derive_endogenous_targets 同源（prev_row vs curr_row）。
         cs_delta_i = row.get("credit_spread", 250) - prev_row.get("credit_spread", 250)
@@ -1255,6 +1262,13 @@ def run_calibration(
 
     print(f"[calibrator] 开始校准，{calib_steps} 步（relative_trigger={trigger}）...")
     for i, row in enumerate(calibration_data):
+        # 08-17 政权分片：校准期按历史月份切换 soul regime（"当时政权风格"）
+        _month = row.get("date", "")
+        if _month:
+            for _aid, _ag in agents.items():
+                _raw = getattr(_ag, "_soul_raw", None)
+                if _raw:
+                    _ag.soul = _resolve_soul_by_month(_raw, _month)
         # R4d：A2 方向对齐——cs_delta 经 world 属性进 ctx（与 probe 循环同口径）
         prev_row = calibration_data[i - 1] if i > 0 else baseline_row
         model.world.credit_spread_delta = (

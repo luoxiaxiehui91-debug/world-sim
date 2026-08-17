@@ -28,8 +28,47 @@ from core.agents.sovereign import SovereignAgent
 
 # ── Agent 工厂：从 agents.yaml 加载 ──────────────────────
 
-def load_agents(config_path: str = "/app/config/agents.yaml") -> tuple[dict[str, MacroAgent], dict]:
-    """从 agents.yaml 构建 Agent 字典，返回 (agents, global_cfg)"""
+def _resolve_soul_by_month(soul_dict: dict, as_of_month: str | None = None) -> dict:
+    """08-17 政权分片：soul.regimes 按 since/until（YYYY-MM）选择生效政权。
+
+    - soul 有 regimes 字段：选 since <= as_of_month 的最后一个 regime（as_of=None 取
+      最新 regime = 现行路线）；把 regime 内容合并到顶层（公共字段保留，regime 覆盖）。
+    - soul 无 regimes：旧格式，原样返回（向后兼容）。
+
+    用途：校准期按历史月份切换"当时政权风格"，预测期用现行路线；
+    政权更迭（regime 切换）是路径分叉的重要来源。
+    """
+    regimes = soul_dict.get("regimes")
+    if not regimes:
+        return soul_dict
+    if as_of_month is None:
+        # None = "现行"：按当前真实月选择（预测期默认现行政策延续；
+        # 政权更迭情景由显式传 as_of 触发）
+        from datetime import datetime
+        as_of_month = datetime.now().strftime("%Y-%m")
+    pick = None
+    for rg in regimes:
+        since = rg.get("since")
+        if since and since <= as_of_month:
+            pick = rg
+    if pick is None:
+        pick = regimes[0]  # as_of 早于最早 regime → 第一个
+    merged = {k: v for k, v in soul_dict.items() if k != "regimes"}
+    for k in ("id", "since", "until", "label"):
+        merged.pop(k, None)
+    merged.update({k: v for k, v in pick.items() if k not in ("id", "since", "until", "label")})
+    merged["_regime_id"] = pick.get("id")
+    merged["_regime_label"] = pick.get("label", "")
+    return merged
+
+
+def load_agents(config_path: str = "/app/config/agents.yaml",
+                as_of_month: str | None = None) -> tuple[dict[str, MacroAgent], dict]:
+    """从 agents.yaml 构建 Agent 字典，返回 (agents, global_cfg)
+
+    as_of_month（YYYY-MM，可选）：soul 政权分片——校准期按历史月份传当月；
+    None = 现行 regime（默认，预测期用）。
+    """
     try:
         with open(config_path, encoding="utf-8") as f:
             cfg = yaml.safe_load(f)
@@ -53,6 +92,7 @@ def load_agents(config_path: str = "/app/config/agents.yaml") -> tuple[dict[str,
 
         # soul 文件加载（可选）：agents.yaml 中配置 soul_file 路径时加载
         soul = {}
+        soul_raw = None
         soul_file = entry.get("soul_file")
         if soul_file:
             import os
@@ -62,7 +102,9 @@ def load_agents(config_path: str = "/app/config/agents.yaml") -> tuple[dict[str,
                 soul_path = os.path.normpath(soul_path)
             try:
                 with open(soul_path, encoding="utf-8") as sf:
-                    soul = yaml.safe_load(sf) or {}
+                    soul_raw = yaml.safe_load(sf) or {}
+                # 08-17 政权分片：按 as_of_month 选 regime（None=现行）
+                soul = _resolve_soul_by_month(soul_raw, as_of_month)
             except FileNotFoundError:
                 pass  # soul 文件可选，不存在不报错
 
@@ -75,6 +117,10 @@ def load_agents(config_path: str = "/app/config/agents.yaml") -> tuple[dict[str,
             transmission_coefficients=entry.get("transmission_coefficients", {}),
             soul=soul,
         )
+        # 08-17 政权分片：记录 soul 路径 + 原始 dict，供校准期按历史月份切换 regime
+        if soul_file and soul_raw is not None:
+            agent._soul_path = soul_path
+            agent._soul_raw = soul_raw
         agents[agent_id] = agent
     return agents, global_cfg
 
