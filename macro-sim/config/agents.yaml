@@ -205,8 +205,10 @@ agents:
     role: long_term_capital
     class: financial.LongTermCapitalAgent
     # 08-17 新增：逆周期稳定者——深度恐慌时逆向抄底，弥补全顺周期恐慌者结构缺陷
-    info_delay: 3        # 长线资金看季度数据，反应慢
-    activation_prob: 0.50
+    # v5 调参：activation 0.65 + magnitude 1.8 → 参与度仍被 info_delay 冷却锁死（5步/24），未出分叉
+    # v6 调参：info_delay 3→2（季度→月度，行动密度翻倍）+ magnitude 2.5（抄底力度近追平媒体恐慌）
+    info_delay: 2
+    activation_prob: 0.65
     transmission_coefficients:
       to_A5: 0.30   # 长线抄底信号 → 机构投资者止跌/转向
       to_A3: 0.20   # 逆向力量进场 → 对冲基金收敛做空
@@ -214,7 +216,7 @@ agents:
     params:
       sensitivity: 1.0
       threshold: 0.5
-      magnitude: 1.0
+      magnitude: 2.5
 
   # ── A 类主权国家 Agent（v2.2 激活，核心层 5 个）────────────────
   # id 策略：S{1..n} 前缀，避开现有 A1-A12 撞车；role 用语义名
