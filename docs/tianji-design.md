@@ -177,6 +177,18 @@ CREATE TABLE predictions (
 - 代码四文件 sha256 ≡ 仓库；依赖仅 pyyaml；无 VERSION 文件（镜像名+时间=版本锚点）
 - DB：`narrative_chunks=181`、`forecasts=289`（天璇仿真动态增长）、`predictions=1`（测试预测 GRV global_composite 上升，Brier 0.4225，08-01 auto verified）、`weight_update_log/actuals/evaluations=0`
 
+**人工验证渠道（08-17 补齐，此前"待人工"无入口）**：
+- 地缘事件预测（`status=awaiting_human`，geopolitical 类型）设计上等人工判断，脚本：
+  ```bash
+  docker exec macro-sim python3 verify_human.py --list                 # 列出全部待人工（含剩余天数）
+  docker exec macro-sim python3 verify_human.py --verify <id> \
+      --outcome 0|1|0.5 [--note "备注"]   # 0=未发生 1=发生 0.5=部分/不确定
+  ```
+- 验证后 `status=verified, verified_by=human`（与自动验证 `verified_by=auto` 区分）、
+  `brier=(final_prob−outcome)²`、备注存 `human_note` 列（08-17 ALTER TABLE 新增）；
+  幂等：已 verified 拒绝重复验证
+- 开阳界面化（天玑 tab 点选验证）＝ 控制面二期待办
+
 **已知缺口**：
 1. `prior.yaml` 缺失 → `init_weights_from_prior()` 不可用（grv_weights.yaml 已存在，需人工维护）
 2. V1 未正式投用：predictions 仅 1 条测试预测，待天璇 run_scoring() 落真实预测

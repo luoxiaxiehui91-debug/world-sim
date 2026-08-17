@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r req
 
 # 复制源码
 COPY run.py ./
+COPY verify_human.py ./
 COPY core/ ./core/
 COPY config/ ./config/
 COPY souls/ ./souls/
