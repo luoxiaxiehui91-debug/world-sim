@@ -5,6 +5,23 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.33] - 2026-08-17 · 天玑 Tab：字号放大 + 待人工验证内容完整显示
+
+**修改理由**：v1.11.32 上线后用户反馈"字太小 + 内容省略看不到"（content 用了 truncate 单行裁剪）。
+
+### 修改
+
+- **`control/TianjiTab.tsx`**：
+  - 待人工验证列表：预测内容 `truncate text-[10px]` → **`break-words text-[12px]` 完整显示可换行**（不再省略）；剩余天数 badge 8→10px；元信息 8→10px；备注输入 9→11px；判定按钮 9→11px + 更大 padding
+  - 最近预测列表：主行 10→11px、元信息 8→10px、百分比 8→10px
+  - 预测存档统计卡：by_type 徽标 8→10px、图例 8→9px、"条" 9→10px
+  - 状态徽标 statusBadge：8→10px
+
+### 验证
+
+- `tsc --noEmit` 通过；vite build（`index-BAehmvlr.js`）
+- 线上 :8080 新 bundle 生效
+
 ## [1.11.32] - 2026-08-17 · 天玑 Tab：人工验证界面化（替代 CLI 渠道）
 
 **修改理由**：人工验证此前只有 CLI（`verify_human.py`），用户反馈"太离谱，没渠道"——整合进开阳天玑 tab 点选验证。

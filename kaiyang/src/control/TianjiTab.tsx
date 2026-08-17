@@ -30,7 +30,7 @@ function statusBadge(status?: string) {
   const s = STATUS_STYLE[status ?? ''] ?? { label: status ?? '—', color: 'rgba(255,255,255,0.55)', bg: 'rgba(255,255,255,0.08)' };
   return (
     <span
-      className="shrink-0 rounded px-1.5 py-0.5 text-[8px] font-medium"
+      className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
       style={{ color: s.color, background: s.bg }}
     >
       {s.label}
@@ -173,10 +173,10 @@ export function TianjiTab() {
               <span className="text-lg font-semibold" style={{ color: withAlpha(PALETTE.text, 0.95) }}>
                 {pred?.total ?? 0}
               </span>
-              <span className="text-[9px] text-white/30">条</span>
+              <span className="text-[10px] text-white/35">条</span>
               <span className="ml-auto flex gap-1">
                 {Object.entries(pred?.by_type ?? {}).map(([t, n]) => (
-                  <span key={t} className="rounded bg-white/5 px-1.5 py-0.5 text-[8px] text-white/50">
+                  <span key={t} className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-white/55">
                     {t} {n}
                   </span>
                 ))}
@@ -198,7 +198,7 @@ export function TianjiTab() {
                 })}
               </div>
             )}
-            <div className="mt-1 flex flex-wrap gap-x-2 text-[8px] text-white/30">
+            <div className="mt-1 flex flex-wrap gap-x-2 text-[9px] text-white/35">
               {Object.entries(pred?.by_status ?? {}).map(([st, n]) => {
                 const style = STATUS_STYLE[st];
                 return (
@@ -240,12 +240,12 @@ export function TianjiTab() {
               const dl = daysLeft(p.due_at);
               return (
                 <li key={p.id} className="px-2.5 py-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[10px]" style={{ color: withAlpha(PALETTE.text, 0.85) }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 break-words text-[12px] leading-snug" style={{ color: withAlpha(PALETTE.text, 0.9) }}>
                       {p.content || p.id}
                     </span>
                     <span
-                      className="shrink-0 rounded px-1.5 py-0.5 text-[8px]"
+                      className="shrink-0 rounded px-1.5 py-0.5 text-[10px]"
                       style={{
                         color: dl != null && dl < 0 ? '#f87171' : 'rgba(255,255,255,0.45)',
                         background: dl != null && dl < 0 ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.06)',
@@ -254,16 +254,16 @@ export function TianjiTab() {
                       {dl == null ? '—' : dl < 0 ? '已到期' : `剩${dl}天`}
                     </span>
                   </div>
-                  <div className="mt-0.5 text-[8px] text-white/30">
+                  <div className="mt-0.5 text-[10px] text-white/35">
                     概率 {p.final_prob != null ? `${Math.round(p.final_prob * 100)}%` : '—'} · {p.confidence_tier ?? '—'}
                     {p.due_at ? ` · 验证至 ${p.due_at.slice(0, 10)}` : ''}
                   </div>
-                  <div className="mt-1 flex items-center gap-1">
+                  <div className="mt-1.5 flex items-center gap-1.5">
                     <input
                       value={noteDraft[p.id] ?? ''}
                       onChange={(e) => setNoteDraft((prev) => ({ ...prev, [p.id]: e.target.value }))}
                       placeholder="备注（可选）"
-                      className="min-w-0 flex-1 rounded border border-white/10 bg-black/25 px-1.5 py-0.5 text-[9px] text-white/70 outline-none placeholder:text-white/20 focus:border-teal-400/40"
+                      className="min-w-0 flex-1 rounded border border-white/10 bg-black/25 px-2 py-1 text-[11px] text-white/75 outline-none placeholder:text-white/25 focus:border-teal-400/40"
                     />
                     {([
                       [1, '发生', PALETTE.teal],
@@ -276,7 +276,7 @@ export function TianjiTab() {
                         disabled={verifyingId === p.id}
                         onClick={() => void handleVerify(p, v)}
                         title={`判定：${label}`}
-                        className="rounded border px-1.5 py-0.5 text-[9px] transition-colors disabled:opacity-40"
+                        className="rounded border px-2 py-1 text-[11px] transition-colors disabled:opacity-40"
                         style={{
                           borderColor: `${color}55`,
                           color,
@@ -306,17 +306,17 @@ export function TianjiTab() {
             {pred.recent.map((r) => (
               <li key={r.id} className="px-2.5 py-1.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-[10px]" style={{ color: withAlpha(PALETTE.text, 0.8) }}>
+                  <span className="truncate text-[11px]" style={{ color: withAlpha(PALETTE.text, 0.8) }}>
                     {r.scenario_id || shortId(r.id)}
                   </span>
                   <span className="flex shrink-0 items-center gap-1">
                     {r.type === 'quantitative' && r.final_prob != null && (
-                      <span className="text-[8px] text-white/40">{Math.round(r.final_prob * 100)}%</span>
+                      <span className="text-[10px] text-white/40">{Math.round(r.final_prob * 100)}%</span>
                     )}
                     {statusBadge(r.status)}
                   </span>
                 </div>
-                <div className="mt-0.5 flex items-center gap-2 text-[8px] text-white/30">
+                <div className="mt-0.5 flex items-center gap-2 text-[10px] text-white/35">
                   {r.type && <span>{r.type}</span>}
                   {r.target_direction && <span>方向 {r.target_direction}</span>}
                   {r.confidence_tier && <span>{r.confidence_tier}</span>}
