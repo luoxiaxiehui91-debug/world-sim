@@ -17,8 +17,8 @@
 
 | ID | 位置 | 问题 | 建议修法 |
 |----|------|------|---------|
-| **NEW-08-16 主权高频失真** | `config/agents.yaml` S1-S5（activation_prob=0.35 试点）+ 主权 agent 决策 | 全激活试验暴露：S1-S5 每步军事/核动作（中国 MILITARY_DEPLOYMENT×2139/100runs、俄罗斯 NUCLEAR_SIGNAL×2078、欧盟制裁×2309、沙特 EMBARGO_SIGNAL×2144）——**现实不可信**；普通模式 0.35 概率 × 24 步也可能出现多次军事动作 | ① 回调 activation_prob 至 0.15-0.25（注释已预留）；② 给主权 red_line 动作加冷却/频率上限；③ 校验军事/核动作的触发条件是否过松 |
-| **M31** | `macro-sim/run.py:573/582`（geo 侧 :639/646 同） | archival uuid4 主键 + `ON CONFLICT(id)` 去重恒 no-op → 重跑同 scenario 插重复行 | 改用内容/场景哈希主键或 (scenario_hash, generated_at) 唯一约束 |
+| ✅ **LLM①③②** | `llm_usage.py` / `llm_client.py` | 静态默认失效 + 天璇缓存不失效 + 条件性错配 | `0a2a6ecb`：resolve 回落静态默认 / 60s TTL / 同源消除错配 |
+| ✅ **M31** | `macro-sim/run.py:573/582`（geo 侧 :639/646 同） | archival uuid4 主键 + `ON CONFLICT(id)` 去重恒 no-op → 重跑同 scenario 插重复行 | `0a2a6ecb`：确定性哈希主键（scenario+路径+类型） |
 | **LLM③** | `macro-sim/core/llm_client.py:98-110` `_usage_cache` + `:33-49` 导入期常量 + `:113-120` client 缓存 | 三处均无 TTL/mtime/信号失效，改配置须**重启天璇容器**；与天枢每次开文件热更行为不一致 | 配置缓存加 TTL（如 60s）或 mtime 比对，client 惰性重建 |
 | **LLM①** | `llm_usage.py:196-200` `resolve()` | 静态默认平台/模型仅供前端展示，调用方 resolve 返 None 时回落 env——全新部署静默回落 env，静态值形同虚设 | resolve() 返 None 时回落静态默认 |
 | **LLM②** | `hybrid_llm.py:204` 附近 | 仅当 `OPENAI_COMPAT_URL` 设了而 `OPENAI_COMPAT_MODEL` 未设的半配置态才 model=gpt-4o + base_url=MiMo 错配（条件性，非必然） | 配置校验：URL 与 MODEL 必须成对出现 |
@@ -27,11 +27,11 @@
 
 | ID | 位置 | 问题 | 建议修法 |
 |----|------|------|---------|
-| **M11** | `weight_matrix.py:187-188` / `:394-395` | 两处 `except:pass` 吞掉权重/拒绝日志写失败，无 log 无告警 | 接 H12 默认 ntfy hook 或至少 stderr 日志 |
-| **M26** | `pg_read.py:130-141` | `exec_read()` 连接失败/查询失败/真空结果都返回 `[]`，下游无法区分 | 连接失败 raise 或返回带状态标记的结构 |
-| **L03** | `tianji_verifier.py:406` | 锐度标签印 "(>30%或<70%)" 恒 100%，实算 `p<0.3 or p>0.7` | 纯标签修正 |
-| **tianji_db 分叉** | `macro-ji/tianji_db.py`（纯 PG） vs `macro-scan/核心代码/tianji_db.py`（SQLite 主写+PG 旁路过渡态） | 同名不同实现，改一份不传播 | 合并为单一 PG 实现（macro-ji 为准），天枢侧移除过渡态 |
-| **doc-code 漂移** | `docs/tianji-design.md` | 仍写旧定义（气候基准 0.25 / 样本≥5），代码已更严（门控≥20） | 同步文档 |
+| ✅ **M11** | `weight_matrix.py:187-188` / `:394-395` | 两处 `except:pass` 吞掉权重/拒绝日志写失败，无 log 无告警 | `0a2a6ecb`：fail-loud 打印 |
+| ✅ **M26** | `pg_read.py:130-141` | `exec_read()` 连接失败/查询失败/真空结果都返回 `[]`，下游无法区分 | `0a2a6ecb`：新增 `exec_read_checked` 返回 (rows, ok) |
+| ✅ **L03** | `tianji_verifier.py:406` | 锐度标签印 "(>30%或<70%)" 恒 100%，实算 `p<0.3 or p>0.7` | `0a2a6ecb`：标签修正 |
+| **tianji_db 分叉** | `macro-ji/tianji_db.py`（纯 PG） vs `macro-scan/核心代码/tianji_db.py`（SQLite 主写+PG 旁路过渡态） | 同名不同实现，改一份不传播 | 头部已加维护警示（`0a2a6ecb`）；物理合并风险>收益暂缓——生产走 _PG_ONLY 纯 PG 语义一致 |
+| ✅ **doc-code 漂移** | `docs/tianji-design.md` | 仍写旧定义（气候基准 0.25 / 样本≥5），代码已更严（门控≥20） | `0a2a6ecb`：BSS 门控 ≥20 同步 |
 | **C03 残留** | `control_server.py:504` | CORS 已收窄但仍 `host="0.0.0.0"` 绑全网卡；有 fail-closed token 兜底，单人家用 NAS 可接受 | 可选：绑回环 + 反代 |
 | **前端 dangerouslySetInnerHTML** | `NewsPanel.tsx:63` / `SignalStreamPanel.tsx:212` | 安全依赖"抓取层 html.unescape + 渲染层 escapeHtml"隐式不变量；新抓取标题接进 trigger_titles 即成存储型 XSS | 文档化不变量或抓取/存储层转义 |
 
