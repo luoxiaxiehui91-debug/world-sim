@@ -5,6 +5,25 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.29] - 2026-08-17 · 天璇 Tab：推演记录只读版（"只看不动"）
+
+**修改理由**：控制台"天璇"tab 是"推演控制 · 建设中"占位，用户看不到推演结果入口。按此前讨论的最小可行版方案，先上"只看不动"——零风险、马上有用；触发/调参等写操作留待控制面二期。
+
+### 修改
+
+- **`control/TianxuanTab.tsx`（新增）**：
+  - **触发状态卡片**：读 `sim_trigger.json`（H18 契约）——待触发（红）/ 未触发（灰）+ 级别/事件/触发时间；未触发时显示"GRV ≥ 68 自动触发"机制说明
+  - **最近推演记录**：`reports_index.json` 过滤 `type=演化仿真`（天璇产物），按日期倒序；列表项含级别/校准分 badge（从文件名解析）、今天的报告 teal 高亮"今天"
+  - **报告全文只读**：点击列表项 → `fetchText(path)` + `renderMarkdown` 渲染（与报告面板同机制，同源）
+- **`control/ControlDrawer.tsx`**：天璇 tab 占位 → `TianxuanTab`
+- **`control/PlaceholderTab.tsx`**：建设图标 🚧 emoji → SVG（P0-1 禁止 emoji 作功能图标，顺手清违规）
+
+### 验证
+
+- `tsc --noEmit` 通过；vite build（`index-lk-piOHy.js`）
+- 线上 :8080 实测：新 bundle 生效，含"推演触发状态 / 最近推演记录"文案
+- 数据链路：reports_index + sim_trigger + reports/*.md 均走既有 nginx 静态挂载，无后端改动
+
 ## [1.11.28] - 2026-08-16 · 报告中心：全开/全关 + 近期过滤 + "今天"高亮
 
 **修改理由**：① 报告中心已有单组折叠但缺全局开关，类型多时逐个点太累；② 报告列表长（375 份，演化仿真 310 占大头），无时间维度，看不出哪份是最近的。
