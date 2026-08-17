@@ -1,0 +1,145 @@
+# souls/S7_korea.yaml — 韩国（主权）
+#
+# 08-17 新增：政权光谱"强制轮替民主"端——总统 5 年单任期**不可连任**（宪法），
+# 到点必换、风格大摇摆（transition_prob 0.70，全场最高）。
+# 红线数据校准：korean_peninsula p90=88/max=89、us_china_strategic p90=100。
+# 均为 stylized 中性派系描述（进步/保守），不指向具体个人或政党。
+
+actor_id: S7_korea
+actor_type: sovereign_state
+name: "韩国（主权）"
+layer: state_agent
+
+# 08-17 政权更迭模型（governance）：单任期强制轮替——到点必换人且不可连任，
+# 换届后 70% 概率风格大摇摆（进步↔保守），冲击半岛与中美维度
+governance:
+  change_mechanism: election
+  cycle_months: 60
+  next_election_offset: 8           # 距下次总统选举约 8 个月（2027-04）
+  single_term: true                 # 宪法单任期：到点强制换人（美/日/欧均 false）
+  transition_prob: 0.70             # 强制轮替：风格大摇摆概率最高（对比美 0.40 / 日 0.15）
+  alternate_regime: next_hardline
+  transition_impact:
+    korean_peninsula: 6.0
+    us_china_strategic: 5.0
+    global_composite: 3.0
+    market_sentiment: 0.04
+
+regimes:
+  # ── 现行路线（2022-2026）：对朝对话 + 对华平衡 + 同盟有摩擦 ──
+  - id: current
+    since: "2022-06"
+    until: "2026-08"
+    label: "现行路线"
+    doctrine: |
+      对朝政策以对话与和解为主轴，努力推进半岛无核化进程。
+      中美之间保持平衡：安全上依赖美韩同盟，经济上维持对华贸易纽带。
+      半岛自主性诉求上升（战时指挥权收回、减少对美依赖）。
+      对日关系在历史问题与安全合作之间摇摆。
+
+    red_line_triggers:   # 08-17 校准：korean_peninsula p90=88 / us_china_strategic p90=100
+      - "korean_peninsula > 85"
+      - "us_china_strategic > 90"
+
+    resources:
+      military_capacity: 0.58
+      economic_buffer_months: 12
+      alliance_score: 0.70
+      oil_market_share: 0.0
+
+    cultural_prior:
+      conservatism_index: 0.55
+      nationalism_intensity: 0.75
+      religious_influence_coeff: 0.35
+      uncertainty_avoidance: 85
+      power_distance: 60
+      opinion_epsilon: 0.30
+
+    internal_factions:
+      progressive_dialogue:     # 进步对话派：对朝和解、对华缓和
+        weight: 0.45
+        trigger: "korean_peninsula < 60 AND global_composite < 55"
+        bias: "对话优先，半岛自主，对华经贸平衡"
+        bias_actions: ["DIPLOMATIC_ENGAGE", "LIFT_SANCTIONS"]
+      conservative_alliance:    # 保守同盟派：对朝强硬、美韩同盟优先
+        weight: 0.35
+        trigger: "korean_peninsula > 65 OR us_china_strategic > 70"
+        bias: "强化同盟、对朝威慑、对华审慎"
+        bias_actions: ["ALLIANCE_REINFORCE", "MILITARY_DEPLOYMENT", "TECH_RESTRICTION"]
+      nationalist_swing:        # 民族主义摇摆派：半岛自主、对美日戒心
+        weight: 0.20
+        trigger: "us_china_strategic > 75 AND global_composite < 60"
+        bias: "减少大国依赖，强调自主国防"
+        bias_actions: ["DIPLOMATIC_ENGAGE", "HOLD"]
+
+    grv_impact_map:
+      ALLIANCE_REINFORCE:
+        korean_peninsula: +4
+        us_china_strategic: +3
+      MILITARY_DEPLOYMENT:
+        korean_peninsula: +8
+        global_composite: +4
+      DIPLOMATIC_ENGAGE:
+        korean_peninsula: -6
+        global_composite: -2
+      TECH_RESTRICTION:
+        us_china_strategic: +4
+        global_composite: +3
+
+  # ── 更迭情景（2026-09 后）：强硬路线（单任期强制轮替后的高概率分支）──
+  - id: next_hardline
+    since: "2026-09"
+    until: null
+    label: "更迭·强硬路线假设"
+    doctrine: |
+      对朝政策转向强硬威慑与施压，半岛无核化优先于对话。
+      美韩同盟全面强化，对华关系收紧（供应链/科技领域）。
+      半岛紧张度主动管控但以实力为后盾，东北亚安全角色更积极。
+      经济上接受对华贸易受损换取安全承诺强化。
+
+    red_line_triggers:
+      - "korean_peninsula > 80"
+      - "us_china_strategic > 85"
+
+    resources:
+      military_capacity: 0.65
+      economic_buffer_months: 10
+      alliance_score: 0.85
+      oil_market_share: 0.0
+
+    internal_factions:
+      conservative_alliance:
+        weight: 0.55
+        trigger: "korean_peninsula > 50 OR us_china_strategic > 55"
+        bias: "强化同盟、对朝威慑、对华收紧"
+        bias_actions: ["ALLIANCE_REINFORCE", "MILITARY_DEPLOYMENT", "TECH_RESTRICTION"]
+      progressive_dialogue:
+        weight: 0.25
+        trigger: "korean_peninsula < 50 AND global_composite < 50"
+        bias: "对话窗口重开"
+        bias_actions: ["DIPLOMATIC_ENGAGE", "LIFT_SANCTIONS"]
+      nationalist_swing:
+        weight: 0.20
+        trigger: "global_composite > 80"
+        bias: "自主国防、减少依赖"
+        bias_actions: ["DIPLOMATIC_ENGAGE", "HOLD"]
+
+    grv_impact_map:
+      ALLIANCE_REINFORCE:
+        korean_peninsula: +6
+        us_china_strategic: +5
+      MILITARY_DEPLOYMENT:
+        korean_peninsula: +10
+        global_composite: +6
+      TECH_RESTRICTION:
+        us_china_strategic: +6
+        global_composite: +5
+      DIPLOMATIC_ENGAGE:
+        korean_peninsula: -5
+        global_composite: -2
+
+internal_state:
+  domestic_political_pressure: 0.0
+  economic_buffer_months: 12
+  wti_price_ref: 80.0
+  active_commitments: []

@@ -307,7 +307,8 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
                       if getattr(p, "governance_stats", {})), {})
     if gov_stats:
         AGENT_CN = {"S1_usa": "美国", "S2_china": "中国", "S3_eu": "欧盟",
-                    "S4_russia": "俄罗斯", "S5_saudi": "沙特"}
+                    "S4_russia": "俄罗斯", "S5_saudi": "沙特",
+                    "S6_japan": "日本", "S7_korea": "韩国"}
         lines += ["---", "", "## 政权更迭事件（Monte Carlo 100 runs 聚合）", ""]
         for aid, st in gov_stats.items():
             t_t = st.get("election_transition", 0)

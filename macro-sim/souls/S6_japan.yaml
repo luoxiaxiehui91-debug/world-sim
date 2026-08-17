@@ -1,0 +1,146 @@
+# souls/S6_japan.yaml — 日本（主权）
+#
+# 08-17 新增：政权光谱"准一党制民主"端（此前只有美/中/欧/俄/沙）。
+# 特征 = 选举存在（众议院 4 年）但自民党近 70 年近乎连续执政 → 换首不换路，
+# 官僚体系主导，换届风格转向概率低（transition_prob 0.15）。
+# 红线数据校准：south_china_sea p90=88/max=93、taiwan_strait p90=100；
+# japan_monetary 恒 46-48（数据源近静态）不作红线，仅派系参考。
+# 与 A12 日本央行保持独立（央行 ≠ 主权，A12 管货币政策、S6 管国家战略）。
+
+actor_id: S6_japan
+actor_type: sovereign_state
+name: "日本（主权）"
+layer: state_agent
+
+# 08-17 政权更迭模型（governance）：准一党制民主——选举到点必举行，
+# 但换首不换路（官僚体系主导 + 一党固化），转向概率低、冲击温和
+governance:
+  change_mechanism: election
+  cycle_months: 48
+  next_election_offset: 6           # 距下次众议院选举约 6 个月（2027-02）
+  single_term: false
+  transition_prob: 0.15             # 准一党制：换届后风格转向概率低（美 0.40 / 韩 0.70 对比）
+  alternate_regime: next_alliance
+  transition_impact:
+    global_composite: 4.0
+    south_china_sea: 3.0
+    market_sentiment: 0.02
+
+regimes:
+  # ── 现行路线（2022-2026）：务实经济 + 日美同盟基线 ─────────
+  - id: current
+    since: "2022-06"
+    until: "2026-08"
+    label: "现行路线"
+    doctrine: |
+      经济安全与日美同盟为双支柱，但在中美竞争中选择务实平衡路线。
+      对华经贸联系保持（半导体/汽车供应链现实依赖），安全上依托日美同盟。
+      安保政策渐进正常化（防卫预算缓升），避免主动挑起地区对抗。
+      海上通道安全（南海/台海）是核心关切，但优先外交与联盟威慑而非单边行动。
+
+    red_line_triggers:   # 08-17 校准：south_china_sea p90=88 / taiwan_strait p90=100 → 真红线 85+/90+
+      - "south_china_sea > 85"
+      - "taiwan_strait > 90"
+
+    resources:
+      military_capacity: 0.55
+      economic_buffer_months: 18
+      alliance_score: 0.75
+      oil_market_share: 0.0
+
+    cultural_prior:
+      conservatism_index: 0.65
+      nationalism_intensity: 0.50
+      religious_influence_coeff: 0.25
+      uncertainty_avoidance: 92
+      power_distance: 54
+      opinion_epsilon: 0.25
+
+    internal_factions:
+      pragmatic_merchants:      # 务实经济派：贸易优先、避免卷入
+        weight: 0.45
+        trigger: "global_composite < 55 AND south_china_sea < 60"
+        bias: "经贸优先，外交解决，避免升级"
+        bias_actions: ["DIPLOMATIC_ENGAGE", "HOLD"]
+      security_alliance:        # 安保同盟派：强化日美同盟、军事正常化
+        weight: 0.30
+        trigger: "south_china_sea > 65 OR taiwan_strait > 70 OR us_china_strategic > 70"
+        bias: "强化同盟与威慑姿态"
+        bias_actions: ["ALLIANCE_REINFORCE", "MILITARY_DEPLOYMENT"]
+      cautious_pacifism:        # 谨慎和平派：避免军事化、宪法约束
+        weight: 0.25
+        trigger: "japan_monetary < 45 OR global_composite > 80"
+        bias: "避免军事升级，坚持外交与宪法约束"
+        bias_actions: ["HOLD", "DIPLOMATIC_ENGAGE"]
+
+    grv_impact_map:
+      ALLIANCE_REINFORCE:
+        global_composite: +3
+        us_china_strategic: +2
+      MILITARY_DEPLOYMENT:
+        south_china_sea: +5
+        global_composite: +4
+      DIPLOMATIC_ENGAGE:
+        south_china_sea: -4
+        global_composite: -2
+      TECH_RESTRICTION:
+        global_composite: +4
+        us_china_strategic: +3
+
+  # ── 更迭情景（2026-09 后）：安保强化假设（换首后转向概率 15% 的低概率分支）──
+  - id: next_alliance
+    since: "2026-09"
+    until: null
+    label: "更迭·安保强化假设"
+    doctrine: |
+      安全优先取代经济优先：防卫预算显著提升、日美同盟从依赖转向主动。
+      对华关系从务实平衡转向战略竞争，科技/供应链领域对华限制扩大。
+      台海与南海议题上采取更明确的威慑姿态，积极参与地区安全架构。
+      经济代价（对华贸易受损）被视为安全必要的成本。
+
+    red_line_triggers:
+      - "south_china_sea > 80"
+      - "taiwan_strait > 85"
+
+    resources:
+      military_capacity: 0.62
+      economic_buffer_months: 14
+      alliance_score: 0.85
+      oil_market_share: 0.0
+
+    internal_factions:
+      security_alliance:
+        weight: 0.50
+        trigger: "south_china_sea > 55 OR us_china_strategic > 60"
+        bias: "强化同盟、威慑姿态、技术限制"
+        bias_actions: ["ALLIANCE_REINFORCE", "MILITARY_DEPLOYMENT", "TECH_RESTRICTION"]
+      pragmatic_merchants:
+        weight: 0.30
+        trigger: "global_composite < 50 AND south_china_sea < 55"
+        bias: "经贸现实回归，避免过度对抗"
+        bias_actions: ["DIPLOMATIC_ENGAGE", "HOLD"]
+      cautious_pacifism:
+        weight: 0.20
+        trigger: "global_composite > 85"
+        bias: "约束军事化冲动"
+        bias_actions: ["HOLD", "DIPLOMATIC_ENGAGE"]
+
+    grv_impact_map:
+      ALLIANCE_REINFORCE:
+        global_composite: +5
+        us_china_strategic: +4
+      MILITARY_DEPLOYMENT:
+        south_china_sea: +7
+        global_composite: +6
+      TECH_RESTRICTION:
+        global_composite: +6
+        us_china_strategic: +5
+      DIPLOMATIC_ENGAGE:
+        south_china_sea: -3
+        global_composite: -2
+
+internal_state:
+  domestic_political_pressure: 0.0
+  economic_buffer_months: 18
+  wti_price_ref: 80.0
+  active_commitments: []

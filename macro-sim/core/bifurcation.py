@@ -215,6 +215,7 @@ def _extract_key_events(history_list: list[list[dict]], run_indices: list[int]) 
         # v2.2 A 类主权 Agent（S 编号体系）
         "S1_usa": "美国",  "S2_china": "中国",    "S3_eu": "欧盟",
         "S4_russia": "俄罗斯", "S5_saudi": "沙特-OPEC",
+        "S6_japan": "日本", "S7_korea": "韩国",
     }
 
     n_runs   = len(run_indices)
@@ -314,6 +315,7 @@ def _compute_participation(
         "A13": "长线资金",
         "S1_usa": "美国（主权）", "S2_china": "中国（主权）", "S3_eu": "欧盟（主权）",
         "S4_russia": "俄罗斯（主权）", "S5_saudi": "沙特-OPEC（主权）",
+        "S6_japan": "日本（主权）", "S7_korea": "韩国（主权）",
     }
     from collections import Counter, defaultdict
     stats: dict[str, dict] = {}

@@ -305,3 +305,36 @@ agents:
       sensitivity: 1.0
       threshold: 0.5
       magnitude: 1.0
+
+  # ── 08-17 政权光谱扩展：日韩主权（准一党制 / 强制轮替）─────────
+  - id: S6_japan
+    name: 日本（主权）
+    role: japan
+    class: sovereign.SovereignAgent
+    soul_file: S6_japan.yaml   # 08-17 新增：准一党制民主（换首不换路，transition 0.15）
+    info_delay: 0        # 试点：去冷却
+    activation_prob: 0.2
+    transmission_coefficients:
+      to_A12: 0.30   # 主权安保/外交决策 → 日本央行政策环境
+      to_A3: 0.25   # 台海/南海紧张 → 对冲基金
+      to_A10: 0.20  # 地缘信号 → 散户情绪
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
+  - id: S7_korea
+    name: 韩国（主权）
+    role: korea
+    class: sovereign.SovereignAgent
+    soul_file: S7_korea.yaml   # 08-17 新增：单任期强制轮替民主（到点必换，transition 0.70）
+    info_delay: 0        # 试点：去冷却
+    activation_prob: 0.2
+    transmission_coefficients:
+      to_A5: 0.25   # 半岛风险 → 机构投资者
+      to_A3: 0.25   # 半岛/中美紧张 → 对冲基金
+      to_A10: 0.20  # 地缘信号 → 散户情绪
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
