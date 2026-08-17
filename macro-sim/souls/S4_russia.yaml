@@ -11,6 +11,18 @@ actor_type: sovereign_state
 name: "俄罗斯"
 layer: state_agent
 
+# 08-17 政权更迭模型（governance）：hybrid——继承 + 政变风险并存（个人化掌权），
+# 每月 1.2% 基础风险 × 社会压力调制，触发后转向长期化假设（威慑常态化）
+governance:
+  change_mechanism: hybrid
+  succession_risk: 0.008            # G1 实测 0.012 过频，回调（个人化政权仍为最高）
+  coup_pressure_threshold: 0.70
+  succession_regime: next_long_war
+  break_impact:
+    global_composite: 18.0
+    russia_europe: 15.0
+    market_sentiment: -0.20
+
 regimes:
   # ── 现行路线（校准期 2022-2026 拟合的实际行为风格）──────────────
   - id: current

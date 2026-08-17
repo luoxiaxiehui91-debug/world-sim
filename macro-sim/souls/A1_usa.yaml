@@ -10,6 +10,20 @@ actor_type: sovereign_state
 name: "美国"
 layer: state_agent
 
+# 08-17 政权更迭模型（governance）：民主定期选举——4 年周期、可连任、
+# 换届后 40% 概率转向鹰派（next_assertive），换届冲击战略维度
+governance:
+  change_mechanism: election
+  cycle_months: 48
+  next_election_offset: 4          # 距下次选举 4 个月（2026-12）
+  single_term: false
+  transition_prob: 0.40            # 换届后风格转向概率（鹰/鸽切换）
+  alternate_regime: next_assertive
+  transition_impact:
+    us_china_strategic: 8.0
+    global_composite: 5.0
+    market_sentiment: 0.05
+
 regimes:
   # ── 现行路线（2022-2026，校准期拟合的实际风格）────────────────
   - id: current

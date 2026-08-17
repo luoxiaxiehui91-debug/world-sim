@@ -9,6 +9,20 @@ actor_type: sovereign_state
 name: "欧盟（集体）"
 layer: state_agent
 
+# 08-17 政权更迭模型（governance）：委员会/议会 5 年周期换届（非成员国政府），
+# 换届后 35% 概率转向防务一体化（next_unified）；成员国异质性由 internal_factions 表达
+governance:
+  change_mechanism: election
+  cycle_months: 60
+  next_election_offset: 10          # 距下次换届 10 个月（2027-06）
+  single_term: false
+  transition_prob: 0.35
+  alternate_regime: next_unified
+  transition_impact:
+    russia_europe: 5.0
+    global_composite: 4.0
+    market_sentiment: 0.03
+
 regimes:
   # ── 现行路线（2022-2026）────────────────────────────────
   - id: current

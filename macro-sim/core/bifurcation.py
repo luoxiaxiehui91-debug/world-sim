@@ -66,6 +66,9 @@ class PathResult:
     # 08-16 参与度统计：{agent_id: {"name": 显示名, "acts": 总行动次数, "steps": 行动步数,
     #                                "silent_steps": 无行动步数, "actions": {action: 次数}}}
     agent_participation: dict = field(default_factory=dict)
+    # 08-17 政权更迭统计：{agent_id: {"election_transition": n, "election_hold": n,
+    #                                  "succession_break": n, "months": [...], "labels": [...]}}
+    governance_stats: dict = field(default_factory=dict)
 
 
 MIN_PATH_PROBABILITY = 0.05   # 低于此概率的路径不展开（设计文档确认10%，实测降至5%）
@@ -445,6 +448,8 @@ def run_prediction(
 
     all_histories: list[list[dict]] = []
     grv_by_step: list[list[float]] = [[] for _ in range(predict_steps)]
+    # 08-17 政权更迭：跨 run 聚合更迭事件统计（报告渲染）
+    governance_stats: dict[str, dict] = {}
 
     for run_i in range(n_runs):
         random.seed(run_i)
@@ -453,8 +458,31 @@ def run_prediction(
         agents = copy.deepcopy(agents_template)
         model  = MacroSimModel(world, agents=agents, use_llm=False,
                                bleed_params_override=bleed_params_override,
-                               force_activate_all=force_activate_all)
+                               force_activate_all=force_activate_all,
+                               governance_enabled=True)
         history = model.run()
+
+        # 08-17 政权更迭：收集该 run 的更迭事件（按 agent + 类型计数 + 月份分布）
+        # runs_triggered = 触发该类型事件的 run 数（渲染用 run 级触发率，非事件内占比）
+        run_events = getattr(world, "_governance_events", None) or []
+        for ev in run_events:
+            aid = ev.get("agent", "")
+            st = governance_stats.setdefault(aid, {"election_transition": 0, "election_hold": 0,
+                                                   "succession_break": 0, "months": [],
+                                                   "runs_triggered": 0})
+            etype = ev.get("type", "")
+            if etype in st:
+                st[etype] += 1
+            st["months"].append(ev.get("month"))
+            if etype in ("election_transition", "succession_break"):
+                st.setdefault("labels", []).append(ev.get("label", ""))
+        # run 级触发计数（该 run 是否发生实质更迭：换届转向/继承政变）
+        for aid in {ev.get("agent") for ev in run_events
+                    if ev.get("type") in ("election_transition", "succession_break")}:
+            st = governance_stats.setdefault(aid, {"election_transition": 0, "election_hold": 0,
+                                                   "succession_break": 0, "months": [],
+                                                   "runs_triggered": 0})
+            st["runs_triggered"] += 1
 
         # 一致性校验：检查该 run 是否存在跨 Agent 行动矛盾
         from core.consistency_validator import validate_run_actions
@@ -574,4 +602,8 @@ def run_prediction(
 
     # 按概率降序排列
     paths.sort(key=lambda p: -p.probability)
+    # 08-17 政权更迭：更迭统计挂到所有路径（跨 run 聚合，非 per-path）
+    if governance_stats and paths:
+        for p in paths:
+            p.governance_stats = governance_stats
     return paths

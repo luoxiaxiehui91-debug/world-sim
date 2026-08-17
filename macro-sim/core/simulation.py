@@ -493,6 +493,7 @@ class MacroSimModel:
         config_path: str = "/app/config/agents.yaml",
         bleed_params_override: dict = None,
         force_activate_all: bool = False,
+        governance_enabled: bool = False,
     ):
         self.world   = world
         self.use_llm = use_llm
@@ -500,6 +501,8 @@ class MacroSimModel:
         # 08-16 全激活试验开关：跳过 activation_prob 掷骰，每步都给所有 Agent 决策机会
         # （保留 info_delay 冷却，避免单 Agent 连续行动；阈值判定仍在 decide 内）
         self.force_activate_all = force_activate_all
+        # 08-17 政权更迭引擎（仅预测期启用；校准期 False 避免污染历史拟合）
+        self.governance_enabled = governance_enabled
         if agents is not None:
             self.agents = agents
             self.global_cfg = {}
@@ -540,6 +543,14 @@ class MacroSimModel:
         执行一步仿真。
         inject_world: 校准循环传入当月真实外生变量，覆盖仿真结果（用于保持历史轨迹真实）
         """
+        # 08-17 政权更迭引擎（仅预测期）：Phase 0 在 agent 决策前检查更迭事件
+        if self.governance_enabled:
+            try:
+                from core.governance import check_governance_transitions
+                check_governance_transitions(self.world, self.agents)
+            except Exception as _e:
+                print(f"  [governance] 更迭检查失败：{_e}", flush=True)
+
         # Phase 1: 每个 Agent 决策（v3 阶段 1：decide_with_decision 收集 trace，
         # 行为与 v2 的 decide() 完全一致——decide() 即取 .action）
         step_actions: dict[str, str] = {}

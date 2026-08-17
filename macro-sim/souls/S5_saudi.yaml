@@ -9,6 +9,18 @@ actor_type: sovereign_state
 name: "沙特 / OPEC+ 核心（产量决策行为体）"
 layer: state_agent
 
+# 08-17 政权更迭模型（governance）：君主继承制——继承相对有序但非零风险，
+# 每月 0.8% 基础风险 × 压力调制，触发后转向改革加速（保份额策略）
+governance:
+  change_mechanism: succession
+  succession_risk: 0.005            # G1 实测 0.008 过频，回调（君主继承相对有序）
+  coup_pressure_threshold: 0.78
+  succession_regime: next_vision2030
+  break_impact:
+    global_composite: 10.0
+    middle_east_energy: 12.0
+    market_sentiment: -0.10
+
 regimes:
   # ── 现行路线（2022-2026）────────────────────────────────
   - id: current

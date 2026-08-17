@@ -302,6 +302,41 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
 
         lines.append("")
 
+    # ── 08-17 政权更迭事件（跨 100 runs 聚合统计）────────────────
+    gov_stats = next((getattr(p, "governance_stats", {}) for p in paths
+                      if getattr(p, "governance_stats", {})), {})
+    if gov_stats:
+        AGENT_CN = {"S1_usa": "美国", "S2_china": "中国", "S3_eu": "欧盟",
+                    "S4_russia": "俄罗斯", "S5_saudi": "沙特"}
+        lines += ["---", "", "## 政权更迭事件（Monte Carlo 100 runs 聚合）", ""]
+        for aid, st in gov_stats.items():
+            t_t = st.get("election_transition", 0)
+            t_h = st.get("election_hold", 0)
+            t_b = st.get("succession_break", 0)
+            runs = st.get("runs_triggered", 0)
+            total = t_t + t_h + t_b
+            if total == 0:
+                continue
+            pct = lambda n: f"{n / total * 100:.0f}%"
+            # run 级触发率（100 runs 中多少 run 发生实质更迭）
+            runs_pct = f"{runs / 100.0 * 100:.0f}%" if runs else "0%"
+            months = sorted({m for m in st.get("months", []) if m})
+            detail = []
+            if t_t:
+                detail.append(f"换届转向 {pct(t_t)}")
+            if t_h:
+                detail.append(f"换届延续 {pct(t_h)}")
+            if t_b:
+                detail.append(f"继承/政变 {pct(t_b)}")
+            labels = list(dict.fromkeys(st.get("labels", [])))[:2]
+            lines.append(
+                f"- **{AGENT_CN.get(aid, aid)}**：{'；'.join(detail)}"
+                f"（月 {'、'.join(str(m) for m in months)}；"
+                f"{runs_pct} runs 发生实质更迭）"
+                + (f" — {' / '.join(labels)}" if labels else "")
+            )
+        lines.append("")
+
     lines += [
         f"---",
         f"",

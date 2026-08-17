@@ -10,6 +10,18 @@ actor_type: sovereign_state
 name: "中国"
 layer: state_agent
 
+# 08-17 政权更迭模型（governance）：长期执政 + 继承交接——罕见但重大，
+# 每月 0.6% 基础风险 × 社会压力调制（超阈值 ×3），交接后转向经济优先
+governance:
+  change_mechanism: succession
+  succession_risk: 0.003            # 每月交接/变动风险（G1 实测 0.006 触发过频，回调黑天鹅语义）
+  coup_pressure_threshold: 0.80     # 社会压力 > 0.8 → 风险 ×3
+  succession_regime: next_pragmatic
+  break_impact:
+    global_composite: 12.0
+    us_china_strategic: 10.0
+    market_sentiment: -0.10
+
 regimes:
   # ── 现行路线（2022-2026，校准期拟合的实际风格）────────────────
   - id: current
