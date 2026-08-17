@@ -419,6 +419,7 @@ def run_prediction(
     config_path: str = "/app/config/agents.yaml",
     bleed_params_override: dict = None,
     force_activate_all: bool = False,
+    as_of_month: str | None = None,
 ) -> list[PathResult]:
     """
     预测循环主函数。
@@ -436,7 +437,8 @@ def run_prediction(
         print(f"[bifurcation] Board 基线预置跳过：{e}")
 
     # 加载 Agent 并应用校准后的参数
-    agents_template, _global_cfg = load_agents(config_path)
+    # 08-17 政权分片：as_of_month 指定预测期政权情景（None=现行路线）
+    agents_template, _global_cfg = load_agents(config_path, as_of_month=as_of_month)
     for agent_id, params_dict in calibrated_agent_params.items():
         if agent_id in agents_template:
             agents_template[agent_id].params = AgentParams.from_dict(params_dict)

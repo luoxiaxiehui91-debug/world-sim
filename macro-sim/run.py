@@ -29,6 +29,7 @@ def run_full_simulation(
     event: str = "手动触发",
     config_path: str = "/app/config/agents.yaml",
     force_activate_all: bool = False,
+    as_of_month: str | None = None,
 ) -> dict:
     """
     完整仿真：校准（前50步）+ 预测（后50步）。
@@ -40,8 +41,22 @@ def run_full_simulation(
 
     print(f"\n{'='*60}")
     print(f"macro-sim v2 仿真启动")
-    print(f"触发：{event}（L{level}）{'  [全激活模式]' if force_activate_all else ''}")
+    print(f"触发：{event}（L{level}）{'  [全激活模式]' if force_activate_all else ''}"
+          f"{'  政权情景 as_of=' + as_of_month if as_of_month else ''}")
     print(f"{'='*60}")
+
+    # 08-17 政权分片：解析 as_of_month 对应的 regime 标签（报告展示用）
+    regime_label = ""
+    if as_of_month:
+        try:
+            from core.simulation import load_agents
+            _ag, _ = load_agents(config_path, as_of_month=as_of_month)
+            _labels = {a.soul.get("_regime_label", "") for a in _ag.values()
+                       if a.soul and a.soul.get("_regime_label")}
+            regime_label = "、".join(sorted(l for l in _labels if l))
+            print(f"  政权情景：{regime_label or as_of_month}")
+        except Exception as _e:
+            print(f"  [regime] 标签解析跳过：{_e}")
 
     # ── 0. 加载军事背景卡片（SIPRI静态，注入推演context）────────
     military_backdrop = ""
@@ -80,10 +95,11 @@ def run_full_simulation(
         predict_steps=24,
         config_path=config_path,
         force_activate_all=force_activate_all,
+        as_of_month=as_of_month,
     )
 
     # ── 生成报告 ──────────────────────────────────────────
-    report_path = _write_report(world, calib_result, paths, level, event)
+    report_path = _write_report(world, calib_result, paths, level, event, regime_label=regime_label)
 
     # ── 天玑存档钩子 ──────────────────────────────────────
     _archive_to_tianji(world, paths, calib_result, event, level, report_path)
@@ -148,7 +164,8 @@ def _readable_trigger(event: str) -> str:
     return event
 
 
-def _write_report(world, calib_result: dict, paths: list, level: int, event: str) -> Path | None:
+def _write_report(world, calib_result: dict, paths: list, level: int, event: str,
+                  regime_label: str = "") -> Path | None:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     score    = calib_result.get("score", 0)
     now_str  = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -195,7 +212,8 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
         f"",
         f"**触发**：{_readable_trigger(event)}  |  **级别**：L{level}  |  "
         f"**预测范围**：未来 24 个月  |  "
-        f"**校准**：{score}/100 {'✅' if score >= 60 else '⚠️'}",
+        f"**校准**：{score}/100 {'✅' if score >= 60 else '⚠️'}"
+        + (f"  |  **政权情景**：{regime_label}" if regime_label else ""),
         f"",
         f"---",
         f"",
@@ -789,6 +807,8 @@ if __name__ == "__main__":
     parser.add_argument("--event",        type=str, default="手动触发")
     parser.add_argument("--force-activate-all", action="store_true",
                         help="试验：跳过 activation_prob 掷骰，每步给所有 Agent 决策机会（保留冷却）")
+    parser.add_argument("--as-of", type=str, default=None, metavar="YYYY-MM",
+                        help="政权情景：预测期使用该月的 soul regime（如 2026-08=现行 / 2027-01=更迭后）")
     args = parser.parse_args()
 
     CONFIG_PATH = str(Path(__file__).parent / "config/agents.yaml")
@@ -829,7 +849,8 @@ if __name__ == "__main__":
                     except Exception:
                         pass
                     run_full_simulation(level=level, event=event, config_path=CONFIG_PATH,
-                                        force_activate_all=args.force_activate_all)
+                                        force_activate_all=args.force_activate_all,
+                                        as_of_month=args.as_of)
                 except Exception as e:
                     print(f"[daemon] 仿真失败：{e}")
                     try:
@@ -847,7 +868,8 @@ if __name__ == "__main__":
 
     elif args.run:
         run_full_simulation(level=args.level, event=args.event, config_path=CONFIG_PATH,
-                            force_activate_all=args.force_activate_all)
+                            force_activate_all=args.force_activate_all,
+                            as_of_month=args.as_of)
 
     elif args.predict_only:
         run_predict_only(level=args.level, event=args.event, config_path=CONFIG_PATH)

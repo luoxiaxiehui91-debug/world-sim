@@ -1,0 +1,43 @@
+# souls/A10_retail.yaml — 散户/羊群（行为体）
+#
+# 08-17 soul 化：A10 从单一路径 rules 升级为"恐慌派 vs FOMO 派 vs 观望派"双极派系结构。
+# 设计依据：散户是羊群效应的核心载体——恐慌时跟风抛售、乐观时 FOMO 追涨、
+# 常态下摇摆观望；派系权重随市场情绪漂移（触发条件决定哪派占上风），
+# 行为从"单一 if-else"变为"概率化多极"，丰富路径分叉来源。
+# 注意：soul trigger 只能 eval ctx 数值字段（market_sentiment/grv_stress/vix_stress 等），
+# 不能引用 visible_actions（dict 无法 eval）——媒体/对冲基金驱动靠派系触发间接表达。
+
+actor_id: A10
+actor_type: retail_investor
+name: "散户/羊群"
+layer: financial_agent
+
+doctrine: |
+  羊群行为体：不做独立研究，跟随媒体报道与身边情绪决策。
+  恐慌时集体抛售（PANIC_SELL），乐观时 FOMO 追涨（FOMO_BUY），
+  常态摇摆观望（HOLD）。情绪惯性大，转向慢但爆发快。
+
+red_line_triggers: {}   # 散户无红线（个体无力触发系统性事件）
+
+internal_factions:
+  panic_herd:            # 恐慌派：媒体放大恐慌/情绪恶化 → 集体抛售
+    weight: 0.45
+    trigger: "flag_media_fear > 0.5 OR market_sentiment < -0.3 OR grv_stress > 0.3"
+    bias: "恐慌性抛售，羊群踩踏"
+    bias_actions: ["PANIC_SELL", "HOLD"]
+  fomo_chasers:          # FOMO 派：情绪回暖/低压力 → 追涨买入
+    weight: 0.30
+    trigger: "market_sentiment > 0.2 AND grv_stress < 0.4"
+    bias: "追涨买入，害怕踏空"
+    bias_actions: ["FOMO_BUY", "HOLD"]
+  fence_sitters:         # 观望派：情绪中性 → 持币观望
+    weight: 0.25
+    trigger: "market_sentiment >= -0.3 AND market_sentiment <= 0.2"
+    bias: "观望摇摆，等待方向明确"
+    bias_actions: ["HOLD", "PANIC_SELL"]
+
+grv_impact_map:
+  PANIC_SELL:
+    market_sentiment_proxy: -0.8   # 供叙事参考（gm_resolve 实际处理在 simulation.py）
+  FOMO_BUY:
+    market_sentiment_proxy: +0.6

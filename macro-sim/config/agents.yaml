@@ -159,6 +159,7 @@ agents:
     name: 散户/羊群
     role: retail
     class: social.RetailAgent
+    soul_file: A10_retail.yaml   # 08-17 soul 化：恐慌派/FOMO 派/观望派 三派系
     info_delay: 0        # 即时，最容易被驱动
     activation_prob: 0.90
     transmission_coefficients:
