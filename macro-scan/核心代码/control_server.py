@@ -498,6 +498,84 @@ async def llm_usage_update(usage_id: str, request: Request):
     return {"ok": True, "usage_id": usage_id, "platform": platform, "model": model}
 
 
+# ── 人工验证（08-17：开阳天玑 Tab 点选验证，补齐"待人工"渠道）────────────────
+
+def _pg_exec(sql, params=()):
+    """天枢侧 PG 执行（复用 pg_read.connect——autocommit + worldsim_app rw）。"""
+    try:
+        from pg_read import connect
+    except ImportError:
+        raise HTTPException(status_code=500, detail="pg_read 不可用")
+    conn = connect()
+    if conn is None:
+        raise HTTPException(status_code=503, detail="PG 连接失败")
+    return conn.execute(sql, params)
+
+
+@app.get("/api/v1/control/predictions/human-pending")
+def human_pending(request: Request, limit: int = 100):
+    """列出全部待人工验证的地缘预测（awaiting_human，按验证截止排序）。"""
+    _check_token(request)
+    try:
+        cur = _pg_exec(
+            "SELECT id, created_at, due_at, scenario_id, final_prob, confidence_tier, "
+            "content, outcome_definition, human_note "
+            "FROM predictions WHERE status = 'awaiting_human' "
+            "ORDER BY due_at ASC, created_at DESC LIMIT %s", (limit,))
+        cols = [d.name for d in cur.description] if cur.description else []
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"查询失败: {e}")
+    return {"predictions": rows, "total": len(rows)}
+
+
+@app.post("/api/v1/control/predictions/verify")
+async def verify_prediction(request: Request):
+    """人工验证一条地缘预测：outcome 0|0.5|1（0=未发生 1=发生 0.5=部分/不确定）。
+    幂等：仅 awaiting_human 可验证（已 verified 返回 409）。"""
+    _check_token(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="JSON body required")
+    pred_id = (body.get("prediction_id") or "").strip()
+    outcome = body.get("outcome")
+    note = (body.get("note") or "").strip() or None
+    if not pred_id or outcome not in (0, 0.5, 1):
+        raise HTTPException(status_code=400, detail="prediction_id + outcome(0|0.5|1) 必填")
+    try:
+        cur = _pg_exec(
+            "SELECT final_prob FROM predictions "
+            "WHERE id = %s AND status = 'awaiting_human'", (pred_id,))
+        row = cur.fetchone()
+        if row is None:
+            raise HTTPException(status_code=409, detail="预测不存在或已验证（仅 awaiting_human 可验证）")
+        final_prob = float(row[0])
+        brier = round((final_prob - float(outcome)) ** 2, 4)
+        cur = _pg_exec(
+            "UPDATE predictions SET status = 'verified', outcome_value = %s, "
+            "brier_score = %s, verified_at = CURRENT_TIMESTAMP, "
+            "verified_by = 'human', human_note = %s WHERE id = %s",
+            (float(outcome), brier, note, pred_id))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=409, detail="更新失败（可能已并发验证）")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"验证失败: {e}")
+    # 验证成功 → 同步刷新 tianji_summary.json（开阳统计立即更新，不等 I30 定时导出）
+    try:
+        _exporter = os.path.join(WORKDIR, "tianji_summary_export.py")
+        if os.path.exists(_exporter):
+            subprocess.Popen([PYTHON, _exporter], cwd=WORKDIR,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+    return {"ok": True, "updated": cur.rowcount, "outcome": outcome, "brier": brier, "note": note}
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("CONTROL_PORT", "8900"))
     print(f"[control_server] 启动于 :{port}")

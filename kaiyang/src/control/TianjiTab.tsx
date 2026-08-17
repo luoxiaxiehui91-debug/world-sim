@@ -10,9 +10,13 @@
  *  - tianji_summary.json（天枢 tianji_summary_export.py I30 每 30 分钟导出）
  */
 
+import { useCallback, useEffect, useState } from 'react';
 import { useFeed } from '@/hooks/useFeed';
+import { useControl } from '@/state/ControlContext';
+import { getHumanPending, verifyPrediction } from '@/lib/controlApi';
 import { PALETTE, withAlpha } from '@/config/theme';
 import type { TianjiSummaryRaw, TianjiTriggerRaw } from '@/types/contracts';
+import type { HumanPendingPrediction } from '@/types/control';
 
 /** 预测状态徽标配色。 */
 const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
@@ -42,10 +46,64 @@ function shortId(id: string): string {
 export function TianjiTab() {
   const { data: summary, loading: sumLoading } = useFeed<TianjiSummaryRaw | null>('tianjiSummary');
   const { data: trig } = useFeed<TianjiTriggerRaw | null>('tianjiTrigger');
+  const { token, showToast } = useControl();
+
+  // v1.11.32 人工验证：待验证列表（control API，替代 CLI 渠道）
+  const [pending, setPending] = useState<HumanPendingPrediction[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
+  const [localVerified, setLocalVerified] = useState(0);
+
+  const loadPending = useCallback(async () => {
+    if (!token) return;
+    setPendingLoading(true);
+    try {
+      setPending(await getHumanPending());
+    } catch {
+      setPending([]);
+    } finally {
+      setPendingLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadPending();
+  }, [loadPending]);
+
+  const handleVerify = useCallback(async (pred: HumanPendingPrediction, outcome: number) => {
+    if (verifyingId) return; // 防连点
+    setVerifyingId(pred.id);
+    try {
+      const res = await verifyPrediction(pred.id, outcome, noteDraft[pred.id] || undefined);
+      if (res.ok) {
+        showToast({ type: 'success', message: `已验证（outcome=${outcome}，Brier ${res.brier ?? '—'}）` });
+        setLocalVerified((n) => n + 1);
+        setPending((prev) => prev.filter((p) => p.id !== pred.id));
+        // 30 分钟后/下次 I30 导出后 summary 数字自动对齐（后端已触发导出刷新）
+        setTimeout(() => void loadPending(), 1500);
+      } else {
+        showToast({ type: 'error', message: '验证失败：后端未返回 ok' });
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      showToast({ type: 'error', message: `验证失败：${msg}` });
+    } finally {
+      setVerifyingId(null);
+    }
+  }, [verifyingId, noteDraft, showToast, loadPending]);
 
   const pred = summary?.predictions;
   const weight = summary?.weight_update_log;
   const exit = trig?.last_result?.exit;
+
+  /** 距验证截止剩余天数（due_at 为文本/对象均可）。 */
+  function daysLeft(dueAt?: string): number | null {
+    if (!dueAt) return null;
+    const d = new Date(dueAt.length <= 10 ? `${dueAt}T23:59:59+08:00` : dueAt);
+    if (Number.isNaN(d.getTime())) return null;
+    return Math.ceil((d.getTime() - Date.now()) / 86_400_000);
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -155,6 +213,84 @@ export function TianjiTab() {
               </span>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* ── 待人工验证（v1.11.32：control API 点选，替代 CLI） ── */}
+      <div className="rounded border border-white/10 bg-white/[0.02]">
+        <div className="flex items-center justify-between border-b border-white/10 px-2.5 py-1.5">
+          <span className="text-[11px] font-semibold" style={{ color: withAlpha(PALETTE.text, 0.85) }}>
+            待人工验证
+          </span>
+          <span className="text-[9px] text-white/30">
+            {pendingLoading ? '加载中…' : `${pending.length} 条${localVerified ? `（本会话已验证 ${localVerified}）` : ''}`}
+          </span>
+        </div>
+        {!token ? (
+          <div className="px-2.5 py-3 text-center text-[10px] text-amber-300/80">
+            需先配置控制台 Token 才能验证
+          </div>
+        ) : pending.length === 0 ? (
+          <div className="px-2.5 py-3 text-center text-[10px] text-white/30">
+            {pendingLoading ? '加载中…' : '没有待人工验证的地缘预测'}
+          </div>
+        ) : (
+          <ul className="max-h-[240px] divide-y divide-white/5 overflow-y-auto">
+            {pending.map((p) => {
+              const dl = daysLeft(p.due_at);
+              return (
+                <li key={p.id} className="px-2.5 py-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[10px]" style={{ color: withAlpha(PALETTE.text, 0.85) }}>
+                      {p.content || p.id}
+                    </span>
+                    <span
+                      className="shrink-0 rounded px-1.5 py-0.5 text-[8px]"
+                      style={{
+                        color: dl != null && dl < 0 ? '#f87171' : 'rgba(255,255,255,0.45)',
+                        background: dl != null && dl < 0 ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.06)',
+                      }}
+                    >
+                      {dl == null ? '—' : dl < 0 ? '已到期' : `剩${dl}天`}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 text-[8px] text-white/30">
+                    概率 {p.final_prob != null ? `${Math.round(p.final_prob * 100)}%` : '—'} · {p.confidence_tier ?? '—'}
+                    {p.due_at ? ` · 验证至 ${p.due_at.slice(0, 10)}` : ''}
+                  </div>
+                  <div className="mt-1 flex items-center gap-1">
+                    <input
+                      value={noteDraft[p.id] ?? ''}
+                      onChange={(e) => setNoteDraft((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                      placeholder="备注（可选）"
+                      className="min-w-0 flex-1 rounded border border-white/10 bg-black/25 px-1.5 py-0.5 text-[9px] text-white/70 outline-none placeholder:text-white/20 focus:border-teal-400/40"
+                    />
+                    {([
+                      [1, '发生', PALETTE.teal],
+                      [0.5, '部分', '#fbbf24'],
+                      [0, '未发生', '#f87171'],
+                    ] as const).map(([v, label, color]) => (
+                      <button
+                        key={v}
+                        type="button"
+                        disabled={verifyingId === p.id}
+                        onClick={() => void handleVerify(p, v)}
+                        title={`判定：${label}`}
+                        className="rounded border px-1.5 py-0.5 text-[9px] transition-colors disabled:opacity-40"
+                        style={{
+                          borderColor: `${color}55`,
+                          color,
+                          background: `${color}14`,
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
 

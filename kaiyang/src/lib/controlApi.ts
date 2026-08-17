@@ -19,6 +19,9 @@ import type {
   Fetcher,
   LlmUsage,
   LlmUsageResponse,
+  HumanPendingPrediction,
+  HumanPendingResponse,
+  VerifyPredictionResponse,
 } from '@/types/control';
 
 // ── Mock 数据 ──────────────────────────────────────────────
@@ -444,4 +447,27 @@ export async function updateLlmUsage(
     true,
   );
   return res?.ok === true;
+}
+
+// ── 人工验证（08-17：天玑 Tab 点选验证，替代 CLI）────────────────
+
+/** GET /control/predictions/human-pending — 待人工验证预测列表。 */
+export async function getHumanPending(): Promise<HumanPendingPrediction[]> {
+  if (MOCK_ENABLED) return [];
+  const res = await apiFetch<HumanPendingResponse>('/predictions/human-pending');
+  return res?.predictions ?? [];
+}
+
+/** POST /control/predictions/verify — 人工验证一条（0/0.5/1）。 */
+export async function verifyPrediction(
+  predictionId: string,
+  outcome: number,
+  note?: string,
+): Promise<VerifyPredictionResponse> {
+  if (MOCK_ENABLED) return { ok: true, updated: 1, outcome };
+  const res = await apiFetch<VerifyPredictionResponse>('/predictions/verify', {
+    method: 'POST',
+    body: JSON.stringify({ prediction_id: predictionId, outcome, note: note || undefined }),
+  });
+  return res ?? { ok: false };
 }

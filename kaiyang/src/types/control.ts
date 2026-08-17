@@ -271,3 +271,34 @@ export type ControlAction =
   | { type: 'SET_LOGS'; logs: OperationLogEntry[] }
   | { type: 'LOCK_FETCHER'; id: string }
   | { type: 'UNLOCK_FETCHER'; id: string };
+
+/* ------------------------------------------------------------------ */
+/* 人工验证（天玑 tab，08-17）                                            */
+/* ------------------------------------------------------------------ */
+
+/** 待人工验证预测行（GET /control/predictions/human-pending）。 */
+export interface HumanPendingPrediction {
+  id: string;
+  created_at?: string;
+  due_at?: string;
+  scenario_id?: string;
+  final_prob?: number;
+  confidence_tier?: string;
+  content?: string;
+  outcome_definition?: string;
+  human_note?: string | null;
+}
+
+export interface HumanPendingResponse {
+  predictions?: HumanPendingPrediction[];
+  total?: number;
+}
+
+/** POST /control/predictions/verify 响应。 */
+export interface VerifyPredictionResponse {
+  ok?: boolean;
+  updated?: number;
+  outcome?: number;
+  brier?: number;
+  note?: string | null;
+}

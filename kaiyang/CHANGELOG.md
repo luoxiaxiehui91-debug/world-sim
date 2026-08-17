@@ -5,6 +5,28 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.32] - 2026-08-17 · 天玑 Tab：人工验证界面化（替代 CLI 渠道）
+
+**修改理由**：人工验证此前只有 CLI（`verify_human.py`），用户反馈"太离谱，没渠道"——整合进开阳天玑 tab 点选验证。
+
+### 修改
+
+- **天枢 `control_server.py`**：
+  - `GET /api/v1/control/predictions/human-pending`：列出全部 awaiting_human（按验证截止排序）
+  - `POST /api/v1/control/predictions/verify`：验证一条（outcome 0|0.5|1 + 可选 note）→ UPDATE PG
+    （status=verified / outcome_value / brier=(final_prob−outcome)² / verified_by=human / human_note）；
+    幂等：已 verified 409；成功后自动重跑 tianji_summary_export.py 刷新统计
+- **`lib/controlApi.ts` + `types/control.ts`**：`getHumanPending()` / `verifyPrediction()` + 类型
+- **`control/TianjiTab.tsx`**：新增"待人工验证"区块——列表（content/概率/验证截止剩余天数，
+  到期红标）+ 每行备注输入 + [发生 teal][部分 amber][未发生 red] 三个判定按钮；
+  验证成功 → toast 反馈（含 Brier）+ 列表本地移除 + 会话已验证计数
+
+### 验证
+
+- control API 实测：human-pending 返回 46 条；verify 幂等拒绝 409、参数校验 400
+- `tsc --noEmit` 通过（修复 ToastMessage type 字段）；vite build（`index-BbnPHAPQ.js`）
+- 线上 :8080 新 bundle 含"待人工验证 / 本会话已验证"文案；后端已 rsync + 天枢重启
+
 ## [1.11.31] - 2026-08-17 · 天玑 Tab：校验状态 + 预测存档只读版
 
 **修改理由**：天玑 tab 是"校验触发 · 建设中"占位。按天璇 Tab 同款"只看不动"方案落地——
