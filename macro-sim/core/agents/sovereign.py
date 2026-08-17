@@ -132,7 +132,16 @@ class SovereignAgent(MacroAgent):
         # 优先选择该派系有偏好且在 impact_map 中的行动
         preferred = [a for a in biased_actions if a in available_actions]
         if preferred:
-            return preferred[0]
+            # 08-17：派系行动概率选择——不"恒选第一个"。
+            # 例：S4 hawks bias_actions=[MILITARY_DEPLOYMENT, NUCLEAR_SIGNAL, ENERGY_CUTOFF]，
+            # 恒选第一个会让核威慑"发声"（NUCLEAR_SIGNAL）永远不出现。
+            # 现改为：60% 选首选，40% 在其余里随机——威慑信号等非首选行动恢复合理频率，
+            # 而 red_line 冷却（base.py）只限制"真实升级"路径，两者语义分离。
+            if len(preferred) == 1:
+                return preferred[0]
+            if random.random() < 0.6:
+                return preferred[0]
+            return random.choice(preferred[1:])
 
         # 其次从 impact_map 中随机选（有行动意愿）
         if available_actions and random.random() < self.params.threshold:

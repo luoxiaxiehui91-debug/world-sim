@@ -200,6 +200,18 @@ def gm_resolve_rules(
     elif a5 == "INCREASE_RISK":
         add("A5", "market_sentiment",    0.06 * mag("A5"))
 
+    # ── A13 保险/养老长线资金（08-17 逆周期稳定者）─────────
+    a13 = actions.get("A13", "HOLD")
+    if a13 == "INCREASE_RISK":
+        # 逆向抄底：情绪回升（比 A5 强）+ 流动性溢价下降（提供对手盘）
+        m = mag("A13")
+        add("A13", "market_sentiment",   0.08 * m)
+        add("A13", "liquidity_premium", -0.04 * m)
+    elif a13 == "DECREASE_RISK":
+        # 温和撤退：情绪略降（比 A5/A3 温和，长线不追涨杀跌）
+        m = mag("A13")
+        add("A13", "market_sentiment",  -0.03 * m)
+
     # ── A6 媒体 ───────────────────────────────────────────
     a6 = actions.get("A6", "HOLD")
     if a6 == "AMPLIFY_FEAR":

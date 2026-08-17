@@ -200,6 +200,22 @@ agents:
       threshold: 0.5
       magnitude: 1.5  # BOJ行动幅度大（YCC放弃是非线性事件）
 
+  - id: A13
+    name: 保险/养老长线资金
+    role: long_term_capital
+    class: financial.LongTermCapitalAgent
+    # 08-17 新增：逆周期稳定者——深度恐慌时逆向抄底，弥补全顺周期恐慌者结构缺陷
+    info_delay: 3        # 长线资金看季度数据，反应慢
+    activation_prob: 0.50
+    transmission_coefficients:
+      to_A5: 0.30   # 长线抄底信号 → 机构投资者止跌/转向
+      to_A3: 0.20   # 逆向力量进场 → 对冲基金收敛做空
+      to_A10: 0.15  # 长线接盘 → 散户情绪安抚
+    params:
+      sensitivity: 1.0
+      threshold: 0.5
+      magnitude: 1.0
+
   # ── A 类主权国家 Agent（v2.2 激活，核心层 5 个）────────────────
   # id 策略：S{1..n} 前缀，避开现有 A1-A12 撞车；role 用语义名
   # 试点参数（v2.2 B3）：info_delay=0（去冷却，确保 12 步内多次行动）+ activation_prob 0.30

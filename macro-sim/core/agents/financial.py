@@ -195,6 +195,41 @@ class InstitutionAgent(MacroAgent):
 
 
 @dataclass
+class LongTermCapitalAgent(MacroAgent):
+    """A13：保险/养老长线资金（2026-08-17 新增）——逆周期稳定者。
+
+    设计定位：原 17 Agent 全是顺周期恐慌者（媒体放大/散户抛售/银行收紧/对冲做空），
+    缺对手盘 → 情绪几乎总单方向砸向 -1.00、路径无分叉。长线资金是逆向力量：
+    深度恐慌时逆向抄底（INCREASE_RISK），只在系统性极端时温和撤退。
+    info_delay=3（看季度数据，反应慢），激活后冷却 3 个月。
+    """
+    VALID_ACTIONS: ClassVar[list[str]] = ["INCREASE_RISK", "HOLD", "DECREASE_RISK"]
+    # 系统性极端时温和撤退概率（70% 扛住——长线资金耐性，不追涨杀跌）
+    EXTREME_RETREAT_PROB: ClassVar[float] = 0.30
+
+    def _decide_rules(self, ctx: dict) -> str:
+        p = self.params
+        grv_stress = ctx.get("grv_stress", 0) * p.sensitivity
+        sentiment  = ctx.get("market_sentiment", 0)
+        visible    = ctx.get("visible_actions", {})
+        # 看到散户恐慌抛售 / 媒体放大恐慌 → 别人恐惧我贪婪
+        panic_seen = (visible.get("retail") == "PANIC_SELL"
+                      or visible.get("media") == "AMPLIFY_FEAR")
+
+        # 1) 系统性极端（GRV 高压 + 情绪崩盘）→ 30% 温和降险，70% 扛住
+        if grv_stress > p.threshold * 1.5 and sentiment < -0.7:
+            return "DECREASE_RISK" if random.random() < self.EXTREME_RETREAT_PROB else "HOLD"
+        # 2) 深度恐慌但 GRV 未极端 → 逆向抄底（逆周期核心）
+        if sentiment < -0.4 and grv_stress < p.threshold * 1.3:
+            return "INCREASE_RISK"
+        # 3) 别人恐慌 → 贪婪
+        if panic_seen and grv_stress < p.threshold * 1.1:
+            return "INCREASE_RISK"
+        # 4) 常态：长线拿住（低压力 + 情绪平稳）
+        return "HOLD"
+
+
+@dataclass
 class USTreasuryAgent(MacroAgent):
     """A9：美国财政部 — 4个月延迟，低频"""
     VALID_ACTIONS: ClassVar[list[str]] = [

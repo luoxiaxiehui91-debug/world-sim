@@ -271,6 +271,8 @@ def _extract_key_events(history_list: list[list[dict]], run_indices: list[int]) 
         "A12:ABANDON_YCC":        "日本央行放弃YCC（套息危机）",
         "A12:EASE_YCC":           "日本央行放松YCC上限",
         "A12:EMERGENCY_EASE":     "日本央行紧急宽松",
+        "A13:INCREASE_RISK":      "长线资金逆向抄底",
+        "A13:DECREASE_RISK":      "长线资金温和降险",
     }
 
     for step in sorted(step_counts.keys()):
@@ -306,6 +308,7 @@ def _compute_participation(
         "A4": "能源国",       "A5": "机构投资者",   "A6": "媒体/舆论",
         "A7": "新兴市场央行", "A8": "中国央行",     "A9": "美国财政部",
         "A10": "散户/羊群",   "A11": "欧洲央行",    "A12": "日本央行",
+        "A13": "长线资金",
         "S1_usa": "美国（主权）", "S2_china": "中国（主权）", "S3_eu": "欧盟（主权）",
         "S4_russia": "俄罗斯（主权）", "S5_saudi": "沙特-OPEC（主权）",
     }

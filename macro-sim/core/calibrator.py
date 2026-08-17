@@ -500,9 +500,10 @@ def _call_llm_for_adjustment(
 # 2026-08-08 A2 写者补丁：market_sentiment 补 A2（simulation.py:138 EASE_CREDIT 写 -0.08*m，
 # 原清单漏 A2——守卫 B 塌缩判定不受影响，但清单与 gm 规则必须一致）
 ERROR_VAR_WRITERS = {
-    "market_sentiment":       ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12"],
+    # 08-17 A13 长线资金补写者（simulation.py gm: INCREASE_RISK 写 sentiment +0.08 / premium -0.04）
+    "market_sentiment":       ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12", "A13"],
     "bank_credit_tightening": ["A1", "A2", "A11"],
-    "liquidity_premium":      ["A2", "A3", "A4", "A5", "A10", "A11", "A12"],
+    "liquidity_premium":      ["A2", "A3", "A4", "A5", "A10", "A11", "A12", "A13"],
 }
 
 

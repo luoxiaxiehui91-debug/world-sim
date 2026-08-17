@@ -264,8 +264,9 @@ def _write_report(world, calib_result: dict, paths: list, level: int, event: str
                 "A9:DEBT_CEILING_RISK": "债务上限危机","A9:FISCAL_TIGHTEN": "财政收紧",
                 "A10:PANIC_SELL": "恐慌性抛售",  "A10:FOMO_BUY": "追涨买入",
                 "A11:CUT_25BP": "降息25bp",      "A11:HIKE_25BP": "加息25bp",
-                "A11:QE_EXPAND": "扩大QE",       "A12:ABANDON_YCC": "放弃YCC",
+                "A11:QE_EXPAND": "扩大QE",                       "A12:ABANDON_YCC": "放弃YCC",
                 "A12:EASE_YCC": "放松YCC",       "A12:EMERGENCY_EASE": "紧急宽松",
+                "A13:INCREASE_RISK": "逆向抄底",  "A13:DECREASE_RISK": "温和降险",
             }
             seen, top = set(), []
             for ev in p.key_events:
