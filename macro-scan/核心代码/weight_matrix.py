@@ -184,8 +184,9 @@ def apply_weight_adjustment(
             "reason":        reason,
             "notes":         notes,
         })
-    except Exception:
-        pass
+    except Exception as _e:
+        # M11 修复（08-17）：权重更新日志写失败 fail-loud——原 except:pass 吞错无告警
+        print(f"[weight_matrix] 权重更新日志写失败：{_e}", flush=True)
 
     # 检查连续方向（连续4次同方向警告）
     _check_consecutive_direction(source_id, target_type, new_weight > current)
@@ -391,8 +392,9 @@ def reject_adjustment(index: int, reason: str = ""):
             "weight_after":  entry.get("weight_before"),  # 不变
             "reason":        f"拒绝：{reason}",
         })
-    except Exception:
-        pass
+    except Exception as _e:
+        # M11 修复（08-17）：拒绝日志写失败 fail-loud——原 except:pass 吞错无告警
+        print(f"[weight_matrix] 拒绝日志写失败：{_e}", flush=True)
     pending.pop(index)
     with open(PENDING_PATH, "w", encoding="utf-8") as f:
         json.dump(pending, f, ensure_ascii=False, indent=2)

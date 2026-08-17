@@ -103,7 +103,7 @@ CREATE TABLE predictions (
 **评分指标**（`_compute_*` 函数式）：
 
 - **Brier Score** = `(final_prob − outcome)²`，单条越低越好（随机猜 = 0.25）
-- **BSS（Brier Skill Score）** = `1 − BS_mean / BS_climatology`，气候基准 `bs_clim=0.25`（全部押 0.5）；样本 ≥ 5 才计算；`>0` 表示有增量价值
+- **BSS（Brier Skill Score）** = `1 − BS_mean / BS_climatology`，气候基准 `bs_clim=0.25`（全部押 0.5）；**样本 ≥ 20 才给结论性趋势**（H05 门控，08-15 收紧），5-19 仅展示数值不判趋势；`>0` 表示有增量价值
 - **锐度（Sharpness）** = `final_prob < 0.3 或 > 0.7` 的预测占比，目标 `>40%`
 
 **反哺检查**（`check_and_generate_reweight_suggestions`）：

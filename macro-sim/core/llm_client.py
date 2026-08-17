@@ -30,10 +30,20 @@ MINIMAX_BASE_URL = "https://api.minimaxi.com/v1"
 MINIMAX_MODEL    = "MiniMax-M3"
 
 
+# ── 配置 TTL（08-17 审查修复 LLM③：天璇配置缓存永不失效——改开阳控制台
+#    配置须重启容器才生效，与天枢热更行为不一致。加 60s TTL 后自动重读）──
+_CFG_TTL = 60.0
+_last_cfg_ts = 0.0
+
+
 def _apply_llm_config():
     """08-16：读天枢共享 llm_config.json（天璇挂载 macro_scan/data → /app/macro_data），
-    开阳控制台改的模型在此覆盖代码常量。文件缺失/损坏 → 忽略走默认。"""
-    global SILICONFLOW_MODEL, SILICONFLOW_MODEL_QWEN_LARGE, MINIMAX_MODEL
+    开阳控制台改的模型在此覆盖代码常量。文件缺失/损坏 → 忽略走默认。
+    08-17：加 60s TTL——每次调用检查，过期才重读（原导入期一次性执行永不刷新）。"""
+    global SILICONFLOW_MODEL, SILICONFLOW_MODEL_QWEN_LARGE, MINIMAX_MODEL, _last_cfg_ts
+    now = time.time()
+    if now - _last_cfg_ts < _CFG_TTL:
+        return
     try:
         with open("/app/macro_data/llm_config.json", encoding="utf-8") as f:
             cfg = json.load(f)
@@ -44,6 +54,7 @@ def _apply_llm_config():
         MINIMAX_MODEL = us.get("sim_minimax", {}).get("model") or MINIMAX_MODEL
     except Exception:
         pass
+    _last_cfg_ts = now
 
 
 _apply_llm_config()
@@ -96,17 +107,21 @@ def _get_mm_client():
 
 # ── 配置解析（08-16：开阳控制台统一配置——平台/模型/API key 可换）─────────
 _usage_cache: Optional[dict] = None
+_usage_cache_ts = 0.0
 
 def _load_usage_cfg(usage_id: str) -> dict:
     """读天枢共享 llm_config.json（挂载 /app/macro_data），返回该使用点配置。
-    配置由开阳控制台写（含 base_url/api_key/model 展开值）。"""
-    global _usage_cache
-    if _usage_cache is None:
+    配置由开阳控制台写（含 base_url/api_key/model 展开值）。
+    08-17：加 60s TTL——原懒加载只读一次，改配置不生效需重启。"""
+    global _usage_cache, _usage_cache_ts
+    now = time.time()
+    if _usage_cache is None or (now - _usage_cache_ts) > _CFG_TTL:
         try:
             with open("/app/macro_data/llm_config.json", encoding="utf-8") as f:
                 _usage_cache = json.load(f).get("usages") or {}
         except Exception:
             _usage_cache = {}
+        _usage_cache_ts = now
     return _usage_cache.get(usage_id) or {}
 
 
@@ -123,7 +138,8 @@ def _get_dynamic_client(base_url: str, api_key: str) -> Optional["OpenAI"]:
 def _resolve_client(usage_id: str, default_client, default_key: str,
                     default_base: str, default_model: str):
     """返回 (client, model)。配置覆盖（platform 展开的 base_url+key+model）→ 动态客户端；
-    否则默认客户端 + 模型（含 _apply_llm_config 的常量覆盖）。"""
+    否则默认客户端 + 模型（08-17：_apply_llm_config TTL 内刷新，默认模型随配置更新）。"""
+    _apply_llm_config()   # 08-17：TTL 检查，配置改了默认模型也刷新
     u = _load_usage_cfg(usage_id)
     cfg_base = (u.get("base_url") or "").rstrip("/")
     cfg_key = u.get("api_key") or ""

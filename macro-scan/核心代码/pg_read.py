@@ -127,18 +127,26 @@ def connect():
         return None
 
 
-def exec_read(sql, params=()):
-    """便捷：执行只读查询，返回 _Row 列表；连接/查询失败返回空列表（不抛）。"""
+def exec_read_checked(sql, params=()):
+    """M26 修复：区分"PG 宕机/查询失败"（ok=False）与"真空结果"（ok=True, rows=[]）。
+    下游据此决定报错还是空数据正常处理。"""
     conn = connect()
     if conn is None:
-        return []
+        return [], False
     try:
         with conn:
             cur = conn.execute(sql, params)
-            return cur.fetchall()
+            return cur.fetchall(), True
     except Exception as e:
         _log.error("PG 读查询失败: %s | sql=%s", e, sql)
-        return []
+        return [], False
+
+
+def exec_read(sql, params=()):
+    """便捷：执行只读查询，返回 _Row 列表；连接/查询失败返回空列表（不抛）。
+    需要区分"宕机 vs 空"时用 exec_read_checked。"""
+    rows, _ok = exec_read_checked(sql, params)
+    return rows
 
 
 def smoke_test():

@@ -185,16 +185,25 @@ def get_model(usage_id: str) -> str | None:
         return None
 
 
+def _static_default_platform(usage_id: str) -> str | None:
+    """LLM_USAGES 静态清单里的默认平台（08-17 修复 LLM①：静态默认此前形同虚设，
+    仅 effective_models 展示用，resolve 返 None 导致调用方回落 env）。"""
+    for item in LLM_USAGES:
+        if item.get("id") == usage_id:
+            return item.get("platform")
+    return None
+
+
 def resolve(usage_id: str) -> dict | None:
     """按使用点解析完整调用配置 {base_url, api_key, model}。
-    配置覆盖（平台 + 模型 + key）> 使用点默认平台 + 默认模型。
-    未配置 → 返回 None（调用方走环境变量/代码默认）。
-    api_key 只从配置取；未配置 key 时返回 None（调用方 fallback env）。"""
+    配置覆盖（平台 + 模型 + key）> 使用点静态默认平台 + 平台默认模型（08-17 补上，
+    原逻辑未配置即返 None → 调用方回落 env，静态默认失效）。
+    未配置 api_key 时返回 None（调用方 fallback env）。"""
     if usage_id not in _USAGE_IDS:
         return None
     try:
         u = load_config().get("usages", {}).get(usage_id) or {}
-        pid = u.get("platform")
+        pid = u.get("platform") or _static_default_platform(usage_id)
         plat = _all_platforms().get(pid) if pid else None
         if not plat:
             return None

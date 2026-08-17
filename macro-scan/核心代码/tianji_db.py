@@ -1,6 +1,12 @@
 """
 tianji_db.py — 天玑数据库 schema 与基础操作
 
+⛔ 08-17 维护警示（审查 M 项）：本文件与 `macro-ji/tianji_db.py` 是**两份独立实现**——
+本文件 = SQLite 主写 + PG 旁路（生产 _PG_ONLY 下 SQLite 为 Noop，PG 旁路生效）；
+macro-ji 版 = 纯 PG（psycopg 直连，无 SQLite 回退）。
+**改本文件必须同步 macro-ji 版**（或反之），两份接口签名应保持一致；
+长期方向 = 合并为单一 PG 实现（已登记 review-todo-20260816.md P2）。
+
 新架构三张核心表：
   predictions        — 预测主张存档（outcome_definition 预测时填写不可改）
   reasoning_trace    — 推理溯源（因果链 + 信号 + agent）

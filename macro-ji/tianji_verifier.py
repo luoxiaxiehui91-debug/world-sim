@@ -403,7 +403,7 @@ def print_accuracy_report():
         print(f"Brier Skill Score：{bss:+.4f}（样本 {v_count}，<20 仅供参考，不判趋势）")
     else:
         print(f"Brier Skill Score：样本不足或基准率极端（需 ≥ 20 且基准率非 0/1）")
-    print(f"锐度（>30%或<70%比例）：{sharpness:.1%}（目标 >40%）")
+    print(f"锐度（<30%或>70%比例）：{sharpness:.1%}（目标 >40%）")  # L03 修复：标签方向写反
     print("="*50)
 
 

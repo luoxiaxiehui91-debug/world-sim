@@ -620,7 +620,7 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
     推演完成后把可验证预测写入 PG tianji.predictions / reasoning_trace（P0-D2 转 PG）。
     失败时 ntfy 告警 + return，不阻断主流程（保留去静默语义）。
     """
-    import uuid, json as _json
+    import json as _json
     from datetime import timedelta, timezone
 
     try:
@@ -638,6 +638,15 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
         scenario_id = f"sim_{now.strftime('%Y%m%d_%H%M')}_{event[:20]}"
         archived = 0
 
+        def _prediction_id(ptype: str, path_label: str) -> str:
+            """M31 修复：确定性主键（scenario + 路径 + 类型哈希）——
+            原 uuid4 每次不同，ON CONFLICT(id) DO NOTHING 恒 no-op → 同 scenario 重跑
+            插重复行；确定性 id 使同 scenario 内重试/重跑真正去重。"""
+            import hashlib as _h
+            return "p-" + _h.sha1(
+                f"{scenario_id}|{path_label}|{ptype}".encode("utf-8")
+            ).hexdigest()[:24]
+
         for path in paths:
             if path.probability < 0.05:
                 continue
@@ -653,7 +662,7 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
                     direction, conf_tier = "neutral", "VERY_LOW"
 
                 due_at = (now + timedelta(days=90)).isoformat()  # 3 个月验证窗口
-                pred_id = str(uuid.uuid4())
+                pred_id = _prediction_id("grv", path.label)
 
                 conn.execute("""
                     INSERT INTO predictions
@@ -719,7 +728,8 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
             for ev in path.key_events[:2]:
                 if ev.get("frequency", 0) < 0.2:
                     continue
-                geo_id = str(uuid.uuid4())
+                # M31 修复：确定性主键（含事件名，同 scenario 重跑去重）
+                geo_id = _prediction_id("geo", f"{path.label}|{ev.get('event', '')}")
                 conn.execute("""
                     INSERT INTO predictions
                       (id, created_at, due_at, scenario_id, type, prediction_target_type,
