@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFeed } from '@/hooks/useFeed';
 import { fetchText } from '@/lib/readLayer';
 import { renderMarkdown } from '@/lib/markdown';
+import { extractGovernanceEvents } from '@/lib/governance';
+import { GovernanceCard } from '@/components/GovernanceCard';
 import { fmtRelative } from '@/lib/format';
 import { PALETTE, withAlpha } from '@/config/theme';
 import type { ReportMeta, ReportsIndexRaw } from '@/types/contracts';
@@ -114,6 +116,8 @@ export function ReportsPanel() {
   const [md, setMd] = useState<string>('');
   const [mdLoading, setMdLoading] = useState(false);
   const [mdError, setMdError] = useState<string | null>(null);
+  // v1.11.30 政权更迭事件：md 解析一次缓存，渲染卡片 + 剥离节后的正文
+  const gov = useMemo(() => extractGovernanceEvents(md), [md]);
 
   // 侧栏：默认 40% 宽；可拖拽（14%~55%）；可折叠成 36px 窄条
   const [sidebarPct, setSidebarPct] = useState(40);
@@ -349,10 +353,14 @@ export function ReportsPanel() {
             {mdLoading && <div className="text-[11px] text-white/35">加载报告…</div>}
             {mdError && <div className="text-[11px] text-amber-300">内容读取失败：{mdError}</div>}
             {!mdLoading && !mdError && selected && (
-              <article
-                className="md-body"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(md) }}
-              />
+              <>
+                {/* v1.11.30 政权更迭事件可视化卡片（解析成功才渲染；失败降级纯文本） */}
+                {gov && <GovernanceCard items={gov.items} />}
+                <article
+                  className="md-body"
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(gov ? gov.rest : md) }}
+                />
+              </>
             )}
           </div>
         </div>

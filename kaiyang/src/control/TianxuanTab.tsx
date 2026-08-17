@@ -14,6 +14,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { useFeed } from '@/hooks/useFeed';
 import { fetchText } from '@/lib/readLayer';
 import { renderMarkdown } from '@/lib/markdown';
+import { extractGovernanceEvents } from '@/lib/governance';
+import { GovernanceCard } from '@/components/GovernanceCard';
 import { PALETTE, withAlpha } from '@/config/theme';
 import type { ReportsIndexRaw, ReportMeta, SimTriggerRaw } from '@/types/contracts';
 
@@ -45,6 +47,8 @@ export function TianxuanTab() {
   const [md, setMd] = useState<string>('');
   const [mdLoading, setMdLoading] = useState(false);
   const [mdError, setMdError] = useState<string | null>(null);
+  // v1.11.30 政权更迭事件：解析一次缓存，卡片 + 剥离节后的正文（与报告面板同机制）
+  const gov = useMemo(() => extractGovernanceEvents(md), [md]);
 
   // 选中变化 → 拉取 markdown 全文（与 ReportsPanel 同机制）
   useEffect(() => {
@@ -188,11 +192,15 @@ export function TianxuanTab() {
                 读取失败：{mdError}
               </div>
             ) : (
-              <div
-                className="sim-report-md text-[11px] leading-relaxed"
-                style={{ color: withAlpha(PALETTE.text, 0.85) }}
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(md) }}
-              />
+              <>
+                {/* v1.11.30 政权更迭事件卡片（解析成功才渲染；失败降级纯文本） */}
+                {gov && <GovernanceCard items={gov.items} />}
+                <div
+                  className="sim-report-md text-[11px] leading-relaxed"
+                  style={{ color: withAlpha(PALETTE.text, 0.85) }}
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(gov ? gov.rest : md) }}
+                />
+              </>
             )}
           </div>
         </div>
