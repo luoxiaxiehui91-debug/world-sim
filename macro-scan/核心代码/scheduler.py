@@ -47,6 +47,7 @@ JOBS = [
     ("fred_freshness", "0540", "1-7", None, [PYTHON, "fred_freshness.py", "--all"]),  # data-freshness：FRED 新鲜度闸 + stale + FCI 探针（依赖 fred_fetch 0530 + compute_fci 0535）
     ("compute_probit", "0540", "1-7", None, [PYTHON, "compute_probit.py"]),  # L3 probit
     ("tianji_trigger","0942", "1-7", None, [PYTHON, "write_tianji_trigger.py"]),       # 天玑 trigger 写入（T2：watchdog 检触发执行验证；dom=None 每日触发，08-06 修 dom=1 笔误）
+    ("tianji_summary","I30", "1-7", None, [PYTHON, "tianji_summary_export.py"]),        # 天玑汇总导出（08-17：PG tianji 预测/推理/权重 → data/tianji_summary.json 供开阳天玑 Tab）
     ("gpr_fetch",   "0540", "1-7", None, [PYTHON, "fetch_gpr.py"]),
     ("china_fetch", "0545", "1-7", None, [PYTHON, "fetch_china_data.py"]),
     ("world_macro", "0550", "1-7", None, [PYTHON, "fetch_world_macro.py"]),
@@ -168,6 +169,7 @@ LOG_FILES = {
     "market_quotes":   f"{LOG_DIR}/market_quotes.log",
     "compute_probit":  f"{LOG_DIR}/compute_probit.log",
     "tianji_trigger": f"{LOG_DIR}/tianji_trigger.log",
+    "tianji_summary": f"{LOG_DIR}/tianji_summary.log",
     "reports_index": f"{LOG_DIR}/reports_index.log",
 }
 

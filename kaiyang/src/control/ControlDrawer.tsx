@@ -12,6 +12,7 @@ import { TokenSetup } from '@/control/TokenSetup';
 import { LlmConfig } from '@/control/LlmConfig';
 import { TianshuTab } from '@/control/TianshuTab';
 import { TianxuanTab } from '@/control/TianxuanTab';
+import { TianjiTab } from '@/control/TianjiTab';
 import { PlaceholderTab } from '@/control/PlaceholderTab';
 import { ToastContainer } from '@/control/Toast';
 
@@ -81,7 +82,7 @@ export function ControlDrawer() {
       <div className="flex-1 overflow-y-auto px-3 pb-3">
         {activeTab === 'tianshu' && <TianshuTab />}
         {activeTab === 'tianxuan' && <TianxuanTab />}
-        {activeTab === 'tianji' && <PlaceholderTab title="天玑" description="校验触发 · 建设中" />}
+        {activeTab === 'tianji' && <TianjiTab />}
         {activeTab === 'yuheng' && <PlaceholderTab title="玉衡" description="权重矩阵审批 · 建设中" />}
         {activeTab === 'operation_log' && <PlaceholderTab title="操作日志" description="日志功能 · 建设中" />}
       </div>

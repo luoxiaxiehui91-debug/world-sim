@@ -558,3 +558,65 @@ export interface NewsRiskRaw extends RiskSignalBase {
   };
   articles?: NewsRiskArticle[];
 }
+
+/* ------------------------------------------------------------------ */
+/* 天玑（tianji_summary.json + tianji_trigger.json，v1.11.31 新增）      */
+/* ------------------------------------------------------------------ */
+
+/** tianji_trigger.json（天玑校验 watchdog 契约，天枢 write_tianji_trigger.py 写）。 */
+export interface TianjiTriggerRaw {
+  batch_id?: string;
+  date?: string;
+  triggered_at?: string;
+  source?: string;
+  processed?: boolean;
+  processed_at?: string;
+  last_result?: {
+    exit?: number;
+    ts?: string;
+  };
+}
+
+/** tianji_summary.json 单条预测行（天枢 tianji_summary_export.py 导出）。 */
+export interface TianjiPredictionRow {
+  id: string;
+  created_at?: string;
+  due_at?: string;
+  scenario_id?: string;
+  type?: string;
+  prediction_target_type?: string;
+  content?: string;
+  target_direction?: string;
+  target_threshold?: number | string;
+  final_prob?: number;
+  confidence_tier?: string;
+  status?: string;
+}
+
+/** tianji_summary.json 权重更新行。 */
+export interface TianjiWeightRow {
+  id: number;
+  updated_at?: string;
+  signal_name?: string;
+  target_type?: string;
+  weight_before?: number;
+  weight_after?: number;
+  reason?: string;
+}
+
+/** tianji_summary.json（天枢导出，ok=false 表示 PG 不可读降级）。 */
+export interface TianjiSummaryRaw {
+  ok?: boolean;
+  /** ok=false 时的降级原因（PG 不可读等） */
+  error?: string;
+  schema_version?: string;
+  updated?: string;
+  predictions?: {
+    total?: number;
+    by_type?: Record<string, number>;
+    by_status?: Record<string, number>;
+    recent?: TianjiPredictionRow[];
+  };
+  reasoning_trace?: { total?: number };
+  weight_update_log?: { total?: number; recent?: TianjiWeightRow[] };
+}

@@ -5,6 +5,33 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+## [1.11.31] - 2026-08-17 · 天玑 Tab：校验状态 + 预测存档只读版
+
+**修改理由**：天玑 tab 是"校验触发 · 建设中"占位。按天璇 Tab 同款"只看不动"方案落地——
+校验 watchdog 状态 + PG 预测存档统计/最近列表 + 推理溯源/权重日志，触发与审批留控制面二期。
+
+### 修改
+
+- **天枢 `核心代码/tianji_summary_export.py`（新增）**：读 PG tianji schema → 写
+  `data/tianji_summary.json`（tmp+rename 原子写）——predictions 统计（total/by_type/by_status/recent≤10）、
+  reasoning_trace 计数、weight_update_log（total/recent≤5）；PG 不可读降级 `{ok:false}`；
+  scheduler 注册 `("tianji_summary","I30")` 每 30 分钟导出（scheduler.py 改动 → docker restart）
+- **`control/TianjiTab.tsx`（新增）**：
+  - 校验触发状态卡：`tianji_trigger.json`——批次/processed/最近结果 exit（0=成功绿/失败红）
+  - 预测存档统计卡：总量 + by_type 徽标 + by_status 分布条（待人工 amber/待验证 teal/已验证 green）+ 图例
+  - 最近预测列表：scenario_id/类型/方向/final_prob/置信度/验证截止 + status 徽标
+  - 权重更新日志（玉衡联动，每月 1 日 verify_auto 后出现；空则说明文案）
+- **`config/dataSources.ts`**：新增 `tianjiTrigger` / `tianjiSummary` feed
+- **`types/contracts.ts`**：TianjiTriggerRaw / TianjiPredictionRow / TianjiWeightRow / TianjiSummaryRaw
+- **`control/ControlDrawer.tsx`**：天玑占位 → `TianjiTab`
+
+### 验证
+
+- 导出脚本实测：predictions 1102（geopolitical 734/quantitative 368），最新 sim_20260817_1339（J1）
+- 天枢 scheduler 重启后 heartbeat 正常；`tsc --noEmit` 通过（修复 TianjiSummaryRaw 缺 error 字段）
+- vite build（`index-CWlSdW97.js`）；线上 :8080 新 bundle 含"校验触发状态 / 预测存档"文案
+- 数据链路：天枢 PG 导出（I30）→ nginx 静态挂载 → useFeed；无容器重建
+
 ## [1.11.30] - 2026-08-17 · 政权更迭事件可视化卡片（报告面板 + 天璇 Tab）
 
 **修改理由**：演化仿真报告的"政权更迭事件"节是纯文本（"- **美国**：换届转向 43%…"），

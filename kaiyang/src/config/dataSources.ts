@@ -117,6 +117,21 @@ export const FEEDS: Record<string, FeedConfig> = {
     description: '推演触发状态（可选）',
     tolerateEmpty: true,
   },
+  // v1.11.31 天玑 Tab：PG tianji 汇总导出（天枢 scheduler I30 每 30 分钟刷新）
+  tianjiTrigger: {
+    name: 'tianjiTrigger',
+    path: 'tianji_trigger.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '天玑校验触发状态（watchdog 契约）',
+  },
+  tianjiSummary: {
+    name: 'tianjiSummary',
+    path: 'tianji_summary.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '天玑汇总：预测/推理/权重统计（天枢导出）',
+  },
   fred: {
     name: 'fred',
     path: 'fred_history/manifest.json',
