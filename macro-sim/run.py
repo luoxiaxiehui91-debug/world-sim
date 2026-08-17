@@ -731,6 +731,17 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
                     continue
                 # M31 修复：确定性主键（含事件名，同 scenario 重跑去重）
                 geo_id = _prediction_id("geo", f"{path.label}|{ev.get('event', '')}")
+                # 08-18 描述清晰化：content 带路径 GRV 上下文；outcome_definition 带现实判定标准
+                grv_ctx = ""
+                grv_end = getattr(path, "final_grv_mean", None)
+                if grv_end is not None and hasattr(world, "grv"):
+                    grv_ctx = f"（GRV {world.grv:.0f}→{grv_end:.0f}）"
+                content = (f"{path.label}路径{grv_ctx}：{ev.get('event', '')} "
+                           f"（仿真频率{ev.get('frequency', 0):.0%}）")
+                _crit = ev.get("criterion") or ""
+                outcome = f"6个月内是否发生：{ev.get('event', '')}"
+                if _crit:
+                    outcome += f"。判定标准：{_crit}"
                 conn.execute("""
                     INSERT INTO predictions
                       (id, created_at, due_at, scenario_id, type, prediction_target_type,
@@ -745,9 +756,8 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
                     scenario_id,
                     "geopolitical",
                     "geopolitical_event",
-                    (f"{event} 情景下 {path.label}路径：{ev.get('event', '')} "
-                     f"（仿真频率{ev.get('frequency', 0):.0%}）"),
-                    f"6个月内是否发生：{ev.get('event', '')}",
+                    content,
+                    outcome,
                     round(ev.get("frequency", 0.5), 4),
                     "LOW",
                     "monthly",

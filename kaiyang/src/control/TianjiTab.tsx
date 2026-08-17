@@ -258,6 +258,12 @@ export function TianjiTab() {
                     概率 {p.final_prob != null ? `${Math.round(p.final_prob * 100)}%` : '—'} · {p.confidence_tier ?? '—'}
                     {p.due_at ? ` · 验证至 ${p.due_at.slice(0, 10)}` : ''}
                   </div>
+                  {/* v1.11.34：现实判定标准（新预测自带；旧预测无则不显示） */}
+                  {p.outcome_definition && p.outcome_definition.includes('判定标准') && (
+                    <div className="mt-0.5 break-words text-[10px] leading-snug text-white/45">
+                      判据：{p.outcome_definition.split('判定标准：')[1]?.replace(/。$/, '')}
+                    </div>
+                  )}
                   <div className="mt-1.5 flex items-center gap-1.5">
                     <input
                       value={noteDraft[p.id] ?? ''}
