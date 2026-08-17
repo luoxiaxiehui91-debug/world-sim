@@ -23,6 +23,136 @@ from core.simulation import MacroSimModel, load_agents
 from core.agents.base import AgentParams
 
 
+# ── 08-18 模块级动作字典（_extract_key_events 内部定义上提，供回填/自动验证复用）──
+
+_ACTION_LABELS: dict[str, str] = {
+    "A1:CUT_50BP":            "美联储紧急降息50bp",
+    "A1:CUT_25BP":            "美联储降息25bp",
+    "A1:HIKE_25BP":           "美联储加息25bp",
+    "A1:VERBAL_INTERVENTION": "美联储口头干预",
+    "A2:TIGHTEN_CREDIT":      "商业银行收紧信贷",
+    "A2:EASE_CREDIT":         "商业银行放松信贷",
+    "A3:SHORT_MARKET":        "对冲基金大规模做空",
+    "A3:DECREASE_RISK":       "对冲基金降险",
+    "A3:INCREASE_RISK":       "对冲基金加仓做多",
+    "A4:CUT_SUPPLY":          "OPEC+减产",
+    "A4:INCREASE_SUPPLY":     "OPEC+增产",
+    "A5:DECREASE_RISK":       "机构投资者降险",
+    "A5:INCREASE_RISK":       "机构投资者加仓",
+    "A6:AMPLIFY_FEAR":        "媒体放大恐慌情绪",
+    "A6:NEUTRAL_REPORT":      "媒体保持中性报道",
+    "A6:AMPLIFY_OPTIMISM":    "媒体放大乐观情绪",
+    "A7:CAPITAL_CONTROLS":    "新兴市场实施资本管制",
+    "A7:RAISE_RATES":         "新兴市场央行加息",
+    "A7:CUT_25BP":            "新兴市场央行降息",
+    "A8:CUT_RRR":             "中国央行降准",
+    "A8:CUT_LPR":             "中国央行降LPR",
+    "A8:FISCAL_STIMULUS_CN":  "中国财政大规模刺激",
+    "A8:CNY_INTERVENTION":    "中国央行汇率干预",
+    "A8:TIGHTEN_CN":          "中国货币政策收紧",
+    "A9:FISCAL_STIMULUS":     "美国财政刺激",
+    "A9:DEBT_CEILING_RISK":   "美国债务上限危机信号",
+    "A9:FISCAL_TIGHTEN":      "美国财政收紧",
+    "A10:PANIC_SELL":         "散户恐慌性抛售",
+    "A10:FOMO_BUY":           "散户追涨买入",
+    "A11:CUT_25BP":           "欧央行降息25bp",
+    "A11:HIKE_25BP":          "欧央行加息25bp",
+    "A11:QE_EXPAND":          "欧央行扩大QE",
+    "A11:QE_TIGHTEN":         "欧央行缩减QE",
+    "A12:ABANDON_YCC":        "日本央行放弃YCC（套息危机）",
+    "A12:EASE_YCC":           "日本央行放松YCC上限",
+    "A12:EMERGENCY_EASE":     "日本央行紧急宽松",
+    "A13:INCREASE_RISK":      "长线资金逆向抄底",
+    "A13:DECREASE_RISK":      "长线资金温和降险",
+}
+_SOV_CN = {"S1_usa": "美国", "S2_china": "中国", "S3_eu": "欧盟",
+           "S4_russia": "俄罗斯", "S5_saudi": "沙特"}
+_SOV_ACTION = {
+    "IMPOSE_SANCTIONS": "实施制裁", "LIFT_SANCTIONS": "解除制裁",
+    "MILITARY_DEPLOYMENT": "军事部署", "DIPLOMATIC_ENGAGE": "外交接触",
+    "NUCLEAR_SIGNAL": "核威慑信号", "ENERGY_CUTOFF": "能源断供",
+    "EMBARGO_SIGNAL": "封锁信号", "ALLIANCE_REINFORCE": "强化同盟",
+    "TECH_RESTRICTION": "技术限制", "INCREASE_OUTPUT": "增产",
+    "CUT_OUTPUT": "减产", "CEASEFIRE_SIGNAL": "停火信号",
+    "DIPLOMATIC_OUTREACH": "外交拓展",
+}
+for _sid, _cn in _SOV_CN.items():
+    for _act, _label in _SOV_ACTION.items():
+        _ACTION_LABELS[f"{_sid}:{_act}"] = f"{_cn}{_label}"
+
+_ACTION_CRITERIA: dict[str, str] = {
+    "A1:CUT_50BP":            "美联储单次会议降息≥50bp（联邦基金利率目标区间下调）",
+    "A1:CUT_25BP":            "美联储降息25bp（联邦基金利率目标区间下调）",
+    "A1:HIKE_25BP":           "美联储加息25bp（联邦基金利率目标区间上调）",
+    "A1:VERBAL_INTERVENTION": "美联储主席/官员口头释放政策转向信号（讲话/纪要）",
+    "A2:TIGHTEN_CREDIT":      "银行信贷标准净收紧（SLOOS净收紧比例>0）且信贷利差走阔",
+    "A2:EASE_CREDIT":         "银行信贷标准净放松（SLOOS净放松>0）且利差收窄",
+    "A3:SHORT_MARKET":        "对冲基金净空头仓位处于历史前10%分位（做空标的：主要股指/信用债）",
+    "A3:DECREASE_RISK":       "对冲基金去杠杆（净敞口下降≥5pct）",
+    "A3:INCREASE_RISK":       "对冲基金加杠杆做多（净多头仓位上升）",
+    "A4:CUT_SUPPLY":          "OPEC+ 正式宣布减产（产量配额下调）",
+    "A4:INCREASE_SUPPLY":     "OPEC+ 正式增产（配额上调）",
+    "A4:CUT_OUTPUT":          "OPEC+ 正式宣布减产（产量配额下调）",   # 08-18 旧动作名回填用
+    "A4:INCREASE_OUTPUT":     "OPEC+ 正式增产（配额上调）",          # 08-18 旧动作名回填用
+    "A5:DECREASE_RISK":       "机构投资者降险（风险资产仓位下降、现金占比上升）",
+    "A5:INCREASE_RISK":       "机构投资者加仓（风险资产净买入）",
+    "A6:AMPLIFY_FEAR":        "主流财经媒体负面报道占比连续≥2个月≥40%（参考：VIX 读数/新闻情绪指数）",
+    "A6:NEUTRAL_REPORT":      "主流财经媒体负面报道占比<20%（情绪中性，无恐慌/乐观系统性渲染）",
+    "A6:AMPLIFY_OPTIMISM":    "主流财经媒体正面报道占比连续≥2个月≥40%（乐观渲染）",
+    "A7:CAPITAL_CONTROLS":    "新兴市场实施资本管制（跨境资金流动限制落地）",
+    "A7:RAISE_RATES":         "新兴市场央行加息（政策利率上调）",
+    "A7:CUT_25BP":            "新兴市场央行降息（政策利率下调）",
+    "A8:CUT_RRR":             "中国央行降准（存款准备金率下调）",
+    "A8:CUT_LPR":             "中国央行下调 LPR（贷款市场报价利率）",
+    "A8:FISCAL_STIMULUS_CN":  "中国推出大规模财政刺激（财政赤字率显著扩张）",
+    "A8:CNY_INTERVENTION":    "中国央行干预人民币汇率（逆周期因子/离岸市场操作）",
+    "A8:TIGHTEN_CN":          "中国货币政策收紧（政策利率上调/流动性回收）",
+    "A9:FISCAL_STIMULUS":     "美国通过大规模财政刺激法案",
+    "A9:DEBT_CEILING_RISK":   "美国债务上限危机（X-date 临近/政府关门风险事件）",
+    "A9:FISCAL_TIGHTEN":      "美国财政收紧（支出削减/增税立法）",
+    "A10:PANIC_SELL":         "散户净抛售（融资余额骤降/散户资金大幅净流出）",
+    "A10:FOMO_BUY":           "散户追涨（新增开户激增/融资余额快速上升）",
+    "A11:CUT_25BP":           "欧央行降息25bp（存款便利利率下调）",
+    "A11:HIKE_25BP":          "欧央行加息25bp（存款便利利率上调）",
+    "A11:QE_EXPAND":          "欧央行扩大资产购买（QE 重启/扩张）",
+    "A11:QE_TIGHTEN":         "欧央行缩减资产购买（QE 缩减）",
+    "A12:ABANDON_YCC":        "日本央行正式宣布取消 YCC 收益率曲线控制",
+    "A12:EASE_YCC":           "日本央行放宽 YCC 上限（收益率区间扩大）",
+    "A12:EMERGENCY_EASE":     "日本央行紧急宽松（非常规操作/扩大购债）",
+    "A13:INCREASE_RISK":      "长线资金（保险/养老）恐慌期逆势加仓（净买入）",
+    "A13:DECREASE_RISK":      "长线资金温和降险（小幅减仓）",
+}
+_SOV_CRITERION = {
+    "IMPOSE_SANCTIONS":   "官方宣布实施新制裁（针对目标国家/实体）",
+    "LIFT_SANCTIONS":     "官方宣布解除/豁免既有制裁",
+    "MILITARY_DEPLOYMENT": "大规模军事部署/调动（公开报道确认）",
+    "DIPLOMATIC_ENGAGE":  "高层外交接触（峰会/外长会晤）",
+    "NUCLEAR_SIGNAL":     "核威慑表态/战略演习（官方或权威信源）",
+    "ENERGY_CUTOFF":      "能源供应中断落地（管道/航运禁运）",
+    "EMBARGO_SIGNAL":     "封锁/禁运信号（官方声明或实际行动）",
+    "ALLIANCE_REINFORCE": "签署/强化军事同盟协定",
+    "TECH_RESTRICTION":   "技术出口管制新规落地",
+    "INCREASE_OUTPUT":    "正式宣布增产（产量配额上调）",
+    "CUT_OUTPUT":         "正式宣布减产（产量配额下调）",
+    "CEASEFIRE_SIGNAL":   "停火谈判/协议信号",
+    "DIPLOMATIC_OUTREACH": "重大外交倡议/关系拓展",
+}
+for _sid in _SOV_CN:
+    for _act, _crit in _SOV_CRITERION.items():
+        _ACTION_CRITERIA[f"{_sid}:{_act}"] = _crit
+
+
+def criterion_for_action(action_key: str) -> str:
+    """动作 key（如 'A6:AMPLIFY_FEAR'）→ 现实判定标准；未知动作返回空串。"""
+    return _ACTION_CRITERIA.get(action_key, "")
+
+
+def label_to_action_key(label: str) -> str | None:
+    """中文事件名 → 动作 key 反查（回填历史预测判据用）；歧义/未知名返回 None。"""
+    hits = [k for k, v in _ACTION_LABELS.items() if v == label]
+    return hits[0] if len(hits) == 1 else None
+
+
 def _get_military_backdrop_snippet() -> str:
     """读取 SIPRI 军事背景卡片的摘要段（前600字符），注入推演叙事 prompt。"""
     try:
@@ -238,122 +368,8 @@ def _extract_key_events(history_list: list[list[dict]], run_indices: list[int]) 
                 step_counts[step][key] += 1
 
     key_events = []
-    action_labels = {
-        "A1:CUT_50BP":            "美联储紧急降息50bp",
-        "A1:CUT_25BP":            "美联储降息25bp",
-        "A1:HIKE_25BP":           "美联储加息25bp",
-        "A1:VERBAL_INTERVENTION": "美联储口头干预",
-        "A2:TIGHTEN_CREDIT":      "商业银行收紧信贷",
-        "A2:EASE_CREDIT":         "商业银行放松信贷",
-        "A3:SHORT_MARKET":        "对冲基金大规模做空",
-        "A3:DECREASE_RISK":       "对冲基金降险",
-        "A3:INCREASE_RISK":       "对冲基金加仓做多",
-        "A4:CUT_SUPPLY":          "OPEC+减产",
-        "A4:INCREASE_SUPPLY":     "OPEC+增产",
-        "A5:DECREASE_RISK":       "机构投资者降险",
-        "A5:INCREASE_RISK":       "机构投资者加仓",
-        "A6:AMPLIFY_FEAR":        "媒体放大恐慌情绪",
-        "A6:NEUTRAL_REPORT":      "媒体保持中性报道",
-        "A6:AMPLIFY_OPTIMISM":    "媒体放大乐观情绪",
-        "A7:CAPITAL_CONTROLS":    "新兴市场实施资本管制",
-        "A7:RAISE_RATES":         "新兴市场央行加息",
-        "A7:CUT_25BP":            "新兴市场央行降息",
-        "A8:CUT_RRR":             "中国央行降准",
-        "A8:CUT_LPR":             "中国央行降LPR",
-        "A8:FISCAL_STIMULUS_CN":  "中国财政大规模刺激",
-        "A8:CNY_INTERVENTION":    "中国央行汇率干预",
-        "A8:TIGHTEN_CN":          "中国货币政策收紧",
-        "A9:FISCAL_STIMULUS":     "美国财政刺激",
-        "A9:DEBT_CEILING_RISK":   "美国债务上限危机信号",
-        "A9:FISCAL_TIGHTEN":      "美国财政收紧",
-        "A10:PANIC_SELL":         "散户恐慌性抛售",
-        "A10:FOMO_BUY":           "散户追涨买入",
-        "A11:CUT_25BP":           "欧央行降息25bp",
-        "A11:HIKE_25BP":          "欧央行加息25bp",
-        "A11:QE_EXPAND":          "欧央行扩大QE",
-        "A11:QE_TIGHTEN":         "欧央行缩减QE",
-        "A12:ABANDON_YCC":        "日本央行放弃YCC（套息危机）",
-        "A12:EASE_YCC":           "日本央行放松YCC上限",
-        "A12:EMERGENCY_EASE":     "日本央行紧急宽松",
-        "A13:INCREASE_RISK":      "长线资金逆向抄底",
-        "A13:DECREASE_RISK":      "长线资金温和降险",
-    }
-    # 08-18 主权动作补 label（此前 S 类 key_events 显示原始 key "S1_usa:IMPOSE_SANCTIONS"）
-    _SOV_CN = {"S1_usa": "美国", "S2_china": "中国", "S3_eu": "欧盟",
-               "S4_russia": "俄罗斯", "S5_saudi": "沙特"}
-    _SOV_ACTION = {
-        "IMPOSE_SANCTIONS": "实施制裁", "LIFT_SANCTIONS": "解除制裁",
-        "MILITARY_DEPLOYMENT": "军事部署", "DIPLOMATIC_ENGAGE": "外交接触",
-        "NUCLEAR_SIGNAL": "核威慑信号", "ENERGY_CUTOFF": "能源断供",
-        "EMBARGO_SIGNAL": "封锁信号", "ALLIANCE_REINFORCE": "强化同盟",
-        "TECH_RESTRICTION": "技术限制", "INCREASE_OUTPUT": "增产",
-        "CUT_OUTPUT": "减产", "CEASEFIRE_SIGNAL": "停火信号",
-        "DIPLOMATIC_OUTREACH": "外交拓展",
-    }
-    for _sid, _cn in _SOV_CN.items():
-        for _act, _label in _SOV_ACTION.items():
-            action_labels[f"{_sid}:{_act}"] = f"{_cn}{_label}"
-
-    # 08-18 现实判定标准（人工验证用）：动作 → 现实世界可观测判据。
-    # 预测的 outcome_definition 拼此内容，解决"中性报道是什么/对谁做空"式模糊。
-    action_criteria = {
-        "A1:CUT_50BP":            "美联储单次会议降息≥50bp（联邦基金利率目标区间下调）",
-        "A1:CUT_25BP":            "美联储降息25bp（联邦基金利率目标区间下调）",
-        "A1:HIKE_25BP":           "美联储加息25bp（联邦基金利率目标区间上调）",
-        "A1:VERBAL_INTERVENTION": "美联储主席/官员口头释放政策转向信号（讲话/纪要）",
-        "A2:TIGHTEN_CREDIT":      "银行信贷标准净收紧（SLOOS净收紧比例>0）且信贷利差走阔",
-        "A2:EASE_CREDIT":         "银行信贷标准净放松（SLOOS净放松>0）且利差收窄",
-        "A3:SHORT_MARKET":        "对冲基金净空头仓位处于历史前10%分位（做空标的：主要股指/信用债）",
-        "A3:DECREASE_RISK":       "对冲基金去杠杆（净敞口下降≥5pct）",
-        "A3:INCREASE_RISK":       "对冲基金加杠杆做多（净多头仓位上升）",
-        "A4:CUT_SUPPLY":          "OPEC+ 正式宣布减产（产量配额下调）",
-        "A4:INCREASE_SUPPLY":     "OPEC+ 正式增产（配额上调）",
-        "A5:DECREASE_RISK":       "机构投资者降险（风险资产仓位下降、现金占比上升）",
-        "A5:INCREASE_RISK":       "机构投资者加仓（风险资产净买入）",
-        "A6:AMPLIFY_FEAR":        "主流财经媒体负面报道占比连续≥2个月≥40%（参考：VIX 读数/新闻情绪指数）",
-        "A6:NEUTRAL_REPORT":      "主流财经媒体负面报道占比<20%（情绪中性，无恐慌/乐观系统性渲染）",
-        "A6:AMPLIFY_OPTIMISM":    "主流财经媒体正面报道占比连续≥2个月≥40%（乐观渲染）",
-        "A7:CAPITAL_CONTROLS":    "新兴市场实施资本管制（跨境资金流动限制落地）",
-        "A7:RAISE_RATES":         "新兴市场央行加息（政策利率上调）",
-        "A7:CUT_25BP":            "新兴市场央行降息（政策利率下调）",
-        "A8:CUT_RRR":             "中国央行降准（存款准备金率下调）",
-        "A8:CUT_LPR":             "中国央行下调 LPR（贷款市场报价利率）",
-        "A8:FISCAL_STIMULUS_CN":  "中国推出大规模财政刺激（财政赤字率显著扩张）",
-        "A8:CNY_INTERVENTION":    "中国央行干预人民币汇率（逆周期因子/离岸市场操作）",
-        "A8:TIGHTEN_CN":          "中国货币政策收紧（政策利率上调/流动性回收）",
-        "A9:FISCAL_STIMULUS":     "美国通过大规模财政刺激法案",
-        "A9:DEBT_CEILING_RISK":   "美国债务上限危机（X-date 临近/政府关门风险事件）",
-        "A9:FISCAL_TIGHTEN":      "美国财政收紧（支出削减/增税立法）",
-        "A10:PANIC_SELL":         "散户净抛售（融资余额骤降/散户资金大幅净流出）",
-        "A10:FOMO_BUY":           "散户追涨（新增开户激增/融资余额快速上升）",
-        "A11:CUT_25BP":           "欧央行降息25bp（存款便利利率下调）",
-        "A11:HIKE_25BP":          "欧央行加息25bp（存款便利利率上调）",
-        "A11:QE_EXPAND":          "欧央行扩大资产购买（QE 重启/扩张）",
-        "A11:QE_TIGHTEN":         "欧央行缩减资产购买（QE 缩减）",
-        "A12:ABANDON_YCC":        "日本央行正式宣布取消 YCC 收益率曲线控制",
-        "A12:EASE_YCC":           "日本央行放宽 YCC 上限（收益率区间扩大）",
-        "A12:EMERGENCY_EASE":     "日本央行紧急宽松（非常规操作/扩大购债）",
-        "A13:INCREASE_RISK":      "长线资金（保险/养老）恐慌期逆势加仓（净买入）",
-        "A13:DECREASE_RISK":      "长线资金温和降险（小幅减仓）",
-    }
-    _SOV_CRITERION = {
-        "IMPOSE_SANCTIONS":   "官方宣布实施新制裁（针对目标国家/实体）",
-        "LIFT_SANCTIONS":     "官方宣布解除/豁免既有制裁",
-        "MILITARY_DEPLOYMENT": "大规模军事部署/调动（公开报道确认）",
-        "DIPLOMATIC_ENGAGE":  "高层外交接触（峰会/外长会晤）",
-        "NUCLEAR_SIGNAL":     "核威慑表态/战略演习（官方或权威信源）",
-        "ENERGY_CUTOFF":      "能源供应中断落地（管道/航运禁运）",
-        "EMBARGO_SIGNAL":     "封锁/禁运信号（官方声明或实际行动）",
-        "ALLIANCE_REINFORCE": "签署/强化军事同盟协定",
-        "TECH_RESTRICTION":   "技术出口管制新规落地",
-        "INCREASE_OUTPUT":    "正式宣布增产（产量配额上调）",
-        "CUT_OUTPUT":         "正式宣布减产（产量配额下调）",
-        "CEASEFIRE_SIGNAL":   "停火谈判/协议信号",
-        "DIPLOMATIC_OUTREACH": "重大外交倡议/关系拓展",
-    }
-    for _sid in _SOV_CN:
-        for _act, _crit in _SOV_CRITERION.items():
-            action_criteria[f"{_sid}:{_act}"] = _crit
+    action_labels = _ACTION_LABELS   # 08-18 模块级（含主权扩展）
+    action_criteria = _ACTION_CRITERIA
 
     for step in sorted(step_counts.keys()):
         for key, count in step_counts[step].most_common(2):
