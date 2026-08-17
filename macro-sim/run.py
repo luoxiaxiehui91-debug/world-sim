@@ -742,12 +742,14 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
                 outcome = f"6个月内是否发生：{ev.get('event', '')}"
                 if _crit:
                     outcome += f"。判定标准：{_crit}"
+                # 08-18 动作 key 落库（自动验证分派用，不依赖中文名反查）
+                _a_key = f"{ev.get('agent_id', '')}:{ev.get('action', '')}"
                 conn.execute("""
                     INSERT INTO predictions
                       (id, created_at, due_at, scenario_id, type, prediction_target_type,
-                       content, outcome_definition,
+                       content, outcome_definition, action_key,
                        final_prob, confidence_tier, time_horizon, status)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'awaiting_human')
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'awaiting_human')
                     ON CONFLICT (id) DO NOTHING
                 """, (
                     geo_id,
@@ -758,6 +760,7 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
                     "geopolitical_event",
                     content,
                     outcome,
+                    _a_key if _a_key != ":" else None,
                     round(ev.get("frequency", 0.5), 4),
                     "LOW",
                     "monthly",

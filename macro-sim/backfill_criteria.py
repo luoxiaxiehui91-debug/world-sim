@@ -50,10 +50,11 @@ def main() -> int:
 
     conn = _connect()
     cur = conn.execute(
-        "SELECT id, content, outcome_definition FROM predictions "
-        "WHERE status = 'awaiting_human' AND outcome_definition NOT LIKE '%判定标准%'")
+        "SELECT id, content, outcome_definition, action_key FROM predictions "
+        "WHERE status = 'awaiting_human' "
+        "AND (outcome_definition NOT LIKE '%判定标准%' OR action_key IS NULL)")
     rows = [dict(zip([d.name for d in cur.description], r)) for r in cur.fetchall()]
-    print(f"[backfill] 待回填 {len(rows)} 条（awaiting_human 且无判据）")
+    print(f"[backfill] 待回填 {len(rows)} 条（缺判据或缺 action_key）")
 
     updated = 0
     unmatched: dict[str, int] = {}
@@ -71,13 +72,16 @@ def main() -> int:
         if not crit:
             unmatched[name] = unmatched.get(name, 0) + 1
             continue
-        new_outcome = f"{r['outcome_definition']}。判定标准：{crit}"
+        new_outcome = r["outcome_definition"]
+        if "判定标准" not in (new_outcome or ""):
+            new_outcome = f"{new_outcome}。判定标准：{crit}"
         if args.dry_run:
-            print(f"  [dry] {r['id'][:12]}… {name} → {crit}")
+            print(f"  [dry] {r['id'][:12]}… {name} → key={key}")
         else:
+            # 08-18 补 action_key（自动验证分派用）；判据缺失时一并补
             conn.execute(
-                "UPDATE predictions SET outcome_definition = %s WHERE id = %s",
-                (new_outcome, r["id"]))
+                "UPDATE predictions SET outcome_definition = %s, action_key = %s WHERE id = %s",
+                (new_outcome, key, r["id"]))
         updated += 1
 
     if not args.dry_run:
