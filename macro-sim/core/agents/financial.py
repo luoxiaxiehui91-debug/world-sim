@@ -54,8 +54,37 @@ class CommercialBankAgent(MacroAgent):
     """A2：商业银行风控 — 1个月延迟（R4b info_delay 2→1）"""
     VALID_ACTIONS: ClassVar[list[str]] = ["TIGHTEN_CREDIT", "HOLD", "EASE_CREDIT"]
 
+    def _soul_risk_bias(self, ctx: dict) -> float:
+        """08-17 混合 soul：评估 internal_factions 派系激活 → 风险偏好偏置 [-1,1]。
+
+        bias>0 = 收紧倾向（risk_averse 派激活）；bias<0 = 放松倾向（expansion 派激活）；
+        无 soul / 无派系命中 → 0.0（与旧行为逐字节一致）。
+        """
+        factions = (self.soul or {}).get("internal_factions", {}) or {}
+        if not factions:
+            return 0.0
+        try:
+            from core.agents.base import _eval_trigger
+        except Exception:
+            return 0.0
+        total_w = 0.0
+        bias = 0.0
+        for fname, fdata in factions.items():
+            w = float(fdata.get("weight", 0.33)) if isinstance(fdata, dict) else 0.33
+            trig = fdata.get("trigger", "") if isinstance(fdata, dict) else ""
+            if trig and _eval_trigger(trig, ctx):
+                ba = fdata.get("bias_actions") or [] if isinstance(fdata, dict) else []
+                direction = 1.0 if "TIGHTEN_CREDIT" in ba else (-1.0 if "EASE_CREDIT" in ba else 0.0)
+                total_w += w
+                bias += w * direction
+        if total_w <= 0:
+            return 0.0
+        return max(-1.0, min(1.0, bias / total_w))
+
     def _decide_rules(self, ctx: dict) -> str:
         p = self.params
+        # 08-17 混合 soul：派系风险偏好偏置（软调制阈值，不接管决策；bias=0 与旧行为一致）
+        risk_bias = self._soul_risk_bias(ctx)
         spread     = ctx.get("credit_spread", 250)
         tightening = ctx.get("bank_credit_tightening", 0)
         grv_stress = ctx.get("grv_stress", 0) * p.sensitivity
@@ -78,10 +107,14 @@ class CommercialBankAgent(MacroAgent):
         # TIGHTEN wrong 18→13（≤17 裁决闸）。注释更新非引擎行为（A2 决策逻辑零改动）。
         target_dir = "ease" if cs_delta < -2.5 else ("tighten" if cs_delta > 2.5 else "neutral")
         tighten_ok = (target_dir != "ease") or vix_stress > p.threshold * 2.0  # vix_stress>1.0
+        # 08-17 混合 soul：risk_bias 软调制（>0 收紧倾向 → 阈值降低更易触发；bias=0 不变）
+        _tb = risk_bias * 60.0      # spread 阈值偏置（bp）
+        _tg = risk_bias * 0.20      # grv_stress 阈值偏置
+        _tv = risk_bias * 0.15      # vix_stress 阈值偏置
         tighten_signal = (
-            spread > 250 + p.threshold * 150
-            or grv_stress > p.threshold * 0.8
-            or vix_stress > p.threshold * 0.7
+            spread > 250 + p.threshold * 150 - _tb
+            or grv_stress > p.threshold * 0.8 - _tg
+            or vix_stress > p.threshold * 0.7 - _tv
             or hf_action == "SHORT_MARKET"
             or retail_act == "PANIC_SELL"
         ) and tighten_ok
@@ -99,8 +132,9 @@ class CommercialBankAgent(MacroAgent):
         # 被挡步转 HOLD（冷却递减，本函数 ease_cooldown>0 分支 L113-115）：不静默跳过、
         # 不误转 TIGHTEN（TIGHTEN 分支有 ease_cooldown==0 守卫保 M4 flip==0）——qa 澄清点。
         ease_ok = (target_dir != "tighten") or vix_stress > p.threshold * 2.0
+        # 08-17 混合 soul：risk_bias<0（放松倾向）→ ease spread 阈值 +50bp 更易满足；bias=0 不变
         ease_signal = (
-            spread < (350 if directional_ease else 250)
+            spread < (350 if directional_ease else 250) + (-risk_bias) * 50.0
             and tightening < p.threshold * 1.0
             and grv_stress < (p.threshold * 1.2 if directional_ease else p.threshold * 0.5)
             and ease_ok
@@ -204,8 +238,9 @@ class LongTermCapitalAgent(MacroAgent):
     info_delay=3（看季度数据，反应慢），激活后冷却 3 个月。
     """
     VALID_ACTIONS: ClassVar[list[str]] = ["INCREASE_RISK", "HOLD", "DECREASE_RISK"]
-    # 系统性极端时温和撤退概率（70% 扛住——长线资金耐性，不追涨杀跌）
-    EXTREME_RETREAT_PROB: ClassVar[float] = 0.30
+    # 系统性极端时温和撤退概率（80% 扛住——长线资金耐性，不追涨杀跌）
+    # 08-17 v5：0.30→0.20（更扛，逆周期更坚决）
+    EXTREME_RETREAT_PROB: ClassVar[float] = 0.20
 
     def _decide_rules(self, ctx: dict) -> str:
         p = self.params
@@ -216,14 +251,14 @@ class LongTermCapitalAgent(MacroAgent):
         panic_seen = (visible.get("retail") == "PANIC_SELL"
                       or visible.get("media") == "AMPLIFY_FEAR")
 
-        # 1) 系统性极端（GRV 高压 + 情绪崩盘）→ 30% 温和降险，70% 扛住
+        # 1) 系统性极端（GRV 高压 + 情绪崩盘）→ 20% 温和降险，80% 扛住
         if grv_stress > p.threshold * 1.5 and sentiment < -0.7:
             return "DECREASE_RISK" if random.random() < self.EXTREME_RETREAT_PROB else "HOLD"
-        # 2) 深度恐慌但 GRV 未极端 → 逆向抄底（逆周期核心）
-        if sentiment < -0.4 and grv_stress < p.threshold * 1.3:
+        # 2) 恐慌初起即逆向抄底（v5：阈值 -0.4→-0.25 更早进场；GRV 上限 1.3→1.5 放宽）
+        if sentiment < -0.25 and grv_stress < p.threshold * 1.5:
             return "INCREASE_RISK"
-        # 3) 别人恐慌 → 贪婪
-        if panic_seen and grv_stress < p.threshold * 1.1:
+        # 3) 别人恐慌 → 贪婪（v5：GRV 上限 1.1→1.3 更坚决）
+        if panic_seen and grv_stress < p.threshold * 1.3:
             return "INCREASE_RISK"
         # 4) 常态：长线拿住（低压力 + 情绪平稳）
         return "HOLD"

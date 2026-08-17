@@ -28,6 +28,7 @@ agents:
     name: 商业银行
     role: commercial_bank
     class: financial.CommercialBankAgent
+    soul_file: A2_bank.yaml   # 08-17 soul 化（混合模式）：风险厌恶/信贷扩张/平衡 派系软调制阈值
     # R4b（v2.0.32，根因链三方闭环）：info_delay 2→1——credit 失活根治。
     # S 类归因实测（seed42）：rate_limit=0.815 / tighten_signal_false=0.0 —— 27 个 S 类步中
     # 22 步 A2 在冷却锁死（全步冷却占比 57%），"决策规则错配"被 0.0 否决。

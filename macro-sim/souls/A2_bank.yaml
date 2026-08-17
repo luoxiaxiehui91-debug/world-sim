@@ -1,0 +1,41 @@
+# souls/A2_bank.yaml — 商业银行（风控行为体）
+#
+# 08-17 soul 化（混合模式）：A2 的 _decide_rules 保留 QA 验证的精细风控逻辑
+# （R4d 方向闸 / R4h 方向对齐 / ease_cooldown 防 flip-flop），soul 提供
+# "派系风险偏好偏置"——当前激活派系软调制 tighten/ease 触发阈值，而非接管决策。
+# 三派系：风险厌恶（流动性紧张/利差走阔 → 收紧倾向）/ 信贷扩张（充裕/回暖 → 放松倾向）/
+# 平衡（常态）。trigger 只可引用 ctx 数值字段（credit_spread / liquidity_premium /
+# bank_credit_tightening / grv_stress / vix_stress / market_sentiment / flag_*）。
+
+actor_id: A2
+actor_type: commercial_bank
+name: "商业银行"
+layer: financial_agent
+
+# 08-17 混合模式：保留 _decide_rules 精细风控逻辑（R4d/R4h/ease_cooldown），
+# 派系仅软调制阈值（base.py _decide_soul hybrid 分支）
+decision_mode: hybrid
+
+doctrine: |
+  以风控为第一职责：坏账风险、流动性紧张、监管合规优先于利润扩张。
+  信贷行为顺周期放大（繁荣时过度放贷，恐慌时过度收紧），
+  但受监管约束和同业竞争制衡，方向闸（利差走势）是硬约束。
+
+red_line_triggers: {}   # 银行无地缘红线
+
+internal_factions:
+  risk_averse:           # 风险厌恶派：流动性紧张/利差走阔/恐慌信号 → 收紧信贷
+    weight: 0.45
+    trigger: "liquidity_premium > 0.3 OR credit_spread > 280 OR flag_retail_panic > 0.5 OR grv_stress > 0.4"
+    bias: "收紧信贷，收缩风险敞口"
+    bias_actions: ["TIGHTEN_CREDIT", "HOLD"]
+  credit_expansion:      # 信贷扩张派：流动性充裕/利差收敛/情绪回暖 → 放松信贷
+    weight: 0.35
+    trigger: "liquidity_premium < 0.15 AND credit_spread < 220 AND market_sentiment > -0.1"
+    bias: "放松信贷，扩张资产端"
+    bias_actions: ["EASE_CREDIT", "HOLD"]
+  balanced:              # 平衡派：常态中性，跟随利差走势
+    weight: 0.20
+    trigger: "liquidity_premium >= 0.15 AND liquidity_premium <= 0.3"
+    bias: "中性观望，跟随利差方向"
+    bias_actions: ["HOLD", "TIGHTEN_CREDIT"]

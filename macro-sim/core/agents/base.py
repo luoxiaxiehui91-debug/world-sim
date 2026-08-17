@@ -247,6 +247,22 @@ class MacroAgent:
         # flag_* 布尔派生（v1.2 P2-1：从 visible_actions 派生，走 info_delay 分层）
         ctx = self._derive_soul_flags(ctx)
 
+        # 08-17 混合模式：soul 声明 decision_mode: hybrid 时，保留子类 _decide_rules
+        # 精细逻辑（如 A2 的 R4d 方向闸/ease_cooldown），soul 派系由 rules 内软调制
+        # （子类 _soul_risk_bias）——避免 soul 化丢掉 QA 验证的风控规则。
+        if (self.soul or {}).get("decision_mode") == "hybrid":
+            action = self._decide_rules(ctx)
+            if action not in self.VALID_ACTIONS:
+                action = "HOLD"
+            return ActionDecision(
+                action=action,
+                reason=f"hybrid_rules（soul 派系软调制 + {self.__class__.__name__} 规则）",
+                evidence={"signals": self._snapshot_signals(ctx)},
+                faction="hybrid",
+                confidence=1.0,
+                source="hybrid_rules",
+            )
+
         # 08-17 主权降频：red_line 冷却期判定（决策计数制）
         self._decision_count += 1
         # 主权类（VALID_ACTIONS 含核信号/军事）冷却 6 次决策，其余 2 次
