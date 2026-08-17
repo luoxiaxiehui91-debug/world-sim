@@ -30,6 +30,68 @@ AUTO_VERIFIED_BY = "auto"
 # L1 判定器分派（action_key 前缀 → 判定函数）
 L1_PREFIXES = ("A1:", "A2:", "A3:", "A6:")
 
+# ── L2 新闻关键词判定器（08-18 批次2）────────────────────────
+# action_key → 关键词组列表：每组内 AND、组间 OR；标题命中任一组 → 发生确认（1）。
+# 设计：L2 只做"发生确认"（新闻命中是强证据）；未命中 → None 保留人工
+# （新闻源覆盖有限，未命中不能断言未发生）。
+L2_KEYWORDS: dict[str, list[list[str]]] = {
+    "A12:ABANDON_YCC":    [["日本央行", "YCC"], ["BOJ", "YCC"], ["yield curve control", "japan"]],
+    "A12:EASE_YCC":       [["日本央行", "YCC"], ["BOJ", "YCC"]],
+    "A12:EMERGENCY_EASE": [["日本央行", "宽松"], ["BOJ", "ease"]],
+    "A8:CUT_RRR":         [["央行", "降准"], ["人民银行", "降准"], ["reserve requirement", "cut", "china"]],
+    "A8:CUT_LPR":         [["LPR", "下调"], ["LPR", "降"], ["loan prime rate", "cut"]],
+    "A8:FISCAL_STIMULUS_CN": [["财政刺激"], ["fiscal stimulus", "china"]],
+    "A8:CNY_INTERVENTION":   [["人民币", "干预"], ["yuan", "intervention"]],
+    "A4:CUT_OUTPUT":      [["OPEC", "减产"], ["OPEC", "cut"]],
+    "A4:CUT_SUPPLY":      [["OPEC", "减产"], ["OPEC", "cut"]],
+    "A4:INCREASE_OUTPUT": [["OPEC", "增产"], ["OPEC", "increase"]],
+    "A4:INCREASE_SUPPLY": [["OPEC", "增产"], ["OPEC", "increase"]],
+    "A9:DEBT_CEILING_RISK": [["债务上限"], ["debt ceiling"]],
+    "A9:FISCAL_STIMULUS":   [["财政刺激"], ["fiscal stimulus"]],
+    "A7:CAPITAL_CONTROLS":  [["资本管制"], ["capital control"]],
+    "S1_usa:IMPOSE_SANCTIONS": [["美国", "制裁"], ["US", "sanctions"]],
+    "S2_china:IMPOSE_SANCTIONS": [["中国", "制裁"], ["China", "sanctions"]],
+    "S3_eu:IMPOSE_SANCTIONS":   [["欧盟", "制裁"], ["EU", "sanctions"]],
+    "S4_russia:IMPOSE_SANCTIONS": [["俄罗斯", "制裁"], ["Russia", "sanctions"]],
+    "S5_saudi:EMBARGO_SIGNAL":  [["沙特", "封锁"], ["Saudi", "embargo"]],
+    "S4_russia:NUCLEAR_SIGNAL": [["核威慑"], ["nuclear", "drill"]],
+    "S4_russia:ENERGY_CUTOFF":  [["俄罗斯", "断供"], ["Russia", "gas cut"]],
+}
+L2_CONFIRM_CONFIDENCE = 0.6
+
+
+def _load_news(start: datetime, end: datetime) -> list[dict]:
+    """查 PG news.articles（90 天保留，08-18 实测 3.4 万篇覆盖 3 个月）。
+
+    比 news_all.json 快照（仅当天）完整得多——L2 验证窗口（due_at 起 30 天）
+    到期时查，窗口内文章必然在保留期内。缓存按窗口 key。
+    """
+    cache_key = (start.date().isoformat(), end.date().isoformat())
+    if cache_key in _news_cache:
+        return _news_cache[cache_key]
+    rows: list[dict] = []
+    try:
+        from pg_read import connect
+        conn = connect()
+        if conn is not None:
+            try:
+                cur = conn.execute(
+                    "SELECT title, source FROM news.articles "
+                    "WHERE published_at >= %s AND published_at < %s "
+                    "ORDER BY published_at DESC LIMIT 8000",
+                    (start.isoformat(), end.isoformat()))
+                for r in cur.fetchall():
+                    rows.append({"title": r[0] or "", "source": r[1] or ""})
+            finally:
+                conn.close()
+    except Exception:
+        pass
+    _news_cache[cache_key] = rows
+    return rows
+
+
+_news_cache: dict[tuple[str, str], list[dict]] = {}
+
 
 def _pg_conn():
     import psycopg
@@ -208,7 +270,20 @@ def judge(action_key: str, created_at: datetime, due_at: datetime) -> tuple[floa
         out, note = _judge_vix_pct(action_key, win, p90, p70, p60, p40)
         return out, 0.8, note
 
-    return None, 0.0, "L2/L3 动作（无 L1 判定器）"
+    # ── L2 新闻关键词（08-18 批次2）：命中 → 1（发生确认）；未命中 → None（人工兜底）
+    if action_key in L2_KEYWORDS:
+        arts = _load_news(win_start, win_end)
+        if not arts:
+            return None, 0.0, "新闻数据不足（窗口内无文章）"
+        for art in arts:
+            text = f"{art.get('title') or ''} {art.get('source') or ''}"
+            tl = text.lower()
+            for group in L2_KEYWORDS[action_key]:
+                if all(kw.lower() in tl for kw in group):
+                    return 1.0, L2_CONFIRM_CONFIDENCE, f"新闻命中：{art.get('title', '')[:60]}"
+        return None, 0.0, "新闻未命中（L2 仅单向确认，未命中保留人工）"
+
+    return None, 0.0, "无判定器（L3 人工）"
 
 
 def main() -> int:
