@@ -42,6 +42,7 @@
 - **backfill_criteria.py "矛盾待核"**：静态（没进 Dockerfile）与实测（容器存在）都对——原因是我 docker cp 手动拷入；已补 Dockerfile COPY 根治
 - **P1-b 定性**：审计称"psycopg 遇 ? 报错"——实测 _PG_ONLY 下 get_connection 返回 NoopConn（吞掉 qmark），PG 旁路 %s 正常执行，**非运行 bug**；降级为维护负担
 - **P1-2 修复建议**：审计建议复用 parseTs——但 parseTs 契约"无后缀=北京"（天枢数据）与 pg_read 归一化"无后缀=UTC"（TIMESTAMPTZ）冲突，复用会错更多；已按 UTC 语义显式修复
+- **safecast_nuke "未注入，白烧配额"（08-18 16:1x 复核）**：审计定性过时——核辐射告警链 **08-14 已修通**（`fetch_safecast_nuke.py:148 _alert_anomalies`，anom 翻转 → ntfy 推送 + nuke_alert_state.json 去重，chernobyl anom=true 在位实测）；"未注入"仅指 GRV 观测快照无核辐射维度 = 可选增强非缺失 → **无需修复，销项**；如需 GRV 核辐射维度另立 OPEN-DECISIONS
 
 ## 4. 后续观察
 
