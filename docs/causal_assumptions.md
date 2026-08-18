@@ -25,6 +25,12 @@
 
 **假设强度**：权重为经验校准（08-04 接入时按领域判断设定），**未做统计回测**——天权公式上线前，这些权重是"专家先验"而非"拟合参数"。
 
+**⛔ 08-18 #77 公式变更登记**：`global_composite = (gpr_global×0.85 + japan_monetary×0.15) × 0.7 + gdelt_risk_daily × 0.3`
+- gdelt_risk_daily = 6 个 GDELT 风险维度（military/tension/sanction/protest/religious_conflict/regime_change）全球均值 → 各维自历史百分位 → 等权平均（0-100，88 天窗口滚动）
+- 依据：88 天旁路验证（日 std 0→6.1，p50 58.0/p90 64.3）；GDELT 数据缺失时自动退化旧公式
+- **连带重校准**：`grv_threshold.py` GRV_DELTA_THRESHOLD 6→12（global_composite 日频化后 |Δ|≥6 触发率 27.6% 过频；12 = p95 上沿，降至 5.7%）；台海 abs 68 不受影响（独立维度）
+- 若换 GDELT 维度定义/权重 → 须重跑旁路分布对比
+
 ## 二、衰退概率（`compute_probit.py`）
 
 | 假设 | 参数 | 依据 |

@@ -32,7 +32,9 @@ except ImportError:
 
 # ── 配置 ──────────────────────────────────────────────────────────────────────
 GRV_TAIWAN_ABS       = 68     # 台海绝对值触发阈值（当前约60，历史警戒线约68）
-GRV_DELTA_THRESHOLD  = 6.0    # 任意维度单日涨幅触发阈值
+GRV_DELTA_THRESHOLD  = 12.0   # 任意维度单日涨幅触发阈值（08-18 #77：6→12——global_composite
+                              # 混入 GDELT 日频后 |Δ|≥6 触发率 27.6% 过频（88 天旁路实测），
+                              # 12 = |Δ| p95 上沿，触发率降至 5.7%，保留真实事件日（08-14 的 16.5）
 GRV_COOLDOWN_DAYS    = 3      # 同一触发类型冷却天数
 GRV_COOLDOWN_LOG     = os.path.join(DATA_DIR, "grv_alert_log.json")
 DRY_RUN              = os.environ.get("GRV_DRY_RUN", "0") == "1"

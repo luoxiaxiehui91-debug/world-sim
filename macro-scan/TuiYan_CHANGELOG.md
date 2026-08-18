@@ -6,6 +6,24 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v3.8.19 — 2026-08-18 (by 主理人 · #77 任务)
+
+**修改理由**：global_composite 长期月频阶梯（GPR 月频 + japan 近静态），对日/周级地缘事件无响应。混入 GDELT 日频信号使 GRV 全球综合维度日频灵敏。
+
+### 主要变更
+
+- **`geo_risk_vector.py` global_composite 公式（#77）**：
+  `(gpr×0.85 + japan×0.15) × 0.7 + gdelt_risk_daily × 0.3`
+  - 新增 `_compute_gdelt_risk_daily()`：6 风险维度（military/tension/sanction/protest/religious_conflict/regime_change）全球均值 → 各维自历史百分位 → 等权平均（0-100）；读 `gdelt_history.jsonl`（每 6h 追加，按天去重取最后）；历史 <30 天返回 None 自动退化旧公式
+  - 88 天旁路验证：日 std 0→6.1（月频阶梯→日频灵敏）、p50 58.0/p90 64.3；8/18 实测 gdelt 紧张度 96.0 → global 60.3→71.0（Δ+10.7 捕捉近期高紧张）
+- **`grv_threshold.py` delta 阈值 6→12**（连带重校准）：global_composite 日频化后 |Δ|≥6 触发率 27.6% 过频 → 12 = |Δ| p95 上沿，降至 5.7%，保留真实事件日（08-14 的 16.5）；台海 abs 68 不受影响（独立维度）
+- **`docs/causal_assumptions.md`**：公式变更登记（维护契约）——换维度/权重须重跑旁路分布对比
+
+### 验证
+
+- 容器实测：生产函数 `gdelt_risk_daily=96.0`（0-100 正确）、完整主流程跑通 `[B线] 未触发阈值`（delta 12 拦截 10.7 ✅）、`global_composite=71.0` 落盘、其他维度（taiwan_strait 60.1 等）全部不变
+- 旁路脚本：分布对比 + delta 频率 + 阈值敏感性（68/72/75 与 4/6/8/10/12/15）全量数据驱动
+
 ## v3.8.18 — 2026-08-18 (by 主理人 · commits `17cf5d55`→`4d22e6e2`)
 
 **修改理由**：08-16/17/18 三天批次——卫生标题绕开 DOC API + 天玑汇总导出 + 人工验证 control API + 地缘预测自动验证（L1/L2）。

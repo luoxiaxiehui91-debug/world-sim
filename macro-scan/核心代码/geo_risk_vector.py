@@ -30,10 +30,14 @@ LOG_DIR  = "/var/log/macro-scan"
 LOG_FILE = os.path.join(LOG_DIR, "grv.log")
 
 GDELT_FILE   = os.path.join(DATA_DIR, "gdelt_scores.json")
+GDELT_HIST   = os.path.join(DATA_DIR, "gdelt_history.jsonl")   # 08-18 #77：GDELT 日频历史（scan_weak_signals 每 6h 追加）
 FRED_DIR     = os.path.join(DATA_DIR, "fred_history")
 GRV_OUTPUT   = os.path.join(DATA_DIR, "grv_latest.json")
 GRV_HISTORY  = os.path.join(DATA_DIR, "grv_history.jsonl")
 GED_CSV      = os.path.join(DATA_DIR, "ged", "ged_agg_country_month.csv")
+
+# 08-18 #77：GDELT 全球日频紧张度的风险语义维度（coop 正向排除；social_stress/cultural_friction 已有独立透传）
+RISK_GDELT_DIMS = ("military", "tension", "sanction", "protest", "religious_conflict", "regime_change")
 
 # GPR 系列历史分位数（滚动10年 P10-P95 归一化）
 # p95 代替 p90，避免极端事件（如2026-03关税战峰值331）把天花板压得过低导致长期触顶
@@ -207,6 +211,49 @@ def _load_gdelt() -> dict:
         return data.get("scores", {}), data.get("updated", "N/A")
     except Exception:
         return {}, "N/A"
+
+
+def _compute_gdelt_risk_daily() -> float | None:
+    """GDELT 全球日频紧张度（0-100）——08-18 #77 global_composite 混入用。
+
+    方法：6 个风险语义维度（RISK_GDELT_DIMS）各自全球均值 → 每维在自身历史中
+    的百分位（0-100）→ 等权平均 = 当日紧张度。历史不足 30 天返回 None（容错）。
+
+    数据：gdelt_history.jsonl（scan_weak_signals 每 6h 追加，每天多条 → 按天去重
+    取最后一条）。88 天旁路验证：min 15.7 / p50 52.5 / p90 73.6 / max 99.4。
+    """
+    try:
+        by_date: dict[str, dict] = {}
+        with open(GDELT_HIST, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                except ValueError:
+                    continue
+                if d.get("date"):
+                    by_date[d["date"]] = d   # 后写覆盖 = 每天取最后一条
+        if len(by_date) < 30:
+            return None
+        hist = sorted(by_date.items(), key=lambda x: x[0])
+        n = len(hist)
+        series: dict[str, list[float]] = {}
+        for dim in RISK_GDELT_DIMS:
+            out: list[float] = []
+            for _dt, d in hist:
+                s = d.get("scores", {}).get(dim, {})
+                vals = [v for v in s.values() if isinstance(v, (int, float))]
+                out.append(sum(vals) / len(vals) if vals else 0.0)
+            series[dim] = out
+        daily = [0.0] * n
+        for dim in RISK_GDELT_DIMS:
+            vals = series[dim]
+            for i in range(n):
+                rank = sum(1 for v in vals if v <= vals[i]) - 1
+                daily[i] += rank / max(1, n - 1) * 100 / len(RISK_GDELT_DIMS)
+        return round(daily[-1], 1)
+    except Exception as _e:
+        logger.warning(f"[GRV] gdelt_risk_daily 计算失败（非阻断，退旧公式）: {_e}")
+        return None
 
 
 def _load_gpr(series_id: str) -> tuple[float | None, str | None]:
@@ -646,6 +693,15 @@ def compute_grv() -> dict:
         global_composite = round(gpr_global * 0.85 + japan_monetary * 0.15, 1)
     else:
         global_composite = gpr_global  # 任一缺失时退回纯 GPR
+
+    # 08-18 #77：混入 GDELT 日频紧张度——GPR 月频基准 + GDELT 日频增量修正。
+    # 权重 0.7/0.3 经 88 天旁路验证（gdelt_history）：日 std 0→6.1（月频阶梯→日频灵敏）；
+    # 分布 p50 58.0 / p90 64.3（旧 60.3 恒值）。⚠️ delta 触发阈值已同步 6→12
+    # （grv_threshold.py：|Δ|≥6 触发率 27.6% 过频 → ≥12 降至 5.7%，台海 abs 68 不受影响）。
+    # GDELT 数据缺失/历史不足时 _compute_gdelt_risk_daily 返回 None → 自动退化旧公式。
+    _gdelt_daily = _compute_gdelt_risk_daily()
+    if _gdelt_daily is not None and global_composite is not None:
+        global_composite = round(global_composite * 0.7 + _gdelt_daily * 0.3, 1)
 
     # ── 社会压力/文化摩擦（R09/R10，来自 gdelt_scores.json）───────
     # social_stress 在 gdelt_scores 中是 {country: score} 字典，取均值作为全局标量
