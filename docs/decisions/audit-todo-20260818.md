@@ -20,6 +20,8 @@
 | **P1-5 updated_at 写入** | `log_weight_update` INSERT 补 updated_at（此前 NULL，玉衡审计排序退化） | 随天玑重建生效 |
 | **P1-6 compose 模板纪律** | macro-scan compose 补 `networks: worldsim_default`（顶层+两 service）+ `WORLDSIM_SQLITE_OFF=1`/`WORLDSIM_APP_PW`/`CONTROL_TOKEN`（.env 占位） | `docker compose config` VALID |
 | **P2 死代码清理** | git rm `core/sim_log.py` + `core/backtest.py`（孤儿链，backtest 无调用方）+ run.py `_write_json`（无调用）+ compose 移除 sim_log.db 挂载 | 本批次 |
+| **H08/H11 原子写批次（08-18 E 项）** | AST 函数级扫描 59 处 → 调度路径 **34 处 / 23 文件**批量 tmp+os.replace（fetch_* 系列/news_exporter/scan_weak_signals/probe 等）；手动工具 10 文件暂缓登记；23 文件 py_compile + 容器实测 fetch_climate/news_exporter/probe 产物正常 | `f5424f6c` |
+| **P1-E causal_assumptions（08-18 D 项）** | `docs/causal_assumptions.md` 显式化 GRV 权重组合/probit/FCI/慢变量/GED/LLM 框架/天璇行为假设 + 维护契约（改假设须登记） | `c016b607` |
 | **P2 macro-ji 文档 SQLite 误述** | AGENTS.md 架构图 + README.md 3 处（tianji_db 说明/数据流/共享数据表）统一 PG 口径 | 本批次 |
 | **P2 kaiyang AGENTS 版本** | v1.11.27 → v1.11.34 + 控制面/模型线变更补全 | 本批次 |
 | **P2 OPEN-DECISIONS 补登记** | P0-1（LIVE，待批准）/ P0-2（用户暂缓）/ 双 tianji_db | 本批次 |
