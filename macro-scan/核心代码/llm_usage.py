@@ -251,6 +251,22 @@ def set_usage(usage_id: str, platform: str, model: str,
         return False, f"未知平台: {platform}"
     cfg = load_config()
     cfg.setdefault("usages", {})
+    # 08-18 修复：首次写预填充——文件缺失/损坏时 usages 为空，若只写当前 1 条会
+    # 生成"部分固化"配置（其余 5 个使用点不在文件里，面板看不出异常）。用静态清单
+    # 预填全部使用点（key 留空走 env），保证任何时刻文件都是完整 6 条。
+    if not cfg["usages"]:
+        for _item in LLM_USAGES:
+            _uid = _item["id"]
+            _pid = _item.get("platform") or ""
+            _plat = _all_platforms().get(_pid)
+            _model = _item.get("default_model") or ""
+            if not _plat or not _model:
+                continue  # openai_compat default_model=None → 跳过，由调用方显式设置
+            cfg["usages"][_uid] = {
+                "platform": _pid,
+                "model": _model,
+                "base_url": (_plat.get("base_url") or "").rstrip("/"),
+            }
     entry = dict(cfg["usages"].get(usage_id) or {})
     entry["platform"] = platform
     entry["model"] = model

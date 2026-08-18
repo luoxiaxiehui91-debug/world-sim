@@ -219,32 +219,51 @@ def call_openai_compat(prompt: str, system: str = "", max_tokens: int = 4096,
 
     print(f"[call_openai_compat] START | prompt_tokens={_estimate_tokens(prompt)} max_tokens={max_tokens} url={base_url}")
     start_ts = time.time()
-    resp = requests.post(
-        f"{base_url}/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": model,
-            "max_tokens": max_tokens,
-            "messages": [
-                {"role": "system", "content": system or MACRO_SYSTEM_PROMPT},
-                {"role": "user",   "content": prompt},
-            ],
-        },
-        timeout=180,
-    )
-    elapsed = time.time() - start_ts
-    rl_remain = resp.headers.get("X-RateLimit-Remaining", "N/A")
-    rl_reset  = resp.headers.get("X-RateLimit-Reset", "N/A")
-    print(f"[call_openai_compat] RESPONSE | status={resp.status_code} elapsed={elapsed:.1f}s rateLimit_remain={rl_remain}")
-    resp.raise_for_status()
-    try:
-        result = resp.json()["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError) as e:
-        raise ValueError(f"OpenAI兼容端点响应格式异常: {e} | 原始响应: {resp.text[:300]}")
-    if not result:
-        raise ValueError("OpenAI兼容端点返回空响应")
-    print(f"[call_openai_compat] OK | result_chars={len(result)} elapsed={time.time()-start_ts:.1f}s")
-    return result
+    # 08-18 修复：mimo 端点间歇 20-30% "200 + 空 body"（fetch_news_titles 30% 标题
+    # 翻译失败保留英文的根因）——空响应/请求异常（429/5xx）重试 2 次（指数退避 2s/4s）。
+    # 格式异常（KeyError/IndexError）不重试（端点格式错，重试无意义，快速失败）。
+    for _attempt in range(3):
+        try:
+            resp = requests.post(
+                f"{base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": model,
+                    "max_tokens": max_tokens,
+                    "messages": [
+                        {"role": "system", "content": system or MACRO_SYSTEM_PROMPT},
+                        {"role": "user",   "content": prompt},
+                    ],
+                },
+                timeout=180,
+            )
+            elapsed = time.time() - start_ts
+            rl_remain = resp.headers.get("X-RateLimit-Remaining", "N/A")
+            rl_reset  = resp.headers.get("X-RateLimit-Reset", "N/A")
+            print(f"[call_openai_compat] RESPONSE | status={resp.status_code} elapsed={elapsed:.1f}s rateLimit_remain={rl_remain}")
+            resp.raise_for_status()
+            try:
+                result = resp.json()["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError) as e:
+                raise ValueError(f"OpenAI兼容端点响应格式异常: {e} | 原始响应: {resp.text[:300]}")
+            if not result:
+                raise ValueError("OpenAI兼容端点返回空响应")
+            print(f"[call_openai_compat] OK | result_chars={len(result)} elapsed={time.time()-start_ts:.1f}s")
+            return result
+        except ValueError as e:
+            if "空响应" in str(e) and _attempt < 2:
+                _backoff = 2 * (_attempt + 1)
+                print(f"[call_openai_compat] 空响应重试 {_attempt+1}/2（{_backoff}s）")
+                time.sleep(_backoff)
+                continue
+            raise
+        except requests.RequestException as e:
+            if _attempt < 2:
+                _backoff = 2 * (_attempt + 1)
+                print(f"[call_openai_compat] 请求异常重试 {_attempt+1}/2（{_backoff}s）: {str(e)[:60]}")
+                time.sleep(_backoff)
+                continue
+            raise
 
 
 def call_claude(prompt: str, system: str = "", max_tokens: int = 4096) -> str:

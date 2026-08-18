@@ -484,6 +484,34 @@ def check_ged_stale() -> list:
     return out
 
 
+def check_llm_config() -> list:
+    """LLM 统一配置（llm_config.json）完整性监控（08-18：文件曾丢失 2 天无感——
+    面板显示静态清单兜底，用户看不出配置未持久化；丢失后翻译回落 env 仍工作）。
+
+    检查：文件存在 + JSON 可解析 + usages 覆盖 ≥5 个使用点（openai_compat
+    default_model=None 可能缺席，至少 5）。缺失/损坏/覆盖不足 → WARN（不 CRIT：
+    回落静态默认仍可运行，但面板设置无法持久化）。
+    """
+    out = []
+    path = os.path.join(DATA_DIR, "llm_config.json")
+    if not os.path.exists(path):
+        out.append((WARN, "llm_config.json 缺失：LLM 配置回落静态默认，开阳面板设置无法持久化"))
+        return out
+    try:
+        import json as _json
+        with open(path, encoding="utf-8") as f:
+            cfg = _json.load(f)
+        usages = cfg.get("usages") or {}
+        n = len(usages)
+        if n < 5:
+            out.append((WARN, f"llm_config.json usages 覆盖不足：{n}/6（部分固化状态，面板设置不完整）"))
+        else:
+            out.append((OK, f"llm_config.json: {n}/6 usage 已固化"))
+    except Exception as e:
+        out.append((WARN, f"llm_config.json 损坏/不可解析: {e}"))
+    return out
+
+
 def check_fred_lag() -> list:
     """FRED 关键序列最新数据日期滞后监控（源断更/停更时告警）。"""
     from datetime import datetime, date as _date
@@ -525,7 +553,7 @@ def check_fred_lag() -> list:
 def run_probe(alert: bool = True) -> tuple:
     """执行全部检查。返回 (worst_level, results)。"""
     results = []
-    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_sqlite_gone, check_feed_fresh, check_predictions_chain, check_ged_stale):
+    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_sqlite_gone, check_feed_fresh, check_predictions_chain, check_ged_stale, check_llm_config):
         try:
             results.extend(fn())
         except Exception as e:
