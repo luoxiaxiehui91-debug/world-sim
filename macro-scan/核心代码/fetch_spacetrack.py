@@ -170,8 +170,10 @@ class SpaceTrackFetcher(FetcherBase):
         try:
             import json as _json
             out = os.path.join(DATA_DIR, OUTPUT)
-            with open(out, "w", encoding="utf-8") as _f:
+            _tmp_173 = out + ".tmp"
+            with open(_tmp_173, "w", encoding="utf-8") as _f:
                 _json.dump(result, _f, ensure_ascii=False, indent=2)
+            os.replace(_tmp_173, out)
         except Exception as _we:
             self.logger.warning("[spacetrack] 写文件失败: %s", _we)
 

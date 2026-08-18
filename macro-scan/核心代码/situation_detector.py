@@ -300,9 +300,11 @@ def _save_new_situation(sit_data: dict, freq_ratio: float):
         situations.append(new_entry)
 
         os.makedirs(DATA_DIR, exist_ok=True)
-        with open(SITUATIONS_FILE, "w", encoding="utf-8") as f:
+        _tmp_303 = SITUATIONS_FILE + ".tmp"
+        with open(_tmp_303, "w", encoding="utf-8") as f:
             yaml.dump({"situations": situations}, f,
                       allow_unicode=True, default_flow_style=False, sort_keys=False)
+        os.replace(_tmp_303, SITUATIONS_FILE)
 
         print(f"  [detector] 新情况已写入：{new_entry['name']}（{new_entry['category']}，needs_review=true）")
         return new_entry

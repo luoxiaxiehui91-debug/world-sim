@@ -894,11 +894,13 @@ def _save_gdelt_scores(scores: dict) -> None:
         from optim_config import DATA_DIR
         path = os.path.join(DATA_DIR, "gdelt_scores.json")
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
+        _tmp_897 = path + ".tmp"
+        with open(_tmp_897, "w", encoding="utf-8") as f:
             json.dump(
                 {"updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "scores": scores},
                 f, ensure_ascii=False, indent=2,
             )
+        os.replace(_tmp_897, path)
         print(f"  [GDELT] 分数已存 gdelt_scores.json")
         # 追加历史时序（JSONL：每次运行一行，日积月累形成时序）
         hist_path = os.path.join(DATA_DIR, "gdelt_history.jsonl")
@@ -1274,8 +1276,10 @@ def dedupe_and_save(alerts: list[dict]):
     cutoff = (date.today() - timedelta(days=180)).isoformat()
     existing = [e for e in existing if e.get("date", "") >= cutoff]
     os.makedirs(os.path.dirname(WEAK_SIGNAL_LOG), exist_ok=True)
-    with open(WEAK_SIGNAL_LOG, "w", encoding="utf-8") as f:
+    _tmp_1277 = WEAK_SIGNAL_LOG + ".tmp"
+    with open(_tmp_1277, "w", encoding="utf-8") as f:
         json.dump(existing, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_1277, WEAK_SIGNAL_LOG)
     print(f"  新增 {len(new_alerts)} 条预警记录。")
 
 
@@ -1449,8 +1453,10 @@ def save_latest_news_json(all_alerts: list, json_path: str = None) -> None:
     type_order = {"CRISIS": 0, "STRESS": 1, "WARNING": 2}
     filtered.sort(key=lambda x: type_order.get(x.get("alert_type", "WARNING"), 3))
     
-    with open(json_path, 'w', encoding='utf-8') as f:
+    _tmp_1452 = json_path + ".tmp"
+    with open(_tmp_1452, 'w', encoding='utf-8') as f:
         json.dump(filtered, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_1452, json_path)
     print(f"  [JSON] 已保存 {len(filtered)} 条全部预警到 latest_news.json")
 
 

@@ -187,8 +187,10 @@ def fetch_and_save() -> dict:
     }
 
     os.makedirs(DATA_DIR, exist_ok=True)
-    with open(CLIMATE_OUTPUT, "w", encoding="utf-8") as f:
+    _tmp_190 = CLIMATE_OUTPUT + ".tmp"
+    with open(_tmp_190, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_190, CLIMATE_OUTPUT)
 
     print(f"[fetch_climate_signals] 完成：risk_score={risk_score:.1f} "
           f"ONI={oni.get('value','N/A')} FIRMS={firms.get('total_hotspots','N/A')}")

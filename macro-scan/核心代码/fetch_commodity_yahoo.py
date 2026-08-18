@@ -171,10 +171,12 @@ class CommodityYahooFetcher(FetcherBase):
                 added += 1
 
         rows = sorted(existing.items())
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        _tmp_174 = csv_path + ".tmp"
+        with open(_tmp_174, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(["date", "value"])
             writer.writerows(rows)
+        os.replace(_tmp_174, csv_path)
         return added
 
     def _append_history(self, key: str, date_str: str, price: float):
@@ -204,10 +206,12 @@ class CommodityYahooFetcher(FetcherBase):
         rows.append({"date": date_str, "value": str(round(price, 4))})
         rows.sort(key=lambda r: r["date"])
 
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        _tmp_207 = csv_path + ".tmp"
+        with open(_tmp_207, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=["date", "value"])
             writer.writeheader()
             writer.writerows(rows)
+        os.replace(_tmp_207, csv_path)
 
     def _finalize_item(self, one: dict, prev: dict) -> dict:
         """基于上次良值算 change_pct / spark5（跨交易日推进，同日沿用）。

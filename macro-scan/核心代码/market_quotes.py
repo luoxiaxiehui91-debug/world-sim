@@ -147,8 +147,10 @@ def build_market_quotes():
     }
 
     out_path = os.path.join(DATA_DIR, "market_quotes.json")
-    with open(out_path, "w", encoding="utf-8") as f:
+    _tmp_150 = out_path + ".tmp"
+    with open(_tmp_150, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_150, out_path)
     print(f"[market_quotes] 写入 {out_path}")
     print(f"  indexes={len(indexes)} crypto={len(crypto)} energy={len(energy)} metals={len(metals)} macro={len(macro)}")
     return output

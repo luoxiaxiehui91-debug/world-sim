@@ -286,8 +286,10 @@ def write_outputs(
         "formula":        FORMULA_STR,
         "reference":      REFERENCE,
     }
-    with open(OUT_JSON, "w", encoding="utf-8") as f:
+    _tmp_289 = OUT_JSON + ".tmp"
+    with open(_tmp_289, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_289, OUT_JSON)
 
     if verbose:
         print(f"[write] {OUT_CSV}  {len(merged)} 行（追加+去重）")

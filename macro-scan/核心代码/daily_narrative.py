@@ -223,8 +223,10 @@ def _save_narrative(text: str):
     cache = {k: v for k, v in cache.items() if k >= cutoff}
     cache[today] = text
     os.makedirs(DATA_DIR, exist_ok=True)
-    with open(NARRATIVE_CACHE, "w", encoding="utf-8") as f:
+    _tmp_226 = NARRATIVE_CACHE + ".tmp"
+    with open(_tmp_226, "w", encoding="utf-8") as f:
         json.dump(cache, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_226, NARRATIVE_CACHE)
 
 
 # ── 核心逻辑 ──────────────────────────────────────────────────────────────────

@@ -336,9 +336,11 @@ def _write_news_geo(events: List[Mapping[str, Any]]) -> str:
     目录不存在则自动创建；jsonl 格式（每行一条 json，UTF-8，ensure_ascii=False）。
     """
     os.makedirs(DATA_DIR, exist_ok=True)
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+    _tmp_339 = OUTPUT_PATH + ".tmp"
+    with open(_tmp_339, "w", encoding="utf-8") as f:
         for ev in events:
             f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+    os.replace(_tmp_339, OUTPUT_PATH)
     return OUTPUT_PATH
 
 
@@ -873,8 +875,10 @@ def run_aggregate() -> Dict[str, Any]:
                     continue
     clusters = _aggregate(events)
     cluster_path = os.path.join(DATA_DIR, "news_geo_clusters.json")
-    with open(cluster_path, "w", encoding="utf-8") as f:
+    _tmp_876 = cluster_path + ".tmp"
+    with open(_tmp_876, "w", encoding="utf-8") as f:
         json.dump(clusters, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_876, cluster_path)
     result = {
         "clusters": len(clusters),
         "events_in": sum(c["event_count"] for c in clusters),

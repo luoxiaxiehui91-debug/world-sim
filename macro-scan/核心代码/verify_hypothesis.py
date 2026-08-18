@@ -278,8 +278,10 @@ def update_path_weights(results: list, commit: bool = False) -> dict:
     if commit and updates:
         try:
             import yaml
-            with open(PATHS_FILE, "w", encoding="utf-8") as f:
+            _tmp_281 = PATHS_FILE + ".tmp"
+            with open(_tmp_281, "w", encoding="utf-8") as f:
                 yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+            os.replace(_tmp_281, PATHS_FILE)
             print(f"  [PATH_UPDATE] propagation_paths.yaml 已更新 {len(updates)} 条路径")
         except Exception as e:
             print(f"  [PATH_UPDATE] 写入失败: {e}")

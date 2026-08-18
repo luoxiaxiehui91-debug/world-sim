@@ -122,8 +122,10 @@ def _save_cache(cache: Dict):
     try:
         os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
         cache["_meta"] = {"last_update": now_iso_utc()}
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+        _tmp_125 = CACHE_FILE + ".tmp"
+        with open(_tmp_125, "w", encoding="utf-8") as f:
             json.dump(cache, f, ensure_ascii=False, indent=2)
+        os.replace(_tmp_125, CACHE_FILE)
         # 追加中国指标历史时序（JSONL）
         try:
             from optim_config import DATA_DIR

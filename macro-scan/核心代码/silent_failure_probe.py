@@ -189,9 +189,11 @@ def check_dualwrite() -> list:
 
     if gaps:
         try:
-            with open(GAP_REPORT, "w", encoding="utf-8") as f:
+            _tmp_192 = GAP_REPORT + ".tmp"
+            with open(_tmp_192, "w", encoding="utf-8") as f:
                 json.dump({"generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
                            "gaps": gaps}, f, ensure_ascii=False, indent=2)
+            os.replace(_tmp_192, GAP_REPORT)
             logging.info(f"缺口清单已落 {GAP_REPORT}")
         except Exception as e:
             logging.warning(f"缺口清单写入失败: {e}")
@@ -397,8 +399,10 @@ def check_predictions_chain() -> list:
     if cnt > last_cnt:
         state = {"count": cnt, "changed_at": now, "last_growth": cnt - last_cnt}
         try:
-            with open(PRED_COUNT_STATE, "w", encoding="utf-8") as f:
+            _tmp_400 = PRED_COUNT_STATE + ".tmp"
+            with open(_tmp_400, "w", encoding="utf-8") as f:
                 json.dump(state, f)
+            os.replace(_tmp_400, PRED_COUNT_STATE)
         except Exception:
             pass
         out.append((OK, f"预测链: predictions {cnt} 行（较上次新增 {cnt - last_cnt}）"))
@@ -435,8 +439,10 @@ def check_ged_stale() -> list:
             out.append((INFO, "GED: 数据文件未部署（已通知过，不重复告警；补数据= P2 决策）"))
         else:
             try:
-                with open(GED_NOTIFY_STATE, "w", encoding="utf-8") as f:
+                _tmp_438 = GED_NOTIFY_STATE + ".tmp"
+                with open(_tmp_438, "w", encoding="utf-8") as f:
                     f.write("missing")
+                os.replace(_tmp_438, GED_NOTIFY_STATE)
             except Exception:
                 pass
             out.append((WARN, "GED: 数据文件不存在（russia_europe/middle_east_energy GED 补强从未生效）"))
@@ -459,8 +465,10 @@ def check_ged_stale() -> list:
                 out.append((INFO, f"GED: 数据仍过期 {months_stale} 个月（已通知过，不重复告警）"))
             else:
                 try:
-                    with open(GED_NOTIFY_STATE, "w", encoding="utf-8") as f:
+                    _tmp_462 = GED_NOTIFY_STATE + ".tmp"
+                    with open(_tmp_462, "w", encoding="utf-8") as f:
                         f.write(latest)
+                    os.replace(_tmp_462, GED_NOTIFY_STATE)
                 except Exception:
                     pass
                 out.append((WARN, f"GED: 数据冻结在 {latest}（{months_stale} 个月）超 18 个月窗，GRV GED 权重已退化 0"))

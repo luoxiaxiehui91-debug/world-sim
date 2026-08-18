@@ -319,8 +319,10 @@ def write_outputs(panel, revised, pit, w, vr, meta, binding, sanity, dropped, bu
         'components': meta,
         'sanity_vs_nfci': sanity,
     }
-    with open(OUT_JSON, 'w', encoding='utf-8') as f:
+    _tmp_322 = OUT_JSON + ".tmp"
+    with open(_tmp_322, 'w', encoding='utf-8') as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_322, OUT_JSON)
 
 
 def main():

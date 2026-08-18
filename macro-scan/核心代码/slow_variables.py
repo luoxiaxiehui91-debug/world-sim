@@ -396,8 +396,10 @@ def save_manual_score(key: str, value: float, note: str = ""):
             "updated_at": datetime.now(timezone.utc).isoformat()[:10],
             "note":       note,
         }
-        with open(path, "w", encoding="utf-8") as f:
+        _tmp_399 = path + ".tmp"
+        with open(_tmp_399, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(_tmp_399, path)
     except Exception as e:
         print(f"[slow_variables] 手工评估写入失败: {e}")
 
@@ -464,8 +466,10 @@ def compute_all(grv_path: str = None, force: bool = False) -> dict:
     }
 
     os.makedirs(DATA_DIR, exist_ok=True)
-    with open(SLOW_VAR_PATH, "w", encoding="utf-8") as f:
+    _tmp_467 = SLOW_VAR_PATH + ".tmp"
+    with open(_tmp_467, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_467, SLOW_VAR_PATH)
 
     print(f"[slow_variables] IRP={result['irp']:.3f}({result['irp_label']}) "
           f"UCRI={result['ucri']:.3f}({result['ucri_label']}) "

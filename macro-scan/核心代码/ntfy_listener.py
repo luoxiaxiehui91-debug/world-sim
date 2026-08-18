@@ -376,9 +376,11 @@ def cmd_dismiss_situation(args: list):
         archived_entry["dismissed_at"] = _dt.now(_tz.utc).isoformat()
         archived_entry["dismissal_reason"] = "user"
         archived_list.append(archived_entry)
-        with open(archive_file, "w", encoding="utf-8") as f:
+        _tmp_379 = archive_file + ".tmp"
+        with open(_tmp_379, "w", encoding="utf-8") as f:
             _yaml.dump({"archived": archived_list}, f, allow_unicode=True,
                        default_flow_style=False, sort_keys=False)
+        os.replace(_tmp_379, archive_file)
 
         # 从主文件移除（标记 status=resolved，触发 situation_tracker 过滤）
         update_situation(sit_id, status="resolved", dismissed_at=_dt.now(_tz.utc).isoformat())

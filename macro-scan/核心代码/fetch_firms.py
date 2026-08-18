@@ -193,8 +193,10 @@ def fetch_and_save(date_str=None):
         }
         os.makedirs(DATA_DIR, exist_ok=True)
         try:
-            with open(FIRMS_OUTPUT, 'w', encoding='utf-8') as f:
+            _tmp_196 = FIRMS_OUTPUT + ".tmp"
+            with open(_tmp_196, 'w', encoding='utf-8') as f:
                 json.dump(failed_result, f, ensure_ascii=False, indent=2)
+            os.replace(_tmp_196, FIRMS_OUTPUT)
             print(f'[fetch_firms] 失败态已落盘 {FIRMS_OUTPUT}（status=failed）')
         except Exception as e:
             print(f'[fetch_firms] 失败态落盘失败: {e}')
@@ -230,8 +232,10 @@ def fetch_and_save(date_str=None):
 
     os.makedirs(DATA_DIR, exist_ok=True)
     try:
-        with open(FIRMS_OUTPUT, 'w', encoding='utf-8') as f:
+        _tmp_233 = FIRMS_OUTPUT + ".tmp"
+        with open(_tmp_233, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
+        os.replace(_tmp_233, FIRMS_OUTPUT)
         print(f'[fetch_firms] 完成：total={total} high={high_conf} regions={len(regions)}')
     except Exception as e:
         print(f'[fetch_firms] 写入失败: {e}')

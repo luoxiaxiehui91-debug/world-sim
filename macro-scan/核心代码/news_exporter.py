@@ -97,8 +97,10 @@ def export_news_for_sim():
     }
 
     os.makedirs(os.path.dirname(NEWS_EXPORT_PATH), exist_ok=True)
-    with open(NEWS_EXPORT_PATH, "w", encoding="utf-8") as f:
+    _tmp_100 = NEWS_EXPORT_PATH + ".tmp"
+    with open(_tmp_100, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_100, NEWS_EXPORT_PATH)
 
     print(f"[news_exporter] exported {len(articles)} articles -> {NEWS_EXPORT_PATH}")
 
@@ -134,8 +136,10 @@ def export_all_news() -> None:
         "articles":    articles,
     }
     os.makedirs(os.path.dirname(NEWS_ALL_PATH), exist_ok=True)
-    with open(NEWS_ALL_PATH, "w", encoding="utf-8") as f:
+    _tmp_137 = NEWS_ALL_PATH + ".tmp"
+    with open(_tmp_137, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_137, NEWS_ALL_PATH)
     print(f"[news_exporter] exported {len(articles)} all-news -> {NEWS_ALL_PATH}")
 
 

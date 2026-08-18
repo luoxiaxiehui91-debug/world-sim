@@ -368,8 +368,10 @@ def approve_adjustment(index: int, notes: str = "") -> dict:
 
     # 移除已批准条目
     pending.pop(index)
-    with open(PENDING_PATH, "w", encoding="utf-8") as f:
+    _tmp_371 = PENDING_PATH + ".tmp"
+    with open(_tmp_371, "w", encoding="utf-8") as f:
         json.dump(pending, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_371, PENDING_PATH)
 
     print(f"[weight_matrix] 已批准：{entry['signal_name']}/{entry['target_type']} "
           f"{result['weight_before']:.3f}→{result['weight_after']:.3f}")
@@ -396,8 +398,10 @@ def reject_adjustment(index: int, reason: str = ""):
         # M11 修复（08-17）：拒绝日志写失败 fail-loud——原 except:pass 吞错无告警
         print(f"[weight_matrix] 拒绝日志写失败：{_e}", flush=True)
     pending.pop(index)
-    with open(PENDING_PATH, "w", encoding="utf-8") as f:
+    _tmp_399 = PENDING_PATH + ".tmp"
+    with open(_tmp_399, "w", encoding="utf-8") as f:
         json.dump(pending, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_399, PENDING_PATH)
     print(f"[weight_matrix] 已拒绝：{entry['signal_name']}/{entry['target_type']} 原因：{reason}")
 
 

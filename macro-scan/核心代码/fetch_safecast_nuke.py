@@ -177,8 +177,10 @@ def _alert_anomalies(sites: list) -> None:
         except Exception as e:
             print(f"[safecast] 告警推送失败（非阻断）: {e}")
     try:
-        with open(state_path, "w", encoding="utf-8") as f:
+        _tmp_180 = state_path + ".tmp"
+        with open(_tmp_180, "w", encoding="utf-8") as f:
             json.dump(anoms, f, ensure_ascii=False, indent=1)
+        os.replace(_tmp_180, state_path)
     except Exception as e:
         print(f"[safecast] 告警状态落盘失败（非阻断）: {e}")
 

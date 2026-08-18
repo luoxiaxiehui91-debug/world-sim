@@ -92,8 +92,10 @@ def generate_military_backdrop(custom_summary: str = None) -> str:
 def update_backdrop(custom_summary: str = None):
     os.makedirs(STATIC_DIR, exist_ok=True)
     content = generate_military_backdrop(custom_summary)
-    with open(BACKDROP_PATH, "w", encoding="utf-8") as f:
+    _tmp_95 = BACKDROP_PATH + ".tmp"
+    with open(_tmp_95, "w", encoding="utf-8") as f:
         f.write(content)
+    os.replace(_tmp_95, BACKDROP_PATH)
     print(f"[sipri_backdrop] 军事背景卡片已更新 → {BACKDROP_PATH}")
     print(f"  字符数：{len(content)}")
 

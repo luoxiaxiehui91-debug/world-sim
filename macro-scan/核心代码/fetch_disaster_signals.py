@@ -233,8 +233,10 @@ def fetch_and_save() -> dict:
     }
 
     os.makedirs(DATA_DIR, exist_ok=True)
-    with open(DISASTER_OUTPUT, "w", encoding="utf-8") as f:
+    _tmp_236 = DISASTER_OUTPUT + ".tmp"
+    with open(_tmp_236, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
+    os.replace(_tmp_236, DISASTER_OUTPUT)
 
     level = result["risk_level"]
     score = result["disaster_risk_score"]

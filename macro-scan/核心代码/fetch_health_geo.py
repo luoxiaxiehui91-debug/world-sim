@@ -174,8 +174,10 @@ class HealthGeoFetcher(FetcherBase):
 
     def _save_state(self, last_slot):
         try:
-            with open(self.state_path, "w", encoding="utf-8") as f:
+            _tmp_177 = self.state_path + ".tmp"
+            with open(_tmp_177, "w", encoding="utf-8") as f:
                 json.dump({"last_slot": last_slot}, f)
+            os.replace(_tmp_177, self.state_path)
         except Exception as e:
             self.logger.warning("[health_geo] state 落盘失败: %s", e)
 

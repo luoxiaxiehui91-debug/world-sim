@@ -52,8 +52,10 @@ class _Observability:
         """写入当前时间戳到心跳文件。外部脚本可检测文件 age > 5min → 调度器异常。"""
         try:
             ts = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-            with open(HEARTBEAT_FILE, "w") as f:
+            _tmp_55 = HEARTBEAT_FILE + ".tmp"
+            with open(_tmp_55, "w") as f:
                 f.write(ts + "\n")
+            os.replace(_tmp_55, HEARTBEAT_FILE)
             self._auto_flush()
         except Exception:
             pass
