@@ -25,7 +25,8 @@ services:
       # config 目录（grv_weights.yaml / prior.yaml —— weight_matrix 与 tianji_verifier 依赖）
       - /vol2/1000/software/macro-scan/config:/app/config:rw
     healthcheck:
-      test: ["CMD", "python3", "-c", "import tianji_verifier, tianji_db, weight_matrix; print(\"ok\")"]
+      # 08-18 P0-1 强化：真实 PG 连接（此前仅 import 模块 → env 空也 healthy 假象）
+      test: ["CMD", "python3", "-c", "import tianji_db; conn = tianji_db.get_connection(); conn.close(); print('ok')"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -29,4 +29,7 @@ macro-scan/核心代码/NDH6SA~M
 macro-scan/核心代码/qa_result.txt
 .hermes_task.md
 
+# 08-18 P0-1：天玑 compose 的 .env（WORLDSIM_APP_PW，NAS 本地，禁入 git）
+macro-ji/.env
+**/.env
 *.bak-*
