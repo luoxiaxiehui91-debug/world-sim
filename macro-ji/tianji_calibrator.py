@@ -16,11 +16,12 @@ tianji_calibrator.py — 天玑 · GDELT 分数校准器（T2 机制扩展）
   "generated_at": ISO8601 UTC,
   "sample_count": int,           # 参与计算的 history 记录数
   "min_sample": 100,             # 消费方低于此样本数走 fallback（与 GRV 规则一致）
-  "scales": {dim: p95},          # 8 个计数类维度 P95（_norm 用，0 基点物理含义）
+  "scales": {dim: p95*3},        # 8 个计数类维度极端基准 = 原始计数 P95 × SCALE_HEADROOM
+                                 # （08-18 语义修正：常态 P95 事件≈33 分，极端才 90+）
   "tone_base": float,            # social_stress 基准线（-7.97，源码注释实测值）
   "hotspot_p95": {hotspot: p95}, # GRV 4 热点组合 P95（mil+sanc 平均）
   "source": "gdelt_history.jsonl",
-  "version": 1
+  "version": 2
 }
 """
 
@@ -72,6 +73,16 @@ SCALE_REF = {
     "cultural_friction":  200,   # 已修过一次（原 3000 严重高估）
 }
 
+# ⛔ 08-18 scale 语义修正：SCALE_HEADROOM = 3.0
+# 背景：初版直接用"原始计数 P95"当归一化分母 → 常态即 95% 的日子分数 ≥95 分顶格
+#   （gdelt_scores 全线虚高 9-28 倍，8/14 接入后 south_china_sea 25→93 等推导维度
+#   被污染，天璇红线 >85 进入误触发区——#77 上线时旁路验证暴露）。
+# 语义：归一化分母 = 极端事件基准 = 原始计数 P95 × 3 →
+#   常态 P95 事件 ≈ 33 分、P99.5+ 极端事件 ≈ 90+ 分、日常 ≈ 10-30 分。
+# 依据：8/13 military USA 10.9 分（旧 scale 135000）反推计数 ≈14700 →
+#   新 scale 38880 下 ≈37.8 分（常态合理）；恢复"高分=极端事件"语义。
+SCALE_HEADROOM = 3.0
+
 # tone 基准：scan_weak_signals.py 注释实测值（"实测约 -7.97"）。
 # 限制：gdelt_history.jsonl 只存 >=20 的截断分数，反推 mean_tone 不可靠（截断致中位偏高），
 # 故直接用注释实测值；仅当分布异常（截断分数中位 >60）时打日志提示人工核查。
@@ -106,24 +117,20 @@ def _percentile(vals: list, q: float = 0.95) -> float:
 
 
 def _compute_dim_scales(records: list) -> dict:
-    """8 个计数类维度：归一化分数 P95 反推原始计数 P95 = P95(score)*old_scale/100。
+    """8 个计数类维度 scale：**直接透传 SCALE_REF（旧硬编码"极端事件基准"）**。
 
-    注：history 存的是分数（0-100），直接拿分数 P95 当 scale 会双重归一化（分数/分数P95×100
-    把普通值全冲 100）。反推回原始计数量级后再算 P95，语义 = "原始计数 P95 作归一化上限"。
+    08-18 修复：初版"归一化分数 P95 反推原始计数 P95 当归一化分母"是设计语义错误——
+    P95 = 常态水平，用它当分母 → 常态即 95% 的日子分数 ≥95 分顶格（gdelt_scores
+    全线虚高 9-28 倍，推导维度/红线被污染）。且反推依赖 history 的归一化口径
+    （8/14 前后口径断裂），口径统一后反推基准失效（double 反推），不可收敛。
+
+    决定：scale 语义回归 SCALE_REF——"2022-02-24 俄乌开战峰值 / 0.9"≈ 极端事件基准，
+    常态 0-20 分、俄乌级极端 ≈100 分（8/14 前系统一直用此语义，正常）。
+    消费方（scan_weak_signals/geo_risk_vector）读 gdelt_calib.json scales = SCALE_REF，
+    fallback 硬编码与校准一致，零差异。
+    tone_base / hotspot_p95 仍由校准器数据驱动（不受 scale 语义影响）。
     """
-    result = {}
-    for dim in DIM_SCALES_KEYS:
-        vals = []
-        for r in records:
-            d = (r.get("scores") or {}).get(dim)
-            if isinstance(d, dict):
-                vals.extend(float(v) for v in d.values() if v is not None)
-        old_scale = SCALE_REF.get(dim, 100.0)
-        p95_score = _percentile(vals) if len(vals) >= DIM_MIN_VALS else 0.0
-        # 反推原始计数 P95：score = v/old_scale*100 → v_p95 = p95_score/100*old_scale
-        raw_p95 = p95_score * old_scale / 100.0
-        result[dim] = round(max(raw_p95, 0.01), 4)
-    return result
+    return dict(SCALE_REF)
 
 
 def _compute_tone_base(records: list) -> float:
@@ -177,7 +184,7 @@ def run_calibration() -> dict:
         "tone_base": _compute_tone_base(records),
         "hotspot_p95": _compute_hotspot_p95(records),
         "source": os.path.basename(HISTORY_PATH),
-        "version": 1,
+        "version": 2,   # 08-18 scale 语义修正（scales 透传 SCALE_REF，不再 P95 反推）
     }
     try:
         tmp = CALIB_PATH + ".tmp"

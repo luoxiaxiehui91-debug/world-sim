@@ -25,6 +25,12 @@
 
 **假设强度**：权重为经验校准（08-04 接入时按领域判断设定），**未做统计回测**——天权公式上线前，这些权重是"专家先验"而非"拟合参数"。
 
+**⛔ 08-18 GDELT scale 语义登记（校准器事故）**：`gdelt_calib.json` scales 现 = SCALE_REF 透传（v2），
+语义 = "2022-02-24 俄乌开战峰值/0.9"极端事件基准——常态 0-20 分、俄乌级极端 ≈100 分。
+v1"P95 反推"（常态当分母）已废弃：8/14-8/18 曾致 gdelt_scores 全线虚高 9-28 倍、
+推导维度 scs 25→93/kor 53→89、global_composite 71（虚高），8/18 修复恢复。
+**改 scale 语义必须同步重算 gdelt_history/gdelt_scores 口径并重跑 #77 旁路验证。**
+
 **⛔ 08-18 #77 公式变更登记**：`global_composite = (gpr_global×0.85 + japan_monetary×0.15) × 0.7 + gdelt_risk_daily × 0.3`
 - gdelt_risk_daily = 6 个 GDELT 风险维度（military/tension/sanction/protest/religious_conflict/regime_change）全球均值 → 各维自历史百分位 → 等权平均（0-100，88 天窗口滚动）
 - 依据：88 天旁路验证（日 std 0→6.1，p50 58.0/p90 64.3）；GDELT 数据缺失时自动退化旧公式

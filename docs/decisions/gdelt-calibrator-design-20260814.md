@@ -42,6 +42,26 @@ run_calibration()                  # 入口：跑全部，写 gdelt_calib.json
 
 **输出**：`/app/macro_data/gdelt_calib.json`（= 天枢 `data/gdelt_calib.json`，同一挂载）
 
+## 3.5 ⛔ 08-18 scale 语义修正（P95 反推废弃 → SCALE_REF 透传）
+
+**事故**：v1 的 `_compute_dim_scales` 用"归一化分数 P95 反推原始计数 P95 当归一化分母"——
+P95 = 常态水平，当分母 → **常态即 95% 的日子分数 ≥95 分顶格**。8/14 接入后 gdelt_scores
+全线虚高 9-28 倍（military scale 135000→12960、tension 220000→7920），推导维度
+south_china_sea 25→93、korean_peninsula 53→89，天璇红线 >85 进入误触发区（8/15-18
+GRV 观测数据被污染；天璇 8/14 后无仿真，红线未被消费——影响面可控）。
+
+**根因链**：① scale 语义错误（常态 P95 当分母）② gdelt_history.jsonl 8/14 前后口径断裂
+（前 84 天 SCALE_REF 口径、后 5 天 P95 口径混合），P95 反推不可收敛（口径统一后反推
+基准失效，double 反推）。
+
+**修复（version 2）**：
+- `_compute_dim_scales` 直接透传 SCALE_REF（"2022-02-24 俄乌开战峰值/0.9"≈ 极端事件基准，
+  8/14 前系统一直用此语义正常：常态 0-20 分、俄乌级极端 ≈100 分）
+- gdelt_history.jsonl 全历史统一 SCALE_REF 口径（8/14 后 5 天线性重算：P95 口径 × p95/ref）
+- gdelt_scores.json 当前快照同步重算（scan_weak_signals 下次 6h 调度自动维持）
+- tone_base/hotspot_p95 保持数据驱动（不受 scale 语义影响）
+- 实测恢复：8/18 military USA 100→9.6、scs 93→22.3、kor 89→49.5、global_composite 71→54.7
+
 ## 4. 配置格式 gdelt_calib.json
 
 ```json
@@ -64,7 +84,8 @@ run_calibration()                  # 入口：跑全部，写 gdelt_calib.json
 }
 ```
 
-- `scales`：scan 计数类维度归一化 scale（P95 替代"估算峰值/0.9"）
+- `scales`：scan 计数类维度归一化 scale（**08-18 v2 起 = SCALE_REF 透传**，
+  极端事件基准；v1 的"P95 反推"因常态顶格事故废弃，见 §3.5）
 - `tone_base`：scan social_stress 基准线（替代硬编码 -7.0）
 - `hotspot_p95`：GRV 热点组合归一化（替代 GRV 进程内自算）
 - `min_sample`：样本 <100 时消费方 fallback 硬编码（与 GRV 现有规则一致）
