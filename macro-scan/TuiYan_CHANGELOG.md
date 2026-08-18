@@ -1,10 +1,22 @@
 # Changelog
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-08-06（记录类文档随部署持续更新）
+> 最后核对时间：2026-08-18（记录类文档随部署持续更新）
 
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+
+## v3.8.18 — 2026-08-18 (by 主理人 · commits `17cf5d55`→`4d22e6e2`)
+
+**修改理由**：08-16/17/18 三天批次——卫生标题绕开 DOC API + 天玑汇总导出 + 人工验证 control API + 地缘预测自动验证（L1/L2）。
+
+### 主要变更
+
+- **卫生事件标题绕开 DOC API（`17cf5d55`）**：DOC API 对 NAS IP 持续 429 → `fetch_health_geo.py` `_fetch_pending_titles` 直接抓页面 `<title>`（代理 7890 + 12s + 64KB + html 实体解码），DOC API 函数留废弃存根
+- **tianji_summary_export.py（`62000504`）**：PG tianji schema 预测/推理/权重汇总 → `data/tianji_summary.json`（tmp+rename 原子写，PG 不可读降级 ok:false）；scheduler `I30` 每 30 分钟导出（供开阳天玑 Tab）
+- **control_server 人工验证端点（`defc5e31`）**：`GET /api/v1/control/predictions/human-pending` + `POST /api/v1/control/predictions/verify`（outcome 0|0.5|1 + note → UPDATE PG verified/outcome_value/brier/verified_by=human/human_note；幂等 409；成功自动重跑导出）
+- **地缘预测自动验证（`0ced51c9`→`4d22e6e2`）**：`verify_geo_auto.py`（scheduler 0930）——L1 FRED 判定器（A1 利率 DFF / A2 信贷 BAA10Y−DGS10 / A3 对冲 + A6 媒体 VIX 分位）+ L2 新闻关键词判定器（查 PG news.articles 窗口 + 关键词组，**只做发生确认**：命中→1，未命中→None 保留人工）；`predictions.action_key` 列（自动验证分派）
+- **死循环预测存档清理（08-17 晚）**：predictions 1102 → 70（1032 条 `sim_20260816_*（初始状态）` 死循环垃圾 + 344 reasoning_trace 关联），防 90 天后污染 Brier
 
 ## v3.8.17 — 2026-08-11 (by arch-map)
 

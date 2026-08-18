@@ -1,10 +1,29 @@
 # Changelog
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-08-10（记录类文档随部署持续更新）
+> 最后核对时间：2026-08-18（记录类文档随部署持续更新）
 
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+
+## v2.0.41 — 2026-08-18 (by arch-主理人 · commits `b6914799`→`0c93fbeb`)
+
+**修改理由**：08-17/18 天璇大版本——soul 政权分片 + 更迭引擎 + 日韩主权 + 预测描述清晰化 + 人工验证渠道。Agent 规模 17 → **20**（新增 A13 长线资金 + S6 日本 + S7 韩国）。
+
+### 主要变更
+
+- **soul 政权分片（`b6914799`）**：`core/simulation.py` `_resolve_soul_by_month`——soul `regimes:` 时间分片（since/until YYYY-MM）按历史月份切换"当时政权风格"；校准循环每步切 regime；`base.py` 派系缺失 fail-loud 不崩。5 主权红线阈值按 GRV 实测分布校准（russia_europe `>70`→`>85`、sanctions_risk 恒 83 废弃、taiwan `>90`/`>92`、energy `>82`/`>88`）
+- **政权更迭引擎（`46382625`）**：`core/governance.py` `check_governance_transitions`——election（到周期必换届 + transition_prob 切 alternate_regime，single_term 强制）/ succession|coup|hybrid（succession_risk × 社会压力调制，`_gov_done` 一次性锁定黑天鹅）；`governance_enabled` 仅预测期；报告新增"政权更迭事件"节（run 级触发率渲染口径）
+- **政权更迭情景开关（`1bdc5ccb`）**：`--as-of YYYY-MM`（预测期指定 regime，None=现行路线）；A10 散户 soul 化（恐慌/FOMO/观望三派系）
+- **A2 商业银行 soul 化（`a104ef3b`）**：`decision_mode: hybrid` 混合模式（保留 _decide_rules 精细风控 + 派系软调制阈值）
+- **A13 长线资金（`3132c840`）**：逆周期稳定者（深度恐慌逆向抄底 / 极端 30% 温和撤退）；分叉试验调参闭环（info_delay 3→2 + magnitude 2.5）→ **普通模式首现双路径分叉**（sentiment std 0.275，路径B 恐慌修复）
+- **日韩主权 S6/S7（`169d2967`）**：准一党制（transition 0.15）vs 单任期强制轮替（transition 0.70）——政权光谱两端；A12 日本央行保持独立
+- **主权降频（`c42e5829`）**：activation 0.35→0.2 + red_line 决策计数冷却 6 步（全激活试验暴露高频失真）；`_faction_to_action` 60/40 概率选择（核威慑发声恢复）
+- **预测描述清晰化（`10fdf202`）**：`bifurcation.py` 模块级 `_ACTION_LABELS`/`_ACTION_CRITERIA`（30+ 动作 → 现实判定标准）+ `label_to_action_key` 反查；geo 预测 content 带路径 GRV 上下文、outcome_definition 拼判据
+- **人工验证渠道（`8a69868b`）**：`verify_human.py` CLI（--list/--verify outcome 0|0.5|1）+ `predictions.human_note` 列；`backfill_criteria.py` 历史 48 条判据 + action_key 回填
+- **自动验证支持（`0ced51c9`）**：`predictions.action_key` 列（新预测落库 + 历史回填）——判定器按 key 分派不依赖中文名
+
+**Agent 构成（as-of 08-18）**：A1-A13 金融（13，含 A4 挂起 + A13 长线）+ S1-S7 主权（7，美/中/欧/俄/沙/日/韩）。
 
 ## v2.0.40 — 2026-08-10 (by arch-r4h · commit e636c0c)
 

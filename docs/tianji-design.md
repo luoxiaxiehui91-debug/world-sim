@@ -184,10 +184,25 @@ CREATE TABLE predictions (
   docker exec macro-sim python3 verify_human.py --verify <id> \
       --outcome 0|1|0.5 [--note "备注"]   # 0=未发生 1=发生 0.5=部分/不确定
   ```
+- **开阳界面化（08-17 晚完成，v1.11.32）**：天玑 Tab"待人工验证"区块——列表（content/概率/截止剩余天数/判据行）+ 备注输入 + [发生/部分/未发生] 按钮；control API `GET /api/v1/control/predictions/human-pending` + `POST /api/v1/control/predictions/verify`（Bearer token，幂等 409，成功自动重跑 tianji_summary 导出）
 - 验证后 `status=verified, verified_by=human`（与自动验证 `verified_by=auto` 区分）、
   `brier=(final_prob−outcome)²`、备注存 `human_note` 列（08-17 ALTER TABLE 新增）；
   幂等：已 verified 拒绝重复验证
-- 开阳界面化（天玑 tab 点选验证）＝ 控制面二期待办
+- **预测描述清晰化（08-18 `10fdf202`）**：`bifurcation.py` `_ACTION_CRITERIA` 30+ 动作 →
+  现实判定标准；geo 预测 content 带路径 GRV 上下文（`路径A（GRV 60→62）`）、
+  outcome_definition 拼判据（`6个月内是否发生：X。判定标准：…`）；
+  `predictions.action_key` 列（08-18 ALTER）＝ 判定器分派键；历史 48 条已回填（`backfill_criteria.py`）
+
+**自动验证（08-18 L1/L2，`verify_geo_auto.py` @天枢 scheduler 0930）**：
+- **L1 FRED 判定器**（官方数据，conf 0.8）：A1 利率方向（DFF 窗口均值 vs 预测日 ±0.10%）/
+  A2 信贷松紧（BAA10Y−DGS10 利差 ±15bp）/ A3 对冲做空 + A6 媒体情绪（VIXCLS 历史 5 年
+  90/70/60/40 分位）；判 0/1/0.5
+- **L2 新闻关键词判定器**（conf 0.6）：查 PG `news.articles`（published_at 窗口 + 关键词组
+  组内 AND/组间 OR，中英双语）；**只做发生确认**——命中→1（human_note 带命中标题），
+  未命中→None 保留人工（新闻源覆盖有限，未命中不断言未发生）
+- 判定成功 → `verified_by='auto'` + `human_note='【自动】…依据…'`；Brier 统计按
+  verified_by 分层（auto vs human）
+- 当前 48 条 geo 预测 due_at 2027-02 未到期，2027-02 后自动验证首轮触发
 
 **已知缺口**：
 1. `prior.yaml` 缺失 → `init_weights_from_prior()` 不可用（grv_weights.yaml 已存在，需人工维护）

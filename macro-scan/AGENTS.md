@@ -4,8 +4,10 @@
 
 世界推演系统观测层（天枢）：全球宏观情报自动采集 + LLM分析推演 + 地缘风险向量引擎，运行在 NAS Docker 容器中。
 
-**当前版本**：v3.8.15（2026-08-05）
+**当前版本**：v3.8.18（2026-08-18）
 **主要变更**：
+- v3.8.18（08-16/17/18）：卫生事件标题绕开 DOC API（`fetch_health_geo.py` 直接抓 `<title>`，`17cf5d55`）；天玑汇总导出 `tianji_summary_export.py`（I30，`62000504`）；control_server 人工验证端点（`defc5e31`）；**地缘预测自动验证 `verify_geo_auto.py`**（scheduler 0930——L1 FRED 判定器 DFF/利差/VIX 分位 + L2 新闻关键词判定器 PG news.articles，`0ced51c9`+`4d22e6e2`）；死循环预测存档清理（predictions 1102→70）
+- v3.8.17（08-11）：开阳地图空渲染根治（fetch_gdelt_geo.py --incremental 派生 news_geo.json）
 - v3.8.15（08-05）：开阳全链路时间审计 6 修复（FRED manifest 孤儿复活 / news 假时刻 / FCI 拉取闸 / sim_trigger `triggered` 字段 / news_geo `updated` 契约 / freshness `fresh`+`lag_days` 语义）
 - v3.8.14（08-05）：`market_quotes` 0630 日频 → I15（整合导出提频，零外部请求）；kaiyang 前端 parseTs/fmtRelative 时区语义修复
 - v3.8.13（08-04）：**天玑三内核（tianji_db/tianji_verifier/weight_matrix）迁出 macro-ji 独立容器**（macro-scan-tianji-1，镜像 macro-tianji:latest）；`control_server.py` :8900 上线（A3a HTTP REST）；`fred_freshness.py`/`write_tianji_trigger.py` 新建；scheduler 删 tianji_verify/weight_health job，新增 11 job（compute_fci 0535 / fred_freshness 0540 / compute_probit 0540 / tianji_trigger 0942 / firms 0908 / narrative_proc 0710 / defense_rss 0712 / news_geo_feed 0715 / slow_vars 0935 / spacetrack 0615 / market_quotes I15）；FRED 恢复至 48 CSV + manifest.json；compute_fci.py 源码重建（pycdc 反编译）

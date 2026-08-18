@@ -19,9 +19,8 @@
 |----|------|------|---------|
 | ✅ **LLM①③②** | `llm_usage.py` / `llm_client.py` | 静态默认失效 + 天璇缓存不失效 + 条件性错配 | `0a2a6ecb`：resolve 回落静态默认 / 60s TTL / 同源消除错配 |
 | ✅ **M31** | `macro-sim/run.py:573/582`（geo 侧 :639/646 同） | archival uuid4 主键 + `ON CONFLICT(id)` 去重恒 no-op → 重跑同 scenario 插重复行 | `0a2a6ecb`：确定性哈希主键（scenario+路径+类型） |
-| **LLM③** | `macro-sim/core/llm_client.py:98-110` `_usage_cache` + `:33-49` 导入期常量 + `:113-120` client 缓存 | 三处均无 TTL/mtime/信号失效，改配置须**重启天璇容器**；与天枢每次开文件热更行为不一致 | 配置缓存加 TTL（如 60s）或 mtime 比对，client 惰性重建 |
-| **LLM①** | `llm_usage.py:196-200` `resolve()` | 静态默认平台/模型仅供前端展示，调用方 resolve 返 None 时回落 env——全新部署静默回落 env，静态值形同虚设 | resolve() 返 None 时回落静态默认 |
-| **LLM②** | `hybrid_llm.py:204` 附近 | 仅当 `OPENAI_COMPAT_URL` 设了而 `OPENAI_COMPAT_MODEL` 未设的半配置态才 model=gpt-4o + base_url=MiMo 错配（条件性，非必然） | 配置校验：URL 与 MODEL 必须成对出现 |
+| ✅ **NEW-08-16 主权高频失真** | `config/agents.yaml` S1-S5 + 主权决策 | 全激活试验暴露每步军事/核动作 | `c42e5829`：activation 0.35→0.2 + red_line 冷却 6 步 + 派系 60/40 概率选择（核威慑发声恢复） |
+| ✅ **死循环预测存档** | `tianji.predictions` / `reasoning_trace` | 1032 条死循环垃圾预测 + 344 关联（报告清了 PG 漏清，90 天后污染 Brier） | 08-17 晚 DELETE 清理（1102→70），教训：跨容器事故清理清单必须覆盖全部落点 |
 
 ## 3. 待办 P2（失败可感知性 / 结构性 / 文档）
 
@@ -42,7 +41,9 @@
 | P0-A 密钥轮换（.git/config PAT + tracked compose 明文 key + git 历史） | 仓库转公开/外部共享前（当前私有） | ⏸ |
 | GED 数据决策（`data/ged/` 缺失 → geo_risk_vector GED 补强恒 None） | P2 门控（审计方 Q4） | ⬜ |
 | H08/H11 剩余 ~30 处非原子写 | 已登记 P2 | ⬜ |
-| 天璇控制台"只看不动"版（最近推演记录 + 参数 + 结果跳转） | 用户确认排期 | ⬜ |
+| ✅ 天璇控制台"只看不动"版（最近推演记录 + 触发状态 + 报告全文） | 用户确认排期 | ✅ v1.11.29 `564a29a2` |
+| ✅ 天玑 Tab 只读版 + 人工验证界面化 | 用户反馈"没渠道" → 提前完成 | ✅ v1.11.31/1.11.32 `62000504`/`defc5e31` |
+| 天璇控制台写操作（触发/调参/政权情景一键跑） | 控制面二期 | ⬜ 待排期 |
 | P2 门控自动化（每月 13 日检查 MIN_TRIGGER_N=8 触达） | 已设 automation | ✅ 已设 |
 
 ## 5. 备注（本次清理暴露的事实修正）

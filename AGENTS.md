@@ -6,12 +6,12 @@
 
 ## 三个子系统
 
-| 子系统 | 定位 | 容器模式 | 版本（as-of 2026-08-10） | NAS 运行目录 |
+| 子系统 | 定位 | 容器模式 | 版本（as-of 2026-08-18） | NAS 运行目录 |
 |:-------|:-----|:---------|:-----|:-------------|
-| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 维度向量（18 项，含 global_composite 汇总 + 4 GDELT 国别推导维度 + gpr_twn_raw，08-07 实测） | **热挂载**（改代码即生效；scheduler.py 改动需 restart） | v3.8.17 · [CHANGELOG](macro-scan/TuiYan_CHANGELOG.md) | `/vol2/1000/software/macro-scan` |
-| `macro-sim`  | 仿真引擎层：**17个 Agent**（12 金融 + 5 主权 S1-S5，08-07 A 类激活），Monte Carlo×100，月度时间步长 | **COPY 模式**（改代码需 rebuild 镜像；deploy.sh 仓库直构） | **v2.0.40** · [CHANGELOG](macro-sim/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-sim` |
+| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 维度向量（18 项，含 global_composite 汇总 + 4 GDELT 国别推导维度 + gpr_twn_raw，08-07 实测）；**地缘预测自动验证（verify_geo_auto L1/L2，08-18）** | **热挂载**（改代码即生效；scheduler.py 改动需 restart） | v3.8.18 · [CHANGELOG](macro-scan/TuiYan_CHANGELOG.md) | `/vol2/1000/software/macro-scan` |
+| `macro-sim`  | 仿真引擎层：**20个 Agent**（13 金融 A1-A13 + 7 主权 S1-S7，08-18 实测），Monte Carlo×100，月度时间步长；**soul 政权分片 + 内生更迭引擎（08-17）** | **COPY 模式**（改代码需 rebuild 镜像；deploy.sh 仓库直构） | **v2.0.41** · [CHANGELOG](macro-sim/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-sim` |
 | `macro-ji`   | 验证层（天玑）：读天枢 data 做推演验证/反哺（T2 共享触发文件驱动，2026-08-04 独立容器上线） | **COPY 模式**（macro-ji/ 目录 rebuild） | v1.0.0 · [CHANGELOG](macro-ji/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-ji` |
-| `kaiyang`    | 可视化操作面板：只读展示天枢数据 + 控制台（:8080，control API :8900） | nginx 静态站（MOCK_ENABLED=false，A3a 已接入，index.html no-cache） | **v1.11.27** · [CHANGELOG](kaiyang/CHANGELOG.md) | `/vol2/1000/software/kaiyang` |
+| `kaiyang`    | 可视化操作面板：只读展示天枢数据 + 控制台（:8080，control API :8900）；**控制面三 tab 中天璇/天玑已上线只读+人工验证（v1.11.29+）** | nginx 静态站（MOCK_ENABLED=false，A3a 已接入，index.html no-cache） | **v1.11.34** · [CHANGELOG](kaiyang/CHANGELOG.md) | `/vol2/1000/software/kaiyang` |
 
 **数据流**：macro-scan 每日写入 `data/*.json` → macro-sim 只读消费 → kaiyang 只读展示；天玑（macro-ji）读天枢 data / worldsim-pg（E0-C 起读路径统一 PG）做验证闭环。
 
@@ -23,7 +23,17 @@
 
 **⛔ 08-15 D2 预测链转 PG（`afe1311`+`f7cf689`）**：天璇 `macro-sim/run.py` `_archive_to_tianji` 与天玑 `macro-ji/tianji_db.py`/`tianji_verifier.py` 全部 psycopg 直连 worldsim-pg `tianji.predictions` + `reasoning_trace`（search_path=tianji,public）。**⛔ P6 已收官（08-16 `8905fa01`）**：forecast_tracker.db 已删除（快照 `backups/e0c-p6-20260816-092548/`），探针 `_SQLITE_GONE_EXEMPT` 豁免已移除——**全系统 PG-only，data 目录出现任何 .db 复生 = CRIT**。
 
-**08-16 LLM 统一配置（`llm_usage.py` + `data/llm_config.json`）**：6 使用点（translate_titles / openai_compat / rag_embedding / sim_mc / sim_narrative / sim_minimax）× 4 平台（mimo / siliconflow / minimax / openai），开阳控制台「LLM 配置」面板可换平台/模型/API key（`GET/PUT /api/v1/control/llm-usage`）；配置优先于 env/代码常量，天枢热挂载即时、天璇读共享文件（`/app/macro_data/llm_config.json`）。翻译模型 mimo-v2.5；RAG 嵌入 bge-m3（`rag_engine.py`）。
+**08-16 LLM 统一配置（`llm_usage.py` + `data/llm_config.json`）**：6 使用点（translate_titles / openai_compat / rag_embedding / sim_mc / sim_narrative / sim_minimax）× 4 平台（mimo / siliconflow / minimax / openai），开阳控制台「LLM 配置」面板可换平台/模型/API key（`GET/PUT /api/v1/control/llm-usage`）；配置优先于 env/代码常量，天枢热挂载即时、天璇读共享文件（`/app/macro_data/llm_config.json`，60s TTL 08-17 加）。翻译模型 mimo-v2.5；RAG 嵌入 bge-m3（`rag_engine.py`）。
+
+**⛔ 08-17/18 天璇模型线（重大，详见 `macro-sim/CHANGELOG.md` v2.0.41）**：
+- **soul 政权分片**：主权 soul `regimes:` 时间片（since/until）——校准期按历史月份切换"当时政权风格"，预测期默认现行路线；5 主权红线阈值按 GRV 实测分布校准
+- **政权更迭引擎**：`core/governance.py` 内生事件——民主选举（到周期必换届 + transition_prob 切换）/ 长期执政继承 / 政变（succession_risk × 社会压力，一次性黑天鹅）；报告"政权更迭事件"节
+- **日韩主权 S6/S7**：准一党制（transition 0.15）vs 单任期强制轮替（transition 0.70）——政权光谱两端
+- **预测描述清晰化**：`bifurcation.py` `_ACTION_CRITERIA` 30+ 动作 → 现实判定标准；geo 预测 content 带路径 GRV 上下文 + outcome 判据
+- **人工验证 + 自动验证闭环（验证对象 = 未来事件是否应验，非推理审阅）**：
+  - 人工：开阳天玑 Tab 点选 [发生/部分/未发生]（control API）或 CLI `verify_human.py --list/--verify`；verified_by=human
+  - 自动：天枢 `verify_geo_auto.py`（scheduler 0930）——L1 FRED 判定器（DFF/利差/VIX 分位）+ L2 新闻关键词判定器（PG news.articles 窗口，**只做发生确认**：命中→1，未命中→None 保留人工）；verified_by=auto + human_note 存依据
+  - predictions 表 `action_key` 列 = 判定器分派键（不依赖中文名）；`human_note` 列 = 验证备注/自动依据
 
 **⚠️ 运行区 compose 纪律（08-15 实测教训）**：必须显式含 `networks: worldsim_default(external)` + `WORLDSIM_APP_PW`/`WORLDSIM_SQLITE_OFF=1`——手动 `docker network connect` 在 `docker compose up -d` recreate 后即丢（PG 断连实测）；env 丢失会回归 SQLite 双写。控制 API（:8900）已 **fail-closed**（P1-D）：未配 CONTROL_TOKEN 一律 503/401，开阳面板需填 token。
 

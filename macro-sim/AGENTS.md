@@ -4,12 +4,17 @@
 
 ## 项目概览
 
-世界推演系统仿真层（天璇）：**17个宏观角色**（12 金融 + 5 主权 S1-S5，A 类 08-07 激活）在月度时间步长上互动演化，输出概率路径树。
+世界推演系统仿真层（天璇）：**20个宏观角色**（13 金融 A1-A13 + 7 主权 S1-S7，08-18 扩展）在月度时间步长上互动演化，输出概率路径树。
 
 **定位**：macro-scan（天枢）发现信号 → macro-sim（天璇）演化未来（不是推理，是演化）
 
-**当前版本**：**v2.0.24**（2026-08-07）  
-**主要变更**：D1/D4/D7/D12 P0 bug 修复；GRV 全维度（18 项）接入 MacroWorldState；B+A/NOVEL Sprint-1：SovereignAgent 基类+Board+EnergyGovSovereignAgent（A4）；Sprint-2：soul 文件预位；慢变量 irp/ucri/gci 注入；D6 校准缓存；天玑迁出独立容器 macro-ji v1.0.0；**A 类激活（v2.0.24 前身 commit 4aaa5fde）：S1-S5 五主权 Agent 上线 + grv_dimensions 透传 + gm_resolve sovereign 分支 + board_baseline + red_line_triggers + 派系 bias_actions**；**calibrator 新旧代码覆盖修复（v2.0.24：D2/D3 fix 恢复生效 + _self_check 自检 + AGENT_NAME_HINT 防幻觉）**
+**当前版本**：**v2.0.41**（2026-08-18）  
+**主要变更**（08-17/18 大版本，详见 CHANGELOG v2.0.41）：
+- **soul 政权分片**：`_resolve_soul_by_month`（simulation.py）——soul `regimes:` 时间片按历史月切换"当时政权风格"；5 主权红线阈值按 GRV 实测分布校准
+- **政权更迭引擎**：`core/governance.py` 内生事件（民主换届 / 长期执政继承 / 政变，`_gov_done` 一次性锁定）；`--as-of YYYY-MM` 情景开关
+- **A13 长线资金 + S6/S7 日韩主权**：逆周期稳定者 / 准一党制 / 单任期强制轮替；A2 hybrid soul 化、A10 散户三派系
+- **预测描述清晰化**：`bifurcation.py` 模块级 `_ACTION_LABELS`/`_ACTION_CRITERIA` + `label_to_action_key`；geo 预测带路径 GRV 上下文 + 现实判定标准
+- **人工验证渠道**：`verify_human.py` CLI + `backfill_criteria.py`（历史判据/action_key 回填）
 
 ---
 
@@ -19,24 +24,28 @@
 macro-sim/                ← 本地工作目录（S:\world-sim\macro-sim\，git 仓库子目录）
 ├── core/
 │   ├── agents/
-│   │   ├── base.py         # MacroAgent 基类 + AgentParams（三参数接口）
-│   │   ├── financial.py    # A1/A2/A3/A5/A9/A11/A12
+│   │   ├── base.py         # MacroAgent 基类 + AgentParams（三参数接口）+ _decide_soul hybrid 分支 + red_line 冷却
+│   │   ├── financial.py    # A1/A2/A3/A5/A9/A11/A12 + A13 LongTermCapitalAgent（逆周期稳定者）
 │   │   ├── geopolitical.py # A7/A8（A4 已改由 sovereign.EnergyGovSovereignAgent 承担）
-│   │   ├── social.py       # A6/A10
-│   │   └── sovereign.py    # SovereignAgent 基类 + EnergyGovSovereignAgent（S5_saudi）+ red_line_triggers/派系 bias_actions（S1-S5）
+│   │   ├── social.py       # A6/A10（A10 已 soul 化：恐慌/FOMO/观望）
+│   │   └── sovereign.py    # SovereignAgent 基类 + EnergyGovSovereignAgent（S5_saudi）+ 派系 60/40 概率选择
 │   ├── world_state.py      # MacroWorldState + 出血规则 + 月度数据加载
-│   ├── simulation.py       # 主调度器（action_history 队列 + 延迟可见）
-│   ├── calibrator.py       # 前50步校准循环
-│   ├── bifurcation.py      # 路径分叉检测 + Monte Carlo × 100
-│   ├── llm_client.py       # LLM 调用封装（GLM / MiniMax；08-16 起走开阳统一配置 llm_config.json——sim_mc/sim_narrative/sim_minimax 可换平台/模型/API key，读 /app/macro_data/llm_config.json）
+│   ├── simulation.py       # 主调度器（action_history 队列 + 延迟可见）+ _resolve_soul_by_month + 政权分片
+│   ├── calibrator.py       # 前50步校准循环（每步按历史月份切 regime）
+│   ├── bifurcation.py      # 路径分叉检测 + Monte Carlo × 100 + _ACTION_LABELS/_ACTION_CRITERIA（模块级）
+│   ├── governance.py       # 08-17 政权更迭引擎（election/succession/coup 内生事件）
+│   ├── llm_client.py       # LLM 调用封装（开阳统一配置 llm_config.json，60s TTL）
 │   └── sim_log.py          # sim_log.db 持久化
 ├── config/
-│   └── agents.yaml         # 17个 Agent 配置（A1-A12 金融 + S1-S5 主权，热更新）
+│   └── agents.yaml         # 20个 Agent 配置（A1-A13 金融 + S1-S7 主权，热更新）
+├── souls/                  # soul 文件：A1_usa/A2_china/A3_eu/S4_russia/S5_saudi + A10_retail/A2_bank + S6_japan/S7_korea
 ├── docs/
 │   ├── design_v2.md        # v2 架构设计（已确认）
 │   └── PROGRESS.md         # 开发进度
 ├── output/                 # 仿真输出（不在 git 里）
-├── run.py                  # 入口（--daemon / --run / --predict-only）
+├── run.py                  # 入口（--daemon / --run / --predict-only / --force-activate-all / --as-of）
+├── verify_human.py         # 08-17 人工验证 CLI（--list / --verify <id> --outcome 0|0.5|1 [--note]）
+├── backfill_criteria.py    # 08-18 历史预测判据/action_key 回填（--dry-run）
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
