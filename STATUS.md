@@ -4,7 +4,7 @@
 
 > 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-14 14:10 GMT+8。
 
-**项目是什么**：world-sim 世界推演系统——个人内部宏观推演系统（非商业产品）。逻辑 5 层：天枢（观测采集）→ 天璇（仿真，17 Agent）→ 天玑（验证）→ 玉衡（权重，未运转）→ 开阳（展示）；横切 crucix 信号总线（AGPL，**已退场 2026-08-12 G1 停容器**）+ 摇光 SRE。
+**项目是什么**：world-sim 世界推演系统——个人内部宏观推演系统（非商业产品）。逻辑 5 层：天枢（观测采集）→ 天璇（仿真，20 Agent：A1-A13 + S1-S7）→ 天玑（验证）→ 玉衡（权重，未运转）→ 开阳（展示）；横切 crucix 信号总线（AGPL，**已退场 2026-08-12 G1 停容器**）+ 摇光 SRE。
 
 **项目位置**（防迷路，全部关键路径）：
 - **`S:\world-sim` = 源码真相（git 工作树）**：`\\192.168.31.108\software\world-sim`（SMB 挂载）= NAS `/vol2/1000/software/world-sim`，**与 GitHub `luoxiaxiehui91-debug/world-sim` 同一 git 树**。改源码 → 在此编辑 → `git commit/push` 推 GitHub（push 走代理 `http://192.168.31.108:7890`）。**SMB 读取可靠（08-11 实测：STATUS.md / grv_latest.json 经 SMB 读出的 sha256 与 NAS 磁盘一致）**；唯一陷阱是「两条 macro-scan 目录」——运行时数据在仓库外 `S:\macro-scan\data`，勿与仓库内死副本 `S:\world-sim\macro-scan\data` 混淆。
@@ -40,7 +40,7 @@
 
 **08-16：审查复查 + 死循环事故 + 开阳报告中心**：全量复查报告（`code-review-recheck-20260816.md`）Critical/High 几乎全对症修好；**天璇 daemon 死循环事故**（sim_trigger 初始化触发 → 13:24-20:34 每 2 分钟一次完整仿真，344 份源头报告 + 302 份副本 + **1032 条 PG 预测**，修复 `3a5c2817` 判定改 `triggered is True`）；清理归档 `backups/deadloop-reports-20260816-2215/`（保留现场样本 1 份），reports_index 375→74；开阳报告中心 v1.11.28（全开/全关 + 近7天/30天过滤 + 今天高亮，`19ba7c0c`）；审查尾巴 7 项收口（LLM①③/M31/M26/M11/L03/doc-code，`0a2a6ecb`，review-todo 销项 `876f6fe4`）；LLM 配置 60s TTL（天璇改配置无需重启）。
 
-**08-15：全量审查闭环 + P0/P1 实施（重大，详见 `docs/decisions/20260815-p0p1-implementation.md`）**：Track A 全量审查（79 条 4C/22H/34M/19L，多 Agent 对抗式）→ Track B 规划 → 主理人复核回复 → 审计方再复核（四文档归档 `docs/reviews/`）。**P0 全落地**：B=C01 GRV 止血（`geo_risk_vector.py` 补回 af752ea 误删 5 常量，`0eb25d3`，GRV 恢复，DRY_RUN 实证拦截首日假告警台海+13.3）/ C=观测口径 + 预测链探针 `check_predictions_chain`（`b876ad4`+`09419d5`）/ D=D1-D4 落表链路（`5e109f9`）+ **D2 预测链转 PG**（`afe1311`+`f7cf689`：天璇/天玑 psycopg 直连 tianji，B1 线上库三自增表补序列+GRANT、A1 缓存连接自愈；E2E 落表 7→10）。**P1 四项**：A=Brier/BSS 去污染（`d237aa7`：气候学基准率/无阈值跳过/样本门控）/ B=set_alert_hook 默认 ntfy 接线 + GED 陈旧告警（`7a13b98`+`510432a`）/ C=DDL 回写 pg_synced_at 6 表 + articles UNIQUE 对齐（`6159d0a`）/ D=控制面 fail-closed + CORS 收窄（`5136dc3`；CONTROL_TOKEN 已注入运行区 compose，**开阳面板控制功能需填 token**）。**探针 31 项全绿**。**GED 真相**：原始 261MB 快照已下载（S:/20260729/data/）但 etl_ged.py **从未跑** → `ged_agg_country_month.csv` 从未生成 → GED 补强从未生效（且 2024-12 冻结超窗补跑也不生效；补数据=P2 决策）。**纪律（重要）**：运行区 compose 必须显式含 `networks: worldsim_default` + `WORLDSIM_APP_PW`/`WORLDSIM_SQLITE_OFF=1`——手动 `docker network connect` 在 up -d recreate 后即丢（08-15 实测 PG 断连）；env 丢失会回归 SQLite 双写。待办：P0-A 密钥轮换（用户暂缓）/ P1-E causal_assumptions / P6 删 SQLite forecast_tracker.db（观察窗后，与移除 `_SQLITE_GONE_EXEMPT` 同步骤）。
+**08-15：全量审查闭环 + P0/P1 实施（重大，详见 `docs/decisions/20260815-p0p1-implementation.md`）**：Track A 全量审查（79 条 4C/22H/34M/19L，多 Agent 对抗式）→ Track B 规划 → 主理人复核回复 → 审计方再复核（四文档归档 `docs/reviews/`）。**P0 全落地**：B=C01 GRV 止血（`geo_risk_vector.py` 补回 af752ea 误删 5 常量，`0eb25d3`，GRV 恢复，DRY_RUN 实证拦截首日假告警台海+13.3）/ C=观测口径 + 预测链探针 `check_predictions_chain`（`b876ad4`+`09419d5`）/ D=D1-D4 落表链路（`5e109f9`）+ **D2 预测链转 PG**（`afe1311`+`f7cf689`：天璇/天玑 psycopg 直连 tianji，B1 线上库三自增表补序列+GRANT、A1 缓存连接自愈；E2E 落表 7→10）。**P1 四项**：A=Brier/BSS 去污染（`d237aa7`：气候学基准率/无阈值跳过/样本门控）/ B=set_alert_hook 默认 ntfy 接线 + GED 陈旧告警（`7a13b98`+`510432a`）/ C=DDL 回写 pg_synced_at 6 表 + articles UNIQUE 对齐（`6159d0a`）/ D=控制面 fail-closed + CORS 收窄（`5136dc3`；CONTROL_TOKEN 已注入运行区 compose，**开阳面板控制功能需填 token**）。**探针 31 项全绿**。**GED 真相**：原始 261MB 快照已下载（S:/20260729/data/）但 etl_ged.py **从未跑** → `ged_agg_country_month.csv` 从未生成 → GED 补强从未生效（且 2024-12 冻结超窗补跑也不生效；补数据=P2 决策）。**纪律（重要）**：运行区 compose 必须显式含 `networks: worldsim_default` + `WORLDSIM_APP_PW`/`WORLDSIM_SQLITE_OFF=1`——手动 `docker network connect` 在 up -d recreate 后即丢（08-15 实测 PG 断连）；env 丢失会回归 SQLite 双写。待办：P0-A 密钥轮换（用户暂缓）/ P1-E causal_assumptions。P6 删 SQLite 已于 08-14 完成（见下节）。
 
 **08-14：采集实时化 + 前端图层接通（50% 水位×源更新速度双约束）**：commodity_yahoo 日频→I15（08-14 07:15）+ 修 change_pct 基准错位（Yahoo closes 对 A股最近 10 天全 None → 改上次良值推进，csi300=-0.57% 等全对）+ spark5 迷你走势；market_quotes 删幽灵 MORTGAGE30US + spark5 透传；fetch_news 主源 GDELT DOC 2.0（免费无 key，5s 限速 + 5000/天；OR 关键词括号、timespan=1d 防旧闻、seendate 解析）+ MarketAux key 配置（`S:\KEY\MarketAux-API.txt`，40 字符 key 第一行 + 邮箱第二行，注入运行区 compose），日频→**I30**（MarketAux 48/日≈48% 贴 50% 上限，15min=96% 破线禁）；**7 源提频**：OpenSky 日→I30（48/日=12%，airtraffic flights_in_air=6242 实时）、地震 I15→I5、灾害 I30→I15、加密 I15→I10（4320/月=43%）、加密冗余 I15→I5、防务 RSS 日→I60、能源日→I60；慢源（FRED/FX ECB 日更 16:00/FAO 月）维持（提频无意义）；前端：新闻面板双轨 C 方案（news_all.json 全量 100 篇含未分类 + news_export 风险流）、conflict 图层接入 news_geo（51→14 条真地缘冲突，美国枪击 38 条国内治安过滤 + intensity 相对烈度校准）、新闻风险卡片 top5 标题；GDELT 校准器（天玑 tianji_calibrator 9 维 P95 反推 + tone_base -7.97，scan/GRV 统一读 gdelt_calib.json）；探针扩至 **26 项**（check_news_risk 内容 updated 2h/4h、check_fred_lag 13 序列、check_sqlite_gone 零残留、check_backup 备份新鲜）；采集频率矩阵同步（07-31 建，08-14 更新 news + 7 源）。**air 图层收口（15:15）**：2D 只画航向箭头（PointShape 'arrow'，图例同步）不画圆点圈 + `UNCAPPED_LAYERS` 豁免 2000 护栏全量渲染（feed 实测 6182 点 / track 100%）；3D 球保持圆点（方向随相机失真）。commit `70e5f4e`，kaiyang v1.10.9。**air 图层重构（16:25，用户拍板）**：实时航班点覆盖盲区（OpenSky ADS-B 非洲/中国/俄罗斯内陆接收器稀疏，实测俄罗斯上空仅 11 点）→ air 改为**静态全球航线网**（新 fetcher `fetch_airroutes`：OpenFlights 500 条主要航线，实测中国枢纽 96 条/非洲 42 条无盲区，scheduler 0950 日档）；实时航班降级为独立 **aircraft** 子图层（默认关、desc 标注盲区、天蓝 #38bdf8、UNCAPPED 全量）；前端复用既有 RiskArc 弧渲染（零新渲染代码）；327 tests 全绿；kaiyang v1.11.0。**P2 续接 sdr + thermal（17:10）**：sdr 图层纯前端接入（sdr_summary.json 851 接收器，active→ok/offline→灰，非风险语义）；thermal 图层后端 fetch_firms 修复 + 输出 1° 网格聚合 hotspots（**date 修复：结束日期今天→昨天，FIRMS NRT 对今天返回 0 行——长期潜伏 bug 早上必 0**；152978 火点 → 4031 网格点，中国 321/非洲 1045/南美 553 格）；UNCAPPED + thermal；337 tests 全绿；kaiyang v1.11.1。**thermal 等级筛选防卡顿（19:5x）**：用户反馈「太占资源卡住了」→ 等级 = count 分档（极高≥500/高≥100/中≥50），`MIN_THERMAL_COUNT=50` 滤掉零星火点格（4031→527 格，87% 降量）；UNCAPPED 移除 thermal（护栏兜底）；338 tests 全绿；kaiyang v1.11.2。**2D 渲染防卡顿（20:0x）**：用户反馈「还是卡」→ ①tooltip mousemove rAF 节流（8000+ 点监听合并每帧 1 次 setTooltip）；②thermal/sdr 改 dot 简化渲染（省外环+光晕 2 元素/点）；338 tests 全绿；kaiyang v1.11.3。**2D aircraft 降采样护栏（20:4x）**：用户反馈「平面图非常卡」→ `downsampleLayer` flat 模式 aircraft 6182→1500（stride 均匀抽样），globe 3D 保持全量（WebGL 可扛）；341 tests 全绿；kaiyang v1.11.4。**P2 续接 space + P1-4 修复（22:4x）**：space 图层接入（Next Spaceflight 发射记录 130 条含 pad 坐标，需 UA 头，scheduler 0705 日档；air/thermal 教训复用 value null + 中性「太空」）；**P1-4 核告警孤儿链修复**（safecast_nuke 落盘但无消费者 → fetch_safecast_nuke 加 _alert_anomalies：anom 状态翻转 → ntfy 推送 + nuke_alert_state.json 去重，实测 chernobyl anom=true 告警送达）；health WHO RSS 404 / maritime 免费源覆盖受限暂缓；346 tests 全绿；kaiyang v1.11.8。**08-15 上午：NAS 断电排查 + health 图层收官**：意外断电（last 无 shutdown 记录，23:58 后硬断电，非升级导致）；fnOS 升级把 entrypoint.sh 权限 755→700 → 天枢 exit 126（permission denied），chmod 755 + docker start 修复，探针 29 项 OK，.sh 统一修回 755；**P2 收官 health 图层**（fetch_health_geo：GDELT GKG 卫生事件 I60 增量 state 去重，26 条/2h 坐标全合法，value null+中性「卫生」）；maritime 数据源受阻暂缓（AISStream 服务端哑 3 测 / ShipXplorer 参数未破）；kaiyang v1.11.10。
 
@@ -91,10 +91,10 @@
 - deploy.sh 两处 rsync --delete 实修（commit 18d3962，CHANGELOG 曾声称已移除=假）；FCI 产物日更恢复；crucix 已于 08-12 退场（G0 切断验证 + D1 gscpi 改 NY Fed CSV + G1 停容器），此前 08-06 实测仍活跃独立运行 30/30（当时属独立运行过渡期共存）
 
 **08-07~08-10：天璇校准引擎 R4a→R4h 八轮治理（主线，见下节 R4 系列）**：
-- 版本线：v2.0.37（R4g 收尾，引擎回 R4e 基线+归因测量修复）→ v2.0.38（R4h ③ sentiment 写者，CACHE 12/v2031）→ v2.0.39（R4h ② vix 豁免治理，CACHE 13/v2032）→ **v2.0.40（R4h ① ease_ok 方向闸收编，CACHE 14/v2033）**
+- 版本线：v2.0.37（R4g 收尾，引擎回 R4e 基线+归因测量修复）→ v2.0.38（R4h ③ sentiment 写者，CACHE 12/v2031）→ v2.0.39（R4h ② vix 豁免治理，CACHE 13/v2032）→ **v2.0.40（R4h ① ease_ok 方向闸收编，CACHE 14/v2033）** → **v2.0.41（08-17/18 模型线：政权分片/更迭引擎/A13/S6S7/描述清晰化/人工验证，20 Agent）**
 - 08-10 R4h ① 结案：**收编 EASE 治理**（EASE wrong 8→0 真实有效）；credit 回池/p̂ 0.4894/S2 0.636 不通过、挂起转 silence 治理；方案预期 0.5729 系假复现（A3 soul 缺失），见下节红线
 
-- 版本现状：macro-scan **v3.8.17**（镜像标签 `macro-scan:v7`）/ macro-sim **v2.0.40**（CACHE 14 / ARTIFACT v2033）/ macro-ji v1.0.0（容器无 VERSION 文件）/ kaiyang **v1.10.8**（镜像 `nginx:alpine`）。文本版本为仓库语义版本，镜像标签为部署标签，二者口径不同不冲突。
+- 版本现状：macro-scan **v3.8.18** / macro-sim **v2.0.41** / macro-ji v1.0.0（容器无 VERSION 文件）/ kaiyang **v1.11.34**。文本版本为仓库语义版本，镜像标签为部署标签，二者口径不同不冲突。
 
 ## R4 系列（天璇校准引擎治理主线，08-07→08-10）
 
@@ -112,6 +112,7 @@
 | R4h ③ | A2 EASE 写 sentiment（+0.08×m 对称 TIGHTEN），CACHE 12 | v2.0.38 |
 | R4h ② | vix 豁免治理（回归 0.80/0.20 + bleed 上限），CACHE 13 | v2.0.39 |
 | R4h ① | ease_ok 方向闸（financial.py）+ act_prob 0.70→0.76 + cap 19→17，**收编 EASE 治理**，CACHE 14 | **v2.0.40** |
+| v2.0.41 | 08-17/18 模型线：soul 政权分片 + 更迭引擎 + A13 + S6/S7 + 预测描述清晰化 + 人工验证（20 Agent） | `b6914799`→`0c93fbeb` |
 
 **R4h ① 验收结论（2026-08-10，容器口径三方一致）**：EASE wrong 8→0（rate 1.000）/ M6 13≤17 / M4 flip 0 / 断言 130 全绿（+10）/ 反作弊 5/5 / P0 sentiment 未命中 → **收编**；credit 回池（silence 0.531>0.50）、p̂ 0.4894<0.55、S2 0.636>0.60 → **挂起转 silence 治理**（seed123 0.633 / n_active 9 为残余弱项；0.80 参数无收益 M6 20 更差）。commits：e636c0c（引擎）/ 08e1a65（假复现更正）/ bd4bb31（裁决登记）。
 
@@ -127,26 +128,25 @@
 
 > **天枢写端**：容器本地时间（TZ=Asia/Shanghai）无后缀 或 `astimezone()` 带 +08:00 后缀；**禁止 `utcnow`/`timezone.utc` 写无后缀时间戳**（08-05 已修 market_quotes/control_server/fred manifest/news_export 四处）。
 > **前端读端**：parseTs 无后缀补 +08:00、纯日期补 T00:00:00+08:00（防 UTC 午夜假时刻）；useFeed 只读顶层 `updated`（后端写 updated 而非 exported_at/generated_at）。
-> **freshness 语义**：fred_freshness `status=ok` 仅=本地vs源一致性；新鲜度看 `fresh`/`lag_days` 字段（DCOILWTICO 现 fresh=False lag=9）。
+> **freshness 语义**：fred_freshness `status=ok` 仅=本地vs源一致性；新鲜度看 `fresh`/`lag_days` 字段（DCOILWTICO 现 fresh=False lag=7，源侧停更观察中）。
 
 ## 待做 / 已知遗留
 
 > **08-15 审查遗留待办（完整映射见 `docs/decisions/audit-todo-20260815.md`）**：
 > - **P0-A 密钥轮换**（GitHub PAT / FRED / LLM / EIA / ntfy 1900；用户暂缓，触发=仓库转公开/外部共享前）
-> - **P6 删 SQLite**：forecast_tracker.db 死文件，观察 1-2 天无复生 → `delete_sqlite_e0c.sh` + 移除 `_SQLITE_GONE_EXEMPT`（同步骤）
 > - **P1-E causal_assumptions 补全**（P2 天权公式输入）
-> - **审查未修 High**：H21（VIX 恐慌放大永不触发）/ H22（MC 概率不归一）/ H19 天璇侧（GRV null 守卫）/ H01+H02（开阳 randomUUID + token 外泄）/ H08+H11（非原子写）/ H18（sim_trigger 三端契约）/ H14+H16（密钥，归 P0-A）
+> - **审查未修 High（08-18 更新：H21/H22/H19/H01/H02/H18 均已修）**：仅剩 H08+H11（非原子写 ~30 处，P2 登记）
 > - **用户操作项**：开阳控制面板填 CONTROL_TOKEN（P1-D fail-closed 后）
-> - **P2 全部门控**（MIN_TRIGGER_N=8 触达，≈3 个月）：玉衡 V2 / 天权公式 / 新数据源 / 新 Agent / 契约 schema / GED 数据决策
+> - **P2 全部门控**（MIN_TRIGGER_N=8 触达，≈3 个月）：玉衡 V2 / 天权公式 / 新数据源 / 新 Agent / 契约 schema / GED 数据决策（08-18 用户确认不急，挂 Q4 门控）
 
 1. **R4h ① 挂起项（转 silence 治理立项）**：credit 回池（silence 0.531>0.50）、p̂ 过 partial 0.55、S2≤0.60 三项未达成。seed123（silence 0.633 / n_active 9<12）为容器残余弱项；已证 0.80 参数无收益、方案预期 0.5729 为假复现（勿再引用）。qa/data 已表态可参与下一轮方案评审与验收预置
 2. **news_geo 空渲染 ✅ 已解决（08-11 M-1）**：路线 A 落地——news_geo.json 由 fetch_gdelt_geo.py I15 派生（137B→527 事件），旧 NER 链退役；验收 48h 判定 08-13 自动化。**浏览器复核 17 项待主理人**（事件点渲染/性能/XSS/时间戳/图例/降级/聚合观感等，清单见 arg-map-qa-acceptance）
-3. **FRED 上游源停更（观察中）**：DCOILWTICO 卡 07-27 / ICSA 07-25（经代理实测，非本地问题）；fresh=False 已暴露 + ntfy 告警覆盖；BAA10Y/DTWEXBGS 卡 07-31 根因待查
-4. **航班走廊线（air 图层）待拍板**：P2 路线图已排（CRUCIX_UPGRADE air=空域活动三角+航迹弧）；天枢 airtraffic_opensky 日跑已有全球快照（8529 架），画 crucix 式区域走廊需天枢按战略区域加工（增量）；建议 news_geo 验收后做 B 完整版
+3. **FRED 上游源间歇停更（观察中，08-18 更新）**：DCOILWTICO 当前卡 08-11（API 实测源侧停更，滞后 7 天 > WARN 阈值 6，ntfy 有提醒）；08-11 时曾卡 07-27——FRED 源侧间歇性延迟，非本地抓取问题；FRED 恢复后滞后自动回落
+4. **航班走廊线（air 图层）暂缓（08-18 用户确认不着急）**：路线 B（区域走廊流量聚合）维持挂起；A 方案（静态全球航线网）已落地
 5. **天璇 deploy.sh macro-sim 目标内部 ssh 密码验证失败**：重建改手动 docker build（脚本本身无 bug，NAS 自身 ssh 配置问题）
-6. **天玑 weight_update_log 仍 0 为正常（08-15 更新）**：MIN_TRIGGER_N=8，当前 predictions=10（08-15 D2 转 PG 后 7→10；新落表 quantitative 90 天到期、月度验证），链路已验证可跑，需 ≈3 个月数据积累触达
+6. **天玑 weight_update_log 仍 0 为正常（08-18 更新）**：MIN_TRIGGER_N=8，当前 predictions=73（08-18 天玑恢复后 --report 正常）；新落表 quantitative 90 天到期、月度验证，需 ≈3 个月数据积累触达
 7. **工作区历史遗留 M**：多为 CRLF 幻影，判脏须 `git diff --ignore-all-space`
-8. **天璇 sim_log（死代码）**：`sim_log.py` 的 `insert_run` writer 全仓 0 调用（08-12 审计），空库为预期、非功能损坏，已从 P0 降级（见孤儿段 #4）；天璇 /app/output 校准产物随重建丢失（已知）
+8. **天璇 sim_log/backtest ✅ 已删（08-18）**：孤儿链清理（sim_log.py + backtest.py + run.py _write_json + compose sim_log.db 挂载）；天璇 /app/output 校准产物随重建丢失（已知）
 9. **时区 OPEN 3 条**：news.db ingested_at/last_scan 展示层未统一（web_server /status）；web_server.py:530 /grv-history 本地↔UTC 混合比较边界差 8h；gdelt_history.date 纯日期键维持 UTC 语义（低优先）
 10. **firms 09:08 连续 0 行需人工介入（08-11 晨检发现）**：补偿重试（77f6711）未救回；19:08 手动触发 39993 热点=源活 → 疑 09:08 调度时段源端/网络持续异常，建议改调度时间或查该时段出网（qa midcheck P1#2 延伸）
 11. **worldsim-pg 统一采集库后续（08-12 晚主线，顺序锁定）**：A0/A0.5/C1→C(方案)/A1-min/B1/C0/B0/D0 已完成 ✅（见「当前状态」worldsim-pg 段）。**E0 应用整合收尾 ✅（08-13）**：A 双写证通——新增 `pg_write_collection.py` 旁路双写（news/forecast/tianji 三 schema），挂钩 news_db/forecast_tracker/tianji_db/narrative_processor 落库后非阻塞双写；B chroma 退役——rag_engine/build_rag_index 删全部 chroma 分支 + RAG_BACKEND 开关、requirements 移除 chromadb、chroma.sqlite3 备份后删除（观察窗提前，用户选择不等 9/1）。D0 验收 top-10 重叠率 1.0000 通过。**C 读路径改写（天枢 SQLite reader → pg）+ 删 SQLite 文件（P6 已于 08-14 08:39 执行，commit 1ba002a）**。E0 代码已 commit+push（b0/news-forecast-pg, f574812）。**E0-A 已激活实测通过（08-13 13:xx，TSX@nas 直连容器）**：rsync 同步运行区 + 运行区 docker-compose.yml 注入 WORLDSIM_APP_PW + `docker compose up -d` 重建；探针 `pg.upsert_news_scan_context` 实测 `before=0 after_insert=1 OK`，4 写入模块 import 全过，调度器干净重启，双写链路已活，下次真实采集自然增量 pg。
@@ -199,7 +199,7 @@
    - 仓库内 `kaiyang-wave2/`（旧 v1.7.0 实验副本）已于 08-12 审计清理删除（F13）；如再需历史对照，从 git 历史取。
    - `_tianji_docs/` 描述的天玑比运行实际更完整（运行仅 `forecast_tracker.db` 在产；tianji.db/narrative.db 为空桩，部分解释了文档与实现的落差）。
 
-## 关于「17 Agent」的口径澄清（纠正旧误判）
-- STATUS「天璇 17 Agent」**无误**。容器 `/app/config/agents.yaml` 定义 17 个 Agent：A1–A12（12 宏观）+ S1_usa / S2_china / S3_eu / S4_russia / S5_saudi（5 主权）= 17（grep `id:` = 17 实测）。
-- `souls/` 目录含 8 个灵魂文件（人格复用库），绑定到其中 8 个 agent（A1/A3/A6/S1/S2/S3/S4/S5）；其余 9 个 agent 走旧 if-else fallback（无 soul_file）。
-- 二者是「agent 数」与「人格库大小」两个不同口径，**非矛盾**。运行容器 config 在 `/app/config`，soul 解析正常，无缺失 soul 静默降级（P0 soul 路径坑仅在 config 放 /tmp 时触发，运行态不触发）。
+## 关于「Agent 数」的口径（08-18 更新：17 → 20）
+- **08-18 起天璇 = 20 Agent**：A1–A13（13 宏观，含 A13 长线资金）+ S1_usa…S7_korea（7 主权）= 20（容器 `/app/config/agents.yaml` grep `id:` 实测）。
+- `souls/` 目录含 10 个灵魂文件（A1_usa/A2_china/A3_eu/A2_bank/A10_retail/S4_russia/S5_saudi/S6_japan/S7_korea 等），绑定到对应 agent；无 soul_file 的走旧 if-else fallback。
+- 08-12 曾澄清「17 Agent」口径（A1-A12 + S1-S5）；08-17/18 新增 A13/S6/S7 后为 20。历史文档中「17 Agent」为当时快照，非矛盾。
