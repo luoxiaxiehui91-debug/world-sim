@@ -307,7 +307,9 @@ def main() -> int:
     auto_ok = auto_skip = 0
     for r in due_rows:
         key = r["action_key"] or ""
-        if not key.startswith(L1_PREFIXES):
+        # 08-18 修复 P1-1：此前只放行 L1_PREFIXES，L2 键（A12:/A8:/A4:/A9:/A7:/S*）全被
+        # continue 跳过 → L2 判定器永不达（审计 world-sim-audit-20260818 实锤）
+        if not (key.startswith(L1_PREFIXES) or key in L2_KEYWORDS):
             auto_skip += 1
             continue
         outcome, conf, note = judge(key, r["created_at"], r["due_at"])

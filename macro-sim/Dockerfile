@@ -2,10 +2,11 @@ FROM docker.1ms.run/library/python:3.11-slim
 
 WORKDIR /app
 
-# 换用国内镜像加速 apt，安装中文字体
+# 换用国内镜像加速 apt，安装中文字体 + tzdata（08-18 P1-a：容器 TZ=UTC 致报告时间早 8h）
 RUN sed -i 's|deb.debian.org|mirrors.ustc.edu.cn|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
     sed -i 's|deb.debian.org|mirrors.ustc.edu.cn|g' /etc/apt/sources.list 2>/dev/null || true && \
-    apt-get update -q && apt-get install -y -q fonts-wqy-zenhei && rm -rf /var/lib/apt/lists/*
+    apt-get update -q && apt-get install -y -q fonts-wqy-zenhei tzdata && rm -rf /var/lib/apt/lists/*
+ENV TZ=Asia/Shanghai
 
 # 安装依赖（用国内 pip 镜像）
 COPY requirements.txt .
@@ -14,6 +15,7 @@ RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r req
 # 复制源码
 COPY run.py ./
 COPY verify_human.py ./
+COPY backfill_criteria.py ./
 COPY core/ ./core/
 COPY config/ ./config/
 COPY souls/ ./souls/

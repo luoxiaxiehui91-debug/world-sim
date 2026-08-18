@@ -18,7 +18,7 @@ M1 已采纳：**独立容器、独立 compose，不挂 macro-sim 下**。天玑
 
 | 文件 | 职责 |
 |------|------|
-| `tianji_db.py` | DB schema + CRUD。8 张表：`predictions` / `reasoning_trace` / `narrative_chunks` / `weight_update_log` / `forecasts` / `actuals` / `evaluations` / `narrative_density_flags`。与天璇共用同一 SQLite（`forecast_tracker.db`） |
+| `tianji_db.py` | PG schema + CRUD（08-18 P2 口径统一：08-15 D2 起 psycopg 直连 worldsim-pg，SQLite 已于 P6 退役）。8 张表：`predictions` / `reasoning_trace` / `narrative_chunks` / `weight_update_log` / `forecasts` / `actuals` / `evaluations` / `narrative_density_flags` |
 | `tianji_verifier.py` | 函数式验证：`verify_quantitative()`（自动拉 FRED/GRV 实际值转二值 outcome）+ 地缘预测 ntfy 人工确认；Brier Score / BSS / 锐度计算；反哺检查生成 `pending_weight_adjustments.json` + ntfy 推送 |
 | `weight_matrix.py` | 玉衡权重矩阵：双层 clip（±25% 变化速率 + [0.05, 5.0] 绝对范围）+ Herfindahl 健康检查 + 连续 4 次同方向警告；审批后写回 `config/grv_weights.yaml` |
 | `verify_watchdog.py` | T2 触发 watchdog：3s 轮询共享触发文件 `tianji_trigger.json`（原子写 tmp→rename / batch_id 幂等键 / processed 标记），检出即执行验证 |
@@ -31,7 +31,7 @@ M1 已采纳：**独立容器、独立 compose，不挂 macro-sim 下**。天玑
       （tmp → os.rename 原子写；batch_id=日期幂等键；已有未处理同批 trigger 则跳过）
   → 天玑 verify_watchdog.py 3s 轮询检出未处理 trigger
   → 执行 tianji_verifier.py（量化自动验证 / 地缘 ntfy 人工确认 + 反哺检查）
-  → 写回共享 forecast_tracker.db（status=verified / awaiting_human + Brier 分）
+  → 写回 worldsim-pg tianji.predictions（status=verified / awaiting_human + Brier 分）
   → trigger 置 processed=true + last_result 原地回写
 ```
 
@@ -43,7 +43,7 @@ M1 已采纳：**独立容器、独立 compose，不挂 macro-sim 下**。天玑
 
 | 数据 | 宿主路径 | 容器路径 | 说明 |
 |------|---------|---------|------|
-| 共享 DB | `/vol2/1000/software/macro-scan/data/forecast_tracker.db` | `/app/macro_data/forecast_tracker.db` | 与天璇 macro-sim 共用同一 inode（同卷不同容器，WAL 模式三写者共存） |
+| 验证库（PG） | `worldsim-pg:5432` db=`worldsim` schema=`tianji` | psycopg 直连（search_path=tianji,public） | 08-15 D2 起全走 PG；SQLite `forecast_tracker.db` 已于 P6（08-16）删除 |
 | 触发文件 | `/vol2/1000/software/macro-scan/data/tianji_trigger.json` | `/app/macro_data/tianji_trigger.json` | 天枢写、天玑消费 |
 | config 卷 | `/vol2/1000/software/macro-scan/config/` | `/app/config/` | `grv_weights.yaml`（玉衡读+写回）/ `prior.yaml`（缺失，见已知缺口） |
 | FRED 历史 | `/vol2/1000/software/macro-scan/data/fred_history/` | `/app/macro_data/fred_history/` | 定量验证取数（`_fetch_fred_value`） |

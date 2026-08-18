@@ -13,8 +13,6 @@ services:
       - REPORT_DIR=/app/reports
     volumes:
       - ./output:/app/output
-      # 首次部署前须在 NAS 上执行：touch /vol2/1000/software/macro-sim/sim_log.db
-      - ./sim_log.db:/app/sim_log.db
       # macro-scan 数据（读写；sim_trigger.json 同在此目录挂载下，杜绝单文件 bind 的 inode 断链）
       - /vol2/1000/software/macro-scan/data:/app/macro_data:rw
       # 报告写入 macro-scan docs/仿真报告/（可读写）

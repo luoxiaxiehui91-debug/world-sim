@@ -20,7 +20,7 @@ import sys
 import json
 import math
 import argparse
-from datetime import datetime, date
+from datetime import datetime, timezone, date
 from typing import Optional
 
 try:
@@ -410,7 +410,7 @@ def print_accuracy_report():
 # ── 月度验证主流程 ────────────────────────────────────────────────────────────
 
 def run_monthly_verification():
-    print(f"\n[tianji_verifier] 月度验证开始 {datetime.utcnow().isoformat()[:10]}")
+    print(f"\n[tianji_verifier] 月度验证开始 {datetime.now(timezone.utc).isoformat()[:10]}")
 
     pending = get_pending_predictions()
     print(f"[tianji_verifier] 找到 {len(pending)} 条待验证预测")

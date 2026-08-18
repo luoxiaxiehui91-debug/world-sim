@@ -97,10 +97,20 @@ export function TianjiTab() {
   const weight = summary?.weight_update_log;
   const exit = trig?.last_result?.exit;
 
-  /** 距验证截止剩余天数（due_at 为文本/对象均可）。 */
+  /** 距验证截止剩余天数。
+   * 08-18 修复 P1-2：due_at 来自 pg_read 归一化 = TIMESTAMPTZ 的 UTC 无后缀串
+   * （如 2027-02-13T13:39:22）——直接 new Date() 会被 JS 按本地时区解析早 8h。
+   * 显式补 +00:00（UTC 语义），纯日期按当天 UTC 23:59:59。
+   */
   function daysLeft(dueAt?: string): number | null {
     if (!dueAt) return null;
-    const d = new Date(dueAt.length <= 10 ? `${dueAt}T23:59:59+08:00` : dueAt);
+    let iso = dueAt;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dueAt)) {
+      iso = `${dueAt}T23:59:59+00:00`;
+    } else if (!/(?:Z|[+-]\d{2}:?\d{2})$/.test(dueAt)) {
+      iso = `${dueAt}+00:00`;
+    }
+    const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return null;
     return Math.ceil((d.getTime() - Date.now()) / 86_400_000);
   }

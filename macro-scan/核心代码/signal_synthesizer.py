@@ -278,7 +278,7 @@ def _write_log(db_path: str, rule_id: str, scan_ctx_id,
                ctx: dict, hypothesis: str = "",
                llm_success: int = 0, ntfy_success: int = 0,
                suppress_reason: str = "") -> int:
-    now = datetime.now(timezone.utc).isoformat()[:19]
+    now = datetime.now(timezone.utc).isoformat()
     summary = json.dumps(ctx, ensure_ascii=False)
     if os.environ.get("WORLDSIM_SQLITE_OFF") == "1":
         import pg_write_collection as _pwc

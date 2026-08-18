@@ -164,6 +164,8 @@ CREATE TABLE IF NOT EXISTS tianji.predictions (
     brier_skill_score       DOUBLE PRECISION,
     verified_at             TIMESTAMPTZ,
     verified_by             TEXT,
+    action_key              TEXT,   -- 08-18 自动验证分派键（agent:action，如 A6:AMPLIFY_FEAR）；新预测 run.py 落库
+    human_note              TEXT,   -- 08-18 人工验证备注 / 自动验证依据（【自动】前缀）
     pg_synced_at    TIMESTAMPTZ DEFAULT now());
 
 CREATE TABLE IF NOT EXISTS tianji.reasoning_trace (

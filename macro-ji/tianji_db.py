@@ -10,7 +10,7 @@ tianji_db.py — 天玑数据库基础操作（P0-D2 转 PG：直连 worldsim-pg
 """
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timezone
 
 try:
     import psycopg
@@ -183,7 +183,7 @@ def get_narrative_chunks_for_dimension(
     """
     import math
     if now_ts is None:
-        now_ts = datetime.utcnow().isoformat()
+        now_ts = datetime.now(timezone.utc).isoformat()
 
     conn = get_connection()
     try:
@@ -273,11 +273,12 @@ def update_prediction_verified(
 def log_weight_update(entry: dict):
     conn = get_connection()
     try:
+        # 08-18 P1-5：补 updated_at 写入（此前 NULL，玉衡审计排序退化）
         conn.execute("""
             INSERT INTO weight_update_log
               (prediction_id, signal_name, target_type,
-               weight_before, weight_after, reason, notes)
-            VALUES (%s,%s,%s,%s,%s,%s,%s)
+               weight_before, weight_after, reason, notes, updated_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             entry.get("prediction_id"),
             entry["signal_name"],
@@ -286,6 +287,7 @@ def log_weight_update(entry: dict):
             entry.get("weight_after"),
             entry.get("reason", "自动校准"),
             entry.get("notes"),
+            entry.get("updated_at", datetime.now(timezone.utc).isoformat()),
         ))
         conn.commit()
     finally:

@@ -11,7 +11,7 @@ weight_matrix.py — 权重矩阵基础设施
 import os
 import json
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 try:
@@ -92,7 +92,7 @@ def init_weights_from_prior():
 
     data = {
         "version":      1,
-        "initialized_at": datetime.utcnow().isoformat()[:10],
+        "initialized_at": datetime.now(timezone.utc).isoformat()[:10],
         "weights":      weights_section,
         # 初始基线快照（用于健康检查 Herfindahl 基准）
         "baseline_snapshot": _compute_herfindahl_per_target(weights_section),
@@ -169,7 +169,7 @@ def apply_weight_adjustment(
         weights[source_id] = {}
     weights[source_id][target_type] = round(new_weight, 5)
     data["weights"] = weights
-    data["last_updated"] = datetime.utcnow().isoformat()
+    data["last_updated"] = datetime.now(timezone.utc).isoformat()
     _save_yaml(WEIGHTS_PATH, data)
 
     # 记录日志
@@ -298,7 +298,7 @@ def run_health_check() -> dict:
         level = "warn"
 
     result = {
-        "checked_at":       datetime.utcnow().isoformat(),
+        "checked_at":       datetime.now(timezone.utc).isoformat(),
         "total_sources":    total_sources,
         "total_targets":    len(all_targets),
         "effective_sources": effective_sources,

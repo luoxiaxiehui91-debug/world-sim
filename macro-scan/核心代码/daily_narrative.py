@@ -77,7 +77,7 @@ def _query_top_news(limit: int = 5) -> list:
         conn = _pg.connect()
         if conn is None:
             return []
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()[:19]
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
         rows = conn.execute("""
             SELECT a.title, ac.category
             FROM news.articles a

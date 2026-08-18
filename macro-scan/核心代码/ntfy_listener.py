@@ -373,7 +373,7 @@ def cmd_dismiss_situation(args: list):
         archived_list = archive.get("archived", [])
         import copy as _copy
         archived_entry = _copy.deepcopy(target)
-        archived_entry["dismissed_at"] = _dt.now(_tz.utc).isoformat()[:19]
+        archived_entry["dismissed_at"] = _dt.now(_tz.utc).isoformat()
         archived_entry["dismissal_reason"] = "user"
         archived_list.append(archived_entry)
         with open(archive_file, "w", encoding="utf-8") as f:
@@ -381,7 +381,7 @@ def cmd_dismiss_situation(args: list):
                        default_flow_style=False, sort_keys=False)
 
         # 从主文件移除（标记 status=resolved，触发 situation_tracker 过滤）
-        update_situation(sit_id, status="resolved", dismissed_at=_dt.now(_tz.utc).isoformat()[:19])
+        update_situation(sit_id, status="resolved", dismissed_at=_dt.now(_tz.utc).isoformat())
 
         push_text("🗑 已归档", f'情况"{target.get("name","")}"已忽略。话题再次升温时会自动提醒。')
     except Exception as e:
@@ -500,8 +500,10 @@ def cmd_silence(args: list):
         import os as _os
         from datetime import datetime as _dt, timezone as _tz
         db_path = _os.path.join(DATA_DIR, "news.db")
-        now_str = _dt.now(_tz.utc).isoformat()[:19]
+        now_str = _dt.now(_tz.utc).isoformat()
         summary = _json.dumps({"silence_days": days}, ensure_ascii=False)
+        # 08-18 P0-4 硬化：_PG_ONLY=1 走 PG 旁路；非 _PG_ONLY 但 SQLite 已删（P6）
+        # → 禁止 sqlite3.connect 复生空库（recreate/env 丢失时的地雷守卫）
         if _os.environ.get("WORLDSIM_SQLITE_OFF") == "1":
             import pg_write_collection as _pwc
             log_id = _pwc._next_id("news.synthesis_log")
@@ -509,6 +511,9 @@ def cmd_silence(args: list):
                 _pwc.upsert_synthesis_log(log_id, rule_id, now_str, None, summary,
                                          "", 0, 0, "user_silence")
             push_text(f"[状态] 规则已静默", f"规则：{rule_id}\n静默天数：{days}天")
+            return
+        if not _os.path.exists(db_path):
+            push_text("[状态] 规则已静默", f"规则：{rule_id}\n静默天数：{days}天（SQLite 已退役，未落库）")
             return
         conn = _sq.connect(db_path, timeout=10)
         conn.execute("PRAGMA journal_mode=WAL")

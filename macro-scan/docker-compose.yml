@@ -2,6 +2,8 @@ services:
   macro-scan:
     image: macro-scan:v8
     restart: unless-stopped
+    networks:
+      - worldsim_default
 
     ports:
       - "8899:8899"      # Web UI (Phase 3A)
@@ -21,6 +23,10 @@ services:
       - FRED_API_KEY=REDACTED_FRED_KEY
       - TZ=Asia/Shanghai
       - OUTBOUND_PROXY=http://192.168.31.108:7890
+      # 08-18 P1-6 纪律补齐：PG-only 写开关 + 网络 + 控制面 token（.env 提供，占位不落明文）
+      - WORLDSIM_SQLITE_OFF=1
+      - WORLDSIM_APP_PW=${WORLDSIM_APP_PW}
+      - CONTROL_TOKEN=${CONTROL_TOKEN}
       - SILICONFLOW_API_KEY=***REMOVED***
       - SILICONFLOW_MODEL=Qwen/Qwen3.5-27B
       - OPENAI_COMPAT_URL=https://token-plan-cn.xiaomimimo.com/v1
@@ -47,6 +53,8 @@ services:
   kaiyang:
     image: nginx:alpine
     restart: unless-stopped
+    networks:
+      - worldsim_default
     ports:
       - "8080:80"
     volumes:
@@ -60,3 +68,8 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
+
+# 08-18 P1-6 纪律补齐：跨容器网络（PG 解析依赖 worldsim_default；禁手动 network connect）
+networks:
+  worldsim_default:
+    external: true

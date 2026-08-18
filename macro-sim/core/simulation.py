@@ -43,16 +43,29 @@ def _resolve_soul_by_month(soul_dict: dict, as_of_month: str | None = None) -> d
         return soul_dict
     if as_of_month is None:
         # None = "现行"：按当前真实月选择（预测期默认现行政策延续；
-        # 政权更迭情景由显式传 as_of 触发）
+        # 政权更迭情景由显式传 as_of 触发）。
+        # 08-18 P1-a/P1-d：容器 TZ=Asia/Shanghai，datetime.now() 即北京月
         from datetime import datetime
         as_of_month = datetime.now().strftime("%Y-%m")
     pick = None
     for rg in regimes:
         since = rg.get("since")
-        if since and since <= as_of_month:
+        until = rg.get("until")
+        # 08-18 P1-c 修复：此前只比较 since、忽略 until —— regime 有空档/顺序
+        # 错乱时静默选错。现在要求 since <= asof 且 asof < until（until 为空=开放）
+        if since and since <= as_of_month and (not until or as_of_month < until):
             pick = rg
     if pick is None:
-        pick = regimes[0]  # as_of 早于最早 regime → 第一个
+        # 空档回退：取 since <= asof 的最近一个（忽略 until，打印告警提示空档）
+        for rg in regimes:
+            since = rg.get("since")
+            if since and since <= as_of_month:
+                pick = rg
+        if pick is None:
+            pick = regimes[0]  # as_of 早于最早 regime → 第一个
+        if pick:
+            print(f"[simulation] regime 空档/顺序异常：as_of={as_of_month} "
+                  f"回退到 {pick.get('id')}（since={pick.get('since')}, until={pick.get('until')}）")
     merged = {k: v for k, v in soul_dict.items() if k != "regimes"}
     for k in ("id", "since", "until", "label"):
         merged.pop(k, None)

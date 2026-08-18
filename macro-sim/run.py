@@ -793,15 +793,6 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
 
 # ── 天玑 V1 评分 ──────────────────────────────────────────
 
-def _write_json(path: Path, data: dict):
-    """原子写 JSON 文件。"""
-    tmp = str(path) + ".tmp"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, str(path))
-
-
 
 
 # ── ntfy 推送 ─────────────────────────────────────────────

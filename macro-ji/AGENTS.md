@@ -26,13 +26,13 @@
         │  └─────────┬───────────┘  │
         │            ▼              │
         │  tianji_verifier.py       │  验证 + 反哺（Brier/BSS/锐度）
-        │  tianji_db.py             │  共享 DB CRUD
+        │  tianji_db.py             │  PG CRUD（08-18 P2 口径统一）
         │  weight_matrix.py         │  玉衡：双层 clip + 审批写回
         │  config/grv_weights.yaml  │  权重矩阵（config 卷）
         └────────────┬──────────────┘
-                     │ 写回
+                     │ 写回（08-18 修订：P6 删 SQLite 后全走 PG）
                      ▼
-        forecast_tracker.db（共享，与天璇同一 inode）
+        worldsim-pg tianji schema（predictions/reasoning_trace/weight_update_log）
 ```
 
 ## 二、接手指引

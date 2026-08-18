@@ -557,7 +557,8 @@ async def verify_prediction(request: Request):
         cur = _pg_exec(
             "UPDATE predictions SET status = 'verified', outcome_value = %s, "
             "brier_score = %s, verified_at = CURRENT_TIMESTAMP, "
-            "verified_by = 'human', human_note = %s WHERE id = %s",
+            "verified_by = 'human', human_note = %s "
+            "WHERE id = %s AND status = 'awaiting_human'",   # 08-18 P1-8：UPDATE 加 status 守卫（防 SELECT/UPDATE 间 TOCTOU 连点）
             (float(outcome), brier, note, pred_id))
         if cur.rowcount == 0:
             raise HTTPException(status_code=409, detail="更新失败（可能已并发验证）")
