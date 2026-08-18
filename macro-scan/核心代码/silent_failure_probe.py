@@ -495,7 +495,8 @@ def check_llm_config() -> list:
     out = []
     path = os.path.join(DATA_DIR, "llm_config.json")
     if not os.path.exists(path):
-        out.append((WARN, "llm_config.json 缺失：LLM 配置回落静态默认，开阳面板设置无法持久化"))
+        out.append((WARN, "llm_config.json 缺失：LLM 配置回落静态默认，开阳面板设置无法持久化"
+                          "（恢复：cp /workspace/config/llm_config.default.json /workspace/data/llm_config.json）"))
         return out
     try:
         import json as _json

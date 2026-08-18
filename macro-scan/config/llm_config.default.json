@@ -1,0 +1,37 @@
+{
+  "schema_version": "2.0",
+  "platforms": {},
+  "_note": "LLM 统一配置默认模板（08-18：llm_config.json 曾丢失 2 天无感，git 不跟踪 data/ → 模板入库兜底恢复）。运行区文件在 data/llm_config.json（开阳面板 PUT 生成，key 留空走 env）。恢复：cp config/llm_config.default.json data/llm_config.json。openai_compat.model=null 表示跟随 env OPENAI_COMPAT_MODEL。",
+  "usages": {
+    "translate_titles": {
+      "platform": "mimo",
+      "model": "mimo-v2.5",
+      "base_url": "https://token-plan-cn.xiaomimimo.com/v1"
+    },
+    "rag_embedding": {
+      "platform": "siliconflow",
+      "model": "BAAI/bge-m3",
+      "base_url": "https://api.siliconflow.cn/v1"
+    },
+    "sim_mc": {
+      "platform": "siliconflow",
+      "model": "THUDM/GLM-Z1-9B-0414",
+      "base_url": "https://api.siliconflow.cn/v1"
+    },
+    "sim_narrative": {
+      "platform": "siliconflow",
+      "model": "Qwen/Qwen3.5-27B",
+      "base_url": "https://api.siliconflow.cn/v1"
+    },
+    "sim_minimax": {
+      "platform": "minimax",
+      "model": "MiniMax-M3",
+      "base_url": "https://api.minimaxi.com/v1"
+    },
+    "openai_compat": {
+      "platform": "mimo",
+      "model": null,
+      "base_url": "https://token-plan-cn.xiaomimimo.com/v1"
+    }
+  }
+}
