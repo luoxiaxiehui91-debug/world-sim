@@ -151,16 +151,21 @@ def _compute_climate_risk_score(oni: dict, firms: dict) -> float:
         elif abs(oni_val) >= 0.5:
             score += 15
 
-    # FIRMS 贡献（0-40分）
+    # FIRMS 贡献（0-40分）——08-18 #134 阈值重校准：
+    # 旧档（≥2万=满分）vs 常态 14-20 万火点（08-16=14.3万/17=14.8万/18=19.7万）
+    # → 火点贡献恒顶格，climate_risk 被绑架恒 70。新档按真实分布：
+    #   常态（10-20万）→ 10-20 分；活跃（≥30万）→ 30；极端（≥50万）→ 40。
     total = firms.get("total_hotspots", 0)
-    if total >= 20000:
+    if total >= 500000:
         score += 40
-    elif total >= 10000:
-        score += 25
-    elif total >= 5000:
-        score += 15
-    elif total >= 2000:
-        score += 8
+    elif total >= 300000:
+        score += 30
+    elif total >= 150000:
+        score += 20
+    elif total >= 80000:
+        score += 10
+    elif total >= 30000:
+        score += 5
 
     return min(score, 100.0)
 

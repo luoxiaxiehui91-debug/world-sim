@@ -58,7 +58,12 @@ from fetcher_base import FetcherBase
 OUTPUT_FILE = "earthquake_risk.json"
 WINDOW_HOURS = 24
 # raw(地震压力原始分) -> 0–100 映射系数（见 _seismic_risk 说明）
-SEISMIC_SCALE = 2.0
+# 08-18 #134 重校准：2.0 → 0.8——旧值基于"数条 M4.5+ 平静日"假设（raw 3-5 → 6-10 分），
+# 实际全球常态 17-30 条 M4.5+/天（USGS 实测），旧 scale 下常态 raw 20-30 → 40-60 分、
+# p90=100（grv_history 20 行分布）——观感恒中高。0.8 语义：
+#   平静（10-20 条 M4.5）→ 8-24 分；普通活跃（20-30 条）→ 20-35；显著（M6+ 或 40+ 条）→ 40-70；
+#   极端（M7+ / 震群）→ 90+。
+SEISMIC_SCALE = 0.8
 
 
 class EarthquakeFetcher(FetcherBase):
