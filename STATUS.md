@@ -132,11 +132,11 @@
 
 ## 待做 / 已知遗留
 
-> **08-15 审查遗留待办（完整映射见 `docs/decisions/audit-todo-20260815.md`）**：
+> **08-15 审查遗留待办（完整映射见 `docs/decisions/audit-todo-20260815.md`；08-19 更新销项）**：
 > - **P0-A 密钥轮换**（GitHub PAT / FRED / LLM / EIA / ntfy 1900；用户暂缓，触发=仓库转公开/外部共享前）
-> - **P1-E causal_assumptions 补全**（P2 天权公式输入）
-> - **审查未修 High（08-18 更新：H21/H22/H19/H01/H02/H18 均已修）**：仅剩 H08+H11（非原子写 ~30 处，P2 登记）
-> - **用户操作项**：开阳控制面板填 CONTROL_TOKEN（P1-D fail-closed 后）
+> - **P1-E causal_assumptions 补全** ✅ 已完成（08-18 `c016b607`，docs/causal_assumptions.md + 分数语义总表）
+> - **审查未修 High** ✅ H08+H11 已完成（08-18 `f5424f6c`：23 文件 34 处原子写；手动工具 10 文件登记 P2）
+> - **用户操作项**：开阳控制面板填 CONTROL_TOKEN（P1-D fail-closed 后；天玑人工验证已可用，token 已配置）
 > - **P2 全部门控**（MIN_TRIGGER_N=8 触达，≈3 个月）：玉衡 V2 / 天权公式 / 新数据源 / 新 Agent / 契约 schema / GED 数据决策（08-18 用户确认不急，挂 Q4 门控）
 
 1. **R4h ① 挂起项（转 silence 治理立项）**：credit 回池（silence 0.531>0.50）、p̂ 过 partial 0.55、S2≤0.60 三项未达成。seed123（silence 0.633 / n_active 9<12）为容器残余弱项；已证 0.80 参数无收益、方案预期 0.5729 为假复现（勿再引用）。qa/data 已表态可参与下一轮方案评审与验收预置
