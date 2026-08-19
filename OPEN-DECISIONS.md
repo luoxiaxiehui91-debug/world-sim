@@ -4,7 +4,7 @@
 >
 > | 层级 | 登记册路径 | 记录范围 |
 > |------|-----------|----------|
-> | 总册 | [`docs/decisions/OPEN-DECISIONS.md`](docs/decisions/OPEN-DECISIONS.md) | 全量检查/审查遗留（对账工具守卫 / daily_narrative PG 化等，08-14 收编） |
+> | 总册 | [`docs/decisions/OPEN-DECISIONS.md`](docs/decisions/OPEN-DECISIONS.md) | 全量检查/审查遗留 + 08-18 事故/决策登记（P0-2 密钥 / 双 tianji_db / reconcile 守卫 / daily_narrative PG 化 / market 进 PG） |
 > | 天枢（macro-scan） | [`macro-scan/docs/decisions/OPEN-DECISIONS.md`](macro-scan/docs/decisions/OPEN-DECISIONS.md) | 时区类 OPEN-01 / OPEN-02 / OPEN-03（news.db 展示层 / grv-history 边界 / 纯日期键） |
 > | 天璇（macro-sim） | [`macro-sim/docs/decisions/OPEN-DECISIONS.md`](macro-sim/docs/decisions/OPEN-DECISIONS.md) | 校准类（liquidity_premium 死变量 / EASE 探针 FAIL / 接受线未达加权一致率<60% / clamp 对称化） |
 >

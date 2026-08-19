@@ -1,10 +1,26 @@
 # Changelog
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-08-18（记录类文档随部署持续更新）
+> 最后核对时间：2026-08-19（记录类文档随部署持续更新）
 
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+
+## v3.8.20 — 2026-08-19 (by 主理人 · commits `24e3b5f7`→`0e59cd758`)
+
+**修改理由**：08-18 晚三连批次——用户连环质疑分数合理性（96 分→intensity→climate 70→地震 72）挖出 GDELT scale 事故 + 四个"常态即高分"分数基准问题；LLM 配置丢失 + 翻译 30% 失败。全部修复 + 防御闭环。
+
+### 主要变更
+
+- **GDELT scale 事故修复（`8c2ddc4c`，校准器 v2）**：v1"P95 反推当归一化分母"= 常态即顶格（military 135000→12960 缩 10 倍）→ gdelt_scores 全线虚高 9-28 倍、推导维度 scs 25→93/kor 53→89 进红线误触发区；修复 = calibrator `_compute_dim_scales` 透传 SCALE_REF（俄乌峰值/0.9 极端基准）+ gdelt_history 口径统一 + gdelt_scores 快照重算；8/18 实测 military USA 100→9.6、scs 93→22.3
+- **LLM 链路三修复（`24e3b5f7`）**：① `call_openai_compat` 空响应/请求异常重试 2 次（mimo 间歇 20-30% 空 body 致翻译 30% 失败，修复后 96-100%）② `set_usage` 首次写预填充（防"部分固化"）③ 探针 `check_llm_config`（文件存在 + usages≥5/6）
+- **llm_config 防丢失闭环（`ad5dc3792`）**：默认模板 `config/llm_config.default.json` 入库（丢失 cp 即恢复）+ 探针缺失附恢复命令；删因追查无直接证据（control.log 实锤用户曾 PUT sim_narrative/sim_mc 成功 → 文件存在过），防御三件套（探针+预填充+模板）闭环
+- **GRV 分数常态基准校准（`0e59cd758`，#134）**：① climate FIRMS 阈值 ≥2万=满分（vs 常态 14-20 万恒顶格）→ 分档 ≥50万:40/≥30万:30/≥15万:20/≥8万:10；climate 70→50 ② seismic SEISMIC_SCALE 2.0→0.8（旧假设"数条 M4.5+ 平静日"，实际常态 17-30 条 → 常态 40-60/p90=100）；58→23.2；③ causal_assumptions 分数语义总表（风险/持久基线/情绪/显著度区分 + 校准原则）
+- **待办登记清理（`86967be25`）**：#77 RESOLVED、P1-E/H08H11 销项
+
+### 验证
+
+- 08-19 冷启动检查：探针 32 项 bad=1（GED 已知）；06:10 调度 GRV 全维度落在校准后区间（global 63.9/climate 50/seismic 28/scs 36.1）；翻译 3 次调度 24/25、30/31、25/25（96-100%）；llm_config 存在；git 干净
 
 ## v3.8.19 — 2026-08-18 (by 主理人 · #77 任务)
 

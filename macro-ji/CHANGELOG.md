@@ -1,9 +1,32 @@
 # macro-ji CHANGELOG — 天玑（验证评估层）
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-08-06（记录类文档随部署持续更新）
+> 最后核对时间：2026-08-19（记录类文档随部署持续更新）
 > 版本锚点：无 VERSION 文件，以镜像名（`macro-tianji:latest`）+ 上线时间计版本。
 > 变更历史从 v1.0.0（独立容器上线）起。
+
+---
+
+## v1.0.1 — 2026-08-18 校准器 scale 语义修正（commit `8c2ddc4c`）
+
+**事故**：v1 的 `_compute_dim_scales` 用"归一化分数 P95 反推原始计数 P95 当归一化分母"——
+P95 = 常态水平，当分母 → **常态即 95% 的日子分数 ≥95 分顶格**。8/14 接入后 gdelt_scores
+全线虚高 9-28 倍（military scale 135000→12960、tension 220000→7920），推导维度
+south_china_sea 25→93、korean_peninsula 53→89 进红线误触发区（天璇 8/14 后无仿真，
+红线未被消费——影响面可控）。根因链：① scale 语义错误 ② gdelt_history.jsonl 8/14
+前后口径断裂（P95 反推不可收敛，统一口径后 double 反推）。
+
+**修复（version 2）**：
+- `_compute_dim_scales` 直接透传 `SCALE_REF`（"2022-02-24 俄乌开战峰值/0.9"≈ 极端事件
+  基准，8/14 前系统一直用此语义正常：常态 0-20 分、俄乌级极端 ≈100 分）
+- tone_base / hotspot_p95 保持数据驱动（不受 scale 语义影响）
+- 运行区数据（gdelt_history/gdelt_scores/gdelt_calib）口径统一重算由天枢侧执行
+- 实测恢复：8/18 military USA 100→9.6、scs 93→22.3、kor 89→49.5
+
+**验证**：08-19 冷启动 gdelt_scores military USA=10.6（scan_weak_signals 重算后口径保持）；
+天玑容器 healthy + get_connection→predictions 正常。
+
+**提交**：`8c2ddc4c`（tianji_calibrator.py + 设计文档 §3.5）
 
 ---
 

@@ -4,8 +4,10 @@
 
 世界推演系统观测层（天枢）：全球宏观情报自动采集 + LLM分析推演 + 地缘风险向量引擎，运行在 NAS Docker 容器中。
 
-**当前版本**：v3.8.18（2026-08-18）
+**当前版本**：v3.8.20（2026-08-19）
 **主要变更**：
+- v3.8.20（08-18 晚）：GDELT scale 事故修复（calibrator v2 透传 SCALE_REF，`8c2ddc4c`）+ LLM 链路三修复（翻译重试/set_usage 预填充/check_llm_config，`24e3b5f7`）+ llm_config 默认模板入库（`ad5dc3792`）+ GRV 分数常态基准校准 #134（climate FIRMS 阈值/seismic scale，`0e59cd758`）
+- v3.8.19（08-18）：global_composite 混入 GDELT 日频（#77，`913a8f7e`）+ delta 阈值 6→12
 - v3.8.18（08-16/17/18）：卫生事件标题绕开 DOC API（`fetch_health_geo.py` 直接抓 `<title>`，`17cf5d55`）；天玑汇总导出 `tianji_summary_export.py`（I30，`62000504`）；control_server 人工验证端点（`defc5e31`）；**地缘预测自动验证 `verify_geo_auto.py`**（scheduler 0930——L1 FRED 判定器 DFF/利差/VIX 分位 + L2 新闻关键词判定器 PG news.articles，`0ced51c9`+`4d22e6e2`）；死循环预测存档清理（predictions 1102→70）
 - v3.8.17（08-11）：开阳地图空渲染根治（fetch_gdelt_geo.py --incremental 派生 news_geo.json）
 - v3.8.15（08-05）：开阳全链路时间审计 6 修复（FRED manifest 孤儿复活 / news 假时刻 / FCI 拉取闸 / sim_trigger `triggered` 字段 / news_geo `updated` 契约 / freshness `fresh`+`lag_days` 语义）

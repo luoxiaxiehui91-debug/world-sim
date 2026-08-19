@@ -29,6 +29,14 @@
 
 ## 当前状态
 
+**08-19：冷启动检查全绿 + 待办登记清理**：探针 32 项 bad=1（GED 已知）；06:10 调度 GRV 全维度落在校准后区间（global_composite 63.9 / climate 50 / seismic 28 / scs 36.1）；**翻译修复生效**（3 次调度 24/25、30/31、25/25，96-100% vs 昨日 70-80%）；llm_config.json 存在；git 干净。待办四源（任务列表/OPEN-DECISIONS/STATUS/roadmap）汇总 + 销 3 处过时登记（#77 RESOLVED、P1-E/H08H11 销项 `86967be25`）。系统稳态，无必须马上做的事；2027-02 首轮验证窗口前均为运维态。
+
+**08-18 晚：分数体系事故与修复（用户连环质疑挖出，天枢 v3.8.20）**：
+- **GDELT scale 事故（`8c2ddc4c`，校准器 v2）**：v1"P95 反推当归一化分母"= 常态即顶格（military 135000→12960）→ gdelt_scores 虚高 9-28 倍、scs 25→93/kor 53→89 进红线误触发区（天璇无仿真未消费）；修复 = calibrator 透传 SCALE_REF + 数据口径统一重算；8/18 实测 military USA 100→9.6
+- **LLM 链路（`24e3b5f7`+`ad5dc3792`）**：翻译 30% 失败根因 = mimo 端点间歇"200+空 body"无重试 → `call_openai_compat` 重试 2 次（修复后 96-100%）；llm_config.json 曾丢失 2 天无感（面板静态清单兜底看不出）→ 探针 check_llm_config + set_usage 预填充 + 默认模板入库，防丢失三件套闭环
+- **GRV 分数常态基准校准（`0e59cd758`，#134）**：climate FIRMS 阈值（2万→50万满分档，70→50）+ seismic scale（2.0→0.8，58→23.2）；sanction_risk 82.6=**持久制裁基线**设计如此、energy 68.7=油价高位如实、social_stress=新闻情绪、intensity=显著度——causal_assumptions 分数语义总表
+- **校准原则（4 例教训）**：绝对阈值/scale 必须先对照真实常态分布（gdelt P95 / FIRMS 2万 / seismic 2.0 / intensity 全同源"常态即高分"）
+
 **08-18：地缘预测验证闭环（人工界面化 + 自动验证 L1/L2）——"待人工"渠道从无到三层**：用户发现 geo 预测（awaiting_human 46 条）描述模糊且无验证渠道 → ①**描述清晰化**（`10fdf202`）：`bifurcation.py` 模块级 `_ACTION_CRITERIA`（30+ 动作 → 现实判定标准，如媒体恐慌=负面报道占比≥40%、对冲做空=净空头前10%分位）、geo 预测 content 带路径 GRV 上下文、`backfill_criteria.py` 历史 48 条判据+action_key 全量回填（`0c93fbeb`）→ ②**人工验证界面化**（`defc5e31`）：control_server `GET human-pending`/`POST verify` + 开阳天玑 Tab 点选 [发生/部分/未发生]（v1.11.32，CLI `verify_human.py` 作兜底 `8a69868b`）→ ③**自动验证**（`0ced51c9`+`4d22e6e2`）：`verify_geo_auto.py`（scheduler 0930）L1 FRED 判定器（A1 DFF/A2 利差/A3+A6 VIX 分位）+ L2 新闻关键词判定器（PG news.articles 窗口，**只做发生确认**：命中→1、未命中→None 留人工）；`predictions.action_key` 列 = 判定器分派键。**死循环预测存档清理（08-17 晚）**：predictions 1102→70（1032 条死循环垃圾 + 344 reasoning_trace），防 90 天后污染 Brier。当前 48 条 geo 预测 due_at 2027-02 未到期，2027-02 后自动验证首轮触发。验证语义 = **未来事件是否应验**（非推理审阅）。
 
 **08-17：天璇模型线大版本（soul 政权分片 → 更迭引擎 → 日韩主权，v2.0.41）**：
