@@ -6,7 +6,7 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## v2.0.42 — 2026-08-21 (by WorkBuddy · 待提交)
+## v2.0.42 — 2026-08-21 (by WorkBuddy · commits df048bde4)
 
 **修改理由**：天璇守护器 sim_trigger 写回 consumed 段原为裸 `except Exception: pass`，写回失败（挂载抖动/序列化异常）被静默吞掉 → 契约恒 `triggered:true` 而无人察觉，是 08-21 循环重燃事故的系统性隐患（即便重建容器仍可能复现）。改为非静默：重试 3 次（指数退避）+ 最终失败记 ERROR 日志并推 ntfy 告警（限流 5min），契约失败从「静默卡死」变为「可观测告警」。
 
