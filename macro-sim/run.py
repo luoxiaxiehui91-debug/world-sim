@@ -866,6 +866,29 @@ if __name__ == "__main__":
     if args.daemon:
         print(f"[daemon] macro-sim v2 守护模式启动，轮询 {TRIGGER_PATH}")
         last_writeback_alert_ts = 0.0
+        # 启动自检（v2.0.43，sim_trigger 契约部署纪律护栏）：只读检查契约状态，
+        # 暴露「旧进程遗留 / 契约损坏 / 文件异常」——08-21 教训：契约问题会静默潜伏
+        try:
+            if TRIGGER_PATH.exists() and TRIGGER_PATH.stat().st_size > 0:
+                _sd = json.loads(TRIGGER_PATH.read_text())
+                if _sd.get("triggered") is True:
+                    print(f"[daemon] 启动自检：存在未消费触发（{_sd.get('event')}），进入正常消费流程")
+                else:
+                    print(f"[daemon] 启动自检：契约已消费（consumed_at={_sd.get('consumed_at')}），等待下次触发")
+            else:
+                print(f"[daemon] 启动自检：sim_trigger.json 不存在或为空，等待首次触发")
+        except Exception as _e:
+            print(f"[daemon][ERROR] 启动自检：sim_trigger.json 损坏/不可读：{_e}")
+            try:
+                _req = urllib.request.Request(
+                    NTFY_URL,
+                    data=f"[macro-sim v2] sim_trigger 契约损坏：{_e}".encode("utf-8"),
+                    headers={"Content-Type": "text/plain; charset=utf-8"},
+                    method="POST",
+                )
+                urllib.request.urlopen(_req, timeout=5)
+            except Exception:
+                pass
         while True:
             if TRIGGER_PATH.exists() and TRIGGER_PATH.stat().st_size > 0:
                 try:

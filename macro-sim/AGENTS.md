@@ -105,10 +105,10 @@ python run.py --predict-only --level 2 --event "测试"
 # 1. 本机 rsync 同步代码到 NAS（或用 S:\ 映射直接改 NAS 文件）
 #    rsync -av --exclude='.git' --exclude='output/' --exclude='sim_log.db' \
 #          --exclude='__pycache__/' --exclude='*.pyc' macro-sim/ \
-#          TSX@192.168.31.108:/vol2/1000/software/macro-sim/
+#          TSX@192.168.31.108:/vol2/1000/software/world-sim/macro-sim/
 # 2. SSH 登录 NAS 后重建容器（macro-sim 为 COPY 模式镜像，必须重新 docker build）：
 #    ssh nas
-#    cd /vol2/1000/software/macro-sim
+#    cd /vol2/1000/software/world-sim/macro-sim
 #    docker build -t macro-sim:latest .
 #    docker compose up -d --force-recreate
 # 3. 若 deploy.sh 的 SSH 通道恢复（密码更新），仍可一键执行：
@@ -128,6 +128,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 2. `config/agents.yaml` 通过 `COPY` 打包进镜像，**修改后需重新部署**（NAS 手动 docker build，见"修改工作流"）
 3. FRED 数据读取后需 ×100 转 bp（T10Y2Y / BAA10Y）
 4. 校准期误差计算权重（v2.0.20 起为**内生变量**权重）：market_sentiment×0.35 + bank_credit_tightening×0.30 + liquidity_premium×0.20 + em_capital_outflow×0.15（旧外生权重 grv×0.4+credit_spread×0.3+t10y2y×0.2+dff×0.1 已废弃）
+5. **部署铁律（08-21 教训）**：改 `run.py` / `config/` 等 **COPY 进镜像**的文件后，**必须**在 git 真源执行 `cd /vol2/1000/software/world-sim/macro-sim && docker build -t macro-sim:latest . && docker compose up -d --force-recreate`，否则改动不生效（容器跑旧代码）。**验收**：`docker inspect -f "{{.State.StartedAt}}" macro-sim` 晚于代码提交时间。改 git 不重建容器 = 未部署。
 5. 路径概率 <5% 的路径不展开推演
 
 ### 改代码后必须同步的文档

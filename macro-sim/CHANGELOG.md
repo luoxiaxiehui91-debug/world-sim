@@ -6,6 +6,15 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.43 — 2026-08-22 (by WorkBuddy · 待提交)
+
+**修改理由**：sim_trigger 契约 8-05/8-21 两次踩雷，根因均属「部署纪律」而非架构决策（用户裁决不立 ADR，走纪律护栏实施）。本版加守护器启动自检 + AGENTS.md 部署铁律，让契约异常（旧进程遗留/文件损坏）在启动即暴露，不再静默潜伏。
+
+### 修改
+
+- **`run.py` 守护器启动自检（v2.0.43）**：daemon 启动时只读检查 sim_trigger.json——未消费触发→打印正常消费提示；已消费→打印 consumed_at；文件损坏/不可读→`[daemon][ERROR]` + ntfy 告警。
+- **`AGENTS.md` 部署铁律**：修正修改工作流路径（旧运行区 `/vol2/1000/software/macro-sim/` → git 真源 `/vol2/1000/software/world-sim/macro-sim/`）；新增铁律：改 COPY 代码必须 build + force-recreate，验收=容器 StartTime 晚于代码提交时间。
+
 ## v2.0.42 — 2026-08-21 (by WorkBuddy · commits df048bde4)
 
 **修改理由**：天璇守护器 sim_trigger 写回 consumed 段原为裸 `except Exception: pass`，写回失败（挂载抖动/序列化异常）被静默吞掉 → 契约恒 `triggered:true` 而无人察觉，是 08-21 循环重燃事故的系统性隐患（即便重建容器仍可能复现）。改为非静默：重试 3 次（指数退避）+ 最终失败记 ERROR 日志并推 ntfy 告警（限流 5min），契约失败从「静默卡死」变为「可观测告警」。
