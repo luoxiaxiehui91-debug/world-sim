@@ -6,6 +6,15 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.42 — 2026-08-21 (by WorkBuddy · 待提交)
+
+**修改理由**：天璇守护器 sim_trigger 写回 consumed 段原为裸 `except Exception: pass`，写回失败（挂载抖动/序列化异常）被静默吞掉 → 契约恒 `triggered:true` 而无人察觉，是 08-21 循环重燃事故的系统性隐患（即便重建容器仍可能复现）。改为非静默：重试 3 次（指数退避）+ 最终失败记 ERROR 日志并推 ntfy 告警（限流 5min），契约失败从「静默卡死」变为「可观测告警」。
+
+### 修改
+
+- **`run.py` 守护器写回段**：裸 `except:pass` → `for _attempt in range(3)` 重试 + `_now - last_writeback_alert_ts > 300` 限流告警；守护器循环前声明 `last_writeback_alert_ts = 0.0`。
+  - **补丁 v2（2026-08-21 23:45 全面核查补漏）**：写回最终失败 → **跳过本次仿真**（`if not write_ok: 跳过`），契约保持 pending 下轮 60s 重试、写回恢复后自动续跑——修正初版『只加告警不防循环』的漏洞（写回失败时若仍跑仿真=08-21 重燃模式再现）。
+
 ## v2.0.41 — 2026-08-18 (by arch-主理人 · commits `b6914799`→`0c93fbeb`)
 
 **修改理由**：08-17/18 天璇大版本——soul 政权分片 + 更迭引擎 + 日韩主权 + 预测描述清晰化 + 人工验证渠道。Agent 规模 17 → **20**（新增 A13 长线资金 + S6 日本 + S7 韩国）。

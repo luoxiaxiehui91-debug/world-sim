@@ -865,6 +865,7 @@ if __name__ == "__main__":
 
     if args.daemon:
         print(f"[daemon] macro-sim v2 守护模式启动，轮询 {TRIGGER_PATH}")
+        last_writeback_alert_ts = 0.0
         while True:
             if TRIGGER_PATH.exists() and TRIGGER_PATH.stat().st_size > 0:
                 try:
@@ -885,22 +886,46 @@ if __name__ == "__main__":
                     # '读取失败:sim_trigger.json'。新契约：sim_trigger.json 永远合法 JSON
                     # （触发态 triggered:true / 已消费态 consumed:true + last 信息），
                     # 开阳可显示"上次触发已消费"而不报错。写失败不影响仿真主流程。
-                    try:
-                        TRIGGER_PATH.write_text(json.dumps({
-                            "schema_version": "1.0",
-                            "triggered":      False,
-                            "consumed":       True,
-                            "level":          level,
-                            "event":          event,
-                            "reason":         event,
-                            "triggered_at":   trigger_data.get("triggered_at"),
-                            "consumed_at":    datetime.now(timezone.utc).isoformat(),
-                        }, ensure_ascii=False), encoding="utf-8")
-                    except Exception:
-                        pass
-                    run_full_simulation(level=level, event=event, config_path=CONFIG_PATH,
-                                        force_activate_all=args.force_activate_all,
-                                        as_of_month=args.as_of)
+                    write_ok = False
+                    for _attempt in range(3):
+                        try:
+                            TRIGGER_PATH.write_text(json.dumps({
+                                "schema_version": "1.0",
+                                "triggered":      False,
+                                "consumed":       True,
+                                "level":          level,
+                                "event":          event,
+                                "reason":         event,
+                                "triggered_at":   trigger_data.get("triggered_at"),
+                                "consumed_at":    datetime.now(timezone.utc).isoformat(),
+                            }, ensure_ascii=False), encoding="utf-8")
+                            write_ok = True
+                            break
+                        except Exception as _e:
+                            if _attempt < 2:
+                                time.sleep(2 ** _attempt)
+                                continue
+                            _now = time.time()
+                            if _now - last_writeback_alert_ts > 300:
+                                print(f"[daemon][ERROR] sim_trigger 写回消费态失败（3 次重试后）：{_e}")
+                                try:
+                                    _req = urllib.request.Request(
+                                        NTFY_URL,
+                                        data=f"[macro-sim v2] sim_trigger 写回失败：{_e}".encode("utf-8"),
+                                        headers={"Content-Type": "text/plain; charset=utf-8"},
+                                        method="POST",
+                                    )
+                                    urllib.request.urlopen(_req, timeout=5)
+                                except Exception:
+                                    pass
+                                last_writeback_alert_ts = _now
+
+                    if not write_ok:
+                        print(f"[daemon][ERROR] sim_trigger 契约未消费，本次跳过仿真（防重燃循环）；写回恢复后自动续跑")
+                    else:
+                        run_full_simulation(level=level, event=event, config_path=CONFIG_PATH,
+                                            force_activate_all=args.force_activate_all,
+                                            as_of_month=args.as_of)
                 except Exception as e:
                     print(f"[daemon] 仿真失败：{e}")
                     try:
