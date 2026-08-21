@@ -6,7 +6,7 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## v2.0.43 — 2026-08-22 (by WorkBuddy · 待提交)
+## v2.0.43 — 2026-08-22 (by WorkBuddy · commits 3e6cc84df)
 
 **修改理由**：sim_trigger 契约 8-05/8-21 两次踩雷，根因均属「部署纪律」而非架构决策（用户裁决不立 ADR，走纪律护栏实施）。本版加守护器启动自检 + AGENTS.md 部署铁律，让契约异常（旧进程遗留/文件损坏）在启动即暴露，不再静默潜伏。
 
