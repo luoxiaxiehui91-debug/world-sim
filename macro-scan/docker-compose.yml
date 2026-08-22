@@ -20,26 +20,26 @@ services:
 
     environment:
       - OPENCLAW_WORKSPACE=/workspace
-      - FRED_API_KEY=REDACTED_FRED_KEY
+      - FRED_API_KEY=${FRED_API_KEY}
       - TZ=Asia/Shanghai
       - OUTBOUND_PROXY=http://192.168.31.108:7890
       # 08-18 P1-6 纪律补齐：PG-only 写开关 + 网络 + 控制面 token（.env 提供，占位不落明文）
       - WORLDSIM_SQLITE_OFF=1
       - WORLDSIM_APP_PW=${WORLDSIM_APP_PW}
       - CONTROL_TOKEN=${CONTROL_TOKEN}
-      - SILICONFLOW_API_KEY=***REMOVED***
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
       - SILICONFLOW_MODEL=Qwen/Qwen3.5-27B
       - OPENAI_COMPAT_URL=https://token-plan-cn.xiaomimimo.com/v1
-      - OPENAI_COMPAT_KEY=tp-c50bnnms6uzq943ww06j2zd1y0z5dromqpb9mqvx21i3hymr
+      - OPENAI_COMPAT_KEY=${OPENAI_COMPAT_KEY}
       - OPENAI_COMPAT_MODEL=mimo-v2.5-pro
-      - MINIMAX_API_KEY=sk-cp-UwhMhT5m8eyNmsMulzsrTC6lbn9-fXfz8Wew8m3tMawAO3h5oUbGqf3Kr_jPQ3emuvMlVndnWIhww4UXNamTPAwNSz2lhVzJsZfrjuzOy4mni3bitv4t2t4
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY}
       - MINIMAX_URL=https://api.minimaxi.com/anthropic
       - MINIMAX_MODEL=MiniMax-M3
       - USE_EXTERNAL_LLM=1
       - NTFY_TOPIC=***REMOVED***
       - NTFY_CMD_TOPIC=***REMOVED***
-      - NTFY_CMD_SECRET=1900
-      - EIA_API_KEY=0moTFC6n6AsvySNc5Z1UQ5soeoyCxUAceX5KtuPW
+      - NTFY_CMD_SECRET=${NTFY_CMD_SECRET}
+      - EIA_API_KEY=${EIA_API_KEY}
       - RUN_ON_START=true
       - RSSHUB_URL=http://192.168.31.108:12000
       - DASHBOARD_OUTPUT=/workspace/docs/macro_dashboard.html

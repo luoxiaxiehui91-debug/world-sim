@@ -83,7 +83,7 @@ def fred_source_latest(series_id: str, fred=None):
     try:
         if fred is None:
             from fredapi import Fred
-            fred = Fred(api_key=os.environ.get("FRED_API_KEY", "REDACTED_FRED_KEY"))
+            fred = Fred(api_key=os.environ.get("FRED_API_KEY", ""))
         start = (date.today() - timedelta(days=45)).isoformat()
         s = fred.get_series(series_id, observation_start=start)
         if s is None or s.empty:

@@ -44,7 +44,7 @@ except ImportError:
 
 # ── 配置 ─────────────────────────────────────────────────────────────────────
 
-FRED_API_KEY = os.environ.get("FRED_API_KEY", "REDACTED_FRED_KEY")
+FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 
 BASE_DIR = os.environ.get("OPENCLAW_WORKSPACE",
            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

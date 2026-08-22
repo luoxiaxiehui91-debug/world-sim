@@ -37,7 +37,7 @@ import pandas as pd
 
 # ── 配置 ─────────────────────────────────────────────────────────────────────
 
-FRED_API_KEY = os.environ.get("FRED_API_KEY", "REDACTED_FRED_KEY")
+FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 
 # 脚本所在目录的上级 = 项目根目录
 BASE_DIR = os.environ.get("OPENCLAW_WORKSPACE",

@@ -14,7 +14,7 @@ services:
     environment:
       - OPENCLAW_WORKSPACE=/app
       - TIANJI_DATA_DIR=/app/macro_data
-      - FRED_API_KEY=REDACTED_FRED_KEY
+      - FRED_API_KEY=${FRED_API_KEY}
       - NTFY_URL=https://ntfy.sh/***REMOVED***
       - WORLDSIM_APP_PW=${WORLDSIM_APP_PW}
       - TZ=Asia/Shanghai
