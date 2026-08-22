@@ -56,6 +56,7 @@ DATA_DIR = _cfg["DATA_DIR"]
 PROXY_URL = _cfg["PROXY_URL"]
 
 OUTPUT_FILE = "health_geo.json"
+RAW_FILE    = "health_geo_raw.json"  # v1.1.1：明细持久化（合并用），展示文件只存聚合
 GKG_BASE = "http://data.gdeltproject.org/gdeltv2/"
 UA = {
     "User-Agent": (
@@ -207,7 +208,7 @@ class HealthGeoFetcher(FetcherBase):
             events = self._backfill_source_media(self._load_events())
             events = self._backfill_titles(events, self._fetch_pending_titles(events))
             as_of = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            self._persist(events, as_of)
+            events = self._persist(events, as_of)
             return {"status": Status.OK, "new_events": 0, "slots_checked": 0, "events": events}
 
         new_events = []
@@ -228,7 +229,7 @@ class HealthGeoFetcher(FetcherBase):
         events = self._backfill_titles(events, self._fetch_pending_titles(events))
         self._save_state(cur_slot.strftime("%Y%m%d%H%M%S"))
         as_of = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-        self._persist(events, as_of)
+        events = self._persist(events, as_of)
         return {"status": Status.OK, "new_events": len(new_events), "slots_checked": checked, "events": events}
 
     # ── 合并/持久化 ──────────────────────────────────────────
@@ -313,12 +314,15 @@ class HealthGeoFetcher(FetcherBase):
         return events
 
     def _load_events(self):
-        try:
-            with open(self.events_path, encoding="utf-8") as f:
-                d = json.load(f)
-            return d.get("events", [])
-        except Exception:
-            return []
+        """v1.1.1：明细从 RAW_FILE 读（合并源）；无 raw 则回退展示文件（迁移，count 快照保留）。"""
+        for name in (RAW_FILE, OUTPUT_FILE):
+            try:
+                with open(os.path.join(DATA_DIR, name), encoding="utf-8") as f:
+                    d = json.load(f)
+                return d.get("events", [])
+            except Exception:
+                continue
+        return []
 
     def _merge_events(self, new_events):
         old = self._backfill_source_media(self._load_events())
@@ -334,18 +338,65 @@ class HealthGeoFetcher(FetcherBase):
         merged.sort(key=lambda e: e["date"], reverse=True)
         return merged
 
+    def _aggregate_by_location(self, events):
+        """v1.1（08-22）：按 loc_name 同城聚合——一城一点 + count + 代表事件。
+        明细保留在内存（标题回填用），落盘只写聚合结果（开阳 health 图层 2145→~340 点）。
+        代表 = date 最新一条（title/关键词/坐标/原文 URL）。"""
+        groups = {}
+        for e in events:
+            loc = (e.get("loc_name") or "").strip()
+            if not loc:
+                continue  # 无地点不聚合（后端已过滤无坐标事件，理论为空）
+            groups.setdefault(loc, []).append(e)
+        out = []
+        for loc, evs in groups.items():
+            evs.sort(key=lambda e: str(e.get("date", "")), reverse=True)
+            rep = evs[0]
+            # v1.1.1：count = max(同 loc 条数, 事件自带 count)——raw 迁移期保留旧快照，
+            # 72h 滚动淘汰后自然回落到真实条数（避免迁移即 count 归 1）。
+            _max_c = max((int(e.get("count") or 1) for e in evs), default=1)
+            out.append({
+                "loc_name": loc,
+                "lat": rep.get("lat"),
+                "lng": rep.get("lng"),
+                "count": max(len(evs), _max_c),
+                "date": rep.get("date"),
+                "title": rep.get("title") or "",
+                "keywords": rep.get("keywords") or [],
+                "doc": rep.get("doc"),
+                "source_media": rep.get("source_media"),
+            })
+        return out
+
     def _persist(self, events, as_of):
+        raw_count = len(events)
+        # v1.1.1：明细持久化到 RAW_FILE（合并/回填源），展示文件只存聚合
+        raw_payload = {
+            "status": Status.OK,
+            "source": "GDELT 2.0 GKG (health keyword filter, raw)",
+            "as_of": as_of,
+            "scope": "global",
+            "schema_version": "1.0",
+            "events_count": raw_count,
+            "events": events,
+        }
+        self.save_json(RAW_FILE, raw_payload)
+        aggregated = self._aggregate_by_location(events)
         payload = {
             "status": Status.OK,
             "source": "GDELT 2.0 GKG (health keyword filter)",
             "as_of": as_of,
             "scope": "global",
-            "schema_version": "1.0",
-            "events_count": len(events),
-            "events": events,
+            "schema_version": "1.1",
+            "aggregated": True,
+            "raw_count": raw_count,
+            "events_count": len(aggregated),
+            "events": aggregated,
         }
         self.save_json(OUTPUT_FILE, payload)
-        self.logger.info("[health_geo] 落盘 %d 条卫生事件（72h 窗口）", len(events))
+        self.logger.info("[health_geo] 落盘 %d 条（按 loc_name 聚合，原始 %d 条，72h 窗口）",
+                         len(aggregated), raw_count)
+        return aggregated
 
 
 def main():

@@ -65,6 +65,7 @@ export function adaptHealth(raw: HealthGeoRaw | null): RiskPoint[] {
     ) {
       continue;
     }
+    const count = e.count ?? 1; // v1.1 聚合点：同城事件数（fetch_health_geo.py 落盘聚合）
     const kw = (e.keywords ?? []).join('/');
     const zh = kwZh(e.keywords);
     const media = (e.source_media ?? '').trim();
@@ -89,7 +90,8 @@ export function adaptHealth(raw: HealthGeoRaw | null): RiskPoint[] {
       status: 'ok',
       color: categoryColor('health', 'ok'),
       severity: '卫生', // 中性标签
-      weight: 0.5, // 统一大小（事件无大小语义）
+      weight: count > 1 ? Math.min(1.0, 0.5 + Math.log2(count) * 0.1) : 0.5, // v1.1 聚合点按 count 微调
+      aggCount: count, // v1.1：>1 = 聚合点，FlatMapPanel 渲染计数徽标
       category: 'health',
       shape: categoryShape('health'),
       // 08-16：sourceUrl = 具体新闻原文（GKG DocumentIdentifier）——EventPopup
@@ -97,6 +99,7 @@ export function adaptHealth(raw: HealthGeoRaw | null): RiskPoint[] {
       // 是"新闻关联"的最佳可用信号；标注来源可信度：媒体提及非官方确认）。
       sourceUrl: e.doc,
       note: [
+        count > 1 ? `共 ${count} 起卫生事件（同地点聚合）` : '',
         kw ? `疫情类型 ${zh}${zh && zh !== kw ? `（${kw}）` : ''}` : '',
         media ? `${media} 报道` : '',
         e.loc_name ?? '',
