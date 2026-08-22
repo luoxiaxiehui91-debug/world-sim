@@ -102,9 +102,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='repla
 
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 # Ollama 已废弃（CF-8），保留变量仅供 rag_engine 向后兼容
-OLLAMA_URL     = os.environ.get("OLLAMA_URL", "http://192.168.31.56:11434/api/generate")
-OLLAMA_MODEL   = os.environ.get("OLLAMA_MODEL", "qwen3-vl:8b-instruct-q4_K_M")
-OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT", "180"))
+# （08-23 清理：Ollama 于 CF-8 废弃，原 OLLAMA_* 死常量已删除——全仓库无 11434 实际调用）
 
 # 项目根目录（优先用环境变量，容器内 OPENCLAW_WORKSPACE=/workspace）
 BASE_DIR   = os.environ.get("OPENCLAW_WORKSPACE",
@@ -112,7 +110,7 @@ BASE_DIR   = os.environ.get("OPENCLAW_WORKSPACE",
 KB_DIR             = os.path.join(BASE_DIR, "知识库", "财经知识库")
 REPORT_DIR         = os.path.join(BASE_DIR, "docs", "分析报告")
 SYSTEM_PROMPT_FILE = os.path.join(BASE_DIR, "system_prompt.md")
-OLLAMA_BASE  = OLLAMA_URL.split("/api/")[0]   # http://host:port（去掉 /api/... 路径）
+
 CRISIS_CSV = os.path.join(KB_DIR, "02_核心变量因果链", "历史情景_量化指标.csv")
 CACHE_FILE = os.path.join(REPORT_DIR, ".indicator_cache.json")  # FRED失败时的缓存回退
 LOG_DIR    = os.path.join(BASE_DIR, "logs")
@@ -618,7 +616,7 @@ def generate_report(
     1. 组装数据表格（去重，跳过内部键）
     2. 构建蒙特卡洛摘要（季度路径表）
     3. 按国家拼接提示词（中文8条/美国8条，含数据锚点）
-    4. 调用 call_ollama()（降级链：SiliconFlow → MiMo API → 纯数据报告）
+    4. 调用 call_llm_primary()（主链 auto=MiMo→SiliconFlow；失败纯数据报告）
     5. 附加LEI指数块、溢出分析块
 
     Returns:
@@ -798,38 +796,38 @@ def _mimo_fallback(prompt: str) -> str:
         return ""
 
 
-def call_ollama(prompt: str, mode: str = "local") -> str:
-    """调用LLM生成分析报告，内置三级降级链。
+def call_llm_primary(prompt: str, mode: str = "local") -> str:
+    """调用 LLM 生成分析报告（08-23 由 call_ollama 更名——Ollama 早在 CF-8 废弃，
+    本函数从未发起过 11434 请求，实际直接走 hybrid_llm.reason()）。
 
-    降级链（任一失败自动切换下一级）：
-      1. hybrid_llm.reason()（mode=auto 时：MiMo → Claude → SiliconFlow）
-      2. MiMo API（_mimo_fallback，需 OPENAI_COMPAT_URL 环境变量）
+    主链与降级（任一失败自动切换下一级）：
+      1. hybrid_llm.reason(mode)：mode="auto"（默认）→ MiMo → Claude(未配跳过) → SiliconFlow；
+         mode="local" → 强制 SiliconFlow Qwen3.5-27B
+      2. MiMo API 兜底（_mimo_fallback）
       3. 空字符串（调用方负责降级到 _make_fallback_section）
-
-    注：Ollama 已于 CF-8 废弃，不再作为降级选项。
     """
     print(f"\n[5/7] 调用LLM生成报告（mode={mode}）...")
 
     # 统一走 hybrid_llm（SiliconFlow 为默认后端）
     try:
         from hybrid_llm import reason
-        print(f"[call_ollama] mode={mode} | prompt_chars={len(prompt)} → 调用 hybrid_llm.reason()")
+        print(f"[call_llm_primary] mode={mode} | prompt_chars={len(prompt)} → 调用 hybrid_llm.reason()")
         return reason(prompt, mode=mode, max_tokens=6144)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        print(f"[call_ollama] hybrid_llm 失败（{type(e).__name__}: {e}），尝试 MiMo 降级...")
+        print(f"[call_llm_primary] hybrid_llm 失败（{type(e).__name__}: {e}），尝试 MiMo 降级...")
 
     # MiMo 降级
     try:
         result = _mimo_fallback(prompt)
         if result:
-            print(f"[call_ollama] MiMo 降级成功，result_chars={len(result)}")
+            print(f"[call_llm_primary] MiMo 降级成功，result_chars={len(result)}")
             return result
     except Exception as e:
-        print(f"[call_ollama] MiMo 也失败: {type(e).__name__}: {e}")
+        print(f"[call_llm_primary] MiMo 也失败: {type(e).__name__}: {e}")
 
-    print(f"[call_ollama] 全部 LLM 失败，返回空字符串（触发 fallback section）")
+    print(f"[call_llm_primary] 全部 LLM 失败，返回空字符串（触发 fallback section）")
     return ""
 
 
@@ -2762,7 +2760,7 @@ def run_macro_analysis(
             crucix_context=crucix_context,
             narrative_context=narrative_context,
         )
-        us_report = call_ollama(us_prompt, mode=reasoning)
+        us_report = call_llm_primary(us_prompt, mode=reasoning)
         if not us_report or not us_report.strip():
             print("  [降级] 美国报告 LLM 不可用，自动生成数据报告")
             us_report = _make_fallback_section("us", us_indicators, us_recession, us_inflation, mc, regime)
@@ -2790,7 +2788,7 @@ def run_macro_analysis(
             crucix_context=crucix_context,
             narrative_context=narrative_context,
         )
-        china_report = call_ollama(china_prompt, mode=reasoning)
+        china_report = call_llm_primary(china_prompt, mode=reasoning)
         if not china_report or not china_report.strip():
             print("  [降级] 中国报告 LLM 不可用，自动生成数据报告")
             china_report = _make_fallback_section("china", china_indicators, cn_recession, cn_inflation, china_mc, regime)
@@ -2820,7 +2818,7 @@ def run_macro_analysis(
             crucix_context=crucix_context,
             narrative_context=narrative_context,
         )
-        report = call_ollama(prompt, mode=reasoning)
+        report = call_llm_primary(prompt, mode=reasoning)
 
     # 检查报告生成是否成功；LLM不可用时降级为纯数据报告
     if not report or not report.strip():
@@ -3726,7 +3724,7 @@ if __name__ == '__main__':
                 hypothesis_text=args.hypothesis,
                 indicators=_hyp_ind,
                 rag_query_fn=rag_query,
-                call_llm_fn=call_ollama,
+                call_llm_fn=call_llm_primary,
                 push_fn=_push_hypothesis,
                 depth=getattr(args, "depth", "standard"),
                 severity_override=getattr(args, "hypothesis_severity", None),
