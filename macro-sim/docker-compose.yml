@@ -8,7 +8,6 @@ services:
       - worldsim_default
     environment:
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
-      - MINIMAX_API_KEY=${MINIMAX_API_KEY}
       - WORLDSIM_APP_PW=${WORLDSIM_APP_PW}
       - REPORT_DIR=/app/reports
     volumes:

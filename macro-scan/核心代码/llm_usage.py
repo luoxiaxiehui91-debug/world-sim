@@ -54,7 +54,7 @@ PLATFORMS = {
     "siliconflow": {
         "name": "硅基流动 SiliconFlow",
         "base_url": "https://api.siliconflow.cn/v1",
-        "models": ["THUDM/GLM-Z1-9B-0414", "Qwen/Qwen3-8B", "Qwen/Qwen3.5-27B"],
+        "models": ["THUDM/GLM-Z1-9B-0414", "Qwen/Qwen3-8B", "Qwen/Qwen3.5-27B", "tencent/Hunyuan-MT-7B"],
         "default_model": "THUDM/GLM-Z1-9B-0414",
     },
     "minimax": {

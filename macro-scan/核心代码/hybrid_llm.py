@@ -22,6 +22,14 @@ MINIMAX_URL   = os.environ.get("MINIMAX_URL", "https://api.minimaxi.com/anthropi
 MINIMAX_KEY   = os.environ.get("MINIMAX_API_KEY", "")
 MINIMAX_MODEL = os.environ.get("MINIMAX_MODEL", "MiniMax-M3")
 
+# 平台 id → env 变量名（call_openai_compat 按 resolved.platform 取默认 key）
+_PLATFORM_ENV_KEYS = {
+    "siliconflow": "SILICONFLOW_API_KEY",
+    "mimo": "OPENAI_COMPAT_KEY",
+    "minimax": "MINIMAX_API_KEY",
+    "openai": "OPENAI_API_KEY",
+}
+
 # 重试配置
 _CALL_LOCAL_MAX_RETRIES = 1      # 空响应/可重试错误最多重试次数（1次重试+原始=共2次即降级）
 _CALL_LOCAL_RETRY_DELAY = 5      # 重试间隔（秒）
@@ -203,7 +211,12 @@ def call_openai_compat(prompt: str, system: str = "", max_tokens: int = 4096,
     显式 model 参数 → env OPENAI_COMPAT_MODEL。08-16：接入 llm_usage 统一配置。"""
     resolved = resolve(usage) if usage else None
     base_url = (resolved or {}).get("base_url") or os.environ.get("OPENAI_COMPAT_URL", "").rstrip("/")
-    api_key  = (resolved or {}).get("api_key") or os.environ.get("OPENAI_COMPAT_KEY") or ANTHROPIC_API_KEY
+    # 08-23：平台→env key 映射（翻译切硅基流动后 config 不配 key 时按 platform 取对应 env，
+    # 防止拿 OPENAI_COMPAT_KEY(mimo) 调 SiliconFlow 的跨平台 401）
+    _plat_env_key = _PLATFORM_ENV_KEYS.get((resolved or {}).get("platform") or "", "")
+    api_key  = ((resolved or {}).get("api_key")
+                or os.environ.get(_plat_env_key, "")
+                or os.environ.get("OPENAI_COMPAT_KEY") or ANTHROPIC_API_KEY)
     model    = (model
                 or (resolved or {}).get("model")
                 or llm_usage_get_model(usage or "openai_compat")

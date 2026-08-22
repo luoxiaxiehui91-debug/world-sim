@@ -1,3 +1,8 @@
+## v2.0.45 — 2026-08-23 SF key 更新 + MiniMax 死代码清理
+
+- llm_client.py 清除 MiniMax 死代码（_mm_client/_get_mm_client/MINIMAX_* 常量与 sim_minimax 配置读取——零调用点实证）；use_minimax 参数保留仅作叙事开关。
+- SILICONFLOW key 轮换（本地 .env）；compose 删 MINIMAX 行。
+
 # Changelog
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）

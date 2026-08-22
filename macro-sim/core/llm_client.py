@@ -1,7 +1,9 @@
 """
 llm_client.py — LLM 调用封装
 Monte Carlo 模式：GLM-Z1-9B（硅基流动，免费）
-单次探索模式：MiniMax-M3（Anthropic 兼容）
+两者均硅基流动，开阳控制台可切。
+08-23：MiniMax 退役——原第二客户端与对应 usage 为死代码，已清除；
+use_minimax 参数保留但仅作叙事开关。
 """
 
 import os
@@ -25,11 +27,6 @@ SILICONFLOW_MODEL_QWEN = "Qwen/Qwen3-8B"
 SILICONFLOW_MODEL_QWEN_LARGE = "Qwen/Qwen3.5-27B"  # 叙事用，更强
 SILICONFLOW_MODEL      = SILICONFLOW_MODEL_GLM   # Monte Carlo 默认用 GLM-Z1-9B
 
-# MiniMax-M3（单次探索用，Anthropic 兼容）
-MINIMAX_BASE_URL = "https://api.minimaxi.com/v1"
-MINIMAX_MODEL    = "MiniMax-M3"
-
-
 # ── 配置 TTL（08-17 审查修复 LLM③：天璇配置缓存永不失效——改开阳控制台
 #    配置须重启容器才生效，与天枢热更行为不一致。加 60s TTL 后自动重读）──
 _CFG_TTL = 60.0
@@ -40,7 +37,7 @@ def _apply_llm_config():
     """08-16：读天枢共享 llm_config.json（天璇挂载 macro_scan/data → /app/macro_data），
     开阳控制台改的模型在此覆盖代码常量。文件缺失/损坏 → 忽略走默认。
     08-17：加 60s TTL——每次调用检查，过期才重读（原导入期一次性执行永不刷新）。"""
-    global SILICONFLOW_MODEL, SILICONFLOW_MODEL_QWEN_LARGE, MINIMAX_MODEL, _last_cfg_ts
+    global SILICONFLOW_MODEL, SILICONFLOW_MODEL_QWEN_LARGE, _last_cfg_ts
     now = time.time()
     if now - _last_cfg_ts < _CFG_TTL:
         return
@@ -51,7 +48,6 @@ def _apply_llm_config():
         SILICONFLOW_MODEL = us.get("sim_mc", {}).get("model") or SILICONFLOW_MODEL
         SILICONFLOW_MODEL_QWEN_LARGE = (
             us.get("sim_narrative", {}).get("model") or SILICONFLOW_MODEL_QWEN_LARGE)
-        MINIMAX_MODEL = us.get("sim_minimax", {}).get("model") or MINIMAX_MODEL
     except Exception:
         pass
     _last_cfg_ts = now
@@ -74,12 +70,10 @@ SILICONFLOW_KEY = _load_key(
     "SILICONFLOW_API_KEY",
     "/vol2/1000/software/macro-scan/key.txt"
 )
-MINIMAX_KEY = _load_key("MINIMAX_API_KEY", "")
 
 
 # ── 客户端单例 ────────────────────────────────────────────
 _sf_client: Optional["OpenAI"] = None
-_mm_client: Optional["OpenAI"] = None
 _dynamic_clients: dict = {}   # base_url|keyprefix -> OpenAI 客户端（配置覆盖的平台）
 
 def _get_sf_client():
@@ -92,17 +86,6 @@ def _get_sf_client():
             base_url=SILICONFLOW_BASE_URL,
         )
     return _sf_client
-
-def _get_mm_client():
-    global _mm_client
-    if _mm_client is None:
-        if not HAS_OPENAI:
-            raise ImportError("需要安装 openai 库：pip install openai")
-        _mm_client = OpenAI(
-            api_key=MINIMAX_KEY,
-            base_url=MINIMAX_BASE_URL,
-        )
-    return _mm_client
 
 
 # ── 配置解析（08-16：开阳控制台统一配置——平台/模型/API key 可换）─────────
