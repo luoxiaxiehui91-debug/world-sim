@@ -7,6 +7,15 @@
 
 ---
 
+## v1.0.2 — 2026-08-22 L2 新闻自动判定并入验证器（commit 待提交）
+
+**事故/修复**：P1-1「L2 验证死门禁」——L2 geo 预测（awaiting_human）的自动验证器 verify_geo_auto.py 位于 macro-scan 树（天枢），从未进天玑镜像/从未被调度（孤儿脚本），L2 判定逻辑从未实际运行。本版并入现役验证器。
+
+### 修改
+
+- **tianji_verifier.py 并入 L2 新闻判定**：L2_KEYWORDS（21 键）+ _judge_l2_news（新闻窗口关键词判定，命中→发生确认 1.0 / 未命中→None 留人工）；geo 分支先自动判定、未命中再推 ntfy 人工兜底；**存量回收段**（已到期 awaiting_human 的 L2 键自动判定）。
+- **tianji_db.py**：update_prediction_verified 加 human_note 参数（记录【自动-L2】判定依据）。
+
 ## v1.0.1 — 2026-08-18 校准器 scale 语义修正（commit `8c2ddc4c`）
 
 **事故**：v1 的 `_compute_dim_scales` 用"归一化分数 P95 反推原始计数 P95 当归一化分母"——

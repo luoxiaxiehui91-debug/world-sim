@@ -20,7 +20,7 @@ import sys
 import json
 import math
 import argparse
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 from typing import Optional
 
 try:
@@ -40,6 +40,73 @@ GRV_HISTORY_PATH = os.path.join(DATA_DIR, "grv_history.jsonl")
 
 # 触发反哺的最小样本量
 MIN_TRIGGER_N = 8
+
+
+# ── L2 新闻自动判定（并入 verify_geo_auto.py 孤儿逻辑，2026-08-22）──────────────
+# 原 verify_geo_auto.py 位于 macro-scan/核心代码/（天枢树），从未进天玑镜像/被调度，
+# L2 geo 预测（awaiting_human）因此永无自动验证。本块并入后由现役 watchdog 驱动。
+L2_CONFIRM_CONFIDENCE = 0.6
+L2_GRACE_DAYS = 30      # due_at 后缓冲天数（数据滞后容差）
+
+# action_key → 关键词组列表：每组内 AND、组间 OR；标题命中任一组 → 发生确认（1）。
+# 设计：L2 只做"发生确认"（新闻命中是强证据）；未命中 → None 保留人工。
+L2_KEYWORDS: dict = {
+    "A12:ABANDON_YCC":    [["日本央行", "YCC"], ["BOJ", "YCC"], ["yield curve control", "japan"]],
+    "A12:EASE_YCC":       [["日本央行", "YCC"], ["BOJ", "YCC"]],
+    "A12:EMERGENCY_EASE": [["日本央行", "宽松"], ["BOJ", "ease"]],
+    "A8:CUT_RRR":         [["央行", "降准"], ["人民银行", "降准"], ["reserve requirement", "cut", "china"]],
+    "A8:CUT_LPR":         [["LPR", "下调"], ["LPR", "降"], ["loan prime rate", "cut"]],
+    "A8:FISCAL_STIMULUS_CN": [["财政刺激"], ["fiscal stimulus", "china"]],
+    "A8:CNY_INTERVENTION":   [["人民币", "干预"], ["yuan", "intervention"]],
+    "A4:CUT_OUTPUT":      [["OPEC", "减产"], ["OPEC", "cut"]],
+    "A4:CUT_SUPPLY":      [["OPEC", "减产"], ["OPEC", "cut"]],
+    "A4:INCREASE_OUTPUT": [["OPEC", "增产"], ["OPEC", "increase"]],
+    "A4:INCREASE_SUPPLY": [["OPEC", "增产"], ["OPEC", "increase"]],
+    "A9:DEBT_CEILING_RISK": [["债务上限"], ["debt ceiling"]],
+    "A9:FISCAL_STIMULUS":   [["财政刺激"], ["fiscal stimulus"]],
+    "A7:CAPITAL_CONTROLS":  [["资本管制"], ["capital control"]],
+    "S1_usa:IMPOSE_SANCTIONS": [["美国", "制裁"], ["US", "sanctions"]],
+    "S2_china:IMPOSE_SANCTIONS": [["中国", "制裁"], ["China", "sanctions"]],
+    "S3_eu:IMPOSE_SANCTIONS":   [["欧盟", "制裁"], ["EU", "sanctions"]],
+    "S4_russia:IMPOSE_SANCTIONS": [["俄罗斯", "制裁"], ["Russia", "sanctions"]],
+    "S5_saudi:EMBARGO_SIGNAL":  [["沙特", "封锁"], ["Saudi", "embargo"]],
+    "S4_russia:NUCLEAR_SIGNAL": [["核威慑"], ["nuclear", "drill"]],
+    "S4_russia:ENERGY_CUTOFF":  [["俄罗斯", "断供"], ["Russia", "gas cut"]],
+}
+
+
+def _judge_l2_news(action_key: str, created_at, due_at) -> tuple:
+    """L2 新闻关键词判定：命中 → (1.0, conf, note)；未命中/无判定器 → (None, 0, note)。
+    与 verify_geo_auto.py 语义一致：L2 只做发生确认，未命中保留人工。"""
+    if action_key not in L2_KEYWORDS:
+        return None, 0.0, "无 L2 判定器"
+    if isinstance(due_at, str):
+        due_at = datetime.fromisoformat(due_at.replace("Z", "+00:00"))
+    win_start = due_at
+    win_end = due_at + timedelta(days=L2_GRACE_DAYS)
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "SELECT title, source FROM news.articles "
+            "WHERE published_at >= %s AND published_at < %s "
+            "ORDER BY published_at DESC LIMIT 8000",
+            (win_start.isoformat(), win_end.isoformat()),
+        )
+        arts = cur.fetchall()  # row_factory=dict_row，直接返回 dict 列表
+    finally:
+        conn.close()
+    if not arts:
+        return None, 0.0, "新闻数据不足（窗口内无文章）"
+    for art in arts:
+        text = f"{art.get('title') or ''} {art.get('source') or ''}"
+        tl = text.lower()
+        for group in L2_KEYWORDS[action_key]:
+            if all(kw.lower() in tl for kw in group):
+                return 1.0, L2_CONFIRM_CONFIDENCE, f"新闻命中：{art.get('title', '')[:60]}"
+    return None, 0.0, "新闻未命中（L2 仅单向确认，未命中保留人工）"
+
+
+
 
 
 # ── FRED 数据拉取 ─────────────────────────────────────────────────────────────
@@ -436,7 +503,20 @@ def run_monthly_verification():
                 skipped += 1
 
         elif pred_type == "geopolitical":
-            # 更新状态为等待人工确认
+            # L2 新闻自动判定（并入 verify_geo_auto 孤儿逻辑）：命中→verified；未命中→人工兜底
+            action_key = pred.get("action_key") or ""
+            l2_out, l2_conf, l2_note = _judge_l2_news(action_key, pred.get("created_at"), pred.get("due_at"))
+            if l2_out is not None:
+                update_prediction_verified(
+                    prediction_id=pred["id"],
+                    outcome_value=l2_out,
+                    brier_score=round((pred.get("final_prob", 0.5) - l2_out) ** 2, 4),
+                    verified_by="auto",
+                    human_note=f"【自动-L2】{l2_note}",
+                )
+                auto_verified += 1
+                continue
+            # 未命中 → 人工兜底（原逻辑）
             conn = get_connection()
             try:
                 conn.execute(
@@ -448,6 +528,32 @@ def run_monthly_verification():
                 conn.close()
             _push_geopolitical_verify_request(pred)
             human_requested += 1
+
+    # 存量回收（2026-08-22 L2 修复）：awaiting_human 的 L2 geo 预测此前永无自动验证
+    # （verify_geo_auto.py 孤儿脚本），并入后对已到期存量做 L2 新闻判定：命中→verified；
+    # 未命中→保持人工（L2 仅单向确认，不误判未发生）。
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "SELECT id, action_key, created_at, due_at, final_prob "
+            "FROM predictions WHERE status='awaiting_human' AND action_key IS NOT NULL AND due_at IS NOT NULL")
+        stale = cur.fetchall()  # row_factory=dict_row，直接返回 dict 列表
+    finally:
+        conn.close()
+    for pred in stale:
+        action_key = pred.get("action_key") or ""
+        if action_key not in L2_KEYWORDS:
+            continue
+        l2_out, l2_conf, l2_note = _judge_l2_news(action_key, pred.get("created_at"), pred.get("due_at"))
+        if l2_out is not None:
+            update_prediction_verified(
+                prediction_id=pred["id"],
+                outcome_value=l2_out,
+                brier_score=round((pred.get("final_prob", 0.5) - l2_out) ** 2, 4),
+                verified_by="auto",
+                human_note=f"【自动-L2】{l2_note}",
+            )
+            auto_verified += 1
 
     print(f"[tianji_verifier] 自动验证={auto_verified}，人工确认请求={human_requested}，跳过={skipped}")
 

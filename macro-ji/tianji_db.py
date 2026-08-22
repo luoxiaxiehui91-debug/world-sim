@@ -252,6 +252,7 @@ def update_prediction_verified(
     brier_score: float,
     brier_skill_score: float = None,
     verified_by: str = "auto",
+    human_note: str = None,
 ):
     conn = get_connection()
     try:
@@ -262,9 +263,10 @@ def update_prediction_verified(
                 brier_score = %s,
                 brier_skill_score = %s,
                 verified_at = CURRENT_TIMESTAMP,
-                verified_by = %s
+                verified_by = %s,
+                human_note = %s
             WHERE id = %s
-        """, (outcome_value, brier_score, brier_skill_score, verified_by, prediction_id))
+        """, (outcome_value, brier_score, brier_skill_score, verified_by, human_note, prediction_id))
         conn.commit()
     finally:
         conn.close()
