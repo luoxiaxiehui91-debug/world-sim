@@ -26,6 +26,7 @@
         │  └─────────┬───────────┘  │
         │            ▼              │
         │  tianji_verifier.py       │  验证 + 反哺（Brier/BSS/锐度）
+        │                          │  v1.0.2：L2 新闻自动判定已并入（原 verify_geo_auto.py 孤儿逻辑，含存量回收）
         │  tianji_db.py             │  PG CRUD（08-18 P2 口径统一）
         │  weight_matrix.py         │  玉衡：双层 clip + 审批写回
         │  config/grv_weights.yaml  │  权重矩阵（config 卷）
