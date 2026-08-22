@@ -637,6 +637,15 @@ def _archive_to_tianji(world, paths: list, calib_result: dict, event: str, level
     try:
         now = datetime.now(timezone.utc)  # aware，psycopg 写 TIMESTAMPTZ 必须 aware（防 TZ 差 8h）
         scenario_id = f"sim_{now.strftime('%Y%m%d_%H%M')}_{event[:20]}"
+        # v2.0.44 同日同事件存档去重（兜底）：当天同事件已存档则跳过
+        _ev_like = event[:20].replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        _dup = conn.execute(
+            "SELECT 1 FROM predictions WHERE scenario_id LIKE %s ESCAPE '\\' LIMIT 1",
+            (f"sim_{now.strftime('%Y%m%d')}_%_{_ev_like}",),
+        ).fetchone()
+        if _dup:
+            print(f"[tianji] ⚠️ 同日同事件已存档（{event[:20]}），跳过存档防重放")
+            return
         archived = 0
 
         def _prediction_id(ptype: str, path_label: str) -> str:
@@ -866,6 +875,8 @@ if __name__ == "__main__":
     if args.daemon:
         print(f"[daemon] macro-sim v2 守护模式启动，轮询 {TRIGGER_PATH}")
         last_writeback_alert_ts = 0.0
+        _last_processed_date = ""
+        _last_processed_event = ""
         # 启动自检（v2.0.43，sim_trigger 契约部署纪律护栏）：只读检查契约状态，
         # 暴露「旧进程遗留 / 契约损坏 / 文件异常」——08-21 教训：契约问题会静默潜伏
         try:
@@ -904,6 +915,10 @@ if __name__ == "__main__":
                     level  = int(trigger_data.get("level", 2))
                     event  = trigger_data.get("event", "自动触发")
                     print(f"[daemon] 触发：L{level} — {event}")
+                    _today = datetime.now(timezone.utc).strftime("%Y%m%d")
+                    _replay = (_today == _last_processed_date and event == _last_processed_event)
+                    if _replay:
+                        print(f"[daemon] 同日同事件已处理（{_today} {event}），跳过仿真防重放")
                     # H18 (2026-08-16, 全量审查): 清空改写"已消费"状态——原 write_text("")
                     # 把文件变 0 字节，开阳前端当持久状态 fetch → JSON.parse('') 崩 →
                     # '读取失败:sim_trigger.json'。新契约：sim_trigger.json 永远合法 JSON
@@ -945,10 +960,14 @@ if __name__ == "__main__":
 
                     if not write_ok:
                         print(f"[daemon][ERROR] sim_trigger 契约未消费，本次跳过仿真（防重燃循环）；写回恢复后自动续跑")
+                    elif _replay:
+                        pass  # 同日同事件，已跳过（写回已完成）
                     else:
                         run_full_simulation(level=level, event=event, config_path=CONFIG_PATH,
                                             force_activate_all=args.force_activate_all,
                                             as_of_month=args.as_of)
+                        _last_processed_date = _today
+                        _last_processed_event = event
                 except Exception as e:
                     print(f"[daemon] 仿真失败：{e}")
                     try:

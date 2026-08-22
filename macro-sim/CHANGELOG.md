@@ -6,6 +6,15 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## v2.0.44 — 2026-08-22 (by WorkBuddy · 待提交)
+
+**修改理由**：sim_trigger 触发缺乏「同日同事件」去重护栏——scenario_id 含分钟时间戳（`sim_{YYYYMMDD}_{HHMM}_{event}`），08-21 每分钟重燃即生成数百个不同 scenario_id、主键去重（M31）拦不住，单事件被重复存档数百次（2376 条预测的放大器）。本版加两层去重：守护器内存态主防 + 存档层 DB 查重兜底。
+
+### 修改
+
+- **`run.py` 守护器同日同事件去重（主防）**：daemon 维护 `_last_processed_date/_last_processed_event` 内存态，同日同 event 再次触发 → 打印「跳过仿真防重放」，正常写回 consumed 但不再跑仿真；仿真成功后才更新状态（失败不记录、下轮重试）。
+- **`run.py` 存档层 DB 查重（兜底）**：`_archive_to_tianji` 开头查 `predictions.scenario_id LIKE 'sim_{当日}_%_{事件}'`（ESCAPE 转义），同日同事件已存档 → 打印跳过并 return。
+
 ## v2.0.43 — 2026-08-22 (by WorkBuddy · commits 3e6cc84df)
 
 **修改理由**：sim_trigger 契约 8-05/8-21 两次踩雷，根因均属「部署纪律」而非架构决策（用户裁决不立 ADR，走纪律护栏实施）。本版加守护器启动自检 + AGENTS.md 部署铁律，让契约异常（旧进程遗留/文件损坏）在启动即暴露，不再静默潜伏。
