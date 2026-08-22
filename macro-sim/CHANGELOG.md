@@ -6,7 +6,7 @@
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## v2.0.44 — 2026-08-22 (by WorkBuddy · 待提交)
+## v2.0.44 — 2026-08-22 (by WorkBuddy · commits 68162841e)
 
 **修改理由**：sim_trigger 触发缺乏「同日同事件」去重护栏——scenario_id 含分钟时间戳（`sim_{YYYYMMDD}_{HHMM}_{event}`），08-21 每分钟重燃即生成数百个不同 scenario_id、主键去重（M31）拦不住，单事件被重复存档数百次（2376 条预测的放大器）。本版加两层去重：守护器内存态主防 + 存档层 DB 查重兜底。
 
