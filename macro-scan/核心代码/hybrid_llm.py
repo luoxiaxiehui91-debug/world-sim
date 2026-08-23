@@ -310,7 +310,7 @@ def reason(prompt: str, system: str = "", mode: str = "auto",
       "claude"     → 强制 Claude API（需 ANTHROPIC_API_KEY）
       "claudecode" → 通过文件与 Claude Code CLI 交互
       "openai"     → OpenAI 兼容端点（MiMo）
-      "auto"       → MiniMax-M3 → MiMo v2.5-pro → SiliconFlow Qwen3.5-27B（总超时 _AUTO_TOTAL_TIMEOUT s）
+      "auto"       → MiniMax-M3 → MiMo v2.5 → SiliconFlow DeepSeek-V4-Flash（总超时 _AUTO_TOTAL_TIMEOUT s）
     """
     # 思维链模型 reasoning 消耗大量 token，强制最小值保护
     max_tokens = max(max_tokens, 8192)
@@ -323,7 +323,7 @@ def reason(prompt: str, system: str = "", mode: str = "auto",
         return call_claude(prompt, system, max_tokens)
     if mode == "openai":
         return call_openai_compat(prompt, system, max_tokens)
-    # auto：MiniMax-M3 → MiMo v2.5-pro → SiliconFlow
+    # auto：MiMo v2.5 → SiliconFlow DeepSeek-V4-Flash
     # CON-3: 用 ThreadPoolExecutor 限制整个 auto 降级链的总等待时间
     # 注意：不使用 `with` 语句，避免 __exit__ 调用 shutdown(wait=True) 使超时失效
     def _auto_chain():

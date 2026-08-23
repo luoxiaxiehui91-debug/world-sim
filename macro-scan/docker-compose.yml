@@ -31,7 +31,7 @@ services:
       - SILICONFLOW_MODEL=deepseek-ai/DeepSeek-V4-Flash
       - OPENAI_COMPAT_URL=https://token-plan-cn.xiaomimimo.com/v1
       - OPENAI_COMPAT_KEY=${OPENAI_COMPAT_KEY}
-      - OPENAI_COMPAT_MODEL=mimo-v2.5-pro
+      - OPENAI_COMPAT_MODEL=mimo-v2.5
       - USE_EXTERNAL_LLM=1
       - NTFY_TOPIC=***REMOVED***
       - NTFY_CMD_TOPIC=***REMOVED***

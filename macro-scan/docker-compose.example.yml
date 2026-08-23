@@ -25,7 +25,7 @@ services:
       - SILICONFLOW_MODEL=Qwen/Qwen3.5-27B
       - OPENAI_COMPAT_URL=https://token-plan-cn.xiaomimimo.com/v1
       - OPENAI_COMPAT_KEY=你的XIAOMI_API_KEY
-      - OPENAI_COMPAT_MODEL=mimo-v2.5-pro
+      - OPENAI_COMPAT_MODEL=mimo-v2.5
       - MINIMAX_API_KEY=你的MINIMAX_API_KEY
       - MINIMAX_URL=https://api.minimaxi.com/anthropic
       - MINIMAX_MODEL=MiniMax-M3
