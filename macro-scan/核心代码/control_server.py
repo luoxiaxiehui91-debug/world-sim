@@ -465,6 +465,21 @@ def news_title(url: str = "", request: Request = None):
 
 
 # ── LLM 使用点配置（08-16：开阳控制台统一修改模型）─────────────────────
+@app.get("/api/v1/control/platform-models")
+def platform_models(request: Request = None):
+    """实时拉取指定平台可用模型全集（上游 /models 端点，服务端 1h 缓存）。
+    失败返回 ok=False（前端回落静态清单）。"""
+    _check_token(request)
+    pid = (request.query_params.get("platform") or "").strip()
+    if not pid:
+        return {"ok": False, "error": "缺少 platform 参数"}
+    try:
+        from llm_usage import fetch_platform_models
+        return {"ok": True, "platform": pid, "models": fetch_platform_models(pid)}
+    except Exception as e:
+        return {"ok": False, "platform": pid, "error": str(e)}
+
+
 @app.get("/api/v1/control/llm-usage")
 def llm_usage_list(request: Request = None):
     """LLM 使用点清单 + 当前生效配置 + 平台选项（开阳 LLM 配置面板数据源）。"""

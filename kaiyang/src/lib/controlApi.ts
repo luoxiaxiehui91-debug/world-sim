@@ -423,6 +423,20 @@ export async function getNewsTitle(url: string): Promise<string | null> {
   }
 }
 
+/** 实时拉取平台可用模型全集（上游 /models；失败返回 null，前端回落静态清单） */
+export async function getPlatformModels(platformId: string): Promise<string[] | null> {
+  try {
+    const res = await apiFetch<{ ok?: boolean; models?: string[] }>(
+      `/platform-models?platform=${encodeURIComponent(platformId)}`,
+      {},
+      true,
+    );
+    return res?.ok === true && Array.isArray(res.models) ? res.models : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 获取 LLM 使用点清单 + 平台选项（08-16：控制台 LLM 配置面板） */
 export async function getLlmUsage(): Promise<LlmUsageResponse> {
   const res = await apiFetch<LlmUsageResponse>('/llm-usage', {}, true);

@@ -7,7 +7,7 @@
  * 天枢热挂载即时生效；天璇读共享配置文件（llm_config.json），下次调用生效。
  */
 import { useCallback, useEffect, useState } from 'react';
-import { getLlmUsage, updateLlmUsage } from '@/lib/controlApi';
+import { getLlmUsage, getPlatformModels, updateLlmUsage } from '@/lib/controlApi';
 import type { LlmPlatform, LlmUsage } from '@/types/control';
 
 const CONTAINER_ZH: Record<string, string> = {
@@ -31,6 +31,7 @@ export function LlmConfig() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [liveModels, setLiveModels] = useState<Record<string, string[]>>({});
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -45,6 +46,16 @@ export function LlmConfig() {
             { platform: u.platform, model: u.model, apiKey: '' },
           ]),
         ),
+      );
+      // 并行拉取涉及平台的实时模型全集（失败静默，datalist 回落静态清单）
+      const pids = [...new Set(res.usages.map((u) => u.platform))];
+      void Promise.all(
+        pids.map(async (pid) => {
+          const models = await getPlatformModels(pid);
+          if (models && models.length > 0) {
+            setLiveModels((prev) => ({ ...prev, [pid]: models }));
+          }
+        }),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载 LLM 配置失败');
@@ -150,9 +161,11 @@ export function LlmConfig() {
                       spellCheck={false}
                     />
                     <datalist id={`llm-models-${u.id}`}>
-                      {(plat?.models ?? []).map((m) => (
-                        <option key={m} value={m} />
-                      ))}
+                      {(liveModels[plat?.id ?? ''] ?? plat?.models ?? [])
+                    .filter((m) => !/(tts|asr|voice)/i.test(m))
+                    .map((m) => (
+                      <option key={m} value={m} />
+                    ))}
                     </datalist>
                     <input
                       value={d?.apiKey ?? ''}

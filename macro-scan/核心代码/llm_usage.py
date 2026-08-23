@@ -299,6 +299,41 @@ def effective_models() -> list[dict]:
     return out
 
 
+_PLAT_MODELS_CACHE: dict = {}      # pid -> (ts, [model_id])
+_PLAT_MODELS_TTL = 3600.0          # 1h：模型清单变化低频，避免面板每次开都外呼
+
+def fetch_platform_models(platform_id: str) -> list[str]:
+    """实时拉取平台可用模型全集（OpenAI 兼容 /models 端点，1h 内存缓存）。
+    供开阳控制台下拉动内置；失败抛异常，调用方应回落静态 models 清单。
+    返回已按 id 排序、剔除明显非对话类（tts/asr/voice）。"""
+    import json as _json
+    import os as _os
+    import time as _time
+    import re as _re
+    import urllib.request as _urllib_request
+
+    now = _time.time()
+    hit = _PLAT_MODELS_CACHE.get(platform_id)
+    if hit and now - hit[0] < _PLAT_MODELS_TTL:
+        return hit[1]
+    plat = _all_platforms().get(platform_id)
+    if not plat:
+        raise ValueError(f"未知平台: {platform_id}")
+    env_name = {"siliconflow": "SILICONFLOW_API_KEY", "mimo": "OPENAI_COMPAT_KEY",
+                "openai": "OPENAI_API_KEY"}.get(platform_id, "")
+    key = _os.environ.get(env_name, "")
+    if not key:
+        raise ValueError(f"平台 {platform_id} 未配置 API key（env {env_name}）")
+    base = (plat.get("base_url") or "").rstrip("/")
+    req = _urllib_request.Request(
+        base + "/models", headers={"Authorization": "Bearer " + key})
+    r = _json.loads(_urllib_request.urlopen(req, timeout=20).read())
+    models = sorted(m.get("id") or "" for m in r.get("data", []) if m.get("id"))
+    models = [m for m in models if not _re.search(r"(tts|asr|voice)", m, _re.I)]
+    _PLAT_MODELS_CACHE[platform_id] = (now, models)
+    return models
+
+
 def platform_options() -> list[dict]:
     """平台选项清单（开阳下拉；内置 + 自定义）。"""
     return [
