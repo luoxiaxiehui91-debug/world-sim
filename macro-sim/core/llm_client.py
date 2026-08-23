@@ -24,7 +24,7 @@ except ImportError:
 SILICONFLOW_BASE_URL   = "https://api.siliconflow.cn/v1"
 SILICONFLOW_MODEL_GLM  = "THUDM/GLM-Z1-9B-0414"
 SILICONFLOW_MODEL_QWEN = "Qwen/Qwen3-8B"
-SILICONFLOW_MODEL_QWEN_LARGE = "Qwen/Qwen3.5-27B"  # 叙事用，更强
+SILICONFLOW_MODEL_NARRATIVE = "deepseek-ai/DeepSeek-V4-Flash"  # 叙事用，更强
 SILICONFLOW_MODEL      = SILICONFLOW_MODEL_GLM   # Monte Carlo 默认用 GLM-Z1-9B
 
 # ── 配置 TTL（08-17 审查修复 LLM③：天璇配置缓存永不失效——改开阳控制台
@@ -37,7 +37,7 @@ def _apply_llm_config():
     """08-16：读天枢共享 llm_config.json（天璇挂载 macro_scan/data → /app/macro_data），
     开阳控制台改的模型在此覆盖代码常量。文件缺失/损坏 → 忽略走默认。
     08-17：加 60s TTL——每次调用检查，过期才重读（原导入期一次性执行永不刷新）。"""
-    global SILICONFLOW_MODEL, SILICONFLOW_MODEL_QWEN_LARGE, _last_cfg_ts
+    global SILICONFLOW_MODEL, SILICONFLOW_MODEL_NARRATIVE, _last_cfg_ts
     now = time.time()
     if now - _last_cfg_ts < _CFG_TTL:
         return
@@ -46,8 +46,8 @@ def _apply_llm_config():
             cfg = json.load(f)
         us = cfg.get("usages") or {}
         SILICONFLOW_MODEL = us.get("sim_mc", {}).get("model") or SILICONFLOW_MODEL
-        SILICONFLOW_MODEL_QWEN_LARGE = (
-            us.get("sim_narrative", {}).get("model") or SILICONFLOW_MODEL_QWEN_LARGE)
+        SILICONFLOW_MODEL_NARRATIVE = (
+            us.get("sim_narrative", {}).get("model") or SILICONFLOW_MODEL_NARRATIVE)
     except Exception:
         pass
     _last_cfg_ts = now
@@ -152,7 +152,7 @@ def call_llm(
     client, model = _resolve_client(
         usage_id,
         _get_sf_client, SILICONFLOW_KEY, SILICONFLOW_BASE_URL,
-        SILICONFLOW_MODEL_QWEN_LARGE if use_minimax else SILICONFLOW_MODEL,
+        SILICONFLOW_MODEL_NARRATIVE if use_minimax else SILICONFLOW_MODEL,
     )
 
     for attempt in range(max_retries):

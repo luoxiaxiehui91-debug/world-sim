@@ -16,7 +16,7 @@ CLAUDECODE_TIMEOUT       = 600   # 秒
 
 SILICONFLOW_URL   = "https://api.siliconflow.cn/v1"
 SILICONFLOW_KEY   = os.environ.get("SILICONFLOW_API_KEY", "")
-SILICONFLOW_MODEL = os.environ.get("SILICONFLOW_MODEL", "Qwen/Qwen3.5-27B")
+SILICONFLOW_MODEL = os.environ.get("SILICONFLOW_MODEL", "deepseek-ai/DeepSeek-V4-Flash")
 
 MINIMAX_URL   = os.environ.get("MINIMAX_URL", "https://api.minimaxi.com/anthropic")
 MINIMAX_KEY   = os.environ.get("MINIMAX_API_KEY", "")

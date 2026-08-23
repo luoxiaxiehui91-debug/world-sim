@@ -1,3 +1,7 @@
+## v2.0.46 — 2026-08-23 叙事模型切 DeepSeek-V4-Flash
+
+- sim_narrative 默认与 llm_config 配置统一切换 Qwen/Qwen3.5-27B → deepseek-ai/DeepSeek-V4-Flash；变量名 SILICONFLOW_MODEL_QWEN_LARGE 正名 SILICONFLOW_MODEL_NARRATIVE；sim_mc 保持 GLM-Z1-9B 免费档。
+
 ## v2.0.45 — 2026-08-23 SF key 更新 + MiniMax 死代码清理
 
 - llm_client.py 清除 MiniMax 死代码（_mm_client/_get_mm_client/MINIMAX_* 常量与 sim_minimax 配置读取——零调用点实证）；use_minimax 参数保留仅作叙事开关。
