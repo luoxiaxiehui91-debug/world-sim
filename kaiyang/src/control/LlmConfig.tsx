@@ -152,21 +152,30 @@ export function LlmConfig() {
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <input
-                      list={`llm-models-${u.id}`}
-                      value={d?.model ?? u.model}
-                      onChange={(e) => setDraft(u.id, { model: e.target.value })}
-                      className="min-w-0 flex-1 rounded border border-white/10 bg-black/30 px-1.5 py-0.5 text-[10px] text-white/80 outline-none focus:border-cyan-400/40"
-                      placeholder={u.model}
-                      spellCheck={false}
-                    />
-                    <datalist id={`llm-models-${u.id}`}>
-                      {(liveModels[plat?.id ?? ''] ?? plat?.models ?? [])
-                    .filter((m) => !/(tts|asr|voice)/i.test(m))
-                    .map((m) => (
-                      <option key={m} value={m} />
-                    ))}
-                    </datalist>
+                    {(() => {
+                      const opts = [
+                        ...new Set([
+                          ...(liveModels[plat?.id ?? ''] ?? plat?.models ?? [])
+                            .filter((mm) => !/(tts|asr|voice)/i.test(mm)),
+                          d?.model ?? u.model,
+                        ]),
+                      ];
+                      const cur = d?.model ?? u.model;
+                      return (
+                        <select
+                          value={cur}
+                          onChange={(e) => setDraft(u.id, { model: e.target.value })}
+                          className="min-w-0 flex-1 rounded border border-white/10 bg-black/30 px-1.5 py-0.5 text-[10px] text-white/80 outline-none focus:border-cyan-400/40"
+                        >
+                          {!opts.includes(cur) && cur && (
+                            <option key={cur} value={cur}>{cur}</option>
+                          )}
+                          {opts.map((mm) => (
+                            <option key={mm} value={mm}>{mm}</option>
+                          ))}
+                        </select>
+                      );
+                    })()}
                     <input
                       value={d?.apiKey ?? ''}
                       onChange={(e) => setDraft(u.id, { apiKey: e.target.value })}
