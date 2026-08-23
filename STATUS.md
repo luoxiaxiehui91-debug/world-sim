@@ -2,7 +2,7 @@
 
 ## 新 session 冷启动（3 分钟，防迷路）
 
-> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-14 14:10 GMT+8。
+> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-23 11:20 GMT+8（详见下方「当前主线（08-23）」）。
 
 **项目是什么**：world-sim 世界推演系统——个人内部宏观推演系统（非商业产品）。逻辑 5 层：天枢（观测采集）→ 天璇（仿真，20 Agent：A1-A13 + S1-S7）→ 天玑（验证）→ 玉衡（权重，未运转）→ 开阳（展示）；横切 crucix 信号总线（AGPL，**已退场 2026-08-12 G1 停容器**）+ 摇光 SRE。
 
@@ -13,7 +13,14 @@
 - 容器：`macro-scan-macro-scan-1`（天枢）/ `macro-sim`（天璇，COPY 模式）/ `macro-scan-tianji-1`（天玑）/ `macro-scan-kaiyang-1`（开阳 :8080）
 - SSH：`ssh nas`（**必须 Git 自带 ssh，Windows OpenSSH 已坏**）；容器内部操作（docker exec / 读运行时数据极强实时性）走 SSH——非因 SMB 不可靠（SMB 本身可靠，仅容器刚写完即刻读时有 ~10s 客户端缓存滞后）
 
-**当前主线（08-11）**：
+**当前主线（08-23）**：
+1. **LLM 栈收敛完成（08-22~23）**：全仓只依赖两家云——硅基流动（GLM-Z1-9B=天璇 MC / DeepSeek-V4-Flash=叙事+auto 兜底 / Hunyuan-MT-7B=翻译 / bge-m3=RAG）+ 小米 mimo（Mimo v2.5=auto 链主推）。Ollama/MiniMax/Claude 全部退役零调用；开阳控制台 LLM 面板支持「选厂商→填 key→选模型」三步热切换，模型下拉为上游 /models 实时清单（SF 87 个/mimo 2 个，1h 缓存）。
+2. **密钥治理（P0-A 大部分落地）**：天枢 compose 6 明文+天玑 FRED 明文全部改 `${VAR}`+本地 .env 注入（untracked），git 工作树明文清零；SF/mimo key 已轮换；**FRED/EIA 待用户申请新 key 后替换 .env+recreate 即闭环**（question `llm-keys-plaintext-in-git` 活跃中）。
+3. **08-21 天璇循环事故全闭环**：GRV 触发后 sim_trigger 未消费致每 ~2min 重燃仿真（467 报告/2478 预测污染）；止血清理后加固三件套全部署——写回非静默+失败跳过仿真（v2.0.42）/ 同日同事件去重护栏（v2.0.44）/ 启动自检+部署铁律（v2.0.43）。question 72 篇归档，活跃仅剩上述密钥 1 篇。
+4. **L2 验证双路径（更正后口径）**：verify_geo_auto.py 在天枢 scheduler 0930 每日运行（非孤儿）；天玑 tianji_verifier v1.0.2 并入 L2 新闻判定形成双路径；当前验证=0 属正常（预测 due 全在 2026-11 后）。
+5. **health 图层同城聚合**：fetch_health_geo v1.1.1 双文件架构（明细 raw + 聚合展示），2145→342 点带 count 徽标；GDELT 补拉重建 72h 明细 1871 条。
+6. 挂起待拍板：**航班走廊线（air 图层 B 完整版）**；P3 开阳推演/叙事入口（见 backlog）。
+7. 历史主线（08-11~08-18）：worldsim-pg PG-only 终态、采集实时化、全量审查 P0/P1——详见下方按日分段。
 1. **crucix 退场（已全闭环）**——论证+实施 14 commit 全闭合（eff0d8c 为止）；**G0（08-12）受控切断验证 PASS** + **D1(gascpi) wiring 完成（08-12，纯 NY Fed CSV 源，删 :3117 分支，commit f30bd2d）**；nuke/sdr/vix 经核实下游零消费无需 wiring；**G1（08-12 14:01）`docker stop crucix-crucix-1` 已执行（Exited 137）**，crucix 退场全链路收口（WP-3.x 废弃容器已停）
 2. **开阳补全**——v1.9.0→v1.10.8（报告中心/FCI/风险面板/news_geo 事件图层/视觉 crucix 化/同地点聚合），news_geo 验收观察窗（08-13 06:35 自动化判定）
 3. 挂起待拍板：**航班走廊线（air 图层 B 完整版）**
@@ -36,6 +43,16 @@
 - **LLM 链路（`24e3b5f7`+`ad5dc3792`）**：翻译 30% 失败根因 = mimo 端点间歇"200+空 body"无重试 → `call_openai_compat` 重试 2 次（修复后 96-100%）；llm_config.json 曾丢失 2 天无感（面板静态清单兜底看不出）→ 探针 check_llm_config + set_usage 预填充 + 默认模板入库，防丢失三件套闭环
 - **GRV 分数常态基准校准（`0e59cd758`，#134）**：climate FIRMS 阈值（2万→50万满分档，70→50）+ seismic scale（2.0→0.8，58→23.2）；sanction_risk 82.6=**持久制裁基线**设计如此、energy 68.7=油价高位如实、social_stress=新闻情绪、intensity=显著度——causal_assumptions 分数语义总表
 - **校准原则（4 例教训）**：绝对阈值/scale 必须先对照真实常态分布（gdelt P95 / FIRMS 2万 / seismic 2.0 / intensity 全同源"常态即高分"）
+
+**08-21~08-23：循环事故闭环 + 密钥治理 + LLM 收敛（详见 question 归档与 operations 日志）**：
+- **08-21 循环重燃 P0**：GRV 触发→sim_trigger 写回被 except:pass 静默吞→守护器每 ~2min 重燃完整仿真（467 报告/tianji.predictions 当日新增 2478 条污染）。止血：停容器+契约翻 consumed；三落点清理（PG 删 2484+828 / docs 报告 mv 备份目录 / 开阳 reports_index 重建）。
+- **加固三件套**：v2.0.42 写回 3 次退避重试+[daemon][ERROR]+ntfy 限流 5min，失败跳过本次仿真防重燃；v2.0.43 守护器启动自检 sim_trigger 契约（未消费提示/已消费打印 consumed_at/损坏 ERROR+ntfy）+ macro-sim AGENTS.md 部署铁律第 5 条（COPY 代码必须 build+force-recreate，验收=容器 StartTime>提交时间）；v2.0.44 同日同事件去重双保险（守护器内存态主防 + _tianji_archive 存档层 `scenario_id LIKE` DB 查重兜底）。
+- **密钥治理**：审计发现天枢 compose 6 明文+天玑 FRED 明文 TRACKED 进 git（`.gitignore` 对已跟踪文件无效）；全部改 `${VAR}`+NAS 本地 .env（untracked，chmod 600），新增 .env.example 模板；SF/mimo key 轮换完成并冒烟；git 工作树活跃层明文清零（知识库语料 14 文件 FRED 明文随未来轮换作废）。FRED/EIA 待用户申请。
+- **LLM 栈收敛**：Qwen/Qwen3.5-27B 全仓切 deepseek-ai/DeepSeek-V4-Flash；MiMo v2.5-pro→v2.5；Ollama 死常量删除+call_ollama 正名 call_llm_primary（CF-8 起全仓无 11434 实际调用）；翻译并发 4→12（SF RPM1000/TPM80000 账算留余量）；删外层 MiMo 二次兜底；hybrid_llm MiniMax 残余代码全清。
+- **控制台实时模型清单**：GET /api/v1/control/platform-models（上游 /models 实时拉取+服务端 1h 缓存+tts/asr/voice 过滤）；前端 datalist→select（修 datalist 前缀过滤只显示当前值的坑）。SF 实测 87 个/mimo 2 个。
+- **health 图层同城聚合（fetch_health_geo v1.1.1）**：双文件架构——明细 health_geo_raw.json（合并/回填源）+ 展示文件只存聚合（一城一点+count+代表事件）；2145→342 点带 count 徽标；GDELT 补拉重建 72h 明细 1871 条（Congo count 恢复 250）。教训：聚合结果不得覆盖明细源（二次聚合 count 失真）。
+- **l2-verify 结论更正（08-23 普查）**：verify_geo_auto.py 在天枢 scheduler 0930 每日正常运行（log 实证），「孤儿脚本」结论片面对（当时仅以天玑视角断言）；「验证=0」真实因果=无到期预测（due 全在 2026-11 后）。天玑 v1.0.2 并入 L2 判定仍有效（双路径）。
+- **world-deduction question 清理**：72 篇归档（含 daemon-writeback-silent/sim-trigger-no-deploy-guard/dedup-guard/l2-verify 等 08-21 全家族）；活跃重启 1 篇=llm-keys-plaintext-in-git（⚠️ FRED/EIA key 到位即收尾归档）。
 
 **08-18：地缘预测验证闭环（人工界面化 + 自动验证 L1/L2）——"待人工"渠道从无到三层**：用户发现 geo 预测（awaiting_human 46 条）描述模糊且无验证渠道 → ①**描述清晰化**（`10fdf202`）：`bifurcation.py` 模块级 `_ACTION_CRITERIA`（30+ 动作 → 现实判定标准，如媒体恐慌=负面报道占比≥40%、对冲做空=净空头前10%分位）、geo 预测 content 带路径 GRV 上下文、`backfill_criteria.py` 历史 48 条判据+action_key 全量回填（`0c93fbeb`）→ ②**人工验证界面化**（`defc5e31`）：control_server `GET human-pending`/`POST verify` + 开阳天玑 Tab 点选 [发生/部分/未发生]（v1.11.32，CLI `verify_human.py` 作兜底 `8a69868b`）→ ③**自动验证**（`0ced51c9`+`4d22e6e2`）：`verify_geo_auto.py`（scheduler 0930）L1 FRED 判定器（A1 DFF/A2 利差/A3+A6 VIX 分位）+ L2 新闻关键词判定器（PG news.articles 窗口，**只做发生确认**：命中→1、未命中→None 留人工）；`predictions.action_key` 列 = 判定器分派键。**死循环预测存档清理（08-17 晚）**：predictions 1102→70（1032 条死循环垃圾 + 344 reasoning_trace），防 90 天后污染 Brier。当前 48 条 geo 预测 due_at 2027-02 未到期，2027-02 后自动验证首轮触发。验证语义 = **未来事件是否应验**（非推理审阅）。
 
@@ -102,7 +119,7 @@
 - 版本线：v2.0.37（R4g 收尾，引擎回 R4e 基线+归因测量修复）→ v2.0.38（R4h ③ sentiment 写者，CACHE 12/v2031）→ v2.0.39（R4h ② vix 豁免治理，CACHE 13/v2032）→ **v2.0.40（R4h ① ease_ok 方向闸收编，CACHE 14/v2033）** → **v2.0.41（08-17/18 模型线：政权分片/更迭引擎/A13/S6S7/描述清晰化/人工验证，20 Agent）**
 - 08-10 R4h ① 结案：**收编 EASE 治理**（EASE wrong 8→0 真实有效）；credit 回池/p̂ 0.4894/S2 0.636 不通过、挂起转 silence 治理；方案预期 0.5729 系假复现（A3 soul 缺失），见下节红线
 
-- 版本现状：macro-scan **v3.8.18** / macro-sim **v2.0.41** / macro-ji v1.0.0（容器无 VERSION 文件）/ kaiyang **v1.11.34**。文本版本为仓库语义版本，镜像标签为部署标签，二者口径不同不冲突。
+- 版本现状：macro-scan **v3.8.23** / macro-sim **v2.0.46** / macro-ji **v1.0.2** / kaiyang **v1.11.34**（控制台 LLM 面板增强未 bump）。文本版本为仓库语义版本，镜像标签为部署标签，二者口径不同不冲突。
 
 ## R4 系列（天璇校准引擎治理主线，08-07→08-10）
 
@@ -141,7 +158,7 @@
 ## 待做 / 已知遗留
 
 > **08-15 审查遗留待办（完整映射见 `docs/decisions/audit-todo-20260815.md`；08-19 更新销项）**：
-> - **P0-A 密钥轮换**（GitHub PAT / FRED / LLM / EIA / ntfy 1900；用户暂缓，触发=仓库转公开/外部共享前）
+> - **P0-A 密钥轮换（08-23 大部分落地）**：✅ LLM 类（SF/mimo）/ ❌ 剩 FRED+EIA（用户自行申请后发 WorkBuddy 替换 .env+recreate 即闭环）/ NTFY 用户决定不换 / GitHub PAT 未动（私有仓库，转公开前必办）。注入层已规范化（compose ${VAR}+本地 .env untracked）
 > - **P1-E causal_assumptions 补全** ✅ 已完成（08-18 `c016b607`，docs/causal_assumptions.md + 分数语义总表）
 > - **审查未修 High** ✅ H08+H11 已完成（08-18 `f5424f6c`：23 文件 34 处原子写；手动工具 10 文件登记 P2）
 > - **用户操作项**：开阳控制面板填 CONTROL_TOKEN（P1-D fail-closed 后；天玑人工验证已可用，token 已配置）
