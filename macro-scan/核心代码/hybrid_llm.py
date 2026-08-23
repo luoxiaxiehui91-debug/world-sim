@@ -18,15 +18,12 @@ SILICONFLOW_URL   = "https://api.siliconflow.cn/v1"
 SILICONFLOW_KEY   = os.environ.get("SILICONFLOW_API_KEY", "")
 SILICONFLOW_MODEL = os.environ.get("SILICONFLOW_MODEL", "deepseek-ai/DeepSeek-V4-Flash")
 
-MINIMAX_URL   = os.environ.get("MINIMAX_URL", "https://api.minimaxi.com/anthropic")
-MINIMAX_KEY   = os.environ.get("MINIMAX_API_KEY", "")
-MINIMAX_MODEL = os.environ.get("MINIMAX_MODEL", "MiniMax-M3")
+# （08-23：MiniMax 平台退役，相关常量与调用函数已删除）
 
 # 平台 id → env 变量名（call_openai_compat 按 resolved.platform 取默认 key）
 _PLATFORM_ENV_KEYS = {
     "siliconflow": "SILICONFLOW_API_KEY",
     "mimo": "OPENAI_COMPAT_KEY",
-    "minimax": "MINIMAX_API_KEY",
     "openai": "OPENAI_API_KEY",
 }
 
@@ -303,47 +300,6 @@ def call_claude(prompt: str, system: str = "", max_tokens: int = 4096) -> str:
     return msg.content[0].text
 
 
-def call_minimax(prompt: str, system: str = "", max_tokens: int = 8192) -> str:
-    """调用 MiniMax-M3（Anthropic 兼容 API）。"""
-    if not MINIMAX_KEY:
-        raise ValueError("MINIMAX_API_KEY 未设置")
-
-    try:
-        import anthropic
-    except ImportError:
-        raise ImportError("请先安装: pip install anthropic")
-
-    if _estimate_tokens(prompt) > 150_000:
-        prompt = prompt[:400_000] + "\n\n[输入过长，已截断]"
-
-    print(f"[call_minimax] START | prompt_tokens≈{_estimate_tokens(prompt)} max_tokens={max_tokens} model={MINIMAX_MODEL}")
-    start_ts = time.time()
-    client = anthropic.Anthropic(api_key=MINIMAX_KEY, base_url=MINIMAX_URL)
-    msg = client.messages.create(
-        model=MINIMAX_MODEL,
-        max_tokens=max_tokens,
-        system=system or MACRO_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    elapsed = time.time() - start_ts
-    # CON-2: msg.content 可能为空列表（content policy 拒绝或空响应）
-    if not msg.content:
-        raise ValueError(f"MiniMax 返回空 content 列表（model={MINIMAX_MODEL}）")
-    result = msg.content[0].text
-    if not result or not result.strip():
-        raise ValueError(f"MiniMax 返回空文本（model={MINIMAX_MODEL}）")
-    print(f"[call_minimax] OK | result_chars={len(result)} elapsed={elapsed:.1f}s")
-    return result
-
-
-_USE_EXTERNAL_LLM = os.environ.get("USE_EXTERNAL_LLM", "0").strip().lower() in ("1", "true", "yes")
-_CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
-
-# CON-3: auto 模式降级链总超时上限（秒）
-# 最坏情况 MiniMax+MiMo+SiliconFlow×2 ≈ 725s，加此上限防止主线程长时间阻塞
-_AUTO_TOTAL_TIMEOUT = int(os.environ.get("LLM_AUTO_TIMEOUT", "300"))
-
-
 def reason(prompt: str, system: str = "", mode: str = "auto",
            max_tokens: int = 3000) -> str:
     """
@@ -354,7 +310,6 @@ def reason(prompt: str, system: str = "", mode: str = "auto",
       "claude"     → 强制 Claude API（需 ANTHROPIC_API_KEY）
       "claudecode" → 通过文件与 Claude Code CLI 交互
       "openai"     → OpenAI 兼容端点（MiMo）
-      "minimax"    → 强制 MiniMax-M3
       "auto"       → MiniMax-M3 → MiMo v2.5-pro → SiliconFlow Qwen3.5-27B（总超时 _AUTO_TOTAL_TIMEOUT s）
     """
     # 思维链模型 reasoning 消耗大量 token，强制最小值保护
@@ -368,18 +323,11 @@ def reason(prompt: str, system: str = "", mode: str = "auto",
         return call_claude(prompt, system, max_tokens)
     if mode == "openai":
         return call_openai_compat(prompt, system, max_tokens)
-    if mode == "minimax":
-        return call_minimax(prompt, system, max_tokens)
-
     # auto：MiniMax-M3 → MiMo v2.5-pro → SiliconFlow
     # CON-3: 用 ThreadPoolExecutor 限制整个 auto 降级链的总等待时间
     # 注意：不使用 `with` 语句，避免 __exit__ 调用 shutdown(wait=True) 使超时失效
     def _auto_chain():
-        if MINIMAX_KEY:
-            try:
-                return call_minimax(prompt, system, max_tokens)
-            except Exception as e:
-                print(f"[hybrid_llm] MiniMax 失败，降级 MiMo: {e}")
+        # 08-23：链首为 MiMo（原首选平台已退役）；失败降 SiliconFlow
         if os.environ.get("OPENAI_COMPAT_URL"):
             try:
                 return call_openai_compat(prompt, system, max_tokens)

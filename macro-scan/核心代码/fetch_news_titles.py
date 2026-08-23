@@ -119,7 +119,7 @@ def _translate_titles(titles: dict) -> dict:
             return (url, None)
 
     out = {}
-    with ThreadPoolExecutor(max_workers=4) as ex:
+    with ThreadPoolExecutor(max_workers=12) as ex:
         for url, t in ex.map(_one, items):
             if t:
                 out[url] = t

@@ -808,7 +808,8 @@ def call_llm_primary(prompt: str, mode: str = "local") -> str:
     """
     print(f"\n[5/7] 调用LLM生成报告（mode={mode}）...")
 
-    # 统一走 hybrid_llm（SiliconFlow 为默认后端）
+    # 统一走 hybrid_llm（08-23：删除外层 MiMo 二次兜底——reason("auto") 链内已含
+    # MiMo→DeepSeek 完整降级，外层再试同厂商属重复；全失败返回空串触发纯数据报告）
     try:
         from hybrid_llm import reason
         print(f"[call_llm_primary] mode={mode} | prompt_chars={len(prompt)} → 调用 hybrid_llm.reason()")
@@ -816,19 +817,8 @@ def call_llm_primary(prompt: str, mode: str = "local") -> str:
     except Exception as e:
         import traceback
         traceback.print_exc()
-        print(f"[call_llm_primary] hybrid_llm 失败（{type(e).__name__}: {e}），尝试 MiMo 降级...")
-
-    # MiMo 降级
-    try:
-        result = _mimo_fallback(prompt)
-        if result:
-            print(f"[call_llm_primary] MiMo 降级成功，result_chars={len(result)}")
-            return result
-    except Exception as e:
-        print(f"[call_llm_primary] MiMo 也失败: {type(e).__name__}: {e}")
-
-    print(f"[call_llm_primary] 全部 LLM 失败，返回空字符串（触发 fallback section）")
-    return ""
+        print(f"[call_llm_primary] LLM 全部失败（{type(e).__name__}: {e}），返回空字符串（触发 fallback section）")
+        return ""
 
 
 def _make_fallback_section(
