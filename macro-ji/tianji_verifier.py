@@ -555,6 +555,15 @@ def run_monthly_verification():
             )
             auto_verified += 1
 
+    # L3 LLM 判定（08-23）：已到期 + 非 L2 关键词类行为预测 → llm_judge 三值判定
+    try:
+        from llm_judge import run_expired_judgments
+        l3 = run_expired_judgments()
+        print(f"[tianji_verifier] L3 LLM 判定: total={l3['total']} auto={l3['auto']} "
+              f"suggested={l3['suggested']} skipped={l3['skipped']}")
+    except Exception as e:
+        print(f"[tianji_verifier] L3 判定失败（不阻断主流程）: {e}")
+
     print(f"[tianji_verifier] 自动验证={auto_verified}，人工确认请求={human_requested}，跳过={skipped}")
 
     # 反哺检查

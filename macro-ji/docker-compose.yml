@@ -12,6 +12,8 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
+      - VERIFY_LLM_MODEL=deepseek-ai/DeepSeek-V4-Flash
       - OPENCLAW_WORKSPACE=/app
       - TIANJI_DATA_DIR=/app/macro_data
       - FRED_API_KEY=${FRED_API_KEY}
