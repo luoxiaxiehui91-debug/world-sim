@@ -48,6 +48,8 @@ services:
       - /vol2/1000/software/macro-scan/data:/app/macro_data:rw
       - /vol2/1000/software/macro-scan/config:/app/config:rw
       - /vol2/1000/software/macro-scan/知识库:/app/知识库:ro
+      # WIKI_FILE 路径兼容：verify_hypothesis 按 WORKSPACE/data 找 scenario_wiki.md
+      - /vol2/1000/software/macro-scan/data:/app/data:ro
     command: ["python3", "tianji_verify_cron.py"]
     healthcheck:
       # 08-18 P0-1 强化：真实 PG 连接（此前仅 import 模块 → env 空也 healthy 假象）
