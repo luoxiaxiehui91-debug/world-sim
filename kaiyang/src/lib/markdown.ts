@@ -175,6 +175,7 @@ export function renderMarkdown(md: string): string {
       para.push(esc(rawLines[i]));
       i++;
     }
+    if (para.length === 0) i++; // 游标必进：孤立 | / # 等不进任何分支的行强制消费，防主循环死循环（2026-08-24 P0）
     out.push(`<p>${inline(para.join(' '))}</p>`);
   }
 

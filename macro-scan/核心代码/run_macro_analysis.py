@@ -1976,7 +1976,11 @@ def save_report(report: str, topic: str = "综合", country: str = "us", depth: 
         if is_fallback:
             f.write("> **[降级模式]** LLM 不可用，本报告由纯数据规则自动生成，非 LLM 叙事分析。\n\n")
         f.write("---\n\n")
-        f.write(report)
+        # 2026-08-24：strip 尾部表格残片（孤立 | / - 残行曾触发开阳 markdown 解析死循环 P0）
+        report_clean = report.rstrip()
+        while report_clean and report_clean[-1] in "|-":
+            report_clean = report_clean[:-1].rstrip()
+        f.write(report_clean + "\n")
     
     # 转换为 Word 文档，输出到报告目录下的 docx 子目录
     docs_dir = os.path.join(REPORT_DIR, "docx")

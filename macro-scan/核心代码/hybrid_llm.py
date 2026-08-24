@@ -300,6 +300,11 @@ def call_claude(prompt: str, system: str = "", max_tokens: int = 4096) -> str:
     return msg.content[0].text
 
 
+# CON-3: auto 模式降级链总超时上限（秒）；防止降级链阻塞主线程
+# 2026-08-24 恢复：46764e85a 删 MiniMax 批次误删本常量定义，致 reason("auto") NameError
+_AUTO_TOTAL_TIMEOUT = int(os.environ.get("LLM_AUTO_TIMEOUT", "300"))
+_CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+
 def reason(prompt: str, system: str = "", mode: str = "auto",
            max_tokens: int = 3000) -> str:
     """
