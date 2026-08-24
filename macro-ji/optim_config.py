@@ -10,3 +10,12 @@ import os
 WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", "/app")
 DATA_DIR  = os.environ.get("TIANJI_DATA_DIR", "/app/macro_data")
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
+
+
+# ── 验证域存量收编追加（2026-08-24）：verify_predictions 自天枢迁入所需 ──
+# 保持精简哲学：只加迁入脚本实际 import 的常量（对齐天枢版 L120-125/L31 数值）
+PREDICTIONS_LOG   = os.path.join(DATA_DIR, "predictions_log.json")
+FRED_MAX_LAG_DAYS = 45      # FRED 新鲜度最大容忍滞后（天）
+GDP_HIT_TOLERANCE    = 1.5  # GDP 预测命中容差 ±1.5ppt
+UNRATE_HIT_TOLERANCE = 0.5  # 失业率命中容差 ±0.5ppt
+CPI_HIT_TOLERANCE    = 0.8  # CPI YoY 命中容差 ±0.8ppt
