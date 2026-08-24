@@ -13,7 +13,7 @@ import os
 import re
 import time
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -100,6 +100,20 @@ def run_full_simulation(
 
     # ── 生成报告 ──────────────────────────────────────────
     report_path = _write_report(world, calib_result, paths, level, event, regime_label=regime_label)
+    # 08-23 编年史读物（失败不阻断主流程）
+    try:
+        from core.chronicler import generate_chronicle
+        from pathlib import Path as _P
+        for _pth in paths[:2]:  # 只为主路径+次路径生成
+            if getattr(_pth, "representative_history", None):
+                _cname = (_P(report_path).stem + f"_编年史_{_pth.label}.md")
+                from core.chronicler import dump_history_jsonl
+                dump_history_jsonl(_pth.representative_history,
+                                   _P(report_path).parent /
+                                   (_P(report_path).stem + "_sim_history_" + _pth.label + ".jsonl"))
+                generate_chronicle(_pth, world, event, _P(report_path).parent / _cname)
+    except Exception as _ce:
+        print(f"[WARN] 编年史生成失败（不阻断）: {_ce}")
 
     # ── 天玑存档钩子 ──────────────────────────────────────
     _archive_to_tianji(world, paths, calib_result, event, level, report_path)
@@ -137,6 +151,20 @@ def run_predict_only(
 
     calib_result = {"score": 0, "avg_error": 0, "param_changes": [], "error_series": []}
     report_path = _write_report(world, calib_result, paths, level, event)
+    # 08-23 编年史读物（失败不阻断主流程）
+    try:
+        from core.chronicler import generate_chronicle
+        from pathlib import Path as _P
+        for _pth in paths[:2]:
+            if getattr(_pth, "representative_history", None):
+                _cname = (_P(report_path).stem + f"_编年史_{_pth.label}.md")
+                from core.chronicler import dump_history_jsonl
+                dump_history_jsonl(_pth.representative_history,
+                                   _P(report_path).parent /
+                                   (_P(report_path).stem + "_sim_history_" + _pth.label + ".jsonl"))
+                generate_chronicle(_pth, world, event, _P(report_path).parent / _cname)
+    except Exception as _ce:
+        print(f"[WARN] 编年史生成失败（不阻断）: {_ce}")
     _archive_to_tianji(world, paths, calib_result, event, level, report_path)
 
     _send_ntfy(world, calib_result, paths, report_path)
