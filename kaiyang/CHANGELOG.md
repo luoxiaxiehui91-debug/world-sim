@@ -5,6 +5,10 @@
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+
+## [v1.1.2] 2026-08-24 · markdown 解析死循环修复（P0）
+
+- **fix**: `lib/markdown.ts` renderMarkdown 段落分支补游标必进防御（`if (para.length === 0) i++`）——孤立 `|` / `#` 行此前不进任何分支致主循环无限 push、数组超 2^32 上限抛 RangeError 整页崩溃（错误边界显示「运行时错误 Invalid array length」）。触发源为今晨天枢报告降级模板文末残留孤立竖线。回归四例全过（含原必崩样本 2ms 渲染完成）。bundle index-BbHSCtEK.js，commit `b67a9e76c`。
 ## [1.11.34] - 2026-08-18 · 天玑 Tab：预测判据显示（配合天璇描述清晰化）
 
 **修改理由**：用户指出预测描述模糊（"中性报道是什么""对谁做空"）——天璇侧已为
