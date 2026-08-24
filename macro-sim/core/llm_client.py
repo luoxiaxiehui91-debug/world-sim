@@ -140,6 +140,7 @@ def call_llm(
     use_minimax: bool = False,
     max_retries: int = 2,
     temperature: float = 0.4,
+    max_tokens: int = 256,
 ) -> str:
     """
     调用 LLM，返回原始文本。
@@ -161,7 +162,7 @@ def call_llm(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=temperature,
-                max_tokens=256,
+                max_tokens=max_tokens,
             )
             return resp.choices[0].message.content or ""
         except Exception as e:
@@ -200,7 +201,7 @@ def test_connection() -> dict:
             resp = client.chat.completions.create(
                 model=model_id,
                 messages=[{"role": "user", "content": test_prompt}],
-                temperature=0.4, max_tokens=256,
+                temperature=0.4, max_tokens=max_tokens,
             )
             text = resp.choices[0].message.content or ""
             action = parse_action(text, ["SHORT_MARKET", "DECREASE_RISK", "HOLD"])

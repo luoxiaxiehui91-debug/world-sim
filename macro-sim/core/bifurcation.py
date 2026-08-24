@@ -199,6 +199,9 @@ class PathResult:
     # 08-17 政权更迭统计：{agent_id: {"election_transition": n, "election_hold": n,
     #                                  "succession_break": n, "months": [...], "labels": [...]}}
     governance_stats: dict = field(default_factory=dict)
+    # 08-23 编年史：代表性单 run 的完整逐步快照（供 chronicler 生成读物；不进 md 报告）
+    representative_history: list = field(default_factory=list)
+    representative_run: int = -1
 
 
 MIN_PATH_PROBABILITY = 0.05   # 低于此概率的路径不展开（设计文档确认10%，实测降至5%）
@@ -676,6 +679,16 @@ def run_prediction(
         )
 
         path.key_events = _extract_key_events(all_histories, cluster)
+
+        # 08-23 编年史：选离路径月均 GRV 轨迹最近的 run 作为代表世界线，挂完整快照
+        def _dist(i):
+            return sum(
+                (all_histories[i][s].get("grv", 0.0) - grv_vals_path[s]) ** 2
+                for s in range(min(predict_steps, len(all_histories[i])))
+            )
+        rep = min(cluster, key=_dist)
+        path.representative_history = all_histories[rep]
+        path.representative_run = rep
         # 08-16 参与度统计（报告"谁动了谁没动"）
         path.agent_participation = _compute_participation(all_histories, cluster, predict_steps)
 
