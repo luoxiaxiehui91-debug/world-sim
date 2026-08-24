@@ -15,6 +15,8 @@
 - optim_config.py 追加：PREDICTIONS_LOG（DATA_DIR 同卷挂载路径）、FRED_MAX_LAG_DAYS=45、GDP/UNRATE/CPI_HIT_TOLERANCE=1.5/0.5/0.8（数值对齐天枢版 L120-125）。
 - 保持天玑精简哲学：只加迁入脚本实际 import 的常量，不引入天枢全量配置。
 - rebuild macro-tianji:latest + force-recreate；容器内六常量导入全 OK、predictions_log.json 挂载卷实存。
+- 同日收编实施（commits 71fa88082/ece64f2bb）：verify_geo_auto/hypothesis/predictions 三脚本自天枢 cp 入库；新增 tianji_verify_cron.py 定时器（每日 geo_auto 0930 / 月度 predictions 0900·hypothesis 0915）；Dockerfile COPY 清单追加；compose 加知识库只读挂载 + verify-cron 第二 service + /app/data:ro（WIKI_FILE 兼容）；requirements.txt 补 fredapi。
+- 实跑验证：三脚本 EXIT=0（geo_auto 幂等空转/predictions 无到期/hypothesis 完整写 calibration.json）；cron 定向冒烟通过（now+2min 准时 FIRING→DONE rc=0→产物落盘）。
 
 ## v1.0.2 — 2026-08-22 L2 新闻自动判定并入验证器（commit 3ed3ffcd7）
 
