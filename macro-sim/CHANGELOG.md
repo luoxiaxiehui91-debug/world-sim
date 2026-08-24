@@ -1,3 +1,10 @@
+## v2.0.47 — 2026-08-24 人话版报告生成器 readable_report.py（commits 571524075/e2f218574/c21f5e7e5）
+
+- 新增 core/readable_report.py：推演「人话版」报告生成器（替代废弃的编年史形态）——三层结构=一句话结论+Q&A+按季度看+参数附录折叠。
+- 黑话词典前置翻译：agents.yaml 权威 19 agent 名+19 动作枚举+17 维度映射，喂 LLM 前本地转人话（输出零代号）。
+- 成本控制：单次调用 max_tokens=2000 出全篇（实测 ~117s）；LLM 失败降级机械模板保产出；置信度节自动读 JSONL __meta__（probability/n_runs 人话解读）。
+- run.py 时区 aware 化与编年史接线收尾入库。
+
 ## v2.0.46 — 2026-08-23 叙事模型切 DeepSeek-V4-Flash
 
 - sim_narrative 默认与 llm_config 配置统一切换 Qwen/Qwen3.5-27B → deepseek-ai/DeepSeek-V4-Flash；变量名 SILICONFLOW_MODEL_QWEN_LARGE 正名 SILICONFLOW_MODEL_NARRATIVE；sim_mc 保持 GLM-Z1-9B 免费档。

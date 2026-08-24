@@ -7,6 +7,15 @@
 
 ---
 
+## v1.0.3 — 2026-08-24 optim_config 追加验证域收编常量（commit 75927fd45）
+
+**背景**：验证域存量收编二期立项——verify_predictions 自天枢迁入的前置条件。该脚本 `from optim_config import PREDICTIONS_LOG, FRED_MAX_LAG_DAYS, GDP/UNRATE/CPI_HIT_TOLERANCE`，精简版缺这些属性直迁即 ImportError。
+
+### 修改
+- optim_config.py 追加：PREDICTIONS_LOG（DATA_DIR 同卷挂载路径）、FRED_MAX_LAG_DAYS=45、GDP/UNRATE/CPI_HIT_TOLERANCE=1.5/0.5/0.8（数值对齐天枢版 L120-125）。
+- 保持天玑精简哲学：只加迁入脚本实际 import 的常量，不引入天枢全量配置。
+- rebuild macro-tianji:latest + force-recreate；容器内六常量导入全 OK、predictions_log.json 挂载卷实存。
+
 ## v1.0.2 — 2026-08-22 L2 新闻自动判定并入验证器（commit 3ed3ffcd7）
 
 **事故/修复**：P1-1「L2 验证死门禁」——L2 geo 预测（awaiting_human）的自动验证器 verify_geo_auto.py 位于 macro-scan 树（天枢），从未进天玑镜像/从未被调度（孤儿脚本），L2 判定逻辑从未实际运行。本版并入现役验证器。
