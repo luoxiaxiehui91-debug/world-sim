@@ -208,6 +208,18 @@ def stale_check(manifest: list) -> list:
         except Exception:
             continue
         if lag > STALE_TRADING_DAYS:
+            # 2026-08-24 源停更对照：本地==官方源最新 → 上游未更新而非我方故障，
+            # 降级为提示级（priority 2），不再 critical 刷屏（FRED 上游 08 月中旬停更事件教训）。
+            # 对照失败（source_latest=None，如网络/API 异常）→ 保持原 critical，宁误报不漏报。
+            src_latest = m.get("source_latest")
+            if src_latest == loc:
+                consecutive[sid] = 0
+                alerts.append(
+                    f"[源停更] FRED {sid}：本地与官方源一致停在 {loc}"
+                    f"（上游未更新，非我方故障；官方恢复后下次调度自动补齐）。"
+                )
+                _push(2, f"FRED {sid} 源停更", alerts[-1])
+                continue
             consecutive[sid] = consecutive.get(sid, 0) + 1
             level = "critical" if consecutive[sid] >= CRITICAL_CONSECUTIVE else "stale"
             priority = 4 if level == "critical" else 3
