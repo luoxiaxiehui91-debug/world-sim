@@ -26,6 +26,29 @@ services:
       - /vol2/1000/software/macro-scan/data:/app/macro_data:rw
       # config 目录（grv_weights.yaml / prior.yaml —— weight_matrix 与 tianji_verifier 依赖）
       - /vol2/1000/software/macro-scan/config:/app/config:rw
+      - /vol2/1000/software/macro-scan/知识库:/app/知识库:ro
+
+  verify-cron:
+    image: macro-tianji:latest
+    container_name: macro-scan-tianji-cron-1
+    restart: unless-stopped
+    depends_on:
+      - tianji
+    networks:
+      - default
+      - worldsim_default
+    environment:
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
+      - FRED_API_KEY=${FRED_API_KEY}
+      - OPENCLAW_WORKSPACE=/app
+      - TIANJI_DATA_DIR=/app/macro_data
+      - WORLDSIM_APP_PW=${WORLDSIM_APP_PW}
+      - TZ=Asia/Shanghai
+    volumes:
+      - /vol2/1000/software/macro-scan/data:/app/macro_data:rw
+      - /vol2/1000/software/macro-scan/config:/app/config:rw
+      - /vol2/1000/software/macro-scan/知识库:/app/知识库:ro
+    command: ["python3", "tianji_verify_cron.py"]
     healthcheck:
       # 08-18 P0-1 强化：真实 PG 连接（此前仅 import 模块 → env 空也 healthy 假象）
       test: ["CMD", "python3", "-c", "import tianji_db; conn = tianji_db.get_connection(); conn.close(); print('ok')"]

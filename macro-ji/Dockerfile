@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r req
 # 天玑验证内核（纯 stdlib + pyyaml）
 COPY tianji_db.py tianji_verifier.py weight_matrix.py optim_config.py tianji_calibrator.py llm_judge.py /app/
 # watchdog：T2 共享触发文件轮询（trigger → 执行验证 → 写回）
-COPY verify_watchdog.py /app/
+COPY verify_watchdog.py tianji_verify_cron.py verify_geo_auto.py verify_hypothesis.py verify_predictions.py /app/
 
 ENV OPENCLAW_WORKSPACE=/app
 ENV TIANJI_DATA_DIR=/app/macro_data

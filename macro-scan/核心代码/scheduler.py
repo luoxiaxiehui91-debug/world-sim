@@ -47,7 +47,6 @@ JOBS = [
     ("fred_freshness", "0540", "1-7", None, [PYTHON, "fred_freshness.py", "--all"]),  # data-freshness：FRED 新鲜度闸 + stale + FCI 探针（依赖 fred_fetch 0530 + compute_fci 0535）
     ("compute_probit", "0540", "1-7", None, [PYTHON, "compute_probit.py"]),  # L3 probit
     ("tianji_trigger","0942", "1-7", None, [PYTHON, "write_tianji_trigger.py"]),       # 天玑 trigger 写入（T2：watchdog 检触发执行验证；dom=None 每日触发，08-06 修 dom=1 笔误）
-    ("verify_geo_auto","0930", "1-7", None, [PYTHON, "verify_geo_auto.py"]),            # 地缘预测自动验证（08-18 L1 FRED 判定器；到期扫描）
     ("tianji_summary","I30", "1-7", None, [PYTHON, "tianji_summary_export.py"]),        # 天玑汇总导出（08-17：PG tianji 预测/推理/权重 → data/tianji_summary.json 供开阳天玑 Tab）
     ("gpr_fetch",   "0540", "1-7", None, [PYTHON, "fetch_gpr.py"]),
     ("china_fetch", "0545", "1-7", None, [PYTHON, "fetch_china_data.py"]),
@@ -92,7 +91,6 @@ JOBS = [
     # R-1 开阳报告索引（报告产出后 5 分钟触发：晨报 0730 后 / 晚报 2000-2015 后）
     ("reports_index","0735", "1-5", None, [PYTHON, "generate_reports_index.py"]),
     ("reports_index","2035", "1-7", None, [PYTHON, "generate_reports_index.py"]),
-    ("verify",      "0900", "1-7", 1,    [PYTHON, "verify_predictions.py"]),
     ("kb_update",   "0905", "1-7", 1,    [PYTHON, "update_kb_numbers.py"]),
     ("firms",       "0908", "1-7", None, [PYTHON, "fetch_firms.py"]),           # NASA FIRMS 火点直连（crucix 退场前置，先于 climate 0910）
         ("climate",     "0910", "1-7", None, [PYTHON, "fetch_climate_signals.py"]),
@@ -107,7 +105,6 @@ JOBS = [
     ("health_push",  "2100", "1-7", None, [PYTHON, "-c",
         "from observability import daily_health_push; daily_health_push()"
     ]),  # 每日健康摘要推送（三数字：GRV时间戳/降级fetcher数/predictions行数）
-    ("verify_auto", "0915", "1-7", 1,   [PYTHON, "verify_hypothesis.py", "--commit", "--update-weights"]),  # 每月1日
     ("slow_vars",   "0935", "1-7", 1,   [PYTHON, "slow_variables.py"]),              # 天玑 慢变量更新（每月1日）
     ("spacetrack",  "0615", "1-7", None, [PYTHON, "fetch_spacetrack.py"]),            # Space-Track 卫星统计（日频，06:15）
     ("market_quotes","I15","1-7", None, [PYTHON, "market_quotes.py"]),               # 市场行情快照整合（commodity+crypto，I15 跟 crypto 走——crypto 源已 I15 采集，整合导出提频零外部请求）
@@ -170,7 +167,6 @@ LOG_FILES = {
     "market_quotes":   f"{LOG_DIR}/market_quotes.log",
     "compute_probit":  f"{LOG_DIR}/compute_probit.log",
     "tianji_trigger": f"{LOG_DIR}/tianji_trigger.log",
-    "verify_geo_auto": f"{LOG_DIR}/verify_geo_auto.log",
     "tianji_summary": f"{LOG_DIR}/tianji_summary.log",
     "reports_index": f"{LOG_DIR}/reports_index.log",
 }
