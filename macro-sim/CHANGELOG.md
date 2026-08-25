@@ -1,3 +1,9 @@
+## v2.0.48 — 2026-08-26 编年史生成停用（用户拍板"真停"）
+
+- `run.py` 两处（`run_simulation` / `run_predict_only`）：移除 `generate_chronicle` 调用（原走 `deepseek-ai/DeepSeek-V4-Flash`，是 DeepSeek token 消耗大户），保留 `dump_history_jsonl` 落盘 `sim_history_*.jsonl` 数据管道供人话版 `readable_report` 复用。
+- 补齐 08-24「编年史叫停」在代码层+部署层的落地：此前用户在决策/状态层已叫停编年史，但 `run.py` 调用未删、天璇镜像未重建，08-25 06:31 仿真仍产出 4 卷编年史并烧 DeepSeek token；本次彻底停掉生成调用。
+- `core/chronicler.py` 的 `generate_chronicle` 函数定义保留（当前无调用方，供后续人话版复用），`dump_history_jsonl` 仍为活跃数据管道。
+
 ## v2.0.47 — 2026-08-24 人话版报告生成器 readable_report.py（commits 571524075/e2f218574/c21f5e7e5）
 
 - 新增 core/readable_report.py：推演「人话版」报告生成器（替代废弃的编年史形态）——三层结构=一句话结论+Q&A+按季度看+参数附录折叠。
