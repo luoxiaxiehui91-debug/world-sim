@@ -185,25 +185,38 @@ def _fallback_template(hist, event):
 
 
 def generate_readable(hist, event: str, out_path: Path,
-                      label: str = "", probability: float = None) -> Path | None:
+                      label: str = "", probability: float = None,
+                      n_runs: int = None) -> Path | None:
     n = len(hist)
     g0, g1 = hist[0].get("grv"), hist[-1].get("grv")
 
+    conf_line = ""
+    if probability is not None:
+        pct = f"{probability:.0%}"
+        basis = f"（{n_runs} 次模拟）" if n_runs else ""
+        conf_line = (
+            f"\n## 这个预测有多可靠？\n"
+            f"这是 {basis.strip('（）')} 蒙特卡洛模拟中最具代表性的路径，约 **{pct}** 的模拟走向了与本报告相近的剧情。"
+            "请注意：模型刻画的是「如果触发事件发生，风险如何演化」的条件推演，"
+            "不是对事件本身会不会发生的预测；现实中的偶发冲击（未列入模型的突发事件）可能改变走向。\n")
+
     records = "\n".join(_fmt_step_human(i, s) for i, s in enumerate(hist))
     prompt = (
-        "你是财经科普作者。根据下面的推演记录，写给普通读者看的「人话版」报告，严格按以下结构输出（markdown）：\n\n"
-        "# 《" + event + "》人话版\n\n"
-        "## 一句话结论\n（2 句以内：风险指数起点→终点、主线剧情是什么）\n\n"
-        "## 你可能想问\n（4 组问答，每组一行问一行答：现在算危险吗？最可能的剧情？什么时候最危险？该盯什么信号？"
-        "回答要给出具体月份和数字，但必须用大白话表述数字含义）\n\n"
-        "## 按季度看\n（每 6 个月一段，共 4 段左右。每段讲清楚：谁做了什么→为什么→造成了什么影响。"
-        "因果要衔接上一步的状态。）\n\n"
-        "铁律：\n"
-        "1. 记录已经翻译成白话——输出中【绝对禁止】出现 A1/A10/S6 这类代号、GRV/HOLD/TIGHTEN_CREDIT 这类英文枚举，"
-        "一律用记录中的中文名称；\n"
-        "2. 数字可以引用但要用大白话解释含义（如『信用利差 308.9 个基点，意味着企业借钱比国债贵得多』）；\n"
-        "3. 只用记录中出现的事件与数字，禁止虚构；全文 900-1300 字。\n\n"
-        "【背景】触发事件：" + event + "；共 " + str(n) + " 个月。\n\n【推演记录】\n" + records)
+        "你是资深财经专栏作者。根据下面的推演模拟记录，写给普通读者看的深度短文《"
+        + event + "：如果成真，世界会怎样》。这不是流水账，是一篇有观点的导读。\n\n"
+        "严格按以下结构输出（markdown）：\n\n"
+        "# " + event + "：如果成真，世界会怎样\n\n"
+        "## 一句话结论\n（风险指数起点→终点 + 用一个比喻概括整个剧情，如『温水煮青蛙』『过山车』）\n\n"
+        "## 三条主线\n（通读全部记录后，提炼出推动剧情的 2-3 条主线，每条一个小标题。"
+        "每条主线写清楚：谁在推动 → 关键转折在哪个月 → 对其他方面造成了什么连锁影响 → 这条线的结局或现状。"
+        "重复发生的同类事件合并叙述，只强调次数和累计效果，不要逐月罗列。）\n\n"
+        "## 三个值得记住的时刻\n（挑出记录中最重要的 3 个转折月份，每个 1-2 句话讲清『那个月发生了什么、为什么它是转折』）\n\n"
+        "## 如果你是旁观者\n（2-3 句：普通读者该从这个故事里记住什么、现实中对应盯住什么信号。）\n\n"
+        "写作铁律：\n"
+        "1. 记录已译成白话。输出中禁止出现 A1/S6_japan/HOLD/GRV 这类代号——用中文名称（散户、日本、全球风险指数）；\n"
+        "2. 引用的数字必须来自记录，并用大白话解释含义；除此之外的解释、归纳、比喻是鼓励的——你要做的是分析师不是抄录员；\n"
+        "3. 全文 700-1000 字。宁可精炼有洞见，不要全面但像会议纪要。\n\n"
+        "【背景】触发事件：" + event + "；共 " + str(n) + " 个月模拟。\n\n【推演记录】\n" + records)
 
     base_url, api_key, model = _resolve_readable()
     md = None
@@ -216,7 +229,7 @@ def generate_readable(hist, event: str, out_path: Path,
         note = ""
         if leaks:
             note = f"\n> ⚠️ 机检提示：正文仍残留 {len(leaks)} 处代号（{sorted(set(leaks))[:5]}…），请以附录对照阅读。\n"
-        md = title + body.strip() + note
+        md = title + body.strip() + note + conf_line
     except Exception as e:
         print(f"[readable] LLM 失败，降级机械模板: {e}", flush=True)
         md = _fallback_template(hist, event)
@@ -227,15 +240,27 @@ def generate_readable(hist, event: str, out_path: Path,
     return out_path
 
 
-def replay_from_jsonl(jsonl_path, event, out_path, label="路径A"):
+def replay_from_jsonl(jsonl_path, event, out_path, label="路径A",
+                      probability=None, n_runs=None):
     hist = []
+    meta_prob, meta_n = None, None
     for ln in open(jsonl_path, encoding="utf-8"):
         ln = ln.strip()
-        if ln and not ln.startswith("__meta__:"):
+        if ln.startswith("__meta__:"):
+            try:
+                m = json.loads(ln[len("__meta__:"):])
+                meta_prob = m.get("probability")
+                meta_n = m.get("n_runs")
+            except Exception:
+                pass
+            continue
+        if ln:
             hist.append(json.loads(ln))
     if not hist:
         raise ValueError("JSONL 为空")
-    return generate_readable(hist, event, Path(out_path), label=label)
+    return generate_readable(hist, event, Path(out_path), label=label,
+                             probability=probability if probability is not None else meta_prob,
+                             n_runs=n_runs or meta_n)
 
 
 if __name__ == "__main__":
