@@ -16,6 +16,7 @@ Board（全局联盟/制裁/冲突状态矩阵）：
 版本：v1.0（2026-08-03）
 """
 
+from .llm_pilot import LLMPilotMixin
 import random
 from dataclasses import dataclass, field
 from typing import ClassVar
@@ -79,7 +80,7 @@ def _eval_trigger(trigger_str: str, ctx: dict) -> bool:
 
 # ── SovereignAgent 基类 ─────────────────────────────────────────
 @dataclass
-class SovereignAgent(MacroAgent):
+class SovereignAgent(LLMPilotMixin, MacroAgent):
     """
     主权国家/集团 Agent 基类。
 
@@ -89,6 +90,16 @@ class SovereignAgent(MacroAgent):
     """
 
     # 默认行动空间（子类按 soul 中 action_space 字段覆盖或扩展）
+
+    LLM_PERSONA = {
+        "S1_usa": "美国政府：在地缘博弈中维护霸权，倾向制裁施压、军事部署与联盟强化",
+        "S2_china": "中国政府：维护主权与发展利益，对台海强硬、反制制裁、推动多边合作",
+        "S3_eu": "欧盟：在美中之间寻求战略自主，倾向制裁侵犯者、外交斡旋",
+        "S4_russia": "俄罗斯：打破西方围堵，倾向军事部署、能源杠杆、分化西方联盟",
+        "S5_saudi": "沙特-欧佩克：以石油产量为杠杆平衡各方，趋利避害",
+        "S6_japan": "日本：安全依赖美国但经济依赖中国，行动谨慎克制",
+        "S7_korea": "韩国：朝核威胁下紧随美国，同时对北方保持威慑",
+    }
     VALID_ACTIONS: ClassVar[list[str]] = [
         "HOLD",
         "IMPOSE_SANCTIONS",
