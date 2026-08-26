@@ -22,6 +22,25 @@ class LLMPilotMixin:
         except Exception:
             pass
 
+
+    _TB_WINDOW = 60.0   # 滑动窗口秒数
+    _TPM_SOFT = 45000.0 # TPM 软上限（官方 50000 留余量）
+
+    def _throttle(self, est_tokens: int):
+        """滑动窗口令牌桶：估算最近 60s 已耗 tokens，不足则等待。"""
+        import time as _t
+        now = _t.time()
+        hist = getattr(LLMPilotMixin, "_tok_hist", [])
+        hist = [t for t in hist if now - t[0] < self._TB_WINDOW]
+        used = sum(x[1] for x in hist)
+        if used + est_tokens > self._TPM_SOFT:
+            wait = self._TB_WINDOW - (now - hist[0][0]) + 0.5 if hist else 1.0
+            print(f"[llm_pilot] TPM 节流 {wait:.0f}s（近窗 {used:.0f} tokens）", flush=True)
+            _t.sleep(max(wait, 0.5))
+            hist = [t for t in LLMPilotMixin._tok_hist if _t.time() - t[0] < self._TB_WINDOW]
+        hist.append((now, est_tokens))
+        LLMPilotMixin._tok_hist = hist
+
     def _decide_llm(self, ctx: dict) -> str:
         if os.environ.get("TIANJI_LLM_PILOT") != "1":
             a = self._decide_soul(ctx).action
@@ -40,7 +59,8 @@ class LLMPilotMixin:
                 f"基于你的角色立场与当前信号，选一个最符合你利益的行动。\n"
                 f"只回答一行，格式严格为：ACTION: 动作名"
             )
-            raw = call_llm(prompt, max_tokens=256)
+            self._throttle(1500)
+            raw = call_llm(prompt, max_tokens=1024)  # 蓝图v3：放开思考链（免费档不计费）
             action = parse_action(raw, self.VALID_ACTIONS)
             self._audit(f"{self.agent_id} LLM -> {action} | raw={raw.strip()[:60]!r}")
             return action
