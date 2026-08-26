@@ -2,7 +2,7 @@
 
 ## 新 session 冷启动（3 分钟，防迷路）
 
-> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-23 11:20 GMT+8（详见下方「当前主线（08-23）」）。
+> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-26 20:10 GMT+8（详见下方「当前主线（08-23 / 08-24~26）」）。
 
 **项目是什么**：world-sim 世界推演系统——个人内部宏观推演系统（非商业产品）。逻辑 5 层：天枢（观测采集）→ 天璇（仿真，20 Agent：A1-A13 + S1-S7）→ 天玑（验证）→ 玉衡（权重，未运转）→ 开阳（展示）；横切 crucix 信号总线（AGPL，**已退场 2026-08-12 G1 停容器**）+ 摇光 SRE。
 
@@ -29,6 +29,13 @@
 5. **全量审计 + 双 P0 修复（08-13，已闭环）**：worldsim-audit 4 路 × 3 round 全量审计产出 3 P0 / 4 P1 / 12 P2（登记表 `docs/decisions/audit-2026-08-13-risk-register.md`）。**P0-1 双写静默丢数**（C3 硬化 + 124 行回填 + 五表零差集 + `silent_failure_probe.py` I120 兜底）、**P0-2 forecast 时区 +8h**（7 站点改 `now_iso_utc()` + 120 行 −8h 回填，铁证样本对齐至 2 秒内）、**P0-3 自动推演停摆**（commit 2d7bffa）**三条全部 RESOLVED**，容器内实测验收 10/10 PASS。**→ E0-C 读路径重写已启动并全闭环（P1-P6：PG-only + SQLite 退役，见下条第 6 条）。**
 7. **采集实时化（08-14，50% 水位×源更新速度双约束）**：commodity_yahoo 日频→I15（+ change_pct 基准错位修复 + spark5 迷你走势）；fetch_news 主源改 **GDELT DOC 2.0**（免费无 key）+ **MarketAux**（key 已配，双源并行），日频→I30（MarketAux 48/日=48% 贴线）；**7 源批量提频**（OpenSky 日→I30 航班实时 6242 架 / 地震 I5 / 灾害 I15 / 加密 I10=43% / 加密冗余 I5 / 防务 RSS I60 / 能源 I60）；前端新闻双轨（news_all 全量 + news_export 风险流）、conflict 图层接入 news_geo、新闻风险卡片 top5；探针扩至 26 项（check_news_risk 2h/4h + check_fred_lag + check_sqlite_gone 零残留断言）。
 6. **E0-C 读路径重写 + PG-only（08-13 晚，P1-P6 全闭环）**：`pg_read.py` 只读层（行边界归一化 datetime→UTC 文本）→ 14 个 reader 全切 PG（双读校验台 `verify_reads_e0c.py` 31/0/0）→ synthesis_log 25 行对账 + 双写补全 → news_db 写路径 PG 主写（`WORLDSIM_SQLITE_OFF` 开关）→ **P5 切换生效**（运行区 compose 注入 `WORLDSIM_SQLITE_OFF=1` + `up -d`，探针 PG-only 模式 VERDICT OK，直接激活 + 真实采集验证 PG 写 / SQLite 冻结，删除脚本 `delete_sqlite_e0c.sh` 门禁 dry-run 4/4 全绿）。**P6 删 4 SQLite 已于 08-14 08:39 执行**（commit 1ba002a，快照 `e0c-p6-20260814-083910`，删后观察无复生 / 探针 OK）。
+
+**当前主线（08-24~26）：天璇 LLM 推演重设计（设计收官，GRV 锚定待修）**
+- **设计阶段收官**：经五轮评审（内部三 agent → 内部三评审 → 豆包一审 → 豆包二审 → Lead 技术复核）定稿**蓝图 v6**（`S:\docs\decisions\world-deduction\0012a-tianji-sim-redesign-blueprint.md`，220 行），把 LLM 从「仅叙事」升为「事件响应 / what-if 决策玩家」双内核之一（数学 MC 仍为常态基线）。ADR-0012（同目录，proposed）记录取舍，但蓝图实际推翻其「LLM 退居叙事层」选项——**以蓝图 v6 为准**。
+- **代码四阶段**：阶段0 验证标尺 ✅ 入库（backtest_eval.py，commit 07e2a77d9）；阶段1 决策质量 ◐ 部分入库（llm_pilot.py v3，commit 30dbf474b）；阶段2 外生事件注入层 ◐ 工作树未提交（exogenous_events.py）；阶段3 S 类 LLM 灰度 ◐ 工作树未提交（sovereign.py / llm_pilot.py v4）。
+- **门控实验 v4/v5 结论**：注入事件 + LLM 决策后，**标量 GRV 的 vol_ratio 恒 = 0.001（与裸推完全相同）** → 根因不在事件/LLM 层，而在仿真引擎 GRV 锚定机制（见下）。
+- **⚠️ 当前唯一 active 卡点 — GRV 锚定机制**：标量 `world.grv` 全库仅 `core/world_state.py:345` 一处被均值回归改写；LLM/S 类决策只写并行 dict `grv_dimensions`，**从不回聚标量** → agent 决策与度量标量解耦。修复方向 = `step()` 末增加 `grv_dimensions→world.grv` 聚合回写（须先对齐双内核 GRV 语义）。**本调查为只读，修复待用户拍板 + 独立阶段 + git + rebuild**。
+- **⚠️ 交接阻断项 — 未提交工作树**：阶段 2/3 代码未 commit，容器靠 docker cp 注入、镜像不含 → rebuild 即丢。接手第一动作应先 `git commit` 捕获现状。完整交接见 **`macro-sim/AGENTS.md`**（天璇子系统 agent 指南，含上述全节）+ 中央 KB 蓝图 v6。
 
 **必读顺序**：本文件 → README.md → .workbuddy/memory/MEMORY.md（红线）→ 按需 macro-sim/docs/calib/（校准评审权威）；详细待办见下文「待做/已知遗留」节。
 

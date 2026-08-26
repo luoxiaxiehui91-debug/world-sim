@@ -56,6 +56,44 @@ macro-sim/                ← 本地工作目录（S:\world-sim\macro-sim\，git
 
 ---
 
+## 天璇 LLM 推演重设计（2026-08-24~26，设计收官，GRV 锚定待修）
+
+> 设计阶段已收官（蓝图 v6 五轮评审定稿），但**仿真引擎 GRV 锚定机制**是当前唯一 active 卡点，接手 agent 从「修复 GRV 聚合回写」起步。完整交接见中央知识库 `S:\docs\decisions\world-deduction\0012a-tianji-sim-redesign-blueprint.md`（蓝图 v6）+ `0012-math-mc-kernel-over-llm-agents.md`（ADR-0012）。
+
+**为什么做**：原天璇是纯数学 MC 引擎（soul 规则），LLM 仅做叙事。重设计把 LLM 升为「事件响应 / what-if 决策玩家」双内核之一（数学 MC 仍是常态基线），目标是在外生冲击下让 LLM 主权/市场 agent 真正改变推演路径。
+
+**四阶段实施现状（截至 2026-08-26）**：
+- 阶段0 验证标尺 ✅ 入库：`core/backtest_eval.py`（commit 07e2a77d9），裸推基线 vol_ratio=0.001 存档 gate_baseline.json。
+- 阶段1 决策质量 ◐ 部分入库：`core/agents/llm_pilot.py`（v3，max_tokens=1024 + TPM 令牌桶，commit 30dbf474b）；checkpoint 编排推迟。
+- 阶段2 外生事件注入层 ◐ 工作树完成未提交：`core/exogenous_events.py`（118 行，三通道 + 传导告警 + 窗口过滤 457→49 事件月）。
+- 阶段3 S 类 LLM 灰度 ◐ 工作树完成未提交：`core/agents/sovereign.py`（七国动态 persona + 挂 mixin，M）、`core/agents/llm_pilot.py`（v4 动态 persona dict，M）。
+
+**门控实验结论（v4/v5 均已跑，关键发现）**：
+- v4（事件注入 + A 类试点集）：corr=0.207 / dir_rate=20% / **vol_ratio=0.001 与裸推完全相同**。根因 = S 类无 mixin 且活跃概率 0.2，事件到不了 GRV 驱动者。
+- v5（事件 + S 类全 LLM）：corr=0.207 / dir_rate=20% / **vol_ratio=0.001 仍不变**。根因 = 更深层的 GRV 锚定机制（见下）。
+- 结论：事件与 LLM 决策对「被度量的标量 GRV」零可观测影响 → **根因锁定在仿真引擎 GRV 锚定/阻尼机制，不在事件注入或 LLM 决策层**。
+
+**⚠️ 当前卡点：GRV 锚定机制根因（只读调查，未改码，待用户拍板修复）**：
+- 现象：标量 `world.grv`（backtest_eval 度量对象，0-100 全球综合风险）无论注入多少事件/LLM 主权决策，恒向自身 baseline 收敛 → vol_ratio=0.001。
+- 代码实证：
+  ① `world.grv` 全库**仅一处被改写**：`core/world_state.py:345` `apply_natural_decay` 的均值回归 `world.grv = world.grv*0.97 + world.grv_baseline*0.03`；
+  ② `step()` 每步还有 `board_decay_step` + `apply_bleed_rules` 两道阻尼，合力把 GRV 拉回 baseline；
+  ③ LLM/S 类决策只写**并行 dict `grv_dimensions`**，该 dict **从不回聚到标量 `world.grv`** → agent 决策与「被度量的标量」彻底解耦；
+  ④ `grv_baseline` 由历史 GRV 初始化后随机游走，不受任何 agent 决策影响。
+- 本质：**标量 GRV 是封闭均值回归环，agent 决策通道是旁路字典**，故 vol_ratio 恒 0.001。
+- 修复方向（待独立阶段 + 用户拍板 + git + rebuild）：`step()` 末增加 `grv_dimensions → world.grv` 聚合回写，须先对齐「数学 MC GRV（官方口径）vs LLM 沙盘 GRV（推演标注）」双内核语义（蓝图 v6 已声明区分，但回写实现须此前提）。
+
+**⚠️ 部署态警示（交接阻断项）**：
+- 阶段 2/3 代码 `exogenous_events.py`(untracked) / `sovereign.py`(M) / `llm_pilot.py`(v4, M) **尚未 commit**；容器靠 docker cp 临时注入、镜像不含 → **rebuild 即丢失**。
+- 接手第一动作建议：`git add` + commit 捕获现状（单 commit 标注「阶段2/3 事件注入 + S 类 LLM 工作树」），再择机 rebuild 烘焙进镜像 + 按阶段 1 回归清单重测。rebuild 前勿依赖容器现有注入态。
+
+**权威文档**：
+- 蓝图 v6（设计终态）：`S:\docs\decisions\world-deduction\0012a-tianji-sim-redesign-blueprint.md`
+- ADR-0012（架构取舍，proposed；蓝图 v6 实际推翻其「LLM 退居叙事层」选项，以蓝图 v6 为准）：同目录 `0012-math-mc-kernel-over-llm-agents.md`
+- 中央 KB 根 INDEX：`S:\docs\decisions\world-deduction\INDEX.md`
+
+---
+
 ## AI 阅读路径
 
 | 文件 | 何时读 |
