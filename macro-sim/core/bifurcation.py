@@ -192,6 +192,7 @@ class PathResult:
     consistency_warning: str = ""  # 非空时表示该路径有较多 run 检测到行动矛盾
     # 逐月演化数据（step 0 = 第1个月）
     monthly_grv: list[float] = field(default_factory=list)           # 每步路径均值 GRV
+    monthly_grv_std: list[float] = field(default_factory=list)       # F1/M2 每步簇内 GRV 标准差（不确定带；仅1 run 时为0）
     monthly_sentiment: list[float] = field(default_factory=list)     # 每步路径均值 sentiment
     # 08-16 参与度统计：{agent_id: {"name": 显示名, "acts": 总行动次数, "steps": 行动步数,
     #                                "silent_steps": 无行动步数, "actions": {action: 次数}}}
@@ -648,6 +649,11 @@ def run_prediction(
             statistics.mean([all_histories[i][step]["grv"] for i in cluster])
             for step in range(predict_steps)
         ]
+        # F1/M2 逐月簇内标准差（不确定带；只画均值线会被读成精确预报）
+        grv_std_path = [
+            statistics.stdev([all_histories[i][step]["grv"] for i in cluster]) if len(cluster) > 1 else 0.0
+            for step in range(predict_steps)
+        ]
         sent_vals_path = [
             statistics.mean([all_histories[i][step]["market_sentiment"] for i in cluster])
             for step in range(predict_steps)
@@ -675,6 +681,7 @@ def run_prediction(
             final_credit_spread_mean=round(statistics.mean(final_spread_vals), 1),
             grv_trend=trend,
             monthly_grv=[round(v, 1) for v in grv_vals_path],
+            monthly_grv_std=[round(v, 1) for v in grv_std_path],
             monthly_sentiment=[round(v, 3) for v in sent_vals_path],
         )
 

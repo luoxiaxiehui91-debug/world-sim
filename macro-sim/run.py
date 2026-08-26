@@ -20,6 +20,7 @@ from pathlib import Path
 NTFY_URL    = "https://ntfy.sh/***REMOVED***"
 REPORT_DIR  = Path(os.environ.get("REPORT_DIR", "/app/reports"))
 TRIGGER_PATH = Path("/app/macro_data/sim_trigger.json")
+_TRAJ_RETAIN = 20   # F1：报告目录内保留最近 N 份 *_grv_traj.json（天枢 export 只需最新一份）
 
 
 # ── 完整仿真流程 ──────────────────────────────────────────
@@ -99,7 +100,10 @@ def run_full_simulation(
     )
 
     # ── 生成报告 ──────────────────────────────────────────
-    report_path = _write_report(world, calib_result, paths, level, event, regime_label=regime_label)
+    report_stem = datetime.now().strftime("%Y-%m-%d_%H-%M") + f"_演化_L{level}_校准{calib_result.get('score', 0)}"
+    report_path = _write_report(world, calib_result, paths, level, event, regime_label=regime_label, report_stem=report_stem)
+    # F1：同一 stem 落结构化 GRV 轨迹（天枢扫报告目录导出成开阳 feed）
+    _write_grv_trajectory(paths, world, level, event, report_stem)
     # 08-26 编年史生成停用（用户拍板"真停"）。保留 sim_history JSONL 数据管道供人话版复用。
     try:
         from core.chronicler import dump_history_jsonl
@@ -147,7 +151,10 @@ def run_predict_only(
     )
 
     calib_result = {"score": 0, "avg_error": 0, "param_changes": [], "error_series": []}
-    report_path = _write_report(world, calib_result, paths, level, event)
+    report_stem = datetime.now().strftime("%Y-%m-%d_%H-%M") + f"_演化_L{level}_校准{calib_result.get('score', 0)}"
+    report_path = _write_report(world, calib_result, paths, level, event, report_stem=report_stem)
+    # F1：同一 stem 落结构化 GRV 轨迹（天枢扫报告目录导出成开阳 feed）
+    _write_grv_trajectory(paths, world, level, event, report_stem)
     # 08-26 编年史生成停用（用户拍板"真停"）。保留 sim_history JSONL 数据管道供人话版复用。
     try:
         from core.chronicler import dump_history_jsonl
@@ -186,12 +193,83 @@ def _readable_trigger(event: str) -> str:
     return event
 
 
+def _write_grv_trajectory(paths: list, world, level: int, event: str, report_stem: str) -> None:
+    """
+    F1：把本次推演的多路径 GRV 轨迹落成结构化 JSON，写到天璇【自己的】报告目录。
+    天枢 tianxuan_grv_export.py 扫本目录 → 导出成开阳 feed（三段链，不违权责铁律）。
+    写失败仅告警不阻断（同 sim_history JSONL 落盘纪律 run_full_simulation 内）。
+    """
+    try:
+        REPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+        # 24 个月标签：以生成时刻为锚，month 0 = 当前观测(baseline_grv)，轨迹为未来 1..N 月
+        horizon = 0
+        for p in paths:
+            horizon = max(horizon, len(getattr(p, "monthly_grv", []) or []))
+        try:
+            now = datetime.now()
+            base = now.year * 12 + (now.month - 1)
+            months = [f"{(base + k) // 12:04d}-{(base + k) % 12 + 1:02d}" for k in range(1, horizon + 1)]
+        except Exception as _me:
+            print(f"[WARN] grv_traj 月份推算失败，跳过本次轨迹落盘（不退化整数轴）: {_me}")
+            return
+
+        try:
+            baseline_grv = round(float(world.grv), 1)
+        except Exception:
+            baseline_grv = None
+
+        payload = {
+            "producer":       "macro-sim",
+            "traj_schema":    "1.0",
+            "generated_at":   datetime.now().isoformat(timespec="seconds"),
+            "level":          level,
+            "event":          _readable_trigger(event),
+            "horizon_months": horizon,
+            "baseline_grv":   baseline_grv,
+            "months":         months,
+            "paths": [
+                {
+                    "label":            p.label,
+                    "probability":      p.probability,
+                    "grv_trend":        getattr(p, "grv_trend", ""),
+                    "initial_grv_mean": getattr(p, "initial_grv_mean", None),
+                    "final_grv_mean":   getattr(p, "final_grv_mean", None),
+                    "final_grv_std":    getattr(p, "final_grv_std", None),
+                    "monthly_grv":      list(getattr(p, "monthly_grv", []) or []),
+                    "monthly_grv_std":  list(getattr(p, "monthly_grv_std", []) or []),
+                }
+                for p in paths
+            ],
+        }
+
+        out_path = REPORT_DIR / f"{report_stem}_grv_traj.json"
+        tmp_path = REPORT_DIR / f".{report_stem}_grv_traj.json.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, out_path)   # 同目录原子 rename
+        print(f"[grv_traj] 轨迹已落盘: {out_path.name}（{len(payload['paths'])} 路径, horizon={horizon}）")
+
+        # retention：仅保留最近 N 份（export 只取最新一份；避免报告目录无限堆积）
+        try:
+            traj_files = sorted(REPORT_DIR.glob("*_grv_traj.json"),
+                                key=lambda q: q.stat().st_mtime, reverse=True)
+            for stale in traj_files[_TRAJ_RETAIN:]:
+                stale.unlink()
+        except Exception as _re:
+            print(f"[WARN] grv_traj retention 清理失败（不阻断）: {_re}")
+    except Exception as _e:
+        print(f"[WARN] grv_traj 落盘失败（不阻断）: {_e}")
+
+
 def _write_report(world, calib_result: dict, paths: list, level: int, event: str,
-                  regime_label: str = "") -> Path | None:
+                  regime_label: str = "", report_stem: str | None = None) -> Path | None:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     score    = calib_result.get("score", 0)
     now_str  = datetime.now().strftime("%Y-%m-%d %H:%M")
-    fname    = datetime.now().strftime("%Y-%m-%d_%H-%M") + f"_演化_L{level}_校准{score}.md"
+    # F1：stem 由调用方算一次并同时传给 _write_grv_trajectory，避免两处 now() 漂移
+    stem     = report_stem or (datetime.now().strftime("%Y-%m-%d_%H-%M") + f"_演化_L{level}_校准{score}")
+    fname    = stem + ".md"
     out_path = REPORT_DIR / fname
 
     # ── 参照值（用于判断高/低/升/降）──────────────────────

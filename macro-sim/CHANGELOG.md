@@ -1,3 +1,16 @@
+## v2.0.50 — 2026-08-27 F1 天璇 GRV 轨迹结构化落盘（开阳可视化通道·commit 1/3）
+
+**修改理由**：0012b 锚定修复后，天璇跑出的 24 个月多路径 GRV 轨迹只以 `.md` 报告文字存在，开阳看不成图（`kaiyang` 只读天枢直出的 `grv_latest.json` 观测快照，无任何组件绑定天璇推演输出）。F1 建「天璇写自己报告目录结构化轨迹 → 天枢扫目录导出 feed → 开阳展示」三段链，本 commit 是最上游的天璇产出。按权责铁律，天璇只写自己的 `REPORT_DIR`（`docs/仿真报告`），不直写开阳 feed 目录。
+
+### 修改
+
+- **`core/bifurcation.py`（M2 不确定带）**：`PathResult` 增字段 `monthly_grv_std`；聚类循环内在算逐月均值 `grv_vals_path` 旁顺手算簇内逐月标准差 `grv_std_path`（`statistics.stdev`，仅 1 run 时为 0），随 `monthly_grv` 一并赋值。只画均值线会被读成精确预报，开阳据此画 ±std 不确定带。
+- **`run.py` 新增 `_write_grv_trajectory`**：落 `REPORT_DIR/<report_stem>_grv_traj.json`（天璇自己目录，同目录 tmp + `os.replace` 原子 rename；写失败仅告警不阻断，同 sim_history 落盘纪律）。payload 含 M4 版本护栏 `producer:"macro-sim"`/`traj_schema:"1.0"`、`generated_at`、`level`/`event`、`horizon_months`、`baseline_grv`（透传 `world.grv`，供开阳画 month-0 观测锚点）、`months`（以生成时刻为锚推算未来 N 个 YYYY-MM，推算失败则告警跳过、不退化整数轴）、`paths[{label,probability,grv_trend,initial/final_grv_mean,final_grv_std,monthly_grv[N],monthly_grv_std[N]}]`。retention 仅保留最近 `_TRAJ_RETAIN=20` 份。
+- **`run.py` stem 单点化**：`run_full_simulation`/`run_predict_only` 各算一次 `report_stem` 同时传给 `_write_report`（新增可选参 `report_stem`）与 `_write_grv_trajectory`，避免两处 `datetime.now()` 漂移导致 .md 与 _grv_traj.json stem 不一致。
+- **`tests/test_tianxuan_traj_f1.py`（新增，4 组）**：合法 JSON + 版本护栏 + months/monthly_grv/monthly_grv_std 三者长度对齐 + baseline 透传 / 原子写无 .tmp 残留 / months 为未来 YYYY-MM 严格递增无重复 / 空路径降级不崩。回归 `test_grv_anchoring_0012b` 4/4 + `test_calibrator_guards` 34/34 全绿，断言数不降。
+
+**决策依据**：F1 计划经 11-agent 对抗审议修订（M1-M11）。权责合规三段链（否决「天璇直写 feed」违铁律 / 「天枢读 sim_history」无概率加权 / 「解析 .md 文本」脆弱 / PG 路线越天玑校验域）；M2 逐月 std 带 + M4 版本护栏 + 防静默红线，均在本 commit 落地。commit 2（天枢 export + probe 监控）/ commit 3（开阳 ECharts 图）随后。
+
 ## v2.0.49 — 2026-08-26 GRV 锚定修复：grv_dimensions→world.grv composite【增量注入】（ADR-0012b）
 
 **修改理由**：门控实验 v4/v5 发现——注入外生事件 + 让 S 类/LLM agent 决策后，对外发布的标量 GRV 波动率 `vol_ratio` 恒 = 0.001，与裸推完全相同（agent 决策对被度量的量零影响）。根因：系统有两套并行、事后不互通的 GRV 表示——标量 `world.grv`（金融内核：均值回归 `world_state.py:345` + 能源出血 `:295`，对外报告全读它）与 dict `grv_dimensions`（地缘内核：S 类主权行动 + 政权更迭直写，无均值回归）。二者初始化同源，之后各走各的、永不再同步；`gm_resolve_rules` 的同名回写（`simulation.py:405-409`）只同步同名 world 属性，而 `global_composite` 对应的标量名是 `grv`（非 `global_composite`）→ `hasattr` 为 False，总量维度的更新被整段跳过。
