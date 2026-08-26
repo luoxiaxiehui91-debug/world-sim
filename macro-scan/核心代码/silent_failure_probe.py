@@ -22,6 +22,7 @@ silent_failure_probe.py — 静默失败探针（P0 修复配套，2026-08-13）
 用法：python silent_failure_probe.py [--dry]      --dry 只打印不推送
 """
 import json
+import glob
 import logging
 import os
 import sqlite3
@@ -29,9 +30,10 @@ import sys
 import time
 
 try:
-    from optim_config import DATA_DIR
+    from optim_config import DATA_DIR, WORKSPACE
 except Exception:
     DATA_DIR = "/workspace/data"
+    WORKSPACE = "/workspace"
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [probe] %(levelname)s %(message)s")
@@ -287,6 +289,93 @@ def check_news_risk() -> list:
         out.append((WARN, f"news_risk: {status} 且陈旧 {_fmt_age(age)}（WARN 阈值 2h）"))
     else:
         out.append((OK, f"news_risk: {status}（短时降级容忍 <2h）"))
+    return out
+
+
+def check_tianxuan_grv() -> list:
+    """天璇 GRV 轨迹 feed 新鲜度（tianxuan_grv_export.py I30 扫 docs/仿真报告 → data/tianxuan_grv.json）。
+
+    判据基于内容 generated_at 交叉比对（非 mtime——M6 幂等下 export 跳过重写时 mtime 会旧、
+    且 I30 每 30min 触发会让 mtime 恒新，两者都不能反映"天璇是否有新推演却没被导出"）：
+      比对「报告目录最新 *_grv_traj.json 的 generated_at」vs「feed 的 generated_at」——
+      - 源比 feed 新（超 1h 宽限）        → CRIT（天璇出了新推演但 export 没跟上 = 静默失败）
+      - 源与 feed 一致                    → OK（无论 feed 多旧；天璇事件驱动、长期无新推演属正常）
+      - 有源但 feed.generated_at 为空     → CRIT（源已产出却从未被导出）
+      - 无源且 feed 空（首次推演前）      → OK（尚无推演，正常）
+      - feed 缺失                         → WARN（export 从未成功写过；低频容忍，非 CRIT）
+      - feed 解析失败/缺 schema_version   → CRIT（schema 漂移/损坏）
+    低频事件驱动，不设绝对陈旧阈值（参照 check_predictions_chain 精神）。
+    """
+    import datetime as _dt
+    out = []
+    feed_path = os.path.join(DATA_DIR, "tianxuan_grv.json")
+    src_dir = os.path.join(WORKSPACE, "docs", "仿真报告")
+
+    if not os.path.exists(feed_path):
+        out.append((WARN, "tianxuan_grv.json: 缺失（export 从未成功写过）"))
+        return out
+    try:
+        with open(feed_path, encoding="utf-8") as f:
+            feed = json.load(f)
+    except Exception as e:
+        out.append((CRIT, f"tianxuan_grv.json: 解析失败 {e}"))
+        return out
+    if not feed.get("schema_version"):
+        out.append((CRIT, "tianxuan_grv.json: 缺 schema_version（schema 漂移/损坏）"))
+        return out
+    feed_gen = feed.get("generated_at")
+
+    # 报告目录最新一份源轨迹
+    try:
+        cands = glob.glob(os.path.join(src_dir, "*_grv_traj.json"))
+    except Exception as e:
+        out.append((WARN, f"tianxuan_grv: 报告目录扫描异常 {e}"))
+        return out
+
+    if not cands:
+        if feed_gen:
+            out.append((OK, "tianxuan_grv: 源已轮转但 feed 保有上次推演（正常）"))
+        else:
+            out.append((OK, "tianxuan_grv: 尚无推演（feed 空占位，正常）"))
+        return out
+
+    newest = max(cands, key=os.path.getmtime)
+    try:
+        with open(newest, encoding="utf-8") as f:
+            src_gen = json.load(f).get("generated_at")
+    except Exception as e:
+        out.append((WARN, f"tianxuan_grv: 最新源 {os.path.basename(newest)} 解析失败 {e}"))
+        return out
+
+    if not src_gen:
+        out.append((WARN, f"tianxuan_grv: 源 {os.path.basename(newest)} 缺 generated_at"))
+        return out
+    if not feed_gen:
+        out.append((CRIT, "tianxuan_grv: 源已产出推演，feed 却从未导出（generated_at 空）"))
+        return out
+    if src_gen == feed_gen:
+        out.append((OK, f"tianxuan_grv: feed 与最新源一致（{src_gen}）"))
+        return out
+
+    # 不一致：判断源是否比 feed 新（export 落后 = 静默失败）
+    try:
+        su = _dt.datetime.fromisoformat(src_gen)
+        fu = _dt.datetime.fromisoformat(feed_gen)
+        if su.tzinfo is None:
+            su = su.replace(tzinfo=_dt.timezone.utc)
+        if fu.tzinfo is None:
+            fu = fu.replace(tzinfo=_dt.timezone.utc)
+        lag = su.timestamp() - fu.timestamp()
+    except Exception:
+        out.append((WARN, f"tianxuan_grv: generated_at 无法比对（源={src_gen} feed={feed_gen}）"))
+        return out
+
+    if lag > 3600:  # 源比 feed 新超 1h 宽限 → export 未跟上
+        out.append((CRIT, f"tianxuan_grv: 源比 feed 新 {_fmt_age(lag)}，export 未跟上"
+                          f"（源={src_gen} feed={feed_gen}）"))
+    else:
+        # feed 比源新（feed 保有更晚的推演、源被轮转/回滚），或差在宽限内
+        out.append((OK, f"tianxuan_grv: feed 不早于源（源={src_gen} feed={feed_gen}）"))
     return out
 
 
@@ -554,7 +643,7 @@ def check_fred_lag() -> list:
 def run_probe(alert: bool = True) -> tuple:
     """执行全部检查。返回 (worst_level, results)。"""
     results = []
-    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_sqlite_gone, check_feed_fresh, check_predictions_chain, check_ged_stale, check_llm_config):
+    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_tianxuan_grv, check_sqlite_gone, check_feed_fresh, check_predictions_chain, check_ged_stale, check_llm_config):
         try:
             results.extend(fn())
         except Exception as e:
