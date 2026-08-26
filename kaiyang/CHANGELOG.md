@@ -6,6 +6,28 @@
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
 
+## [1.11.35] 2026-08-27 · 天璇 Tab：GRV 24 月多路径推演轨迹图（F1 commit 3/3）
+
+**背景**：开阳此前只读天枢直出的 `grv_latest.json`（此刻风险横截面 = 天枢观测层），
+天璇跑出的 24 月 GRV 多路径推演只以 `.md` 报告文字存在、看不成图。F1 打通
+「天璇产结构化轨迹 → 天枢导 feed → 开阳展示」只读通道（不做实时推送、不做交互 what-if）。
+
+- **feat**: `control/TianxuanTab.tsx` 在推演记录与报告全文之间新增轨迹图，
+  `useFeed('tianxuanGrv')` 读天枢导出的 `tianxuan_grv.json`。
+  - **认识论（蓝图 v6 两内核不混用）**：三层来源图例非交互并列、标签对称——
+    当前层【天璇·数学基线】（数学蒙特卡洛，`kernel_label` 数据驱动）高亮，
+    天枢观测（→主屏 GRV 面板）与 LLM 沙盘（未接入）灰显；`disclaimer` 照实显示，不抬升为「预测」。
+  - **M1** EChart 包显式固定高度 `h-[220px]`（外层 flex 无 bounded-height 链，`h-full` 会塌成 0）。
+  - **M2** 每路径均值线 + 簇内 ±1σ 不确定带（`monthly_grv_std`；只画均值线会被读成精确预报）。
+  - **M9** 路径配色取青/靛紫/翡翠（非红/琥珀 severity 语义色，避免误读「危险路径」）。
+  - **M10** 线宽/透明度按 `probability` 编码（主导路径更粗更实），图例带 % 权重。
+  - **M11** `baseline_grv` 作 month-0「现在」锚点，各路径自共享观测出发分散、与观测层首尾相接。
+  - `paths` 空/feed 缺失 → 占位「暂无推演轨迹，等待首次触发」；不改主屏常驻面板。
+- **feat**: `config/dataSources.ts` 注册 `tianxuanGrv` feed（`refreshMs:300000` 轮询、`tolerateEmpty`）。
+- **feat**: `types/contracts.ts` 新增 `TianxuanGrvRaw` 契约（含认识论标注 doc）。
+- 回归 364 测试全绿、`tsc --noEmit` 通过。bundle/commit 见部署记录。
+
+
 ## [v1.1.3] 2026-08-25 · StatusBar schema 版本串收纳为悬停提示
 
 - **fix**: 顶部状态条平铺 24 个 feed 的 schema 版本串有碍观瞻（用户反馈）——界面只留「schema ✓」标记，完整版本串移入 title 悬停提示。bundle index-BDxenP0O.js，commit 。

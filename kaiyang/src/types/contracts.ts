@@ -622,3 +622,52 @@ export interface TianjiSummaryRaw {
   reasoning_trace?: { total?: number };
   weight_update_log?: { total?: number; recent?: TianjiWeightRow[] };
 }
+
+/**
+ * F1（08-27）天璇推演 GRV 轨迹 feed（天枢 tianxuan_grv_export.py 产出）。
+ *
+ * 认识论标注（蓝图 v6「两内核不混用」）：这是【天璇·数学基线】= 数学蒙特卡洛推演，
+ * 非天枢观测（此刻横截面见 GrvPanel），非官方预报，未经天玑校验此具体轨迹。
+ * `is_scenario: true` + `kernel_label` 由数据驱动，前端图例照实显示、不得抬升为「预测」。
+ *
+ * month-0 锚点 = `baseline_grv`（推演起点的共享标量 world.grv，与观测层首尾相接）。
+ * `paths[].monthly_grv` 为 24 月逐月均值，`monthly_grv_std` 为簇内标准差（不确定带；
+ * 只画均值线会被读成精确预报，故前端须并画 ±std 带）。
+ */
+export interface TianxuanGrvRaw {
+  schema_version?: string;
+  /** 恒为 true：这是情景推演而非预测（认识论护栏） */
+  is_scenario?: boolean;
+  /** 内核标识：'math-mc' = 数学蒙特卡洛 */
+  kernel?: string;
+  /** 人读内核标签，如「天璇·数学基线」——图例数据驱动显示 */
+  kernel_label?: string;
+  /** 免责声明，前端须清晰显示 */
+  disclaimer?: string;
+  /** 天璇产出时刻（透传） */
+  generated_at?: string | null;
+  /** 天枢导出时刻 */
+  exported_at?: string;
+  /** 源轨迹文件名 */
+  source_file?: string | null;
+  level?: number;
+  event?: string;
+  horizon_months?: number;
+  /** month-0 观测锚点（推演起点 world.grv） */
+  baseline_grv?: number;
+  /** 未来 24 月标签 YYYY-MM */
+  months?: string[];
+  paths?: Array<{
+    label: string;
+    /** 该路径概率权重（0-1） */
+    probability: number;
+    grv_trend?: string;
+    initial_grv_mean?: number;
+    final_grv_mean?: number;
+    final_grv_std?: number;
+    /** 24 月逐月均值 GRV */
+    monthly_grv: (number | null)[];
+    /** 24 月逐月簇内标准差（不确定带） */
+    monthly_grv_std?: (number | null)[];
+  }>;
+}

@@ -132,6 +132,16 @@ export const FEEDS: Record<string, FeedConfig> = {
     schemaVersion: '1.0',
     description: '天玑汇总：预测/推理/权重统计（天枢导出）',
   },
+  // F1（08-27）天璇 Tab：天璇 GRV 24 月多路径推演轨迹（天枢扫 docs/仿真报告 *_grv_traj.json 导出，I30 刷新）
+  tianxuanGrv: {
+    name: 'tianxuanGrv',
+    path: 'tianxuan_grv.json',
+    type: 'json',
+    schemaVersion: '1.0',
+    description: '天璇推演 GRV 轨迹（数学蒙特卡洛基线；天枢扫仿真报告导出）',
+    refreshMs: 300_000,
+    tolerateEmpty: true,
+  },
   fred: {
     name: 'fred',
     path: 'fred_history/manifest.json',
