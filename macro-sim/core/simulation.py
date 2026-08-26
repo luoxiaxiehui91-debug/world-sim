@@ -556,6 +556,11 @@ class MacroSimModel:
         执行一步仿真。
         inject_world: 校准循环传入当月真实外生变量，覆盖仿真结果（用于保持历史轨迹真实）
         """
+        # 0012b GRV 锚定修复：step 起点捕获地缘 composite 基准，供末尾【增量】注入标量 world.grv。
+        # 捕获在 Phase 0 governance 之前 → 政权更迭与 agent 决策造成的 composite 变化都计入增量。
+        _gd0 = getattr(self.world, "grv_dimensions", None)
+        _grv_composite_pre = _gd0.get("global_composite") if _gd0 is not None else None
+
         # 08-17 政权更迭引擎（仅预测期）：Phase 0 在 agent 决策前检查更迭事件
         if self.governance_enabled:
             try:
@@ -602,6 +607,18 @@ class MacroSimModel:
 
         # Phase 3: 出血规则
         apply_bleed_rules(self.world, self.bleed_params_override)
+
+        # Phase 3.5（0012b GRV 锚定修复）：地缘内核 → 金融内核 composite【增量】回写。
+        # 仅预测期生效（校准期 inject_world 非空 → 跳过，历史真值由 Phase 4 保持）。
+        # 增量注入（非整值覆盖）：标量 world.grv 保留自身均值回归(:345)+能源出血(:295)动力学，
+        # 本步只叠加 agent/政权更迭 造成的地缘 composite 变化量 → decay 合法生效、不抹掉出血通道。
+        # Δ=0（无 S 类行动）时为 no-op。clamp[0,100] 与 dict 写入口径一致。
+        if not inject_world and _grv_composite_pre is not None:
+            _gd_now = getattr(self.world, "grv_dimensions", None)
+            _composite_now = _gd_now.get("global_composite") if _gd_now is not None else None
+            if _composite_now is not None:
+                _grv_delta = _composite_now - _grv_composite_pre
+                self.world.grv = float(max(0.0, min(100.0, self.world.grv + _grv_delta)))
 
         # Phase 4: 校准注入（覆盖外生变量为真实值）
         if inject_world:

@@ -1,3 +1,16 @@
+## v2.0.49 — 2026-08-26 GRV 锚定修复：grv_dimensions→world.grv composite【增量注入】（ADR-0012b）
+
+**修改理由**：门控实验 v4/v5 发现——注入外生事件 + 让 S 类/LLM agent 决策后，对外发布的标量 GRV 波动率 `vol_ratio` 恒 = 0.001，与裸推完全相同（agent 决策对被度量的量零影响）。根因：系统有两套并行、事后不互通的 GRV 表示——标量 `world.grv`（金融内核：均值回归 `world_state.py:345` + 能源出血 `:295`，对外报告全读它）与 dict `grv_dimensions`（地缘内核：S 类主权行动 + 政权更迭直写，无均值回归）。二者初始化同源，之后各走各的、永不再同步；`gm_resolve_rules` 的同名回写（`simulation.py:405-409`）只同步同名 world 属性，而 `global_composite` 对应的标量名是 `grv`（非 `global_composite`）→ `hasattr` 为 False，总量维度的更新被整段跳过。
+
+### 修改
+
+- **`core/simulation.py` `step()` 起点捕获基准**：Phase 0 governance 之前捕获 `_grv_composite_pre = grv_dimensions["global_composite"]`，使政权更迭与 agent 决策造成的 composite 变化都计入本步增量。
+- **`core/simulation.py` `step()` Phase 3.5 增量注入**：`apply_bleed_rules` 之后、Phase 4 校准注入之前，`world.grv += (composite_now − composite_pre)`（clamp[0,100]，与 dict 写入口径一致）。**增量注入**（非整值覆盖）保留标量自身的均值回归(`:345`)+能源出血(`:295`)动力学，本步只叠加地缘增量 → decay 合法生效、能源出血通道存活、`world.grv` 保持「金融+地缘混合」语义。
+- **`if not inject_world` 门控**：仅预测期生效；校准期（`inject_world` 非空）跳过注入，历史真值由 Phase 4 保持（双重护栏：显式门控 + Phase 4 覆盖在回写之后）。
+- **`tests/test_grv_anchoring_0012b.py`（新增，4 组）**：双跑对照隔离注入量——预测期 composite +7 等量注入标量 grv / 缓和类 −8 同向传导（证明增量注入而非棘轮，v1 整值覆盖 bug 的反面守卫）/ 校准期门控跳过 / Δ=0 为 no-op。`test_calibrator_guards.py` 34 组回归全绿，断言数不降。
+
+**决策依据**：ADR-0012b v2（6-agent 论证纠正 v1「整值覆盖」致命 bug——会让均值回归变死代码、冲击变永久棘轮）。四决策：D1 增量注入保留混合语义 / D2 保留校准过的 3% 回归 / D3 口径 A（composite 增量回写）/ D4 separate_phase（本轮只修锚定，独立 commit；exo 事件注入接线推迟）。§5.1 注入路径已核实：v4/v5 走 `force_activate_all`/`forced_activate`，exo 层（`llm_pilot._EXO_LOOKUP`）恒 None 休眠，被测传导与激活来源无关。
+
 ## v2.0.48 — 2026-08-26 编年史生成停用（用户拍板"真停"）
 
 - `run.py` 两处（`run_simulation` / `run_predict_only`）：移除 `generate_chronicle` 调用（原走 `deepseek-ai/DeepSeek-V4-Flash`，是 DeepSeek token 消耗大户），保留 `dump_history_jsonl` 落盘 `sim_history_*.jsonl` 数据管道供人话版 `readable_report` 复用。
