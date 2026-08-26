@@ -13,6 +13,7 @@ financial.py — 金融类 Agent（A1/A2/A3/A5/A9/A11/A12）
 - 概率为类常量，后续如需调参可移至 agents.yaml（from_yaml 预留接口）
 """
 
+from .llm_pilot import LLMPilotMixin
 from core.agents.base import MacroAgent, AgentParams
 from dataclasses import dataclass, field
 from typing import ClassVar
@@ -20,11 +21,12 @@ import random
 
 
 @dataclass
-class FedAgent(MacroAgent):
+class FedAgent(LLMPilotMixin, MacroAgent):
     """A1：美联储 — 4个月延迟，低激活频率"""
     VALID_ACTIONS: ClassVar[list[str]] = [
         "CUT_50BP", "CUT_25BP", "HOLD", "HIKE_25BP", "VERBAL_INTERVENTION"
     ]
+    LLM_PERSONA = "美联储（美国央行）：负责利率政策，恐慌时倾向宽松救市，过热时收紧防通胀"
 
     def _decide_rules(self, ctx: dict) -> str:
         p = self.params
@@ -50,9 +52,10 @@ class FedAgent(MacroAgent):
 
 
 @dataclass
-class CommercialBankAgent(MacroAgent):
+class CommercialBankAgent(LLMPilotMixin, MacroAgent):
     """A2：商业银行风控 — 1个月延迟（R4b info_delay 2→1）"""
     VALID_ACTIONS: ClassVar[list[str]] = ["TIGHTEN_CREDIT", "HOLD", "EASE_CREDIT"]
+    LLM_PERSONA = "商业银行：靠贷款标准调节信贷，风险上升时收紧自保，乐观时放宽放贷"
 
     def _soul_risk_bias(self, ctx: dict) -> float:
         """08-17 混合 soul：评估 internal_factions 派系激活 → 风险偏好偏置 [-1,1]。

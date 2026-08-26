@@ -2,6 +2,7 @@
 social.py — 社会/舆论类 Agent（A6/A10）
 """
 
+from .llm_pilot import LLMPilotMixin
 from core.agents.base import MacroAgent, AgentParams
 from dataclasses import dataclass
 from typing import ClassVar
@@ -42,11 +43,12 @@ class MediaAgent(MacroAgent):
 
 
 @dataclass
-class RetailAgent(MacroAgent):
+class RetailAgent(LLMPilotMixin, MacroAgent):
     """A10：散户/羊群 — 0延迟，高激活频率，跟随媒体和机构放大波动"""
     VALID_ACTIONS: ClassVar[list[str]] = [
         "PANIC_SELL", "HOLD", "FOMO_BUY"
     ]
+    LLM_PERSONA = "散户投资者：情绪化羊群——恐慌时抛售离场，狂热时害怕踏空追涨"
 
     def _decide_rules(self, ctx: dict) -> str:
         p = self.params
