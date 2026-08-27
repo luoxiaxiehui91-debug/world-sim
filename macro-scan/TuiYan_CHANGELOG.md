@@ -1,10 +1,72 @@
 # Changelog
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-08-19（记录类文档随部署持续更新）
+> 最后核对时间：2026-08-27（记录类文档随部署持续更新；v3.8.21–3.8.24 于 2026-08-27 合规审计补录）
 
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。  
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+
+## v3.8.24 — 2026-08-27 (by 主理人 · `dac15299c`)
+
+**修改理由**：F1 天璇推演→开阳可视化通道（commit 2/3，F1 计划 hazy-snacking-cerf）——天璇跑出的 24 月 GRV 多路径轨迹此前只存在于 `.md` 报告文字，开阳看不成图。按三段链权责铁律「天枢是开阳 feed 唯一产出方」，由天枢新增导出脚本把天璇结构化轨迹转成 feed。
+
+### 主要变更
+
+- **`核心代码/tianxuan_grv_export.py`（新增，`dac15299c`）**：扫 `docs/仿真报告/*_grv_traj.json` 取最新一份 → 原子 tmp+rename 写 `data/tianxuan_grv.json`，供开阳天璇 Tab 只读展示；透传天璇 `generated_at` + 加天枢 `exported_at`
+  - M3 认识论：`is_scenario=true` / `kernel_label="天璇·数学基线"`（不含「官方」/「天玑校验」背书）
+  - M4 防静默：源缺失/解析失败/版本护栏（`producer`+`traj_schema`）不符 → 醒目告警 + 保留旧 feed，不静默写空
+  - M6 幂等：源 `generated_at` 未变则跳过重写（不动 mtime）
+- **`核心代码/scheduler.py`**：`JOBS` + `LOG_FILES` 注册 `tianxuan_grv`（I30 每 30 分钟，随 `tianji_summary`）
+- **`核心代码/silent_failure_probe.py`**：新增 `check_tianxuan_grv`（M5），基于内容 `generated_at` 交叉比对源 vs feed（非 mtime）——源比 feed 新超 1h → CRIT；接入 `run_probe`（`optim_config` import 补 `WORKSPACE` + 加 glob）
+
+### 验证
+
+- 本地 smoke test 全绿（空场景/透传/幂等/取最新/损坏保旧/护栏拒收/探针三态）。**本条为 commit 落地补录**；COPY 模式容器验收状态见 F1 计划（hazy-snacking-cerf）
+
+## v3.8.23 — 2026-08-23 (by 主理人 · commits `f24145dcd`→`5b9eae5b5`)
+
+**修改理由**：密钥轮换（v3.8.22）后连带的主模型切换 + 控制台/翻译优化五连——SiliconFlow 侧 Qwen3.5-27B 下线、DeepSeek-V4-Flash 上线，控制台下拉需与实际可用模型对齐，翻译并发提量，MiniMax 残码清理收尾。
+
+### 主要变更
+
+- **全仓主模型切换（`f24145dcd`）**：Qwen3.5-27B → `deepseek-ai/DeepSeek-V4-Flash`（天枢 auto 链兜底+默认、天璇叙事；sim_mc 保持 GLM-Z1-9B；`llm_client` 变量正名 `NARRATIVE`）；天枢 v3.8.23 / 天璇 v2.0.46
+- **`call_ollama` 更名 `call_llm_primary`（`01ea21d0c`）**：删 `OLLAMA_*` 死常量（Ollama CF-8 已废弃、全仓无 11434 实际调用，名不副实致审计误判主 LLM）
+- **翻译并发 4→12（`46764e85a`）**：SF RPM1000/TPM80000 实测余量充足；删 `call_llm_primary` 外层 MiMo 二次兜底（auto 链内已含完整降级）；MiniMax 代码全清（常量/`call_minimax`/auto 首选分支）
+- **MiMo v2.5-pro→v2.5 + 平台清单清理（`df735b78d`）**：`llm_usage` 删 minimax 平台 + sim_minimax 静态条目、siliconflow models 补 DeepSeek-V4-Flash 去 Qwen3.5-27B——控制台下拉与实际可用模型对齐
+- **控制台实时模型清单（`f44f6cc46`）**：新增 `platform-models` 端点（上游 `/models` 拉取 + 1h 缓存 + 非对话类过滤），前端 datalist 接入实时清单（失败回落静态）
+- **控制台模型选择 input+datalist 改 select（`5b9eae5b5`）**：datalist 前缀过滤致只显示当前值一项；openai 内置平台移除（从未使用）
+
+### 验证
+
+- 密钥轮换 + 模型切换冒烟通过（记录见中央知识库 `questions/world-deduction/20260822-world-deduction-llm-keys-plaintext-in-git.md` 阶段2）；**本条为当时漏写的 CHANGELOG 补录**
+
+## v3.8.22 — 2026-08-23 (by 主理人 · `7e44fa23f`)
+
+**修改理由**：P0-A 密钥安全整改第二阶段——继 v3.8.21 前的注入层规范化（compose 明文改 `${VAR}` 引用，git `fa60d4689`），本版轮换泄露 key 并废弃 MiniMax。为中央知识库活跃问题「LLM 密钥明文入 git」（P0）的收敛动作。
+
+### 主要变更
+
+- **密钥轮换（`7e44fa23f`）**：SiliconFlow / mimo(OPENAI_COMPAT) 新 key 本地 `.env` 注入（旧明文 key 作废）
+- **MiniMax 废弃**：compose 删行 + 天璇死代码清理
+- **翻译切 Hunyuan-MT-7B**：key 链按平台映射，修跨平台 401 陷阱
+- 天枢 v3.8.22 / 天璇 v2.0.45
+
+### 验证
+
+- 冒烟通过（详见中央知识库 `questions/world-deduction/20260822-world-deduction-llm-keys-plaintext-in-git.md` 阶段2「LLM 类密钥轮换已全部闭环」）；**本条为当时漏写的 CHANGELOG 补录**
+
+## v3.8.21 — 2026-08-22 (by 主理人 · `9cc14fab4`)
+
+**修改理由**：health 图层同城聚合 + 双文件明细架构。**注**：该 commit message 只标注 health 组件版本「v1.1.1」、未提天枢版本号，但实际把 `macro-scan/VERSION` 从 3.8.20 隐性 bump 到 3.8.21——当时未在本 CHANGELOG 单独记录，本条为事后补录（发现于中央知识库合规审计）。
+
+### 主要变更
+
+- **health 图层同城聚合（`9cc14fab4`）**：开阳 2145 点 → 342 点带 count 徽标
+- **双文件明细架构**：GDELT 补拉重建 72h 明细（Congo count 恢复 250）
+
+### 验证
+
+- 补录条目，验证见对应 commit `9cc14fab4`
 
 ## v3.8.20 — 2026-08-19 (by 主理人 · commits `24e3b5f7`→`0e59cd758`)
 
