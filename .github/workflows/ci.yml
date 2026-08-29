@@ -1,0 +1,112 @@
+name: CI
+
+# world-sim 回归门禁：4 个子系统各起一个 job。
+# - kaiyang（开阳，可视化前端）：vitest
+# - macro-sim（天璇，仿真引擎）：pytest
+# - macro-ji（天玑，校准验证）：pytest
+# - macro-scan（天枢，采集引擎）：pytest
+#
+# 全局 PYTHONUTF8=1：源码/测试大量中文 print 与断言消息，
+# 否则在非 UTF-8 locale 的 runner 上会因 cp1252/ascii 编码错误挂起或崩溃。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
+
+jobs:
+  kaiyang:
+    name: kaiyang (vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: kaiyang
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: kaiyang/package-lock.json
+      - run: npm ci
+      - name: vitest run
+        run: npm run test
+
+  macro-sim:
+    name: macro-sim (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: macro-sim
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-timeout
+      - name: pytest
+        # --timeout 为兜底：防止任何联网/阻塞测试无限挂起拖死 CI
+        run: python -m pytest tests -q -p no:cacheprovider --timeout=120
+
+  macro-ji:
+    name: macro-ji (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: macro-ji
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-timeout
+      - name: pytest
+        run: python -m pytest tests -q -p no:cacheprovider --timeout=120
+
+  macro-scan:
+    name: macro-scan (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: macro-scan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install deps
+        # requirements.txt 含 zh_core_web_sm / feedparser 两个非 PyPI 包，
+        # 已随 wheels/ 目录入库 → 用 --find-links 从本地 wheel 安装。
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt --find-links wheels
+          pip install pytest pytest-timeout
+      - name: pytest
+        # 只跑 tests/（核心代码/tests 目前是 0 字节空壳）。
+        # test_fetch_commodity_yahoo.py 有已知的可复现挂起（审计 finding 记录：
+        # collect() 中 requests.get 未被 mock 拦截而真实发起 → 挂起），
+        # 用 --ignore 排除；--timeout 作为其余测试的兜底。
+        run: >
+          python -m pytest tests -q -p no:cacheprovider --timeout=90
+          --ignore=tests/test_fetch_commodity_yahoo.py
