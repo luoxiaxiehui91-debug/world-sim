@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""审计发现 #1/#3/#21 — 硬编码凭证泄露守卫（回归测试）。
+"""审计发现 #1/#3/#21 — 硬编码凭证泄露守卫（活体守卫）。
 
-背景：多个 fetcher 把真实凭证硬编码进受版本控制的源文件：
+背景：多个 fetcher 曾把真实凭证硬编码进受版本控制的源文件（已修复于 2026-08-29）：
   - fetch_spacetrack.py  : os.environ.get("SPACETRACK_ID"/"SPACETRACK_PASS", <真实邮箱/密码>)
   - fetch_firms.py       : os.environ.get("FIRMS_MAP_KEY", <真实 NASA key>)
   - fetch_fred_ultra.py  : FRED_API_KEY = "<真实 FRED key>"（明文赋值，连 env 都不读）
@@ -10,9 +10,6 @@
 env fallback 的默认值不得是非空硬编码凭证（应为 None/空串）。
 
 本测试纯文件读取 + 正则，不 import 任何被测模块（避免触网/依赖副作用）。
-因为这是【已确认但尚未修复】的 bug，测试断言【正确/安全】行为，
-对当前代码必然失败，故用 @pytest.mark.xfail(strict=True) 标注。
-一旦有人清掉硬编码凭证 → xpass → strict 失败，强制摘掉标记，测试转为活体守卫。
 """
 import os
 import re
@@ -55,11 +52,7 @@ def _read(rel_path):
         return f.read()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="审计发现 #1/#3/#21: fetch_spacetrack/fetch_firms/fetch_fred_ultra "
-           "把真实凭证硬编码为 env 默认值或明文，尚未修复",
-)
+
 def test_no_hardcoded_credentials_in_source():
     violations = []
 
