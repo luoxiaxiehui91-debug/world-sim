@@ -42,7 +42,7 @@ except ImportError:
     PROXY_URL = os.environ.get('OUTBOUND_PROXY', '')
 
 PROXY_URL = os.environ.get('OUTBOUND_PROXY', '') or PROXY_URL
-FIRMS_MAP_KEY = os.environ.get('FIRMS_MAP_KEY', 'REDACTED_FIRMS_KEY')
+FIRMS_MAP_KEY = os.environ.get('FIRMS_MAP_KEY')
 FIRMS_OUTPUT = os.path.join(DATA_DIR, 'firms_fire.json')
 _PROXIES = {
     'http': PROXY_URL,

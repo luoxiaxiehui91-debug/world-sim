@@ -37,9 +37,9 @@ _cfg = FetcherBase.load_config_with_fallback(
 )
 DATA_DIR        = _cfg["DATA_DIR"]
 PROXY_URL       = _cfg["PROXY_URL"]
-# 凭证优先从环境变量读，其次用默认值（见 S:\KEY\Space-Track.txt）
-SPACETRACK_ID   = os.environ.get("SPACETRACK_ID",   "REDACTED_SPACETRACK_ID")
-SPACETRACK_PASS = os.environ.get("SPACETRACK_PASS",  "REDACTED_SPACETRACK_PASS")
+# 凭证从环境变量读（SPACETRACK_ID / SPACETRACK_PASS），见 S:\KEY\Space-Track KEY.txt
+SPACETRACK_ID   = os.environ.get("SPACETRACK_ID")
+SPACETRACK_PASS = os.environ.get("SPACETRACK_PASS")
 
 BASE     = "https://www.space-track.org"
 OUTPUT   = "spacetrack.json"

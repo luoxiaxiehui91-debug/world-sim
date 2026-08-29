@@ -21,6 +21,9 @@ services:
     environment:
       - OPENCLAW_WORKSPACE=/workspace
       - FRED_API_KEY=${FRED_API_KEY}
+      - SPACETRACK_ID=${SPACETRACK_ID}
+      - SPACETRACK_PASS=${SPACETRACK_PASS}
+      - FIRMS_MAP_KEY=${FIRMS_MAP_KEY}
       - TZ=Asia/Shanghai
       - OUTBOUND_PROXY=http://192.168.31.108:7890
       # 08-18 P1-6 纪律补齐：PG-only 写开关 + 网络 + 控制面 token（.env 提供，占位不落明文）
