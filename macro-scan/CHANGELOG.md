@@ -3,9 +3,21 @@
 > 文档类别：实录（RECORD）· CHANGELOG
 > 版本锚点：`S:/world-sim/macro-scan/VERSION`
 
----
+## v3.8.29 — 2026-09-03 开阳报告索引时序竞态修复：save_report() 落盘后就近刷新开阳数据源
 
-## v3.8.28 — 2026-09-03 密钥治理：控制台 api_key 写入通道封死（密钥只走 .env，ADR-0013）
+### 变更
+- 【commit 113410b — question 20260902-kaiyang-report-index-race（P2）修复，用户拍板方案 A】
+  - “核心代码/run_macro_analysis.py” “save_report()”：ntfy 推送后、return 前新增 REINDEX 段——报告写盘成功后 subprocess 调同目录 “generate_reports_index.py”（timeout 180s），即写即刷新 “data/reports_index.json” + “data/reports/”，解耦索引重建与调度时序；触发失败仅 [WARN] 打印，不阻塞报告保存/ntfy 推送
+  - “scheduler.py” 07:35（工作日）/20:35（每天）定时重建保留作幂等兜底（不删）
+  - VERSION 3.8.28 → 3.8.29
+
+### 关联
+- question “questions/world-deduction/20260902-world-deduction-kaiyang-report-index-race.md”（⚠️ 已定位待修复 → 修复完成）
+- CHG-20260903T072540-world-deduction（Pre/Post 闭环）
+- 背景：晨报 07:30 cron 启动、LLM ~07:36 完稿；scheduler 07:35 索引重建抢跑 → 报告落 07:36~20:35 空窗（ntfy 已推、开阳不显示）
+
+---
+：控制台 api_key 写入通道封死（密钥只走 .env，ADR-0013）
 
 ### 变更
 - 【commit 94939af — question 20260902-llm-config-key-plaintext（P1）修复】
