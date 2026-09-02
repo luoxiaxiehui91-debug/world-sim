@@ -2047,6 +2047,26 @@ def save_report(report: str, topic: str = "综合", country: str = "us", depth: 
         except Exception as e:
             print(f"[WARN] ntfy 推送失败: {e}")
 
+    # 2026-09-03 v3.8.29：报告落盘后就近刷新开阳数据源
+    # （修索引重建 07:35 抢跑竞态——晨报 07:36 完稿落 07:36~20:35 空窗，kaiyang 不显示；
+    #   见 questions/world-deduction/20260902-world-deduction-kaiyang-report-index-race.md）
+    try:
+        _reindex_script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                       "generate_reports_index.py")
+        if os.path.exists(_reindex_script):
+            _rr = subprocess.run([sys.executable, _reindex_script],
+                                 capture_output=True, text=True, timeout=180)
+            if _rr.returncode == 0:
+                _tail = _rr.stdout.strip().splitlines()
+                print(f"[REINDEX] 开阳报告索引已刷新：{_tail[-1] if _tail else 'ok'}")
+            else:
+                print(f"[WARN] 开阳报告索引刷新失败 rc={_rr.returncode}："
+                      f"{_rr.stderr.strip()[-200:]}")
+        else:
+            print(f"[WARN] 未找到 {_reindex_script}，跳过开阳索引刷新")
+    except Exception as _reindex_e:
+        print(f"[WARN] 开阳报告索引刷新异常：{_reindex_e}")
+
     return filename
 
 
