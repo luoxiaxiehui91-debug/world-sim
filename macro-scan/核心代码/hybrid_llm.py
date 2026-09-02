@@ -23,7 +23,8 @@ SILICONFLOW_MODEL = os.environ.get("SILICONFLOW_MODEL", "deepseek-ai/DeepSeek-V4
 # 平台 id → env 变量名（call_openai_compat 按 resolved.platform 取默认 key）
 _PLATFORM_ENV_KEYS = {
     "siliconflow": "SILICONFLOW_API_KEY",
-    "mimo": "OPENAI_COMPAT_KEY",
+    "mimo_plan": "OPENAI_COMPAT_KEY",
+    "mimo_api": "MIMO_API_KEY",
     "openai": "OPENAI_API_KEY",
 }
 

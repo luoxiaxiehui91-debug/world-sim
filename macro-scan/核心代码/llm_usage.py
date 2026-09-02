@@ -18,7 +18,7 @@ llm_usage.py — LLM 使用点统一登记 + 运行时配置（08-16，开阳控
       "custom1": {"name": "公司内网", "base_url": "https://.../v1", "models": ["m1", "m2"]}
     },
     "usages": {                           # 使用点覆盖（只存被修改过的）
-      "translate_titles": {"platform": "mimo", "model": "mimo-v2.5", "api_key": "sk-..."}
+      "translate_titles": {"platform": "mimo_plan", "model": "mimo-v2.5", "api_key": "sk-..."}
     }
   }
 
@@ -45,9 +45,15 @@ CONFIG_PATH = os.path.join(DATA_DIR, "llm_config.json")
 # ── 内置平台清单 ────────────────────────────────────────────────────
 # id → {name, base_url, models[预置模型，供前端下拉], default_model}
 PLATFORMS = {
-    "mimo": {
-        "name": "小米 MiMo",
+    "mimo_plan": {
+        "name": "小米 MiMo Plan",
         "base_url": "https://token-plan-cn.xiaomimimo.com/v1",
+        "models": ["mimo-v2.5"],
+        "default_model": "mimo-v2.5",
+    },
+    "mimo_api": {
+        "name": "小米 MiMo API",
+        "base_url": "https://api.xiaomimimo.com/v1",
         "models": ["mimo-v2.5"],
         "default_model": "mimo-v2.5",
     },
@@ -73,7 +79,7 @@ LLM_USAGES = [
         "id": "translate_titles",
         "name": "新闻标题翻译",
         "purpose": "fetch_news_titles.py 标题英→中（LLM 逐条并发 4）",
-        "platform": "mimo",
+        "platform": "mimo_plan",
         "default_model": "mimo-v2.5",
         "container": "tianshu",
         "adjustable": True,
@@ -82,7 +88,7 @@ LLM_USAGES = [
         "id": "openai_compat",
         "name": "通用 OpenAI 兼容",
         "purpose": "hybrid_llm.call_openai_compat 无显式 usage 的调用（含 run_macro_analysis 宏观分析）",
-        "platform": "mimo",
+        "platform": "mimo_plan",
         "default_model": None,  # 跟随环境变量 OPENAI_COMPAT_MODEL
         "container": "tianshu",
         "adjustable": True,
@@ -337,7 +343,7 @@ def fetch_platform_models(platform_id: str) -> list[str]:
     plat = _all_platforms().get(platform_id)
     if not plat:
         raise ValueError(f"未知平台: {platform_id}")
-    env_name = {"siliconflow": "SILICONFLOW_API_KEY", "mimo": "OPENAI_COMPAT_KEY",
+    env_name = {"siliconflow": "SILICONFLOW_API_KEY", "mimo_plan": "OPENAI_COMPAT_KEY", "mimo_api": "MIMO_API_KEY",
                 "openai": "OPENAI_API_KEY"}.get(platform_id, "")
     key = _os.environ.get(env_name, "")
     if not key:
