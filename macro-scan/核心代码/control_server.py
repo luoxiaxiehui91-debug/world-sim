@@ -493,8 +493,9 @@ def llm_usage_list(request: Request = None):
 
 @app.put("/api/v1/control/llm-usage/{usage_id}")
 async def llm_usage_update(usage_id: str, request: Request):
-    """修改 LLM 使用点（平台 + 模型 + 可选 API key；写 data/llm_config.json，原子写）。
-    api_key 字段可选：传非空更新，缺省保留原值（前端不回显明文）。"""
+    """修改 LLM 使用点（平台 + 模型；写 data/llm_config.json，原子写）。
+    API key 已禁走此通道（09-03，ADR-0013）：set_usage 对非空 key 硬拒报错，
+    密钥一律配置于 NAS macro-scan/.env 后 docker compose up -d。"""
     _check_token(request)
     try:
         body = await request.json()

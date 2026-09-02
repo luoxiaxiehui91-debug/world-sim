@@ -1,7 +1,7 @@
 {
   "name": "kaiyang",
   "private": true,
-  "version": "1.11.35",
+  "version": "1.11.36",
   "type": "module",
   "description": "世界推演系统 · 开阳 Wave 2 操作面板（展示 + 控制双职能，只读契约 + 受控指令通道）",
   "scripts": {

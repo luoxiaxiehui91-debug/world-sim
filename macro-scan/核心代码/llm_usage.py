@@ -239,8 +239,10 @@ def resolve_embedding(usage_id: str = "rag_embedding") -> dict | None:
 
 def set_usage(usage_id: str, platform: str, model: str,
               api_key: str | None = None) -> tuple[bool, str]:
-    """控制台修改使用点（平台 + 模型 + 可选 key）。platform 必须在清单内。
-    落盘时附带 base_url 展开值——天璇等跨容器消费者无需平台清单即可解析。"""
+    """控制台修改使用点（平台 + 模型）。platform 必须在清单内。
+    落盘时附带 base_url 展开值——天璇等跨容器消费者无需平台清单即可解析。
+    API key 禁走控制台（ADR-0013，09-03）：非空 key 一律硬拒，密钥只配置于 NAS .env；
+    历史残留 api_key 随保存清理，保证 config 持久化永不带 key。"""
     if usage_id not in _USAGE_IDS:
         return False, f"未知使用点: {usage_id}"
     platform = (platform or "").strip()
@@ -274,9 +276,10 @@ def set_usage(usage_id: str, platform: str, model: str,
     entry["platform"] = platform
     entry["model"] = model
     entry["base_url"] = (plat.get("base_url") or "").rstrip("/")
-    # api_key：显式传非空 → 更新；传 None → 保留原值（前端不发回显，避免覆盖）
-    if api_key is not None:
-        entry["api_key"] = api_key.strip() or None
+    # 09-03（ADR-0013 对齐）：密钥只走 .env，控制台写入通道硬拒；历史残留一并清除
+    if api_key is not None and api_key.strip():
+        return False, "密钥禁止经控制台写入：请配置于 NAS macro-scan/.env（如 MIMO_API_KEY=ak-…）后 docker compose up -d"
+    entry.pop("api_key", None)
     cfg["usages"][usage_id] = entry
     if save_config(cfg):
         return True, "ok"

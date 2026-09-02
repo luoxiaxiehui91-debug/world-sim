@@ -443,10 +443,10 @@ export async function getLlmUsage(): Promise<LlmUsageResponse> {
   return { usages: res?.usages ?? [], platforms: res?.platforms ?? [] };
 }
 
-/** 修改 LLM 使用点（平台 + 模型 + 可选 API key；写 data/llm_config.json，下次调用生效） */
+/** 修改 LLM 使用点（平台 + 模型；写 data/llm_config.json，下次调用生效；密钥走 NAS .env，不入此接口） */
 export async function updateLlmUsage(
   usageId: string,
-  payload: { platform: string; model: string; apiKey?: string },
+  payload: { platform: string; model: string },
 ): Promise<boolean> {
   const res = await apiFetch<{ ok?: boolean }>(
     `/llm-usage/${usageId}`,
@@ -455,7 +455,6 @@ export async function updateLlmUsage(
       body: JSON.stringify({
         platform: payload.platform,
         model: payload.model,
-        api_key: payload.apiKey ?? undefined,
       }),
     },
     true,

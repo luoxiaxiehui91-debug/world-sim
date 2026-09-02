@@ -1,8 +1,8 @@
 /**
- * LLM 配置面板（08-16 新增；v2 平台化：换平台 / 选输模型 / 配 API key）
+ * LLM 配置面板（08-16 新增；09-03：删 API key 框——密钥禁走控制台，只配 NAS .env）
  * 折叠式：状态行 → 展开表格。每个使用点：
- *   平台下拉（内置 MiMo / SiliconFlow / MiniMax / OpenAI / Anthropic，可自定义 URL）
- *   → 模型（datalist 预置平台模型 + 可手输）→ API key（不回显明文，显示已配置标记）
+ *   平台下拉（内置平台：MiMo Plan / MiMo API / SiliconFlow 等）
+ *   → 模型（实时 /models 下拉 + 静态清单兜底）
  *   → 保存（PUT /control/llm-usage/{id}：写 data/llm_config.json 原子写）。
  * 天枢热挂载即时生效；天璇读共享配置文件（llm_config.json），下次调用生效。
  */
@@ -20,7 +20,6 @@ const CONTAINER_ZH: Record<string, string> = {
 interface Draft {
   platform: string;
   model: string;
-  apiKey: string;
 }
 
 export function LlmConfig() {
@@ -43,7 +42,7 @@ export function LlmConfig() {
         Object.fromEntries(
           res.usages.map((u) => [
             u.id,
-            { platform: u.platform, model: u.model, apiKey: '' },
+            { platform: u.platform, model: u.model },
           ]),
         ),
       );
@@ -67,14 +66,13 @@ export function LlmConfig() {
   }, [open, usages, refresh]);
 
   const setDraft = (id: string, patch: Partial<Draft>) =>
-    setDrafts((d) => ({ ...d, [id]: { ...(d[id] ?? { platform: '', model: '', apiKey: '' }), ...patch } }));
+    setDrafts((d) => ({ ...d, [id]: { ...(d[id] ?? { platform: '', model: '' }), ...patch } }));
 
   const handlePlatformChange = (u: LlmUsage, pid: string) => {
     const plat = platforms.find((p) => p.id === pid);
     setDraft(u.id, {
       platform: pid,
       model: plat?.default_model ?? '',
-      apiKey: '',
     });
   };
 
@@ -86,7 +84,6 @@ export function LlmConfig() {
     const ok = await updateLlmUsage(u.id, {
       platform: d.platform,
       model: d.model.trim(),
-      apiKey: d.apiKey.trim() || undefined,
     });
     setSavingId(null);
     if (ok) {
@@ -176,13 +173,7 @@ export function LlmConfig() {
                         </select>
                       );
                     })()}
-                    <input
-                      value={d?.apiKey ?? ''}
-                      onChange={(e) => setDraft(u.id, { apiKey: e.target.value })}
-                      type="password"
-                      placeholder={u.api_key_masked ? `已配置 ${u.api_key_masked}（留空不换）` : 'API Key（可选）'}
-                      className="w-32 rounded border border-white/10 bg-black/30 px-1.5 py-0.5 text-[10px] text-white/80 outline-none focus:border-cyan-400/40"
-                    />
+                    {/* 09-03（ADR-0013）：密钥禁走控制台，API key 输入框已移除——配置于 NAS macro-scan/.env */}
                     <button
                       type="button"
                       disabled={savingId === u.id}
@@ -192,12 +183,15 @@ export function LlmConfig() {
                       {savingId === u.id ? '保存中…' : '保存'}
                     </button>
                   </div>
+                  <div className="text-[9px] leading-snug text-amber-200/60">
+                    密钥不在此配置：请写入 NAS macro-scan/.env（如 MIMO_API_KEY=ak-…）后 docker compose up -d
+                  </div>
                 </div>
               </div>
             );
           })}
           <div className="pt-0.5 text-[9px] leading-snug text-white/25">
-            平台 + 模型 + API key 写入天枢 data/llm_config.json（原子写）。天枢即时生效；天璇/天玑下次调用读取；key 仅存 NAS 本地，不回显明文。
+            平台 + 模型写入天枢 data/llm_config.json（原子写），天枢即时生效、天璇/天玑下次调用读取。API 密钥一律配置于 NAS macro-scan/.env（ADR-0013），不落此文件、不经控制台写入。
           </div>
         </div>
       )}
