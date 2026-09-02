@@ -25,7 +25,6 @@ _PLATFORM_ENV_KEYS = {
     "siliconflow": "SILICONFLOW_API_KEY",
     "mimo_plan": "OPENAI_COMPAT_KEY",
     "mimo_api": "MIMO_API_KEY",
-    "openai": "OPENAI_API_KEY",
 }
 
 # 重试配置

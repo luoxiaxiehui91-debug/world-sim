@@ -63,12 +63,6 @@ PLATFORMS = {
         "models": ["THUDM/GLM-Z1-9B-0414", "Qwen/Qwen3-8B", "deepseek-ai/DeepSeek-V4-Flash", "tencent/Hunyuan-MT-7B"],
         "default_model": "THUDM/GLM-Z1-9B-0414",
     },
-    "openai": {
-        "name": "OpenAI",
-        "base_url": "https://api.openai.com/v1",
-        "models": ["gpt-4o", "gpt-4o-mini", "o3-mini"],
-        "default_model": "gpt-4o",
-    },
 }
 
 
@@ -89,7 +83,7 @@ LLM_USAGES = [
         "name": "通用 OpenAI 兼容",
         "purpose": "hybrid_llm.call_openai_compat 无显式 usage 的调用（含 run_macro_analysis 宏观分析）",
         "platform": "mimo_plan",
-        "default_model": None,  # 跟随环境变量 OPENAI_COMPAT_MODEL
+        "default_model": None,  # 由 llm_config.json 固化 mimo-v2.5-pro（2026-09-02 前经 env OPENAI_COMPAT_MODEL）
         "container": "tianshu",
         "adjustable": True,
     },
@@ -343,8 +337,8 @@ def fetch_platform_models(platform_id: str) -> list[str]:
     plat = _all_platforms().get(platform_id)
     if not plat:
         raise ValueError(f"未知平台: {platform_id}")
-    env_name = {"siliconflow": "SILICONFLOW_API_KEY", "mimo_plan": "OPENAI_COMPAT_KEY", "mimo_api": "MIMO_API_KEY",
-                "openai": "OPENAI_API_KEY"}.get(platform_id, "")
+    env_name = {"siliconflow": "SILICONFLOW_API_KEY", "mimo_plan": "OPENAI_COMPAT_KEY",
+                "mimo_api": "MIMO_API_KEY"}.get(platform_id, "")
     key = _os.environ.get(env_name, "")
     if not key:
         raise ValueError(f"平台 {platform_id} 未配置 API key（env {env_name}）")
