@@ -3,6 +3,22 @@
 > 文档类别：实录（RECORD）· CHANGELOG
 > 版本锚点：`S:/world-sim/macro-scan/VERSION`
 
+## v3.8.30 — 2026-09-03 P5 退役：天枢 verify 域三旧脚本退役（验证功能 2026-08-24 已迁天玑收编）
+
+### 变更
+- 【commit ea518a9 — question 20260824-world-deduction-verify-domain-consolidation / 20260823-world-deduction-verify-ownership-misplacement（P5 收尾，用户拍板执行）】
+  - 删除 “核心代码/verify_geo_auto.py” / “verify_hypothesis.py” / “verify_predictions.py”（git 真源 + 运行区双端）——现行调度已在天玑 tianji_verify_cron（geo_auto 每日 09:30 / predictions 每月 1 日 09:00 / hypothesis 每月 1 日 09:15），天枢三文件为 2026-08-24 存量收编后的旧残留；宿主/容器 crontab、scheduler JOBS、ntfy 指令通道全入口 grep 核查无引用后删除
+  - “核心代码/ntfy_listener.py”：退役 cmd_verify 指令通道（函数块/路由分支/help 行三处），防删文件后 ntfy verify 指令断链；py_compile 通过；运行区 md5 双端一致（b339f74f…）
+  - “verify_reads_e0c.py” 保留（E0 审阅域与验证域独立）
+  - VERSION 3.8.29 → 3.8.30
+  - 已知过时待后续：tests/test_audit_scan_scheduler_verify.py 断言 scheduler JOBS 应含 verify_predictions（审计 #13 xfail 回归设计），随本退役语义反转，建议改为“JOBS 不应含”（不在本次范围）
+
+### 关联
+- questions/world-deduction/20260824-world-deduction-verify-domain-consolidation.md（⏸ → ✅ → 归档）
+- questions/world-deduction/20260823-world-deduction-verify-ownership-misplacement.md（母题，归档）
+- 背景：P4 月度对账（09-01 窗口 verify 两任务首次自动触发 + 43 条补跑）全维度通过后执行既定 P5 收尾
+
+---
 ## v3.8.29 — 2026-09-03 开阳报告索引时序竞态修复：save_report() 落盘后就近刷新开阳数据源
 
 ### 变更
