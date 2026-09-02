@@ -5,6 +5,21 @@
 
 ---
 
+## v3.8.28 — 2026-09-03 密钥治理：控制台 api_key 写入通道封死（密钥只走 .env，ADR-0013）
+
+### 变更
+- 【commit 94939af — question 20260902-llm-config-key-plaintext（P1）修复】
+  - “核心代码/llm_usage.py” “set_usage”：非空 api_key 硬拒 → (False, “密钥禁止经控制台写入：请配置于 NAS macro-scan/.env …”)；entry.pop(“api_key”) 清历史残留——config 持久化永不带 key（docstring 同步）
+  - “核心代码/control_server.py” PUT /api/v1/control/llm-usage/{usage_id}：docstring 更新（key 禁走此路，set_usage 兜底拒收并返回明确错误）；body 透传保留
+  - 前端配套（kaiyang v1.11.36）：LlmConfig.tsx 删 key 输入框 + controlApi.ts updateLlmUsage 去 apiKey
+
+### 关联
+- question “questions/world-deduction/20260902-world-deduction-llm-config-key-plaintext.md” → ✅ resolved 归档
+- ADR-0013 secret-injection-normalization（密钥只走 .env）
+- 与 “20260822-llm-keys-plaintext-in-git”（compose 明文进 git）同源不同面，共同闭合 world-deduction 密钥注入规范
+
+---
+
 ## v3.8.27 — 2026-09-02 LLM 平台收敛：mimo_plan/mimo_api 拆分 + openai_compat 模型固化 config + 移除预置 OpenAI 平台
 
 ### 变更

@@ -1,10 +1,20 @@
 # Changelog · 开阳（Kaiyang）操作面板
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-08-16（记录类文档随部署持续更新）
+> 最后核对时间：2026-09-03（记录类文档随部署持续更新）
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+
+## [1.11.36] 2026-09-03 · LLM 配置面板删 API key 框（密钥治理：只走 NAS .env）
+
+question：world-deduction 20260902-llm-config-key-plaintext（P1）配套修复
+- **fix**: `control/LlmConfig.tsx` 删除 API key 密码输入框 → 每使用点下方提示
+  「密钥不在此配置：请写入 NAS macro-scan/.env（如 MIMO_API_KEY=ak-…）后 docker compose up -d」；
+  Draft 类型与 handleSave 载荷去掉 apiKey。
+- **fix**: `lib/controlApi.ts` `updateLlmUsage` payload 收紧为 `{ platform, model }`（不再传 api_key）。
+- 后端配套（macro-scan v3.8.28）：`set_usage` 对非空 api_key 硬拒，双保险（前端删框 + 后端拒收）。
+- commit `94939af`。
 
 ## [1.11.35] 2026-08-27 · 天璇 Tab：GRV 24 月多路径推演轨迹图（F1 commit 3/3）
 
