@@ -179,25 +179,6 @@ def cmd_news():
     threading.Thread(target=_run, daemon=True).start()
 
 
-def cmd_verify():
-    """触发预测校验（异步执行，立即返回不阻塞轮询循环）。"""
-    push_text("[指令] 开始预测校验", "verify_predictions.py 运行中…")
-
-    def _run():
-        result = subprocess.run(
-            ["python3", "verify_predictions.py"],
-            capture_output=True, text=True, cwd="/app",
-        )
-        output = (result.stdout or result.stderr or "无输出").strip().splitlines()
-        summary = "\n".join(output[-15:])
-        if result.returncode == 0:
-            push_text("✅ 预测校验完成", summary)
-        else:
-            push_text("⚠️ 预测校验失败", summary)
-
-    threading.Thread(target=_run, daemon=True).start()
-
-
 def cmd_hypothesis(args: list):
     """触发假设推演：hypothesis <情景描述> [L1|L2|L3] [deep]。"""
     if not args:
@@ -448,7 +429,6 @@ def cmd_help():
         "  help     本帮助\n"
         "\n触发子模块：\n"
         "  news     新闻弱信号扫描\n"
-        "  verify   预测命中率校验\n"
         "\n假设推演：\n"
         "  hypothesis 台海冲突升级\n"
         "  hypothesis 台海 L2\n"
@@ -557,8 +537,6 @@ def handle(message: str):
         cmd_last(args)
     elif cmd == "news":
         cmd_news()
-    elif cmd == "verify":
-        cmd_verify()
     elif cmd == "hypothesis":
         cmd_hypothesis(args)
     elif cmd == "synthesize":
