@@ -1,6 +1,7 @@
 # 开阳（Kaiyang）操作面板 — AI 工作入口
 
 > **如在 monorepo 中工作，先读根目录 [`../AGENTS.md`](../AGENTS.md)（系统全貌 + 阅读路径入口）。**
+> **跨项目知识库入口**：中央知识库 = `S:\docs\`（NAS 侧 `/vol2/1000/software/docs/`）；规则真源 = `S:\docs\AGENTS.md`（问题流程 / CHG 变更日志 / 文档写作规范）。改代码 / 部署后**必须按文末「中央知识库同步（CHG 五步）」同步中央知识库**（2026-08-30 CHG 体系）。
 
 ## 当前状态快照
 
@@ -129,3 +130,15 @@ kaiyang/
 npm test              # Vitest 单元测试
 npm run build         # 构建产物到 dist/（dist/ 不进 git）
 ```
+
+## 中央知识库同步（CHG 五步，2026-08-30 起）
+
+任何非只读变更（改代码 / 改配置 / 部署 / 归档 / 文档修改）都要走中央 CHG 生命周期（格式真源 = `S:\docs\AGENTS.md` §operations/ 系统日志）：
+
+1. **实施前**：建 `S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-kaiyang.md`（9 字段 frontmatter + `## Pre-Change` 写完冻结）
+2. **实施**：改代码 + 按版本同步清单更新（kaiyang 清单 = `VERSION` + `package.json` + `CHANGELOG.md` + `S:\docs\INDEX.md` 版本状态表）
+3. **同步**：更新 `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）+ `S:\docs\questions\world-deduction\` 相关 question 状态
+4. **收尾**：CHG 追加 `## Post-Change`（完成时间 / 实施摘要 / 验证），frontmatter status 改 `completed`
+5. **边界**：纯报问题建档（question doc + INDEX 加行）**不建 CHG**——CHG 只覆盖实施变更，不覆盖记录「发现」
+
+NAS 侧路径等价：`/vol2/1000/software/docs/`。问题归属统一建在 `questions/world-deduction/`。

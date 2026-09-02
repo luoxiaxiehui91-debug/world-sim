@@ -1,5 +1,7 @@
 # macro-scan（天枢）— Agent 工作指南
 
+> **跨项目知识库入口**：中央知识库 = `S:\docs\`（NAS 侧 `/vol2/1000/software/docs/`）；规则真源 = `S:\docs\AGENTS.md`（问题流程 / CHG 变更日志 / 文档写作规范）。改代码 / 部署后**必须按下方 §维护铁律 / §改代码后必须同步的文档中的 CHG 环节同步中央知识库**（2026-08-30 CHG 体系）。
+
 ## 项目概览
 
 世界推演系统观测层（天枢）：全球宏观情报自动采集 + LLM分析推演 + 地缘风险向量引擎，运行在 NAS Docker 容器中。
@@ -124,12 +126,13 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 ## 维护铁律
 
 1. **改前必读** `TuiYan_CHANGELOG.md`（了解最新状态）
-2. **改后必追加** `TuiYan_CHANGELOG.md` → bump `VERSION` → 按联动矩阵更新对应文档 → 版本变更时同步更新 `S:\docs\INDEX.md` 版本状态行
-3. **绝对不要** `git rm`（不加 `--cached`）知识库或 data 下的文件
-4. **绝对不要** 把 `核心代码/` 内的 .py 分子目录
-5. **ntfy 推送强制直连**，不走代理
-6. `entrypoint.sh` 必须无 UTF-8 BOM
-7. **只在源码区改代码**（`S:\world-sim\macro-scan\`），改完验证后再推 NAS 和 GitHub
+2. **实施前先建 CHG**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-macro-scan.md`（9 字段 frontmatter + `## Pre-Change` 冻结；格式见 `S:\docs\AGENTS.md` §operations/ 系统日志）
+3. **改后必追加** `TuiYan_CHANGELOG.md` → bump `VERSION` → 按联动矩阵更新对应文档 → 版本变更时同步更新 `S:\docs\INDEX.md` 版本状态行 → CHG 补 `## Post-Change` + status `completed`
+4. **绝对不要** `git rm`（不加 `--cached`）知识库或 data 下的文件
+5. **绝对不要** 把 `核心代码/` 内的 .py 分子目录
+6. **ntfy 推送强制直连**，不走代理
+7. `entrypoint.sh` 必须无 UTF-8 BOM
+8. **只在源码区改代码**（`S:\world-sim\macro-scan\`），改完验证后再推 NAS 和 GitHub
 
 ### 改代码后必须同步的文档
 
@@ -139,6 +142,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 
 | 改了什么 | 必须同时更新 |
 |:---|:---|
+| **任何变更（改代码 / 部署 / 改配置）** | **中央 CHG 文件**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-macro-scan.md`（实施前 `## Pre-Change` 冻结 → 完成后 `## Post-Change` + status `completed`；纯报问题建档不建 CHG）|
 | 任何 `核心代码/*.py` | `TuiYan_CHANGELOG.md` + `VERSION` |
 | `VERSION` 变更时（无论何种改动触发）| `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
 | `VERSION` 变更时（无论何种改动触发）| `世界推演系统_人类说明文档.md`（文件头版本号 + 第一节"当前能力"节 + 九、当前状态表）|

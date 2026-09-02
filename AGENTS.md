@@ -1,5 +1,7 @@
 # world-sim — AI 工作入口
 
+> **跨项目知识库入口**：中央知识库 = `S:\docs\`（NAS 侧 `/vol2/1000/software/docs/`）；规则真源 = `S:\docs\AGENTS.md`（问题流程 / CHG 变更日志 / 文档写作规范）。本仓库改代码 / 部署后**必须按下方「中央知识库同步（CHG 五步）」节同步中央知识库**（2026-08-30 CHG 体系）。
+
 **系统定位**：macro-scan 持续观测全球宏观信号 → macro-sim 演化未来路径（不是推理，是演化）→ kaiyang 只读可视化 + 控制台。
 
 ---
@@ -67,10 +69,24 @@
 | kaiyang 构建 | 改 src/ 后需 `npm run build`（在 kaiyang/ 目录），dist/ 不进 git，需手动 scp 到 NAS |
 | deploy.sh macro-scan | 只做 rsync + `docker compose restart`（不重建镜像） |
 | 改前必读 | 改任何文件前先读对应子系统的 CHANGELOG（两个系统都有各自铁律） |
-| 改后必追加 | 追加 CHANGELOG + bump VERSION + 按联动矩阵更新联动文档 |
+| 改后必追加 | 追加 CHANGELOG + bump VERSION + 按联动矩阵更新联动文档 + 按「中央知识库同步（CHG 五步）」节建 CHG |
 | R4 治理红线 | 校准引擎：接受线/EPS_TGT/weighted 0.60 冻结禁调；断言数不降禁 skip/.only；CACHE 每轮 bump；验收以容器实测为准 |
 | soul 路径 P0 | 探针/实验 config 必须放容器真实目录 `/app/config`（`load_agents` 的 soul 路径 = `dirname(config_path)/../souls`，放 /tmp 会静默丢 A3 soul → 假复现，结果可差 0.11） |
 | 校准评审实录 | `docs/calib/`（calib-*.md 评审/裁决/验收存档）+ `macro-sim/docs/operations/`（天璇操作日志，按日追加） |
+
+---
+
+## 中央知识库同步（CHG 五步，2026-08-30 起）
+
+任何非只读变更（改代码 / 改配置 / 部署 / 归档 / 文档修改）都要走中央 CHG 生命周期（格式真源 = `S:\docs\AGENTS.md` §operations/ 系统日志）：
+
+1. **实施前**：建 `S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-<project>.md`（9 字段 frontmatter + `## Pre-Change` 写完冻结）
+2. **实施**：改代码 + 按对应子系统 AGENTS.md 的版本同步清单更新 CHANGELOG / VERSION
+3. **同步**：更新 `S:\docs\INDEX.md` 项目版本状态表（版本号 + 日期 + 一行摘要）+ `S:\docs\questions\world-deduction\` 相关 question 状态
+4. **收尾**：CHG 追加 `## Post-Change`（完成时间 / 实施摘要 / 验证），frontmatter status 改 `completed`
+5. **边界**：纯报问题建档（question doc + INDEX 加行）**不建 CHG**——CHG 只覆盖实施变更，不覆盖记录「发现」
+
+NAS 侧路径等价：`/vol2/1000/software/docs/`。问题归属统一建在 `questions/world-deduction/`。
 
 ---
 

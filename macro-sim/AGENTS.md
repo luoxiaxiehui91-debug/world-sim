@@ -1,6 +1,7 @@
 # macro-sim（天璇）— Agent 工作指南
 
 > **如在 monorepo 中工作，先读根目录 [`../AGENTS.md`](../AGENTS.md)（系统全貌 + 阅读路径入口）。**
+> **跨项目知识库入口**：中央知识库 = `S:\docs\`（NAS 侧 `/vol2/1000/software/docs/`）；规则真源 = `S:\docs\AGENTS.md`（问题流程 / CHG 变更日志 / 文档写作规范）。改代码 / 部署后**必须按下方 §维护铁律 / §改代码后必须同步的文档中的 CHG 环节同步中央知识库**（2026-08-30 CHG 体系）。
 
 ## 项目概览
 
@@ -162,12 +163,13 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 
 ## 维护铁律
 
-1. 改动后必须 bump `VERSION` + 追加 `CHANGELOG.md`
-2. `config/agents.yaml` 通过 `COPY` 打包进镜像，**修改后需重新部署**（NAS 手动 docker build，见"修改工作流"）
-3. FRED 数据读取后需 ×100 转 bp（T10Y2Y / BAA10Y）
-4. 校准期误差计算权重（v2.0.20 起为**内生变量**权重）：market_sentiment×0.35 + bank_credit_tightening×0.30 + liquidity_premium×0.20 + em_capital_outflow×0.15（旧外生权重 grv×0.4+credit_spread×0.3+t10y2y×0.2+dff×0.1 已废弃）
-5. **部署铁律（08-21 教训）**：改 `run.py` / `config/` 等 **COPY 进镜像**的文件后，**必须**在 git 真源执行 `cd /vol2/1000/software/world-sim/macro-sim && docker build -t macro-sim:latest . && docker compose up -d --force-recreate`，否则改动不生效（容器跑旧代码）。**验收**：`docker inspect -f "{{.State.StartedAt}}" macro-sim` 晚于代码提交时间。改 git 不重建容器 = 未部署。
-5. 路径概率 <5% 的路径不展开推演
+1. **实施前先建 CHG**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-macro-sim.md`（9 字段 frontmatter + `## Pre-Change` 冻结；格式见 `S:\docs\AGENTS.md` §operations/ 系统日志）
+2. 改动后必须 bump `VERSION` + 追加 `CHANGELOG.md`；完成后 CHG 补 `## Post-Change` + status `completed`
+3. `config/agents.yaml` 通过 `COPY` 打包进镜像，**修改后需重新部署**（NAS 手动 docker build，见"修改工作流"）
+4. FRED 数据读取后需 ×100 转 bp（T10Y2Y / BAA10Y）
+5. 校准期误差计算权重（v2.0.20 起为**内生变量**权重）：market_sentiment×0.35 + bank_credit_tightening×0.30 + liquidity_premium×0.20 + em_capital_outflow×0.15（旧外生权重 grv×0.4+credit_spread×0.3+t10y2y×0.2+dff×0.1 已废弃）
+6. **部署铁律（08-21 教训）**：改 `run.py` / `config/` 等 **COPY 进镜像**的文件后，**必须**在 git 真源执行 `cd /vol2/1000/software/world-sim/macro-sim && docker build -t macro-sim:latest . && docker compose up -d --force-recreate`，否则改动不生效（容器跑旧代码）。**验收**：`docker inspect -f "{{.State.StartedAt}}" macro-sim` 晚于代码提交时间。改 git 不重建容器 = 未部署。
+7. 路径概率 <5% 的路径不展开推演
 
 ### 改代码后必须同步的文档
 
@@ -177,6 +179,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 
 | 改了什么 | 必须同时更新 |
 |---|---|
+| **任何变更（改代码 / 部署 / 改配置）** | **中央 CHG 文件**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-macro-sim.md`（实施前 `## Pre-Change` 冻结 → 完成后 `## Post-Change` + status `completed`；纯报问题建档不建 CHG）|
 | 任何 `core/*.py` | `VERSION`（PATCH）+ `CHANGELOG.md` |
 | 任何 `core/*.py`（版本号变更时）| + `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
 | 任何 `core/*.py`（版本号变更时）| + `macro-sim_人类说明文档.md` 文件头版本号 |

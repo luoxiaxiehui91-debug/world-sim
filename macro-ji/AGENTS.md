@@ -3,6 +3,8 @@
 > 容器：`macro-scan-tianji-1` · 镜像：`macro-tianji:latest` · 版本：v1.0.0（2026-08-04 上线）
 > 代码目录：`/vol2/1000/software/world-sim/macro-ji/`（NAS 仓库）
 
+> **跨项目知识库入口**：中央知识库 = `S:\docs\`（NAS 侧 `/vol2/1000/software/docs/`）；规则真源 = `S:\docs\AGENTS.md`（问题流程 / CHG 变更日志 / 文档写作规范）。改代码 / 部署后**必须按文末「七、中央知识库同步（CHG 五步）」同步中央知识库**（2026-08-30 CHG 体系）。
+
 ---
 
 ## 一、系统定位
@@ -103,3 +105,15 @@ docker ps --filter name=macro-scan-tianji-1   # 期待 (healthy)
 | `tianji_verifier.py` | `run_monthly_verification()` / `verify_quantitative()` / `check_and_generate_reweight_suggestions()` / `confirm_geopolitical()` | `--report` / `--status` / `--confirm ID 0\|1` |
 | `weight_matrix.py` | `init_weights_from_prior()` / `get_weight()` / `apply_weight_adjustment()` / `run_health_check()` / `approve_adjustment()` | `--init` / `--health` / `--pending` |
 | `verify_watchdog.py` | `main()`（3s 轮询循环） | 容器 CMD |
+
+## 七、中央知识库同步（CHG 五步，2026-08-30 起）
+
+任何非只读变更（改代码 / 改配置 / 部署 / 归档 / 文档修改）都要走中央 CHG 生命周期（格式真源 = `S:\docs\AGENTS.md` §operations/ 系统日志）：
+
+1. **实施前**：建 `S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-macro-ji.md`（9 字段 frontmatter + `## Pre-Change` 写完冻结）
+2. **实施**：改代码 + 按版本同步清单更新（macro-ji 清单 = `VERSION` + `CHANGELOG.md` + 本文件顶部版本号 + `S:\docs\INDEX.md` 版本状态表）
+3. **同步**：更新 `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）+ `S:\docs\questions\world-deduction\` 相关 question 状态
+4. **收尾**：CHG 追加 `## Post-Change`（完成时间 / 实施摘要 / 验证），frontmatter status 改 `completed`
+5. **边界**：纯报问题建档（question doc + INDEX 加行）**不建 CHG**——CHG 只覆盖实施变更，不覆盖记录「发现」
+
+NAS 侧路径等价：`/vol2/1000/software/docs/`。问题归属统一建在 `questions/world-deduction/`。
