@@ -340,6 +340,17 @@ def run_verification(dry_run: bool = False):
         entry = verify_one(entry, fred)
         results.append(entry)
 
+    # 2026-09-03 修复 dry-run 假实现（question 20260903-verify-predictions-dryrun-noop）：
+    # dry_run 此前从未被消费，写回段无条件执行——docstring 声称「只打印不写文件」实际照常落盘
+    # （09-03 P4 补跑 --dry-run 即改 43 条生产数据实证）。守卫：dry_run=True 打印预览后直接返回。
+    if dry_run:
+        print(f"[dry-run] 预览 {len(results)} 条验证结果（不写盘）：")
+        for _e in results:
+            _n = _e.get("human_note") or _e.get("note") or ""
+            print(f"  - {_e['id'][:12]}… 状态 → {_e.get('status')} | outcome={_e.get('outcome')} | {_n}")
+        print("[dry-run] 未写文件（predictions_log.json 不变）")
+        return
+
     # 写回日志（只更新已验证的条目）
     # H11 (2026-08-16, 全量审查): 原子写——原直接 open("w") 写目标文件，
     # 写一半崩溃留半截 JSON（下游 JSON.load 损坏）。tmp + os.replace 保证
@@ -362,6 +373,6 @@ def run_verification(dry_run: bool = False):
 if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser()
-    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--dry-run", action="store_true", help="只打印不写盘（预览）")
     args = p.parse_args()
     run_verification(dry_run=args.dry_run)
