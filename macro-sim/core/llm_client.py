@@ -145,7 +145,7 @@ def call_llm(
     """
     调用 LLM，返回原始文本。
     use_minimax=False → sim_mc（Monte Carlo，默认 GLM-Z1-9B / 硅基流动）
-    use_minimax=True  → sim_narrative（叙事，默认 Qwen3.5-27B）
+    use_minimax=True  → sim_narrative（叙事，默认 DeepSeek-V4-Flash）
     08-16：走开阳控制台统一配置（llm_config.json 可换平台/模型/API key）；
     失败时返回空字符串，不抛异常。
     """

@@ -6,6 +6,15 @@
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
 
+## [1.11.37] 2026-09-03 · LLM 面板恢复密钥框（write-only 通道，ADR-0015）
+
+question：world-deduction llm-key-ui-write-path（P2）+ llm-config-doc-drift Enforcement，配套 macro-scan v3.8.35
+- **feat**: `control/LlmConfig.tsx` 恢复 API key 密码输入框——write-only（type=password 不回显），
+  提交走 `POST /control/llm-secret`（写 NAS config/.env 0600 + 双 gitignore），placeholder 显示掩码状态
+  （已配置 sk-****abcd / 未配置密钥），保存即热生效免 recreate。
+- **feat**: `lib/controlApi.ts` 新增 `getLlmSecrets`（GET /llm-secrets 掩码状态）+ `setLlmSecret`（POST /llm-secret）。
+- **feat**: `types/control.ts` 新增 `LlmSecretStatus`（platform/masked/source）。
+- 后端配套（macro-scan v3.8.35）：`set_usage` 硬拒 api_key 保持（config 永不带 key），密钥走独立 secret 端点。
 ## [1.11.36] 2026-09-03 · LLM 配置面板删 API key 框（密钥治理：只走 NAS .env）
 
 question：world-deduction 20260902-llm-config-key-plaintext（P1）配套修复

@@ -58,7 +58,11 @@ def _get_embeddings_batch(texts: List[str]) -> List[Optional[List[float]]]:
     开阳控制台可改），未配置 fallback env SILICONFLOW_API_KEY + 常量。"""
     embed_url = SILICONFLOW_EMBED_URL
     embed_model = EMBED_MODEL
-    api_key = os.environ.get("SILICONFLOW_API_KEY", "")
+    try:
+        from llm_usage import get_secret
+        api_key = get_secret("SILICONFLOW_API_KEY") or ""
+    except Exception:
+        api_key = os.environ.get("SILICONFLOW_API_KEY", "")
     try:
         from llm_usage import resolve_embedding
         r = resolve_embedding()

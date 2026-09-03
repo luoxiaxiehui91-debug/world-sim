@@ -204,8 +204,18 @@ pre-commit install   # 在源码区 S:\world-sim\macro-scan\ 执行一次即可
 | crucix | :3117 | ~~英文地缘新闻+多源情报（FIRMS/EIA/GDELT等30源）~~ **已退场（08-12 G1 停容器）**，仅历史参考 |
 | rsshub | :12000 | 中文财经 RSS（财新/第一财经/华尔街见闻/东方财富研报）|
 
-> ⚠️ Ollama（192.168.31.56）已停用。LLM 降级链：MiniMax-M3 → MiMo v2.5 Pro → SiliconFlow Qwen3.5-27B → 纯数据报告
-> **08-16 LLM 统一配置**：`核心代码/llm_usage.py` 静态清单 6 使用点（translate_titles / openai_compat / rag_embedding / sim_mc / sim_narrative / sim_minimax）× 4 平台（mimo / siliconflow / minimax / openai），运行时配置 `data/llm_config.json`（开阳控制台「LLM 配置」面板读写，`GET/PUT /api/v1/control/llm-usage`）。**配置优先于 env/常量**；天璇读共享文件。翻译模型 mimo-v2.5（`fetch_news_titles.py` 走 `usage="translate_titles"`）；RAG 嵌入 `rag_engine.py` 走 `resolve_embedding()`（bge-m3）。改 `llm_usage.py`/`hybrid_llm.py` 后须重启 control_server（:8900）并 curl 验证新路由生效。
+> ⚠️ Ollama（192.168.31.56）已停用，MiniMax 已于 08-23 退役。LLM 降级链（auto）：MiMo v2.5-pro → SiliconFlow DeepSeek-V4-Flash → 纯数据报告；新闻标题翻译走 SiliconFlow Hunyuan-MT-7B。
+> **08-16 LLM 统一配置**：`核心代码/llm_usage.py` 静态清单 5 使用点（translate_titles / openai_compat / rag_embedding / sim_mc / sim_narrative）× 2 平台（mimo_plan / siliconflow），运行时配置 `data/llm_config.json`（开阳控制台「LLM 配置」面板读写，`GET/PUT /api/v1/control/llm-usage`）。**配置优先于 env/常量**；天璇读共享文件。翻译模型 Hunyuan-MT-7B（`fetch_news_titles.py` 走 `usage="translate_titles"`）；RAG 嵌入 `rag_engine.py` 走 `resolve_embedding()`（bge-m3）。改 `llm_usage.py`/`hybrid_llm.py` 后须重启 control_server（:8900）并 curl 验证新路由生效。
+
+### ⛓ 模型变更「五联同步」强制清单（ADR-0010 派生）
+> 任何 LLM 模型/平台变更，**必须同步以下五处**，缺一即视为未完成（否则必然再次漂移，参见 2026-09-03 `CHG-20260903T151756` 教训）：
+> 1. **运行区真相** `data/llm_config.json`（开阳面板 PUT 或 SSH 改 NAS，唯一真源）
+> 2. **兜底模板** `config/llm_config.default.json`（git tracked，灾难恢复用，5 使用点须一致）
+> 3. **compose/环境变量** `docker-compose.yml` + `docker-compose.example.yml`（仅当涉及 env 注入的模型；禁留 `OPENAI_COMPAT_MODEL` 类双源开关）
+> 4. **活跃文档** AGENTS.md / INDEX.md / 世界推演系统_人类说明文档.md / kaiyang `DATA_CONTRACT.md` `NEXT_SESSION_HANDOFF.md` / 根 `AGENTS.md` / `STATUS.md`
+> 5. **代码静态清单与 docstring** `核心代码/llm_usage.py`（`PLATFORMS` 模型列表 + `LLM_USAGES` 默认模型）、`hybrid_llm.py` / `run_macro_analysis.py` 降级链 docstring
+>
+> 闭环验证：`grep` 全仓无残留旧模型名（MiniMax-M3 / Qwen3.5-27B / 非 pro 的 `mimo-v2.5`）；`docker compose config --quiet` 通过；历史文档（CHANGELOG/archive/reviews/ROADMAP/知识库）**严禁改动**，旧模型名仅允许以「已退役/已切换」注释形式出现。
 
 ---
 
@@ -223,8 +233,8 @@ TZ=Asia/Shanghai
 RUN_ON_START=true
 USE_EXTERNAL_LLM=1                            # 0=直接调SiliconFlow
 OPENAI_COMPAT_URL=https://token-plan-cn.xiaomimimo.com/v1  # MiMo端点
-# OPENAI_COMPAT_KEY / OPENAI_COMPAT_MODEL / SILICONFLOW_API_KEY 在 S:\macro-scan\key.txt
-# MINIMAX_API_KEY / MINIMAX_BASE_URL 同上
+# LLM API 密钥权威落点：NAS macro-scan/config/.env（chmod 600 / untracked，09-03 ADR-0013/0015 后控制台可热更新）；compose ${VAR} 注入仅冷启动兜底
+# MINIMAX_API_KEY / MINIMAX_BASE_URL 已退役（08-23 MiniMax 平台下线）
 CRUCIX_APIKEY=...                             # key.txt
 ```
 

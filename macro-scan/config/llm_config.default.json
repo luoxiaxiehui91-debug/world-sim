@@ -1,12 +1,12 @@
 {
   "schema_version": "2.0",
   "platforms": {},
-  "_note": "LLM 统一配置默认模板（08-18：llm_config.json 曾丢失 2 天无感，git 不跟踪 data/ → 模板入库兜底恢复）。运行区文件在 data/llm_config.json（开阳面板 PUT 生成，key 留空走 env）。恢复：cp config/llm_config.default.json data/llm_config.json。openai_compat.model=null 表示跟随 env OPENAI_COMPAT_MODEL。",
+  "_note": "LLM 统一配置默认模板（08-18：llm_config.json 曾丢失 2 天无感，git 不跟踪 data/ → 模板入库兜底恢复）。运行区文件在 data/llm_config.json（开阳面板 PUT 生成，key 留空走 env）。恢复：cp config/llm_config.default.json data/llm_config.json。openai_compat.model 已固化 mimo-v2.5-pro（开阳面板可改，不再跟随 env）。sim_minimax 已于 08-23 随 MiniMax 退役移除，恢复模板同步不含。",
   "usages": {
     "translate_titles": {
-      "platform": "mimo",
-      "model": "mimo-v2.5",
-      "base_url": "https://token-plan-cn.xiaomimimo.com/v1"
+      "platform": "siliconflow",
+      "model": "tencent/Hunyuan-MT-7B",
+      "base_url": "https://api.siliconflow.cn/v1"
     },
     "rag_embedding": {
       "platform": "siliconflow",
@@ -20,17 +20,12 @@
     },
     "sim_narrative": {
       "platform": "siliconflow",
-      "model": "Qwen/Qwen3.5-27B",
+      "model": "deepseek-ai/DeepSeek-V4-Flash",
       "base_url": "https://api.siliconflow.cn/v1"
     },
-    "sim_minimax": {
-      "platform": "minimax",
-      "model": "MiniMax-M3",
-      "base_url": "https://api.minimaxi.com/v1"
-    },
     "openai_compat": {
-      "platform": "mimo",
-      "model": null,
+      "platform": "mimo_plan",
+      "model": "mimo-v2.5-pro",
       "base_url": "https://token-plan-cn.xiaomimimo.com/v1"
     }
   }

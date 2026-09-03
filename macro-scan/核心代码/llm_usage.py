@@ -41,6 +41,18 @@ DATA_DIR = os.environ.get(
 )
 CONFIG_PATH = os.path.join(DATA_DIR, "llm_config.json")
 
+# config 根（git tracked 兜底模板 + 控制台密钥落点；容器内 /workspace/config 为 bind 挂载）
+_CONFIG_DIR = os.path.join(os.path.dirname(DATA_DIR), "config")
+TEMPLATE_PATH = os.path.join(_CONFIG_DIR, "llm_config.default.json")
+SECRETS_PATH = os.environ.get("WORLDSIM_SECRETS_PATH") or os.path.join(_CONFIG_DIR, ".env")
+
+# 平台 id → 密钥 env 变量名（控制台密钥写入 + fetch_platform_models 共用单一映射）
+PLATFORM_ENV_KEYS = {
+    "siliconflow": "SILICONFLOW_API_KEY",
+    "mimo_plan": "OPENAI_COMPAT_KEY",
+    "mimo_api": "MIMO_API_KEY",
+}
+
 
 # ── 内置平台清单 ────────────────────────────────────────────────────
 # id → {name, base_url, models[预置模型，供前端下拉], default_model}
@@ -83,7 +95,7 @@ LLM_USAGES = [
         "name": "通用 OpenAI 兼容",
         "purpose": "hybrid_llm.call_openai_compat 无显式 usage 的调用（含 run_macro_analysis 宏观分析）",
         "platform": "mimo_plan",
-        "default_model": None,  # 由 llm_config.json 固化 mimo-v2.5-pro（2026-09-02 前经 env OPENAI_COMPAT_MODEL）
+        "default_model": None,  # 由 llm_config.json 固化 mimo-v2.5-pro（2026-09-02 起不再经 env 注入模型）
         "container": "tianshu",
         "adjustable": True,
     },
@@ -166,6 +178,121 @@ def save_config(cfg: dict) -> bool:
         return False
 
 
+# ── 控制台密钥通道（09-03，ADR-0015：write-only 写 config/.env，热生效）────────
+# 解析次序统一原则：config/.env（UI 可写，mtime 缓存热读取）优先 → 进程 env 兜底。
+_secrets_cache: dict = {"mtime": None, "data": {}}
+
+
+def get_secret(env_name: str) -> str | None:
+    """按 env 变量名读密钥：config/.env 优先（文件 mtime 变了才重读 → 保存即热生效），
+    缺失/无该键回落进程 env（compose 注入，向后兼容）。均无 → None。"""
+    try:
+        mtime = os.path.getmtime(SECRETS_PATH)
+        if _secrets_cache["mtime"] != mtime:
+            data = {}
+            with open(SECRETS_PATH, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, _, v = line.partition("=")
+                    data[k.strip()] = v.strip().strip('"').strip("'")
+            _secrets_cache["mtime"] = mtime
+            _secrets_cache["data"] = data
+        val = _secrets_cache["data"].get(env_name)
+        if val:
+            return val
+    except FileNotFoundError:
+        _secrets_cache["mtime"] = None
+        _secrets_cache["data"] = {}
+    except Exception as e:
+        print(f"[llm_usage] 读 secrets 异常（回落 env）: {e}")
+    return os.environ.get(env_name) or None
+
+
+def set_platform_secret(platform_id: str, api_key: str) -> tuple[bool, str]:
+    """控制台密钥写入（write-only）：校验 → 原子写 config/.env（0600）→ 即时热生效。
+    响应只回掩码永不回明文；llm_config.json 永不带 key 的不变量保持（ADR-0013 延伸）。"""
+    env_name = PLATFORM_ENV_KEYS.get((platform_id or "").strip())
+    if not env_name:
+        return False, f"平台 {platform_id} 不支持控制台密钥（无 env 映射）"
+    key = (api_key or "").strip()
+    if not (8 <= len(key) <= 256):
+        return False, "密钥长度须 8-256 字符"
+    if any(c in key for c in ' \t\r\n"\''):
+        return False, "密钥含非法字符（空格/引号/换行）"
+    lines = []
+    if os.path.exists(SECRETS_PATH):
+        try:
+            with open(SECRETS_PATH, encoding="utf-8") as f:
+                for line in f:
+                    if line.strip().startswith(f"{env_name}="):
+                        continue  # 替换同名旧值，保留其余行与注释
+                    lines.append(line.rstrip("\n"))
+        except Exception as e:
+            return False, f"读取现有 secrets 文件失败: {e}"
+    lines.append(f"{env_name}={key}")
+    try:
+        os.makedirs(os.path.dirname(SECRETS_PATH), exist_ok=True)
+        tmp = SECRETS_PATH + ".tmp"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, SECRETS_PATH)
+    except Exception as e:
+        return False, f"写 secrets 失败: {e}"
+    _secrets_cache["mtime"] = None  # 失效缓存，下次 get_secret 重读
+    return True, f"已保存（{_mask_key(key)}），即时生效"
+
+
+def secret_status() -> list[dict]:
+    """各平台密钥状态（仅掩码 + 来源，开阳面板展示；永不回明文）。"""
+    out = []
+    for pid, env_name in PLATFORM_ENV_KEYS.items():
+        name = (_all_platforms().get(pid) or {}).get("name") or pid
+        get_secret(env_name)  # 确保缓存新鲜
+        file_val = _secrets_cache["data"].get(env_name)
+        env_val = os.environ.get(env_name)
+        if file_val:
+            out.append({"platform": pid, "name": name,
+                        "masked": _mask_key(file_val), "source": "控制台"})
+        elif env_val:
+            out.append({"platform": pid, "name": name,
+                        "masked": _mask_key(env_val), "source": "env"})
+        else:
+            out.append({"platform": pid, "name": name,
+                        "masked": None, "source": "未设置"})
+    return out
+
+
+def _regen_default_template(cfg: dict) -> None:
+    """五联同步第②联自动化（09-03，llm-config-doc-drift 教训）：set_usage 成功后
+    从真源再生兜底模板（保留 _note），消除「UI 改模型 → 模板漂移」的结构性根源。
+    失败只告警不阻断（真源已落盘，巡检脚本 check_llm_config.py 会兜底告警）。"""
+    try:
+        note = ""
+        try:
+            with open(TEMPLATE_PATH, encoding="utf-8") as f:
+                note = (json.load(f) or {}).get("_note") or ""
+        except Exception:
+            note = ""
+        tmpl = {
+            "schema_version": "2.0",
+            "platforms": cfg.get("platforms") or {},
+            "_note": note or ("LLM 统一配置默认模板（灾难恢复兜底；恢复：cp 本文件 "
+                              "data/llm_config.json）。本文件由 set_usage 成功路径自动再生，勿手改。"),
+            "usages": cfg.get("usages") or {},
+        }
+        tmp = TEMPLATE_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(tmpl, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+        os.replace(tmp, TEMPLATE_PATH)
+    except Exception as e:
+        print(f"[llm_usage] ⚠️ 再生默认模板失败（巡检脚本会兜底告警）: {e}")
+
+
 def _all_platforms() -> dict:
     """内置平台 + 用户自定义平台合并。"""
     cfg = load_config()
@@ -241,7 +368,9 @@ def set_usage(usage_id: str, platform: str, model: str,
               api_key: str | None = None) -> tuple[bool, str]:
     """控制台修改使用点（平台 + 模型）。platform 必须在清单内。
     落盘时附带 base_url 展开值——天璇等跨容器消费者无需平台清单即可解析。
-    API key 禁走控制台（ADR-0013，09-03）：非空 key 一律硬拒，密钥只配置于 NAS .env；
+    API key 禁走本通道（ADR-0013，09-03）：非空 key 一律硬拒。密钥经
+    POST /llm-usage/{id}/secret 写 config/.env（chmod 600，ADR-0013/0015），
+    解析侧 config/.env 优先（mtime 缓存）→ os.environ 兜底，控制台保存即热生效；
     历史残留 api_key 随保存清理，保证 config 持久化永不带 key。"""
     if usage_id not in _USAGE_IDS:
         return False, f"未知使用点: {usage_id}"
@@ -278,10 +407,11 @@ def set_usage(usage_id: str, platform: str, model: str,
     entry["base_url"] = (plat.get("base_url") or "").rstrip("/")
     # 09-03（ADR-0013 对齐）：密钥只走 .env，控制台写入通道硬拒；历史残留一并清除
     if api_key is not None and api_key.strip():
-        return False, "密钥禁止经控制台写入：请配置于 NAS macro-scan/.env（如 MIMO_API_KEY=ak-…）后 docker compose up -d"
+        return False, "密钥禁止经本接口写入：请在控制台对应平台的密钥框填写（写 config/.env，保存即热生效）"
     entry.pop("api_key", None)
     cfg["usages"][usage_id] = entry
     if save_config(cfg):
+        _regen_default_template(cfg)  # 五联同步第②联自动化：模板随真源再生，结构性防漂移
         return True, "ok"
     return False, "写配置失败"
 
@@ -340,9 +470,8 @@ def fetch_platform_models(platform_id: str) -> list[str]:
     plat = _all_platforms().get(platform_id)
     if not plat:
         raise ValueError(f"未知平台: {platform_id}")
-    env_name = {"siliconflow": "SILICONFLOW_API_KEY", "mimo_plan": "OPENAI_COMPAT_KEY",
-                "mimo_api": "MIMO_API_KEY"}.get(platform_id, "")
-    key = _os.environ.get(env_name, "")
+    env_name = PLATFORM_ENV_KEYS.get(platform_id, "")
+    key = (get_secret(env_name) or "") if env_name else ""
     if not key:
         raise ValueError(f"平台 {platform_id} 未配置 API key（env {env_name}）")
     base = (plat.get("base_url") or "").rstrip("/")

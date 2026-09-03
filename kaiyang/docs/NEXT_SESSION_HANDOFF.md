@@ -77,7 +77,7 @@ Wave2 ├─ 线 a：控制面 ──────── P0 ✅（T01-T03），A3
 - **预抓缓存**：天枢 `fetch_news_titles.py`（I120 2h 增量）→ `news_titles.json`（url→英文标题 + LLM 翻译中文 `titles_zh`）→ 前端读静态文件**秒开、零 API**
 - **点击兜底**：控制 API `GET /news-title?url=`（天枢代理抓 `<title>`，SSRF 防护）——预抓未覆盖的极新事件才调
 - **EventPopup 三级**：① `titleMap`（news_titles 静态，中文优先）→ ② localStorage → ③ API 兜底
-- **翻译实现**：`hybrid_llm.call_openai_compat`（MiMo）逐条并发 4（批量 JSON 指令实测返回空 content，弃用）；失败保留英文
+- **翻译实现**：`hybrid_llm.call_openai_compat`（Hunyuan-MT-7B / siliconflow）逐条并发 4（批量 JSON 指令实测返回空 content，弃用）；失败保留英文
 
 ### 3.5 卫生图层（v1.11.16 → 1.11.18）
 
@@ -103,7 +103,7 @@ Wave2 ├─ 线 a：控制面 ──────── P0 ✅（T01-T03），A3
 
 ### 3.8 LLM 统一配置体系（v1.11.26-27）
 
-- **后端 `macro-scan/核心代码/llm_usage.py`**：6 使用点静态清单（translate_titles / openai_compat / rag_embedding / sim_mc / sim_narrative / sim_minimax）× 4 平台（mimo / siliconflow / minimax / openai）+ `data/llm_config.json`（v2.0 schema，原子写，**base_url 落盘展开**——天璇等跨容器消费者无需平台清单）；`resolve(usage_id)` 返回 (base_url, api_key, model)，`resolve_embedding()` 拼 `/embeddings` 路径
+- **后端 `macro-scan/核心代码/llm_usage.py`**：5 使用点静态清单（translate_titles / openai_compat / rag_embedding / sim_mc / sim_narrative）× 2 平台（mimo_plan / siliconflow）+ `data/llm_config.json`（v2.0 schema，原子写，**base_url 落盘展开**——天璇等跨容器消费者无需平台清单）；`resolve(usage_id)` 返回 (base_url, api_key, model)，`resolve_embedding()` 拼 `/embeddings` 路径
 - **接入**：`hybrid_llm.call_openai_compat(usage=...)`（翻译走 `translate_titles`）；`rag_engine._get_embeddings_batch` 走 `resolve_embedding`（bge-m3）；天璇 `llm_client._resolve_client`（配置覆盖 → 动态 OpenAI 兼容客户端，缓存 by url+key；**改 llm_client.py 代码后必须重建容器**——COPY 模式）
 - **控制 API**：`GET /api/v1/control/llm-usage`（usages + platforms，**key 脱敏 sk-***abcd**）、`PUT /api/v1/control/llm-usage/{id}`（{platform, model, api_key?}，key 缺省保留原值，空模型/未知平台拒绝）
 - **前端 `control/LlmConfig.tsx`**：平台下拉 + 模型 datalist 可手输 + key password 输入 + 保存（TokenSetup 下方）

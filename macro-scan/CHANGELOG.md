@@ -1,3 +1,40 @@
+## [3.8.35] - 2026-09-03
+
+### Added（P2 / question llm-key-ui-write-path + llm-config-doc-drift Enforcement，CHG-20260903T164000，ADR-0015）
+
+- **密钥控制台 write-only 通道**（恢复 v3.8.28 误删的 UI 填写，且不明文入库）：`llm_usage.py` 新增 `get_secret`（mtime 缓存热读取）/`set_platform_secret`（原子写 `config/.env` 0600）/`secret_status`（掩码+来源）；`control_server.py` 新增 `POST /control/llm-secret`（write-only）+ `GET /control/llm-secrets`（掩码）；key 解析次序统一「config/.env 优先 → 进程 env 兜底」，**保存即热生效免 recreate**；存量密钥服务端迁入 `config/.env`（untracked + `**/.env` 双 gitignore）
+- **兜底模板自动再生钩子**：`set_usage` 成功路径自动再生 `config/llm_config.default.json`——UI 改模型后模板结构性不可能漂移（五联第②联自动化）
+- **巡检脚本 `scripts/check_llm_config.py`**：五检查（真源=模板 / 运行区模板=git 模板 / 活跃文档旧模型名[历史叙述+archive+CHANGELOG 豁免] / .env 安全面 / pre-commit hook），TSX crontab 每日 08:10 + 周一 08:20 心跳，失败 ntfy 告警（内容无密钥值）；SSH 手改真源等钩子盲区由此兜底
+- **pre-commit hook**：拒绝任何 `.env` 入库（防密钥上 GitHub 末道闸）
+- **开阳前端 v1.11.37**：`LlmConfig.tsx` 恢复密钥框（password write-only + 掩码状态展示）；`controlApi.ts` `getLlmSecrets`/`setLlmSecret`；`control.ts` `LlmSecretStatus`
+
+### Fixed（Enforcement 首跑揪出）
+
+- `hybrid_llm.py` 残留 `os.environ.get("OPENAI_COMPAT_MODEL")` 死兜底删除（compose 已删该变量，杜绝双源复活）
+- `llm_usage.py` L98 注释措辞更新（去旧 env 引用）；AGENTS.md compose 示例块密钥指引 key.txt → config/.env
+- 巡检脚本自修复：archive 目录名级跳过（原 `docs/archive` 前缀不匹配 `macro-scan/docs/archive`）、TuiYan_CHANGELOG 前缀豁免、git 侧 check-ignore 改 repo 内路径、脚本不扫自身
+
+### 验收
+
+- 容器冒烟：get_secret 热生效 / 写后掩码 / 0600 / 模板再生一致；密钥值 grep 无 git 跟踪命中
+- 巡检脚本 EXIT 0 全绿；模板运行区=git 真源 md5 一致；开阳 tsc+vite build 通过 + dist 同步 8080 就绪
+## [3.8.34] - 2026-09-03
+
+### Fixed（P1 / question llm-config-doc-drift，CHG-20260903T151756，用户路由清扫）
+
+- **LLM 配置/文档漂移清扫（ADR-0010 未落地实证）**：运行区 `data/llm_config.json`（09-02 固化）为唯一真源，但默认模板 + 13 份文档/代码 docstring 停留在收敛前旧栈（MiniMax-M3 / Qwen3.5-27B 叙事 / mimo-v2.5），全量扫描后逐一同步：
+  - 默认模板 `config/llm_config.default.json` 5 使用点对齐运行区（translate→Hunyuan-MT-7B / sim_narrative→DeepSeek-V4-Flash / openai_compat→mimo_plan+mimo-v2.5-pro / 删 sim_minimax / platform `mimo`→`mimo_plan`）
+  - `docker-compose.yml` 移除残留 `OPENAI_COMPAT_MODEL=mimo-v2.5`（与 v3.8.27 声明一致，消除错误模型兜底）；`docker-compose.example.yml` 清 `MINIMAX_*`、改 `SILICONFLOW_MODEL`→DeepSeek-V4-Flash
+  - 文档同步：macro-scan AGENTS.md / INDEX.md / FILE_MANIFEST.md / 世界推演系统_人类说明文档.md / 根 AGENTS.md / STATUS.md / kaiyang AGENTS.md / DATA_CONTRACT.md / NEXT_SESSION_HANDOFF.md / macro-sim_人类说明文档.md — 降级链统一为 MiMo v2.5-pro → DeepSeek-V4-Flash → 纯数据报告；翻译 Hunyuan-MT-7B
+  - 代码 docstring/静态清单：`hybrid_llm.py` / `run_macro_analysis.py` 降级链；`llm_usage.py` PLATFORMS 模型列表 + LLM_USAGES 默认（translate→siliconflow/Hunyuan-MT-7B）/`fetch_news_titles.py` 翻译注释
+- **加固 ADR-0010 Enforcement**：macro-scan/AGENTS.md 补「模型变更五联同步」强制 checklist（运行区配置 + 默认模板 + compose + 文档 + 代码静态清单），杜绝换模型只更 1 处的再次漂移
+- **验收**：默认模板 diff 与运行区一致；grep 全仓无活跃 MiniMax-M3 / Qwen3.5-27B / 非 pro `mimo-v2.5` / `OPENAI_COMPAT_MODEL=mimo-v2.5`；历史文档（CHANGELOG/archive/reviews/ROADMAP）未改动
+
+### 关联
+- questions/world-deduction/20260903-world-deduction-llm-config-doc-drift.md（⚠️→✅ resolved 待归档）
+- operations/CHG-20260903T151756-world-deduction.md
+- decisions/world-deduction/0010（ADR-0010 文档漂移治理，本次补 Enforcement）
+
 ## [3.8.33] - 2026-09-03
 
 ### Added（P3-3 / question l4-tail-scenario-modeling，方案 C 降级折中版，用户拍板）

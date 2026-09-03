@@ -25,7 +25,7 @@
 
 **⛔ 08-15 D2 预测链转 PG（`afe1311`+`f7cf689`）**：天璇 `macro-sim/run.py` `_archive_to_tianji` 与天玑 `macro-ji/tianji_db.py`/`tianji_verifier.py` 全部 psycopg 直连 worldsim-pg `tianji.predictions` + `reasoning_trace`（search_path=tianji,public）。**⛔ P6 已收官（08-16 `8905fa01`）**：forecast_tracker.db 已删除（快照 `backups/e0c-p6-20260816-092548/`），探针 `_SQLITE_GONE_EXEMPT` 豁免已移除——**全系统 PG-only，data 目录出现任何 .db 复生 = CRIT**。
 
-**08-16 LLM 统一配置（`llm_usage.py` + `data/llm_config.json`）**：6 使用点（translate_titles / openai_compat / rag_embedding / sim_mc / sim_narrative / sim_minimax）× 4 平台（mimo / siliconflow / minimax / openai），开阳控制台「LLM 配置」面板可换平台/模型/API key（`GET/PUT /api/v1/control/llm-usage`）；配置优先于 env/代码常量，天枢热挂载即时、天璇读共享文件（`/app/macro_data/llm_config.json`，60s TTL 08-17 加）。翻译模型 mimo-v2.5；RAG 嵌入 bge-m3（`rag_engine.py`）。
+**08-16 LLM 统一配置（`llm_usage.py` + `data/llm_config.json`）**：5 使用点（translate_titles / openai_compat / rag_embedding / sim_mc / sim_narrative）× 2 平台（mimo_plan / siliconflow），开阳控制台「LLM 配置」面板可换平台/模型/API key（`GET/PUT /api/v1/control/llm-usage`）；配置优先于 env/代码常量，天枢热挂载即时、天璇读共享文件（`/app/macro_data/llm_config.json`，60s TTL 08-17 加）。翻译模型 Hunyuan-MT-7B（siliconflow）；RAG 嵌入 bge-m3（`rag_engine.py`）。
 
 **⛔ 08-17/18 天璇模型线（重大，详见 `macro-sim/CHANGELOG.md` v2.0.41）**：
 - **soul 政权分片**：主权 soul `regimes:` 时间片（since/until）——校准期按历史月份切换"当时政权风格"，预测期默认现行路线；5 主权红线阈值按 GRV 实测分布校准

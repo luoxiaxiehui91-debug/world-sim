@@ -81,7 +81,7 @@
 
 | 文件 | 职责 |
 |:---|:---|
-| `hybrid_llm.py` | LLM 调用层（MiniMax → MiMo → Qwen → 纯数据降级） |
+| `hybrid_llm.py` | LLM 调用层（MiMo v2.5-pro → DeepSeek-V4-Flash → 纯数据降级） |
 | `optim_config.py` | **全局配置中枢**，所有路径/参数/KEY_INDICATORS（32条含EU/JP）从此读取 |
 | `alert_config.py` | 弱信号配置（ALERT_KEYWORDS 13类 / _WATCH_COUNTRIES / _ACTOR_*），2026-06-27 从 scan_weak_signals 提取 |
 | `hypothesis_config.py` | 假设推演类型映射（DIM_MAP），2026-06-27 从 hypothesis_engine 提取 |

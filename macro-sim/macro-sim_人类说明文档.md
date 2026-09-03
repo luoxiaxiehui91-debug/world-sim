@@ -252,7 +252,7 @@ python run.py --predict-only --level 2 --event "快速测试"
 |---|---|---|
 | `REPORT_DIR` | 报告输出目录（容器内路径） | `/app/reports` |
 | `SILICONFLOW_API_KEY` | 硅基流动 API 凭证（LLM 降级链）| 见 docker-compose.yml |
-| `MINIMAX_API_KEY` | MiniMax API 凭证（LLM 调用）| 见 docker-compose.yml |
+| `MINIMAX_API_KEY` | MiniMax API 凭证（**已退役 08-23，不再使用**）| 见 docker-compose.yml |
 
 其他环境变量待补充（需查阅 docker-compose.yml 完整内容）。
 

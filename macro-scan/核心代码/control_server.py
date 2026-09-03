@@ -493,9 +493,9 @@ def llm_usage_list(request: Request = None):
 
 @app.put("/api/v1/control/llm-usage/{usage_id}")
 async def llm_usage_update(usage_id: str, request: Request):
-    """修改 LLM 使用点（平台 + 模型；写 data/llm_config.json，原子写）。
-    API key 已禁走此通道（09-03，ADR-0013）：set_usage 对非空 key 硬拒报错，
-    密钥一律配置于 NAS macro-scan/.env 后 docker compose up -d。"""
+    """修改 LLM 使用点（平台 + 模型；写 data/llm_config.json，原子写+模板自动再生）。
+    API key 禁走此通道：set_usage 对非空 key 硬拒报错（config 永不带 key，ADR-0013）；
+    密钥走 POST /llm-secret 专用通道（write-only 写 config/.env，ADR-0015）。"""
     _check_token(request)
     try:
         body = await request.json()
@@ -512,6 +512,39 @@ async def llm_usage_update(usage_id: str, request: Request):
     if not ok:
         return {"ok": False, "error": msg}
     return {"ok": True, "usage_id": usage_id, "platform": platform, "model": model}
+
+
+@app.post("/api/v1/control/llm-secret")
+async def llm_secret_update(request: Request):
+    """控制台密钥写入（write-only，09-03 ADR-0015）：{platform, api_key} → 校验后
+    原子写 config/.env（0600，双 gitignore 覆盖），mtime 热读取即时生效、免 recreate。
+    响应只回掩码，永不回明文；llm_config.json 永不带 key 不变量保持。"""
+    _check_token(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    platform = (body.get("platform") or "").strip()
+    api_key = body.get("api_key") or ""
+    try:
+        from llm_usage import set_platform_secret
+        ok, msg = set_platform_secret(platform, api_key)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    if not ok:
+        return {"ok": False, "error": msg}
+    return {"ok": True, "message": msg}
+
+
+@app.get("/api/v1/control/llm-secrets")
+def llm_secrets_status(request: Request = None):
+    """各平台密钥状态（仅掩码 + 来源，开阳面板展示；永不回明文）。"""
+    _check_token(request)
+    try:
+        from llm_usage import secret_status
+        return {"ok": True, "secrets": secret_status()}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "secrets": []}
 
 
 # ── 人工验证（08-17：开阳天玑 Tab 点选验证，补齐"待人工"渠道）────────────────

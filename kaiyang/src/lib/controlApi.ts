@@ -19,6 +19,7 @@ import type {
   Fetcher,
   LlmUsage,
   LlmUsageResponse,
+  LlmSecretStatus,
   HumanPendingPrediction,
   HumanPendingResponse,
   VerifyPredictionResponse,
@@ -443,7 +444,7 @@ export async function getLlmUsage(): Promise<LlmUsageResponse> {
   return { usages: res?.usages ?? [], platforms: res?.platforms ?? [] };
 }
 
-/** 修改 LLM 使用点（平台 + 模型；写 data/llm_config.json，下次调用生效；密钥走 NAS .env，不入此接口） */
+/** 修改 LLM 使用点（平台 + 模型；写 data/llm_config.json + 自动再生兜底模板，下次调用生效） */
 export async function updateLlmUsage(
   usageId: string,
   payload: { platform: string; model: string },
@@ -460,6 +461,32 @@ export async function updateLlmUsage(
     true,
   );
   return res?.ok === true;
+}
+
+/** 各平台密钥状态（仅掩码 + 来源；09-03 ADR-0015，永不回明文） */
+export async function getLlmSecrets(): Promise<LlmSecretStatus[]> {
+  const res = await apiFetch<{ ok?: boolean; secrets?: LlmSecretStatus[] }>(
+    '/llm-secrets',
+    {},
+    true,
+  );
+  return res?.ok === true && Array.isArray(res.secrets) ? res.secrets : [];
+}
+
+/** 保存平台密钥（write-only；POST /control/llm-secret → config/.env 0600，即时热生效，免 recreate） */
+export async function setLlmSecret(
+  platformId: string,
+  apiKey: string,
+): Promise<{ ok: boolean; message?: string; error?: string }> {
+  const res = await apiFetch<{ ok: boolean; message?: string; error?: string }>(
+    '/llm-secret',
+    {
+      method: 'POST',
+      body: JSON.stringify({ platform: platformId, api_key: apiKey }),
+    },
+    true,
+  );
+  return res ?? { ok: false, error: '无响应（请检查控制服务状态）' };
 }
 
 // ── 人工验证（08-17：天玑 Tab 点选验证，替代 CLI）────────────────

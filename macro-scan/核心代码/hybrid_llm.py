@@ -7,7 +7,7 @@ import requests
 import concurrent.futures
 from optim_config import ANTHROPIC_API_KEY
 from llm_usage import get_model as llm_usage_get_model
-from llm_usage import resolve
+from llm_usage import resolve, get_secret
 
 _TMP_DIR = os.environ.get("TMPDIR", "/tmp")
 CLAUDECODE_PROMPT_FILE   = os.path.join(_TMP_DIR, "llm_prompt.txt")
@@ -15,8 +15,13 @@ CLAUDECODE_RESPONSE_FILE = os.path.join(_TMP_DIR, "llm_response.txt")
 CLAUDECODE_TIMEOUT       = 600   # 秒
 
 SILICONFLOW_URL   = "https://api.siliconflow.cn/v1"
-SILICONFLOW_KEY   = os.environ.get("SILICONFLOW_API_KEY", "")
 SILICONFLOW_MODEL = os.environ.get("SILICONFLOW_MODEL", "deepseek-ai/DeepSeek-V4-Flash")
+
+
+def _sf_key() -> str:
+    """SiliconFlow 密钥（09-03 ADR-0015：config/.env 优先热读取 → env 兜底；
+    由模块级常量改为调用时读取，控制台改 key 免 recreate 即时生效）。"""
+    return get_secret("SILICONFLOW_API_KEY") or ""
 
 # （08-23：MiniMax 平台退役，相关常量与调用函数已删除）
 
@@ -106,7 +111,7 @@ def _do_siliconflow_request(prompt: str, system: str, max_tokens: int):
     try:
         resp = requests.post(
             f"{SILICONFLOW_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {SILICONFLOW_KEY}", "Content-Type": "application/json"},
+            headers={"Authorization": f"Bearer {_sf_key()}", "Content-Type": "application/json"},
             json={
                 "model": SILICONFLOW_MODEL,
                 "max_tokens": max_tokens,
@@ -164,7 +169,7 @@ def call_local(prompt: str, system: str = "", max_tokens: int = 2048) -> str:
 
     支持自动重试：空响应、429/503、超时时自动重试最多 _CALL_LOCAL_MAX_RETRIES 次。
     """
-    if not SILICONFLOW_KEY:
+    if not _sf_key():
         raise ValueError("SILICONFLOW_API_KEY 未设置")
 
     prompt_tokens = _estimate_tokens(prompt)
@@ -212,12 +217,11 @@ def call_openai_compat(prompt: str, system: str = "", max_tokens: int = 4096,
     # 防止拿 OPENAI_COMPAT_KEY(mimo) 调 SiliconFlow 的跨平台 401）
     _plat_env_key = _PLATFORM_ENV_KEYS.get((resolved or {}).get("platform") or "", "")
     api_key  = ((resolved or {}).get("api_key")
-                or os.environ.get(_plat_env_key, "")
-                or os.environ.get("OPENAI_COMPAT_KEY") or ANTHROPIC_API_KEY)
+                or (get_secret(_plat_env_key) if _plat_env_key else None)
+                or get_secret("OPENAI_COMPAT_KEY") or ANTHROPIC_API_KEY)
     model    = (model
                 or (resolved or {}).get("model")
                 or llm_usage_get_model(usage or "openai_compat")
-                or os.environ.get("OPENAI_COMPAT_MODEL")
                 or os.environ.get("CLAUDE_MODEL", "gpt-4o"))
     if not base_url:
         raise ValueError("未设置 OPENAI_COMPAT_URL")

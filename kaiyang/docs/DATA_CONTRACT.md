@@ -358,7 +358,7 @@
 
 ### 2.12 `news_titles.json`（新闻标题预抓缓存，**v1.11.22+ 定稿**）
 
-> **状态：已上线（v1.11.22）。** 天枢 `fetch_news_titles.py`（scheduler **I120**，2h 增量，每轮 NEW_MAX=20 并发 4）——读 `news_geo.json` 全部事件 URL，**提前批量抓取**页面 `<title>`（代理 7890、12s 超时），LLM 翻译中文（`hybrid_llm.call_openai_compat`，MiMo，逐条并发 4）。72h 窗口滚动裁剪 + 600 上限。**开阳前端读静态文件（秒开、零 API 占用），点击兜底走控制 API `/news-title`**（见 A3a 文档）。
+> **状态：已上线（v1.11.22）。** 天枢 `fetch_news_titles.py`（scheduler **I120**，2h 增量，每轮 NEW_MAX=20 并发 4）——读 `news_geo.json` 全部事件 URL，**提前批量抓取**页面 `<title>`（代理 7890、12s 超时），LLM 翻译中文（`hybrid_llm.call_openai_compat`，Hunyuan-MT-7B / siliconflow，逐条并发 4）。72h 窗口滚动裁剪 + 600 上限。**开阳前端读静态文件（秒开、零 API 占用），点击兜底走控制 API `/news-title`**（见 A3a 文档）。
 
 | 顶层字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
@@ -381,21 +381,21 @@
 | --- | --- | --- |
 | `schema_version` | string | `2.0` |
 | `updated` | string(ISO) | 最后修改时间（UTC） |
-| `platforms` | Record\<id, PlatformDef\> | 用户自定义平台（内置平台见 llm_usage.PLATFORMS：mimo / siliconflow / minimax / openai） |
+| `platforms` | Record\<id, PlatformDef\> | 用户自定义平台（内置平台见 llm_usage.PLATFORMS：mimo_plan / siliconflow） |
 | `usages` | Record\<usage_id, UsageCfg\> | 使用点覆盖（只存被修改过的） |
 
 **UsageCfg**：`{platform, model, base_url（落盘展开，跨容器消费者无需平台清单）, api_key（明文存 NAS 本地，控制台只回显脱敏 sk-***abcd；PUT 传空保留原值）}`
 
-**使用点清单（6）**：
+**使用点清单（5）**：
 
 | id | 名称 | 默认平台 | 默认模型 | 消费方 |
 | --- | --- | --- | --- | --- |
-| `translate_titles` | 新闻标题翻译 | mimo | mimo-v2.5 | fetch_news_titles.py（usage="translate_titles"） |
-| `openai_compat` | 通用 OpenAI 兼容 | mimo | env | hybrid_llm.call_openai_compat 无显式 usage（含宏观分析） |
+| `translate_titles` | 新闻标题翻译 | siliconflow | tencent/Hunyuan-MT-7B | fetch_news_titles.py（usage="translate_titles"） |
+| `openai_compat` | 通用 OpenAI 兼容 | mimo_plan | mimo-v2.5-pro | hybrid_llm.call_openai_compat 无显式 usage（含宏观分析，auto 链首选） |
 | `rag_embedding` | 知识库嵌入 | siliconflow | BAAI/bge-m3 | rag_engine.py（resolve_embedding，`{base_url}/embeddings`） |
 | `sim_mc` | 天璇 Monte Carlo | siliconflow | GLM-Z1-9B-0414 | macro-sim llm_client.call_llm(use_minimax=False) |
-| `sim_narrative` | 天璇 叙事合成 | siliconflow | Qwen3.5-27B | macro-sim llm_client.call_llm(use_minimax=True) |
-| `sim_minimax` | 天璇 MiniMax | minimax | MiniMax-M3 | 预留（当前无活跃调用方） |
+| `sim_narrative` | 天璇 叙事合成 | siliconflow | deepseek-ai/DeepSeek-V4-Flash | macro-sim llm_client.call_llm(use_minimax=True 叙事路径) |
+| `sim_minimax` | 天璇 MiniMax | minimax | MiniMax-M3 | ⚠️ 已退役（08-23 MiniMax 平台下线），配置中保留空壳无活跃调用方 |
 
 > 平台 = OpenAI 兼容 `/chat/completions` 或 `/embeddings` 端点；Anthropic 协议（call_claude）**不纳入**（08-16 移除，系统无 ANTHROPIC key）。
 > API key 安全：明文存 `data/llm_config.json`（NAS 本地，与 compose env 明文同级）；控制台 GET 只回显脱敏；PUT 传空 key 保留原值。

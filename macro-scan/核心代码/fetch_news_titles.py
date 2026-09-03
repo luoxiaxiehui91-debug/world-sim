@@ -49,7 +49,7 @@ NEWS_GEO_FILE = os.path.join(DATA_DIR, "news_geo.json")
 OUT_FILE = os.path.join(DATA_DIR, "news_titles.json")
 NEW_MAX = 40          # 每轮最多抓新增标题数（08-16 从 20 调大：2h 增量追平存量更快；40 条翻译 ~4-5min 仍在 I120 调度内）
 CONCURRENCY = 4       # 并发抓取数
-# 翻译默认模型（08-16 用户指定 mimo-v2.5；实际生效由 llm_usage translate_titles 配置决定）
+# 翻译默认模型：固定 siliconflow/tencent/Hunyuan-MT-7B（由 llm_usage translate_titles 配置决定；08-16 曾用户指定 mimo-v2.5，已切换）
 TIMEOUT = 12          # 单 URL 超时（秒）
 MAX_TITLES = 600      # 缓存上限（72h 窗口事件 ~300，留余量）
 

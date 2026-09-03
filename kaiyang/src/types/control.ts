@@ -116,6 +116,14 @@ export interface LlmUsageResponse {
   platforms: LlmPlatform[];
 }
 
+/** 平台密钥状态（仅掩码 + 来源；GET /control/llm-secrets，09-03 ADR-0015，永不回明文） */
+export interface LlmSecretStatus {
+  platform: string;
+  name: string;
+  masked: string | null;
+  source: string;
+}
+
 /** 操作状态（GET /control/operations/{id} 响应） */
 export interface OperationStatus {
   operation_id: string;

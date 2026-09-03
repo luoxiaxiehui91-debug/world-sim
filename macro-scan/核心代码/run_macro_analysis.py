@@ -10,7 +10,7 @@
   Step 4  RAG知识库检索（pgvector向量检索 → TF-IDF降级）
   Step 5  体制检测 + 蒙特卡洛概率模拟（5000路径，12个月）
   Step 6  构建LLM提示词（注入数据+信号+RAG上下文）
-  Step 7  调用Ollama推理（降级链：qwen3 → mimo → 纯数据报告）
+  Step 7  调用 LLM 推理（降级链：MiMo v2.5-pro → DeepSeek-V4-Flash → 纯数据报告）
   Step 8  保存报告（按国家/深度幂等命名，避免cron重复执行）
 
 支持参数：
@@ -802,7 +802,7 @@ def call_llm_primary(prompt: str, mode: str = "local") -> str:
 
     主链与降级（任一失败自动切换下一级）：
       1. hybrid_llm.reason(mode)：mode="auto"（默认）→ MiMo → Claude(未配跳过) → SiliconFlow；
-         mode="local" → 强制 SiliconFlow Qwen3.5-27B
+         mode="local" → 强制 SiliconFlow（deepseek-ai/DeepSeek-V4-Flash）
       2. MiMo API 兜底（_mimo_fallback）
       3. 空字符串（调用方负责降级到 _make_fallback_section）
     """

@@ -1,14 +1,21 @@
 /**
- * LLM 配置面板（08-16 新增；09-03：删 API key 框——密钥禁走控制台，只配 NAS .env）
+ * LLM 配置面板（08-16 新增；09-03 ADR-0015：恢复密钥框——write-only 经 POST /llm-secret
+ * 写 NAS config/.env（0600，双 gitignore），即时热生效免 recreate；面板仅显示掩码状态）
  * 折叠式：状态行 → 展开表格。每个使用点：
  *   平台下拉（内置平台：MiMo Plan / MiMo API / SiliconFlow 等）
  *   → 模型（实时 /models 下拉 + 静态清单兜底）
- *   → 保存（PUT /control/llm-usage/{id}：写 data/llm_config.json 原子写）。
+ *   → 保存（PUT /control/llm-usage/{id}：写 data/llm_config.json 原子写+模板自动再生）。
  * 天枢热挂载即时生效；天璇读共享配置文件（llm_config.json），下次调用生效。
  */
 import { useCallback, useEffect, useState } from 'react';
-import { getLlmUsage, getPlatformModels, updateLlmUsage } from '@/lib/controlApi';
-import type { LlmPlatform, LlmUsage } from '@/types/control';
+import {
+  getLlmUsage,
+  getLlmSecrets,
+  getPlatformModels,
+  setLlmSecret,
+  updateLlmUsage,
+} from '@/lib/controlApi';
+import type { LlmPlatform, LlmSecretStatus, LlmUsage } from '@/types/control';
 
 const CONTAINER_ZH: Record<string, string> = {
   tianshu: '天枢',
@@ -31,6 +38,10 @@ export function LlmConfig() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [liveModels, setLiveModels] = useState<Record<string, string[]>>({});
+  const [secrets, setSecrets] = useState<LlmSecretStatus[] | null>(null);
+  const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
+  const [keyMsg, setKeyMsg] = useState<string | null>(null);
+  const [savingKeyPid, setSavingKeyPid] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -46,6 +57,10 @@ export function LlmConfig() {
           ]),
         ),
       );
+      // 密钥状态（掩码；失败静默，不阻塞面板）
+      void getLlmSecrets()
+        .then(setSecrets)
+        .catch(() => undefined);
       // 并行拉取涉及平台的实时模型全集（失败静默，datalist 回落静态清单）
       const pids = [...new Set(res.usages.map((u) => u.platform))];
       void Promise.all(
@@ -94,6 +109,22 @@ export function LlmConfig() {
     }
   };
 
+  const handleSaveKey = async (u: LlmUsage) => {
+    const key = (keyDrafts[u.platform] ?? '').trim();
+    if (!key) return;
+    setSavingKeyPid(u.platform);
+    setKeyMsg(null);
+    const res = await setLlmSecret(u.platform, key);
+    setSavingKeyPid(null);
+    if (res.ok) {
+      setKeyMsg(`${u.platform_name} 密钥${res.message ?? '已保存'}`);
+      setKeyDrafts((kd) => ({ ...kd, [u.platform]: '' }));
+      await refresh();
+    } else {
+      setKeyMsg(`${u.platform_name} 密钥保存失败：${res.error ?? '未知错误'}`);
+    }
+  };
+
   const overriddenCount = usages?.filter((u) => u.overridden).length ?? 0;
 
   return (
@@ -116,6 +147,7 @@ export function LlmConfig() {
           {!usages && !error && <div className="text-[10px] text-white/30">加载中…</div>}
           {error && <div className="text-[10px] text-red-400">{error}</div>}
           {savedMsg && <div className="text-[10px] text-emerald-300/90">{savedMsg}</div>}
+          {keyMsg && <div className="text-[10px] text-emerald-300/90">{keyMsg}</div>}
           {usages?.map((u) => {
             const d = drafts[u.id];
             const plat = platforms.find((p) => p.id === d?.platform);
@@ -173,7 +205,7 @@ export function LlmConfig() {
                         </select>
                       );
                     })()}
-                    {/* 09-03（ADR-0013）：密钥禁走控制台，API key 输入框已移除——配置于 NAS macro-scan/.env */}
+                    {/* 模型保存（平台/模型写 data/llm_config.json + 兜底模板自动再生）；密钥见下方 write-only 框（ADR-0015） */}
                     <button
                       type="button"
                       disabled={savingId === u.id}
@@ -183,15 +215,46 @@ export function LlmConfig() {
                       {savingId === u.id ? '保存中…' : '保存'}
                     </button>
                   </div>
+                  {(() => {
+                    const sec = secrets?.find((s) => s.platform === (d?.platform ?? u.platform));
+                    return (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="password"
+                          value={keyDrafts[d?.platform ?? u.platform] ?? ''}
+                          onChange={(e) =>
+                            setKeyDrafts((kd) => ({
+                              ...kd,
+                              [d?.platform ?? u.platform]: e.target.value,
+                            }))
+                          }
+                          placeholder={
+                            sec?.masked
+                              ? `已配置 ${sec.masked}（${sec.source}）`
+                              : '未配置密钥'
+                          }
+                          className="min-w-0 flex-1 rounded border border-white/10 bg-black/30 px-1.5 py-0.5 text-[10px] text-white/80 outline-none focus:border-cyan-400/40"
+                        />
+                        <button
+                          type="button"
+                          disabled={savingKeyPid === (d?.platform ?? u.platform) || !(keyDrafts[d?.platform ?? u.platform] ?? '').trim()}
+                          onClick={() => handleSaveKey(u)}
+                          className="shrink-0 rounded border border-cyan-400/30 px-2 py-px text-[10px] text-cyan-300/90 transition-colors hover:bg-cyan-500/10 disabled:opacity-40"
+                        >
+                          {savingKeyPid === (d?.platform ?? u.platform) ? '保存中…' : '存密钥'}
+                        </button>
+                      </div>
+                    );
+                  })()}
                   <div className="text-[9px] leading-snug text-amber-200/60">
-                    密钥不在此配置：请写入 NAS macro-scan/.env（如 MIMO_API_KEY=ak-…）后 docker compose up -d
+                    密钥 write-only 保存至 NAS config/.env（0600，不回显不入库），即时生效免重启
                   </div>
                 </div>
               </div>
             );
           })}
           <div className="pt-0.5 text-[9px] leading-snug text-white/25">
-            平台 + 模型写入天枢 data/llm_config.json（原子写），天枢即时生效、天璇/天玑下次调用读取。API 密钥一律配置于 NAS macro-scan/.env（ADR-0013），不落此文件、不经控制台写入。
+            平台 + 模型写入天枢 data/llm_config.json（原子写，兜底模板自动再生），天枢即时生效、天璇/天玑下次调用读取。密钥 write-only 写 NAS config/.env（ADR-0015，0600 双 gitignore），即时热生效；config 永不存 key。
           </div>
         </div>
       )}

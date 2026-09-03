@@ -99,9 +99,9 @@
 
 | 层级 | 模型 | API 端点 | 验证命令 | 状态 |
 |:---|:---|:---|:---|:---|
-| 主力 | MiniMax-M3 | api.minimaxi.com/anthropic | `grep -c "call_minimax" S:\macro-scan\核心代码\hybrid_llm.py` | ✅ |
-| 降级1 | MiMo v2.5 Pro | token-plan-cn.xiaomimimo.com/v1 | `docker exec macro-scan-macro-scan-1 env \| grep OPENAI_COMPAT` | ✅ |
-| 降级2 | SiliconFlow Qwen3.5-27B | api.siliconflow.cn/v1 | `docker exec macro-scan-macro-scan-1 env \| grep SILICONFLOW` | ✅ |
+| auto 首选 | MiMo v2.5-pro（mimo_plan） | token-plan-cn.xiaomimimo.com/v1 | `grep -c "call_minimax" S:\macro-scan\核心代码\hybrid_llm.py` | ✅ |
+| auto 兜底 | DeepSeek-V4-Flash（siliconflow） | api.siliconflow.cn/v1 | `docker exec macro-scan-macro-scan-1 env \| grep OPENAI_COMPAT` | ✅ |
+| 翻译 | Hunyuan-MT-7B（siliconflow） | api.siliconflow.cn/v1 | `docker exec macro-scan-macro-scan-1 env \| grep SILICONFLOW` | ✅ |
 | 兜底 | 纯数据报告 | N/A | N/A | ✅ |
 
 ---

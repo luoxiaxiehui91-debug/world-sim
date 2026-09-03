@@ -14,7 +14,7 @@
 - SSH：`ssh nas`（**必须 Git 自带 ssh，Windows OpenSSH 已坏**）；容器内部操作（docker exec / 读运行时数据极强实时性）走 SSH——非因 SMB 不可靠（SMB 本身可靠，仅容器刚写完即刻读时有 ~10s 客户端缓存滞后）
 
 **当前主线（08-23）**：
-1. **LLM 栈收敛完成（08-22~23）**：全仓只依赖两家云——硅基流动（GLM-Z1-9B=天璇 MC / DeepSeek-V4-Flash=叙事+auto 兜底 / Hunyuan-MT-7B=翻译 / bge-m3=RAG）+ 小米 mimo（Mimo v2.5=auto 链主推）。Ollama/MiniMax/Claude 全部退役零调用；开阳控制台 LLM 面板支持「选厂商→填 key→选模型」三步热切换，模型下拉为上游 /models 实时清单（SF 87 个/mimo 2 个，1h 缓存）。
+1. **LLM 栈收敛完成（08-22~23）**：全仓只依赖两家云——硅基流动（GLM-Z1-9B=天璇 MC / DeepSeek-V4-Flash=叙事+auto 兜底 / Hunyuan-MT-7B=翻译 / bge-m3=RAG）+ 小米 mimo（mimo-v2.5-pro=auto 链首选，09-02 固化）。Ollama/MiniMax/Claude 全部退役零调用；开阳控制台 LLM 面板支持「选厂商→填 key→选模型」三步热切换，模型下拉为上游 /models 实时清单（SF 87 个/mimo 2 个，1h 缓存）。
 2. **密钥治理（P0-A 大部分落地）**：天枢 compose 6 明文+天玑 FRED 明文全部改 `${VAR}`+本地 .env 注入（untracked），git 工作树明文清零；SF/mimo key 已轮换；**FRED/EIA 待用户申请新 key 后替换 .env+recreate 即闭环**（question `llm-keys-plaintext-in-git` 活跃中）。
 3. **08-21 天璇循环事故全闭环**：GRV 触发后 sim_trigger 未消费致每 ~2min 重燃仿真（467 报告/2478 预测污染）；止血清理后加固三件套全部署——写回非静默+失败跳过仿真（v2.0.42）/ 同日同事件去重护栏（v2.0.44）/ 启动自检+部署铁律（v2.0.43）。question 72 篇归档，活跃仅剩上述密钥 1 篇。
 4. **L2 验证双路径（更正后口径）**：verify_geo_auto.py 在天枢 scheduler 0930 每日运行（非孤儿）；天玑 tianji_verifier v1.0.2 并入 L2 新闻判定形成双路径；当前验证=0 属正常（预测 due 全在 2026-11 后）。
@@ -62,7 +62,7 @@
 - **08-21 循环重燃 P0**：GRV 触发→sim_trigger 写回被 except:pass 静默吞→守护器每 ~2min 重燃完整仿真（467 报告/tianji.predictions 当日新增 2478 条污染）。止血：停容器+契约翻 consumed；三落点清理（PG 删 2484+828 / docs 报告 mv 备份目录 / 开阳 reports_index 重建）。
 - **加固三件套**：v2.0.42 写回 3 次退避重试+[daemon][ERROR]+ntfy 限流 5min，失败跳过本次仿真防重燃；v2.0.43 守护器启动自检 sim_trigger 契约（未消费提示/已消费打印 consumed_at/损坏 ERROR+ntfy）+ macro-sim AGENTS.md 部署铁律第 5 条（COPY 代码必须 build+force-recreate，验收=容器 StartTime>提交时间）；v2.0.44 同日同事件去重双保险（守护器内存态主防 + _tianji_archive 存档层 `scenario_id LIKE` DB 查重兜底）。
 - **密钥治理**：审计发现天枢 compose 6 明文+天玑 FRED 明文 TRACKED 进 git（`.gitignore` 对已跟踪文件无效）；全部改 `${VAR}`+NAS 本地 .env（untracked，chmod 600），新增 .env.example 模板；SF/mimo key 轮换完成并冒烟；git 工作树活跃层明文清零（知识库语料 14 文件 FRED 明文随未来轮换作废）。FRED/EIA 待用户申请。
-- **LLM 栈收敛**：Qwen/Qwen3.5-27B 全仓切 deepseek-ai/DeepSeek-V4-Flash；MiMo v2.5-pro→v2.5；Ollama 死常量删除+call_ollama 正名 call_llm_primary（CF-8 起全仓无 11434 实际调用）；翻译并发 4→12（SF RPM1000/TPM80000 账算留余量）；删外层 MiMo 二次兜底；hybrid_llm MiniMax 残余代码全清。
+- **LLM 栈收敛**：Qwen/Qwen3.5-27B 全仓切 deepseek-ai/DeepSeek-V4-Flash；MiMo v2.5-pro（auto 链首选，09-02 固化）；Ollama 死常量删除+call_ollama 正名 call_llm_primary（CF-8 起全仓无 11434 实际调用）；翻译并发 4→12（SF RPM1000/TPM80000 账算留余量）；删外层 MiMo 二次兜底；hybrid_llm MiniMax 残余代码全清。
 - **控制台实时模型清单**：GET /api/v1/control/platform-models（上游 /models 实时拉取+服务端 1h 缓存+tts/asr/voice 过滤）；前端 datalist→select（修 datalist 前缀过滤只显示当前值的坑）。SF 实测 87 个/mimo 2 个。
 - **health 图层同城聚合（fetch_health_geo v1.1.1）**：双文件架构——明细 health_geo_raw.json（合并/回填源）+ 展示文件只存聚合（一城一点+count+代表事件）；2145→342 点带 count 徽标；GDELT 补拉重建 72h 明细 1871 条（Congo count 恢复 250）。教训：聚合结果不得覆盖明细源（二次聚合 count 失真）。
 - **l2-verify 结论更正（08-23 普查）**：verify_geo_auto.py 在天枢 scheduler 0930 每日正常运行（log 实证），「孤儿脚本」结论片面对（当时仅以天玑视角断言）；「验证=0」真实因果=无到期预测（due 全在 2026-11 后）。天玑 v1.0.2 并入 L2 判定仍有效（双路径）。
