@@ -3,6 +3,15 @@
 > 文档类别：实录（RECORD）· CHANGELOG
 > 版本锚点：`S:/world-sim/macro-scan/VERSION`
 
+## [3.8.32] - 2026-09-03
+
+### Fixed（P2-5 / question calibration-score-no-decay + 前置阻塞 bug）
+
+- **propagation_paths.yaml 解析修复**：`atomic_paths:` 映射键打断顶层 list 致 ParserError，被 `_load_propagation_paths()` 的 `except Exception` 静默吞掉——25 条传导路径（20 主 + 5 原子）从未加载，维度2 恒兜底 0.2。现原子路径并入顶层 list（键无代码消费），实测加载 25 条
+- **置信度时间衰减**：20 条主路径按 data_quality 历史锚点补 `last_verified`（12 条），`hypothesis_engine._cal_decay()` 应用 `max(0.5, 0.98^年数)` 衰减因子于维度2 加权（L563 avg_cal）；无锚不衰减。参数可调
+- 注意：修复后维度2 从恒 0.2 变为真实计算，推演概率输出将变化（预期修复效果）；完整推演回归交由下次常规调度验证
+- CHANGELOG: v3.8.24 停更的 TuiYan_CHANGELOG.md 已废弃（AGENTS 导航待更新，另案）
+
 ## v3.8.31 — 2026-09-03 天枢 news_ttl_cleanup 功能批次入库：PG news.articles 90 天 TTL 清理（08-30 已部署，本次补 git 记录）
 
 ### 变更

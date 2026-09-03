@@ -362,6 +362,29 @@ _PATHS_FILE = (Path(os.environ.get("OPENCLAW_WORKSPACE", "/workspace"))
 _paths_cache = None
 _paths_mtime = 0.0
 
+def _cal_decay(p: dict) -> float:
+    """置信度时间衰减（P2-5，question calibration-score-no-decay）。
+
+    验证证据随时间过期：effective = score * max(0.5, 0.98 ** 距 last_verified 年数)。
+    无 last_verified 锚点的路径不衰减（factor=1.0）。参数可调，见 CHG-20260903T110600。
+    """
+    lv = p.get("last_verified")
+    if not lv:
+        return 1.0
+    try:
+        from datetime import datetime, timezone
+        lv = str(lv)[:10]
+        try:
+            dt = datetime.strptime(lv, "%Y-%m-%d")
+        except ValueError:
+            dt = datetime.strptime(lv[:7], "%Y-%m")  # yaml 锚点形如 2022-08
+        dt = dt.replace(tzinfo=timezone.utc)
+        years = max(0.0, (datetime.now(timezone.utc) - dt).days / 365.25)
+        return round(max(0.5, 0.98 ** years), 3)
+    except Exception:
+        return 1.0
+
+
 def _load_propagation_paths() -> list:
     global _paths_cache, _paths_mtime
     try:
@@ -563,7 +586,7 @@ def compute_confidence(
                     data_steps += 1
         ratio = data_steps / all_steps if all_steps else 0
         # 加权：路径 calibration_score 平均值
-        avg_cal = sum(p.get("calibration_score", 0.3) for p in matched_paths) / len(matched_paths)
+        avg_cal = sum(p.get("calibration_score", 0.3) * _cal_decay(p) for p in matched_paths) / len(matched_paths)
         d2 = round((ratio * 0.6 + avg_cal * 0.4), 3)
         d2_note = f"传导链{data_steps}/{all_steps}步有数据支持，路径平均置信度{avg_cal:.2f}"
 
