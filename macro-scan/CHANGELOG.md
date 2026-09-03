@@ -3,6 +3,19 @@
 > 文档类别：实录（RECORD）· CHANGELOG
 > 版本锚点：`S:/world-sim/macro-scan/VERSION`
 
+## v3.8.31 — 2026-09-03 天枢 news_ttl_cleanup 功能批次入库：PG news.articles 90 天 TTL 清理（08-30 已部署，本次补 git 记录）
+
+### 变更
+- 【commit c94978c — question 20260903-world-deduction-ttl-cleanup-uncommitted（P2）收编，用户拍板「按顺序来吧」】
+  - 入库 “核心代码/news_ttl_cleanup.py”（3121B，08-30 建）：PG news.articles TTL 清理，保留 90 天（NEWS_TTL_DAYS env 参数化），更早行 DELETE
+  - 入库 “核心代码/scheduler.py” +2：JOBS 注册 news_ttl_cleanup（每日 03:00，“1-7”）+ LOG_FILES 注册 news_ttl_cleanup.log
+  - VERSION 3.8.30 → 3.8.31（git 真源 + 运行区双端；该文件经 grep 实证无代码消费、容器不挂载，属纯文档锚点）
+  - ⚠️ 本次为补记录而非新部署：git 真源 / 运行区 / 容器三方 md5 全同（2afc1122…）实证功能 08-30 起已在运行，此前仅缺 git 记录（“部署先于入库”第三次，同 kaiyang D3 08-06 先例）
+
+### 关联
+- questions/world-deduction/20260903-world-deduction-ttl-cleanup-uncommitted.md（⚠️ → ✅ → 归档）
+
+---
 ## v3.8.30 — 2026-09-03 P5 退役：天枢 verify 域三旧脚本退役（验证功能 2026-08-24 已迁天玑收编）
 
 ### 变更
