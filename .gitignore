@@ -33,3 +33,6 @@ macro-scan/核心代码/qa_result.txt
 macro-ji/.env
 **/.env
 *.bak-*
+
+# pytest 覆盖率产物（macro-sim/.coverage 等）
+**/.coverage
