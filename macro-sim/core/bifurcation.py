@@ -634,8 +634,6 @@ def run_prediction(
     paths = []
     for ci, cluster in enumerate(clusters):
         prob = len(cluster) / n_runs
-        if prob < MIN_PATH_PROBABILITY:
-            continue
 
         label = path_labels[ci] if ci < len(path_labels) else f"路径{ci+1}"
 
