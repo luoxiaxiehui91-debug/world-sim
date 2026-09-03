@@ -297,30 +297,63 @@ def check_and_generate_reweight_suggestions():
     检查是否有信源应该触发降权建议。
     触发条件：连续 N=8 条同信源+同预测目标类型，Brier 均值 < 全体均值 × 80%。
     """
+    # Bug B 修复：按活跃校准版本过滤，避免不同模型版本预测混合计算 BSS。
+    # calibration_versions 表不存在时静默降级为不过滤（graceful degradation）。
+    active_version_id = None
+    try:
+        from tianji_db import get_active_calibration_version_id
+        active_version_id = get_active_calibration_version_id()
+    except Exception:
+        pass
+
     conn = get_connection()
     try:
-        # 取所有已验证预测（有 brier_score）
-        rows = conn.execute("""
-            SELECT p.id, p.prediction_target_type, p.brier_score, p.final_prob,
-                   r.agent_id, r.input_signals
-            FROM predictions p
-            LEFT JOIN reasoning_trace r ON r.prediction_id = p.id
-            WHERE p.status = 'verified' AND p.brier_score IS NOT NULL
-            ORDER BY p.verified_at DESC
-        """).fetchall()
+        # Step A: 只查 predictions，不 JOIN reasoning_trace
+        # P2-5 修复：LEFT JOIN 会因 reasoning_trace 一对多关系产生重复行，
+        # 导致同一条预测的 brier_score 被重复计入 group 均值。
+        if active_version_id is not None:
+            pred_rows = conn.execute("""
+                SELECT p.id, p.prediction_target_type, p.brier_score, p.final_prob
+                FROM predictions p
+                WHERE p.status = 'verified' AND p.brier_score IS NOT NULL
+                  AND p.calibration_version_id = %s
+                ORDER BY p.verified_at DESC
+            """, (active_version_id,)).fetchall()
+        else:
+            pred_rows = conn.execute("""
+                SELECT p.id, p.prediction_target_type, p.brier_score, p.final_prob
+                FROM predictions p
+                WHERE p.status = 'verified' AND p.brier_score IS NOT NULL
+                ORDER BY p.verified_at DESC
+            """).fetchall()
+        pred_ids = [r["id"] for r in pred_rows]
+
+        # Step B: 独立查 reasoning_trace，按 prediction_id 聚合
+        trace_rows = []
+        if pred_ids:
+            trace_rows = conn.execute("""
+                SELECT prediction_id, agent_id, input_signals
+                FROM reasoning_trace
+                WHERE prediction_id = ANY(%s)
+            """, (pred_ids,)).fetchall()
     finally:
         conn.close()
 
-    if len(rows) < MIN_TRIGGER_N:
+    if len(pred_rows) < MIN_TRIGGER_N:
         return []
 
+    traces_by_pred = {r["prediction_id"]: r for r in trace_rows}
+
     # 按 (signal_source, target_type) 分组
+    # 内层循环对每个 input_signal 分别追加 brier_score 是有意设计：
+    # 分组语义 = "使用了信号 X 的预测，在目标类型 Y 上的准确率"
     from collections import defaultdict
     groups: dict = defaultdict(list)
-    for row in rows:
+    for row in pred_rows:
+        trace = traces_by_pred.get(row["id"])
         signals = []
         try:
-            signals = json.loads(row["input_signals"] or "[]")
+            signals = json.loads((trace["input_signals"] if trace else None) or "[]")
         except Exception:
             pass
         target_type = row["prediction_target_type"] or "unknown"
@@ -330,7 +363,7 @@ def check_and_generate_reweight_suggestions():
                 groups[(src, target_type)].append(row["brier_score"])
 
     # 全体平均 Brier
-    all_briers = [row["brier_score"] for row in rows if row["brier_score"] is not None]
+    all_briers = [row["brier_score"] for row in pred_rows if row["brier_score"] is not None]
     global_mean = sum(all_briers) / len(all_briers) if all_briers else 0.25
 
     suggestions = []

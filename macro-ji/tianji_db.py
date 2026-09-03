@@ -67,6 +67,79 @@ def run_migration():
     print("[tianji_db] PG 模式无需 SQLite 迁移（schema 由 03_b0_schema.sql 持有）")
 
 
+# ── 校准版本管理 ──────────────────────────────────────────────────────────────
+
+def get_active_calibration_version_id():
+    """返回当前活跃校准版本 id，无则返回 None。
+
+    calibration_versions 表不存在或无活跃行时静默返回 None（graceful degradation）。
+    """
+    try:
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT id FROM calibration_versions WHERE is_active = TRUE LIMIT 1"
+            ).fetchone()
+            return row["id"] if row else None
+        finally:
+            conn.close()
+    except Exception:
+        return None
+
+
+def create_calibration_version(
+    version_tag: str,
+    params_snapshot=None,
+    notes=None,
+) -> int:
+    """插入一条 is_active=FALSE 的校准版本行，返回新 id。"""
+    import json as _json
+    snapshot = params_snapshot if params_snapshot is not None else {}
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """
+            INSERT INTO calibration_versions (version_tag, params_snapshot, notes, is_active)
+            VALUES (%s, %s::jsonb, %s, FALSE)
+            RETURNING id
+            """,
+            (version_tag, _json.dumps(snapshot, ensure_ascii=False), notes),
+        ).fetchone()
+        conn.commit()
+        return row["id"]
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def activate_calibration_version(version_id: int):
+    """在单事务内激活指定版本（先全部置 FALSE，再设目标为 TRUE）。
+
+    若 version_id 不存在则回滚并抛 ValueError，避免激活后表内无活跃版本。
+    """
+    conn = get_connection()
+    try:
+        conn.execute("UPDATE calibration_versions SET is_active = FALSE")
+        cur = conn.execute(
+            "UPDATE calibration_versions SET is_active = TRUE WHERE id = %s",
+            (version_id,),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            raise ValueError(f"calibration_version id={version_id} 不存在，激活失败（事务已回滚）")
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
+
+
 # ── 预测存档 ─────────────────────────────────────────────────────────────────
 
 def save_prediction(pred: dict) -> str:
@@ -74,12 +147,17 @@ def save_prediction(pred: dict) -> str:
     存档一条预测。pred 必须包含：
       id, due_at, type, prediction_target_type, content, outcome_definition, final_prob
     返回 prediction_id。
+    calibration_version_id 解析顺序：pred 显式传入 > 当前活跃版本 > NULL。
     """
     required = ["id", "due_at", "type", "prediction_target_type",
                 "content", "outcome_definition", "final_prob"]
     for k in required:
         if k not in pred:
             raise ValueError(f"save_prediction: 缺少必填字段 '{k}'")
+
+    cal_ver_id = pred.get("calibration_version_id")
+    if cal_ver_id is None:
+        cal_ver_id = get_active_calibration_version_id()
 
     conn = get_connection()
     try:
@@ -89,8 +167,8 @@ def save_prediction(pred: dict) -> str:
                content, outcome_definition, target_metric, target_direction,
                target_threshold, b_prob, b_sample_count, b_max_similarity,
                llm_adj, final_prob, prob_low, prob_high, confidence_tier,
-               time_horizon, status)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               time_horizon, status, calibration_version_id)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (id) DO NOTHING
         """, (
             pred["id"],
@@ -114,6 +192,7 @@ def save_prediction(pred: dict) -> str:
             pred.get("confidence_tier", "HIGH"),
             pred.get("time_horizon", "monthly"),
             "pending",
+            cal_ver_id,
         ))
         conn.commit()
         return pred["id"]

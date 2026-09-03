@@ -7,6 +7,34 @@
 
 ---
 
+## v1.0.6 — 2026-09-03 修复: verify_predictions.py dry-run 假实现（commit 01c08df）
+
+### 修复
+- `run_verification(dry_run)` 此前零消费 dry_run 变量（grep 仅签名/docstring/调用处），docstring 声称「只打印不写文件」实际照常写盘——写回段（tmp+os.replace 原子写）无条件执行
+- 暴露实证：2026-09-03 P4 对账手动补跑 `--dry-run`（07:23）即改 43 条生产数据（verified_at 07:23:00~07:24:31），实跑（07:25）幂等空转「无到期预测」
+- 修复：`id_map` 写回前插 `if dry_run:` 守卫——打印 results 预览（id/status/outcome/note）后直接 return，predictions_log.json 不变；argparse `--dry-run` 补 help 文本
+- 同族核查结论：`verify_geo_auto.py` dry-run 守卫已完整（判定循环内 `if args.dry_run: continue` 跳过 conn.execute 写库 + 结尾 dry-run 标识），无需改；`verify_hypothesis.py` 无 `--dry-run` 参数（无假实现问题，预览能力属增强未在本次范围）
+- 关联：question `20260903-world-deduction-verify-predictions-dryrun-noop.md`（⚠️ → ✅ resolved）
+
+---
+
+## v1.0.5 — 2026-08-28 P1: Calibration version tracking
+
+### 新增
+- PG 表 `calibration_versions`（id SERIAL PK, version_tag TEXT UNIQUE, params_snapshot JSONB, is_active BOOLEAN DEFAULT FALSE；partial unique index WHERE is_active=TRUE）
+- `predictions.calibration_version_id` FK 列；415 条历史预测回填至 `v0-baseline`（id=1）
+- `tianji_db.py`：`get_active_calibration_version_id()` / `create_calibration_version()` / `activate_calibration_version()`（含 rowcount=0 回滚保护）
+- `save_prediction()`：每条新预测自动打 calibration_version_id（显式传入 > 活跃版本 > NULL）
+- `weight_matrix.py`：`finalize_calibration_version()` + `--finalize-version` CLI 旗标
+- 迁移脚本：`migrate_p1_calibration_versions.py`
+
+## v1.0.4 — 2026-08-28 P0: 验证器 Bug A 修复 + reasoning_trace 去重约束
+
+### 修复
+- `tianji_verifier.py`：LEFT JOIN `reasoning_trace` 导致 join fan-out（同一预测多条推理行→Brier 重复计入）→ 改为两步独立查询（先取 pred_rows，再按 pred_ids 列表取 trace_rows，Python dict 合并）；同时修复 L348 变量名残留 bug（`rows` → `pred_rows`）
+- `reasoning_trace`：新增 UNIQUE(prediction_id) 约束，防止重复推理行写入
+- 迁移脚本：`migrate_p0_unique_trace.py`（去重 139 行、无重复、约束落地）
+
 ## v1.0.3 — 2026-08-24 optim_config 追加验证域收编常量（commit 75927fd45）
 
 **背景**：验证域存量收编二期立项——verify_predictions 自天枢迁入的前置条件。该脚本 `from optim_config import PREDICTIONS_LOG, FRED_MAX_LAG_DAYS, GDP/UNRATE/CPI_HIT_TOLERANCE`，精简版缺这些属性直迁即 ImportError。

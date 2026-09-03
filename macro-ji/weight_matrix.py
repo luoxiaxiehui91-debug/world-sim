@@ -319,6 +319,24 @@ def run_health_check() -> dict:
     return result
 
 
+def finalize_calibration_version(notes: str = "") -> dict:
+    """
+    当前 grv_weights.yaml 快照写入 calibration_versions 并激活。
+    在整批玉衡审批写完后调用。
+    version_tag 含秒精度（%Y-%m-%dT%H%M%SZ）避免同天多次调用产生重复标签。
+    返回 {"status": "ok", "version_id": id, "version_tag": tag} 或 {"status": "error", ...}。
+    """
+    try:
+        from tianji_db import create_calibration_version, activate_calibration_version
+        weights_dict = _load_yaml(WEIGHTS_PATH)
+        version_tag = "v" + datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
+        version_id = create_calibration_version(version_tag, params_snapshot=weights_dict, notes=notes)
+        activate_calibration_version(version_id)
+        return {"status": "ok", "version_id": version_id, "version_tag": version_tag}
+    except Exception as e:
+        return {"status": "error", "msg": str(e)}
+
+
 def _push_health_alert(warnings: list[str]):
     try:
         import urllib.request
@@ -411,5 +429,10 @@ if __name__ == "__main__":
         for i, item in enumerate(items):
             print(f"  [{i}] {item['signal_name']}/{item['target_type']}: "
                   f"{item.get('weight_before',0):.3f}→{item.get('weight_after',0):.3f} ({item.get('reason','')})")
+    elif "--finalize-version" in sys.argv:
+        notes_idx = sys.argv.index("--finalize-version") + 1
+        notes_str = sys.argv[notes_idx] if notes_idx < len(sys.argv) else ""
+        result = finalize_calibration_version(notes=notes_str)
+        print(result)
     else:
-        print("用法：python weight_matrix.py --init | --health | --pending")
+        print("用法：python weight_matrix.py --init | --health | --pending | --finalize-version [notes]")

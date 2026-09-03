@@ -1,6 +1,6 @@
 # macro-ji — AI 工作入口（天玑验证评估层）
 
-> 容器：`macro-scan-tianji-1` · 镜像：`macro-tianji:latest` · 版本：v1.0.0（2026-08-04 上线）
+> 容器：`macro-scan-tianji-1` · 镜像：`macro-tianji:latest` · 版本：v1.0.6（2026-09-03 dryrun 守卫注入；v1.0.1–v1.0.5 见 CHANGELOG.md）
 > 代码目录：`/vol2/1000/software/world-sim/macro-ji/`（NAS 仓库）
 
 > **跨项目知识库入口**：中央知识库 = `S:\docs\`（NAS 侧 `/vol2/1000/software/docs/`）；规则真源 = `S:\docs\AGENTS.md`（问题流程 / CHG 变更日志 / 文档写作规范）。改代码 / 部署后**必须按文末「七、中央知识库同步（CHG 五步）」同步中央知识库**（2026-08-30 CHG 体系）。
