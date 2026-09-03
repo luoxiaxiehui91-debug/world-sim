@@ -192,13 +192,14 @@ def cmd_hypothesis(args: list):
         depth = "deep"
         scenario_parts.pop()
 
-    # 解析烈度（可选最后一个参数为 L1/L2/L3）
+    # 解析烈度（可选最后一个参数为 L1/L2/L3/L4）
     severity = None
-    if scenario_parts and scenario_parts[-1].upper() in ("L1", "L2", "L3"):
+    if scenario_parts and scenario_parts[-1].upper() in ("L1", "L2", "L3", "L4"):
         severity = scenario_parts.pop().upper()
     scenario_text = " ".join(scenario_parts)
 
-    sev_label = {"L1": "压力/紧张", "L2": "冲突/震荡", "L3": "危机/断裂"}.get(severity or "L2", "")
+    sev_label = {"L1": "压力/紧张", "L2": "冲突/震荡", "L3": "危机/断裂",
+                 "L4": "崩坏/极端尾部"}.get(severity or "L2", "")
     depth_label = "深度多步推理（约15-20分钟）" if depth == "deep" else "标准（约5-10分钟）"
     push_text(
         f"[假设推演] 开始处理：{scenario_text}",

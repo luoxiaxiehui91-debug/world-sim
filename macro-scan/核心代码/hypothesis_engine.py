@@ -270,30 +270,43 @@ def get_historical_analogies(scenario: dict) -> dict:
         vix_vals = [abs(v) * 0.8 for v in sp500_vals]
     gdp_vals   = [s["gdp_drop"] for s in scenarios if s.get("gdp_drop") is not None]
 
-    severity_mult = {"L1": 0.5, "L2": 1.0, "L3": 1.8}.get(severity, 1.0)
+    if severity == "L4":
+        # L4 极端尾部（核冲突/全球大疫等）无历史样本：对历史类比 percentile 做
+        # 系数外推属伪精确，禁用（ADR-0014）。输出固定情景假设区间（专家判断，
+        # 非历史校准）；后续完整方案=概率型/情景型分组推演（backlog P3）。
+        impacts = {
+            "spx_pct":   {"p10": -60.0, "p50": -45.0, "p90": -30.0,
+                          "source": "L4情景假设（非历史校准）"},
+            "vix_delta": {"p10": 50.0, "p50": 70.0, "p90": 90.0,
+                          "source": "L4情景假设（非历史校准）"},
+            "gdp_pct":   {"p10": -30.0, "p50": -20.0, "p90": -10.0,
+                          "source": "L4情景假设（非历史校准）"},
+        }
+    else:
+        severity_mult = {"L1": 0.5, "L2": 1.0, "L3": 1.8}.get(severity, 1.0)
 
-    impacts = {}
-    if sp500_vals:
-        impacts["spx_pct"] = {
-            "p10": round(float(np.percentile(sp500_vals, 10)) * severity_mult, 1),
-            "p50": round(float(np.percentile(sp500_vals, 50)) * severity_mult, 1),
-            "p90": round(float(np.percentile(sp500_vals, 90)) * severity_mult, 1),
-            "source": "历史类比（非MC）",
-        }
-    if vix_vals:
-        impacts["vix_delta"] = {
-            "p10": round(float(np.percentile(vix_vals, 10)) * severity_mult, 1),
-            "p50": round(float(np.percentile(vix_vals, 50)) * severity_mult, 1),
-            "p90": round(float(np.percentile(vix_vals, 90)) * severity_mult, 1),
-            "source": "历史类比（非MC）",
-        }
-    if gdp_vals:
-        impacts["gdp_pct"] = {
-            "p10": round(float(np.percentile(gdp_vals, 10)) * severity_mult, 1),
-            "p50": round(float(np.percentile(gdp_vals, 50)) * severity_mult, 1),
-            "p90": round(float(np.percentile(gdp_vals, 90)) * severity_mult, 1),
-            "source": "历史类比（非MC）",
-        }
+        impacts = {}
+        if sp500_vals:
+            impacts["spx_pct"] = {
+                "p10": round(float(np.percentile(sp500_vals, 10)) * severity_mult, 1),
+                "p50": round(float(np.percentile(sp500_vals, 50)) * severity_mult, 1),
+                "p90": round(float(np.percentile(sp500_vals, 90)) * severity_mult, 1),
+                "source": "历史类比（非MC）",
+            }
+        if vix_vals:
+            impacts["vix_delta"] = {
+                "p10": round(float(np.percentile(vix_vals, 10)) * severity_mult, 1),
+                "p50": round(float(np.percentile(vix_vals, 50)) * severity_mult, 1),
+                "p90": round(float(np.percentile(vix_vals, 90)) * severity_mult, 1),
+                "source": "历史类比（非MC）",
+            }
+        if gdp_vals:
+            impacts["gdp_pct"] = {
+                "p10": round(float(np.percentile(gdp_vals, 10)) * severity_mult, 1),
+                "p50": round(float(np.percentile(gdp_vals, 50)) * severity_mult, 1),
+                "p90": round(float(np.percentile(gdp_vals, 90)) * severity_mult, 1),
+                "source": "历史类比（非MC）",
+            }
 
     best   = rated[0][1] if len(rated) > 0 else None
     second = rated[1][1] if len(rated) > 1 else None
@@ -661,8 +674,8 @@ def compute_confidence(
     label_lower = scenario.get("label", "").lower() + scenario.get("raw_input", "").lower()
     if any(kw in label_lower for kw in ["核", "nuclear", "政权崩溃", "regime collapse"]):
         no_green_triggers.append("含核威慑/政权崩溃场景")
-    if sev == "L3":
-        no_green_triggers.append("L3烈度（极端场景）")
+    if sev in ("L3", "L4"):
+        no_green_triggers.append(f"{sev}烈度（极端场景）")
 
     # ── 信号灯 ────────────────────────────────────────────────
     # 注意：系统设计永不输出🟢（高风险场景不给"已验证"标签）

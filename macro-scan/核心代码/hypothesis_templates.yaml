@@ -174,6 +174,19 @@ severity_params:
     regime_force: stress
     keywords: [全面战争, 崩溃, 系统性, 断裂, 危机, L3, 极端, 灾难]
 
+  # L4 无历史样本：下列 MC 参数为专家情景假设（非历史校准，ADR-0014）。
+  # 仅定义烈度体系入口与永不升格语义；历史类比 percentile 对 L4 禁用。
+  L4:
+    name: 崩坏/极端尾部
+    description: 核冲突、全球大流行、小行星撞击等系统级崩溃（无历史样本，参数为专家情景假设）
+    vix_mult: 2.50
+    lambda_mult: 6.0
+    sigma_mult: 3.5
+    regime_force: stress
+    calibration: expert-assumption
+    keywords: [核战争, 核冲突, 核打击, 核升级, 全球大流行, 全球大疫, 小行星撞击,
+               超级火山, EMP攻击, 电网瘫痪, L4, 极端尾部, 系统级崩溃]
+
 synergy_rules:
   - primary: GEO
     secondary: ENERGY

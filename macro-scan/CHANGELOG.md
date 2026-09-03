@@ -1,3 +1,19 @@
+## [3.8.33] - 2026-09-03
+
+### Added（P3-3 / question l4-tail-scenario-modeling，方案 C 降级折中版，用户拍板）
+
+- **L4 极端尾部烈度建模**：hypothesis_templates.yaml severity_params 新增 L4 节「崩坏/极端尾部」（vix_mult 2.5 / lambda_mult 6.0 / sigma_mult 3.5 / regime_force stress；calibration: expert-assumption 显式标注专家情景假设非历史校准；keywords 全多字词防误判——核战争/全球大流行/小行星撞击等）
+- **历史类比禁用于 L4**：hypothesis_engine.get_historical_analogies 对 severity=="L4" 不做 percentile 系数外推（L4 无历史样本，外推属伪精确），改返回固定情景假设区间（spx -60/-45/-30、vix_delta 50/70/90、gdp -30/-20/-10），source 标注「L4情景假设（非历史校准）」；L1-L3 逻辑不变（整体收进 else）
+- **永不升格🟢覆盖 L4**：置信度信号 no_green_triggers 分支 `sev == "L3"` → `in ("L3", "L4")`
+- **ntfy 推演通道放行 L4**：ntfy_listener.py 烈度白名单 ("L1","L2","L3","L4") + sev_label 加「崩坏/极端尾部」
+- **验证（容器内冒烟，零 LLM 调用）**：py_compile 过；parse「核战争/全球大流行」→L4、「台海紧张」→L2 不误判；L4 impacts=情景假设区间+标注；L3 source 仍=历史类比；三方 md5 一致（git 真源/运行区/容器）+ docker restart
+- **后续完整版入 backlog**：概率型/情景型分组推演（L4 走独立情景分析模式，hermes-systemic 9.5 原方向）——用户拍板「早晚要完善，记的加进后续计划里」
+
+### 关联
+- questions/world-deduction/20260903-world-deduction-l4-tail-scenario-modeling.md（⚠️→✅→归档）
+- decisions/world-deduction/0014-l4-tail-severity-modeling.md（ADR-0014）
+- operations/CHG-20260903T125000-macro-scan.md
+
 # macro-scan CHANGELOG — 天枢（数据采集/分析层）
 
 > 文档类别：实录（RECORD）· CHANGELOG
