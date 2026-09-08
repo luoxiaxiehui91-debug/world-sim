@@ -93,7 +93,7 @@ FRED_LAG_WATCH = [
     ("fred_history/DCOILWTICO.csv",      "WTI 原油",             6),
     ("fred_history/BAMLH0A0HYM2.csv",    "HY 利差(BofA)",        6),
     ("fred_history/ICSA.csv",            "初请失业金(周)",      12),
-    ("fred_history/IRLTLT01JPM156N.csv", "日债 10Y(月)",        90),
+    ("fred_history/IRLTLT01JPM156N.csv", "日债 10Y(MOF日频)",    10),  # 2026-09-08 v3.8.39：源由 FRED/OECD 月频切换为 MOF 日频（滞后 1 天），max_lag 90→10（保留 90 会让停滞 3 个月才告警）
     ("fred_history/GSCPI.csv",           "GSCPI(月)",           45),
 ]
 
