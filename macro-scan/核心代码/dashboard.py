@@ -26,10 +26,10 @@ import glob as _glob
 
 
 def load_latest_monthly_outlook() -> str:
-    """加载最新月度简报Markdown内容，返回HTML片段（含基础格式化）。"""
+    """加载最新30天展望简报Markdown内容，返回HTML片段（含基础格式化）。"""
     report_dir = os.path.join(os.path.dirname(DASHBOARD_OUTPUT), "..", "docs", "分析报告")
     report_dir = os.path.abspath(report_dir)
-    pattern = os.path.join(report_dir, "月度简报_*.md")
+    pattern = os.path.join(report_dir, "30天展望简报_*.md")
     files = sorted(_glob.glob(pattern), reverse=True)
     if not files:
         return ""
@@ -322,10 +322,10 @@ def generate_dashboard():
     print(f"  预测记录：{len(predictions)} 条")
     print(f"  信号记录：{len(signals)} 条")
 
-    print("加载月度简报...")
+    print("加载30天展望简报...")
     outlook_html = load_latest_monthly_outlook()
     if outlook_html:
-        outlook_panel = f'<div class="chart-card"><h2 style="color:#333;margin-top:0">月度宏观简报（Executive Briefing）</h2>{outlook_html}</div>'
+        outlook_panel = f'<div class="chart-card"><h2 style="color:#333;margin-top:0">30天展望简报（Executive Briefing）</h2>{outlook_html}</div>'
     else:
         outlook_panel = ""
 

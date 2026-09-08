@@ -110,7 +110,8 @@ JOBS = [
     ("slow_vars",   "0935", "1-7", 1,   [PYTHON, "slow_variables.py"]),              # 天玑 慢变量更新（每月1日）
     ("spacetrack",  "0615", "1-7", None, [PYTHON, "fetch_spacetrack.py"]),            # Space-Track 卫星统计（日频，06:15）
     ("market_quotes","I15","1-7", None, [PYTHON, "market_quotes.py"]),               # 市场行情快照整合（commodity+crypto，I15 跟 crypto 走——crypto 源已 I15 采集，整合导出提频零外部请求）
-    ("news_ttl_cleanup", "0300", "1-7", None, [PYTHON, "news_ttl_cleanup.py"]),  # PG news.articles TTL（每日03:00，保留90天，timedelta 参数化）
+    ("news_ttl_cleanup", "0300", "1-7", None, [PYTHON, "news_ttl_cleanup.py"]),
+    ("reports_ttl_cleanup", "0310", "1-7", None, [PYTHON, "reports_ttl_cleanup.py"]),  # 报告文件 TTL（每日03:10，保留90天，错开 news 0300，源目录 docs/分析报告+docs/仿真报告）  # PG news.articles TTL（每日03:00，保留90天，timedelta 参数化）
     ("news_prune",  "0920", "1-7", 1,   [PYTHON, "-c",
         "import sys; sys.path.insert(0,'.'); import news_db; "
         "from optim_config import DATA_DIR; import os; "
@@ -162,6 +163,7 @@ LOG_FILES = {
     "verify_auto": f"{LOG_DIR}/verify_auto.log",
     "news_prune":  f"{LOG_DIR}/news_prune.log",
     "news_ttl_cleanup": f"{LOG_DIR}/news_ttl_cleanup.log",
+    "reports_ttl_cleanup": f"{LOG_DIR}/reports_ttl_cleanup.log",
     "news_export": f"{LOG_DIR}/news_export.log",
     "narrative_proc":  f"{LOG_DIR}/narrative_proc.log",
     "defense_rss":     f"{LOG_DIR}/defense_rss.log",

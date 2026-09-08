@@ -2981,7 +2981,7 @@ def run_macro_analysis(
     except Exception as e:
         print(f"[ForecastTracker] 警告：入库失败 - {e}")
 
-    # ── 月度简报（Executive Briefing）─────────────────────────────────────────
+    # ── 30天展望简报（Executive Briefing）─────────────────────────────────────────
     outlook_filename = ""
     try:
         _us_ind_out  = us_indicators  if country == "both" else (indicators if country == "us" else {})
@@ -3009,12 +3009,12 @@ def run_macro_analysis(
         report_dir = Path(REPORT_DIR)
         report_dir.mkdir(parents=True, exist_ok=True)
         today = datetime.now().strftime("%Y%m%d")
-        outlook_filename = str(report_dir / f"月度简报_{today}_{country}.md")
+        outlook_filename = str(report_dir / f"30天展望简报_{today}_{country}.md")
         with open(outlook_filename, "w", encoding="utf-8") as f:
             f.write(outlook_md)
-        print(f"[月度简报] 已生成：{outlook_filename}")
+        print(f"[30天展望] 已生成：{outlook_filename}")
     except Exception as e:
-        print(f"[月度简报] 警告：生成失败 - {e}")
+        print(f"[30天展望] 警告：生成失败 - {e}")
 
     # 返回结果
     return {
@@ -3272,7 +3272,7 @@ def generate_monthly_outlook(
     spillover_text: str = "",
 ) -> str:
     """
-    生成月度一页简报（Executive Briefing）。
+    生成未来 30 天展望一页简报（Executive Briefing）。
     纯Python计算，无LLM调用。产出结构：
       1. 综合警戒级别（复合评分）
       2. 美中核心指标快照
@@ -3336,7 +3336,7 @@ def generate_monthly_outlook(
     regime_zh = {"normal": "常态", "stress": "压力", "crisis": "危机"}.get(regime, regime)
 
     lines = [
-        f"# 月度宏观简报（Executive Briefing）",
+        f"# 30天展望简报（Executive Briefing）",
         f"> 生成时间：{now_str}　|　体制状态：**{regime_zh}**　|　综合警戒：{alert_icon} **{alert_label}**",
         "",
     ]
@@ -3806,7 +3806,7 @@ if __name__ == '__main__':
             print("=" * 60)
             print(f"报告文件：{result['filename']}")
             if result.get("outlook_filename"):
-                print(f"月度简报：{result['outlook_filename']}")
+                print(f"30天展望：{result['outlook_filename']}")
 
             # 压力测试（如果指定）
             if args.scenario:
