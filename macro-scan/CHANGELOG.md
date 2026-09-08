@@ -1,3 +1,18 @@
+## [3.8.40] - 2026-09-08
+
+### Added（P3 / question monthly-outlook-daily-and-no-ttl 方案C「改名 + 报告TTL」，CHG-20260908T232303-macro-scan）
+
+- **新增 `reports_ttl_cleanup.py`：报告文件 TTL 清理**。扫**源目录** `docs/分析报告` + `docs/仿真报告`，删除超期 `.md`，默认保留 **90 天**（与 news TTL 同口径，`REPORTS_TTL_DAYS` 可覆盖），支持 `--dry-run`；日期判定「文件名日期优先（`YYYY-MM-DD` / 紧凑 `YYYYMMDD`）→ mtime 兜底」，异常仅记日志不阻断。调度每日 **03:10**（错开 `news_ttl_cleanup` 03:00）。副本 `data/reports/` 与 `reports_index.json` 由既有 `reports_index` 任务（0735/2035）自行同步，TTL 脚本不重复负责。
+
+### Changed
+
+- **「月度简报」改名「30天展望简报」**（`月度简报_{YYYYMMDD}_{country}.md` → `30天展望简报_{YYYYMMDD}_{country}.md`）：产物语义本就是滚动 30 天展望（警戒级别 / 指标快照 / 反馈回路 TOP3 / 地缘快照 / 阈值红绿灯 / 30 天观察日历），但生成动作挂在每次宏观分析末尾（每工作日 3 次：07:30 both / 20:00 us / 20:15 china），「月度」命名与日频×3 的实际严重错配。改动点：`run_macro_analysis.py`（文件名模板 + 日志标签 + 正文 H1）、`generate_reports_index.py`（类型改 `30天展望`，关键词保留 `月度简报` 兜底）、`dashboard.py`（glob pattern + 卡片标题）。
+- **一次性数据迁移：历史 65 份 `月度简报_*` 重命名为 `30天展望简报_*`**（脚本执行，残留旧名 0，副本由 `generate_reports_index` 同步清理）。历史文件**正文不改**（保留原貌，随 TTL 自然淘汰）。
+
+### 已知限制
+
+- 90 天窗口内不会出现实际删除（现有报告最早 2026-08-10），首次真实清理预计 2026-11 中下旬触发。
+- 历史简报正文 H1 仍为「月度宏观简报（Executive Briefing）」（新产出已改为「30天展望简报（Executive Briefing）」）；dashboard 卡片标题与正文 H1 重复属既存行为，本次未改。
 ## [3.8.39] - 2026-09-08
 
 ### Added（P2 / question fred-japan-jgb-lag-probe-spam 解法A「MOF 日频源治本」，CHG-20260908T203337-macro-scan）
