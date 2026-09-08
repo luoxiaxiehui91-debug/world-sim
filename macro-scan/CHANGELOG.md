@@ -1,3 +1,25 @@
+## [3.8.38] - 2026-09-08
+
+### Fixed（P2 / backlog「fetch_spacetrack 登录校验与失败态（开阳清零掩盖层）」，CHG-20260908T192626-macro-scan）
+
+- **`_get_session` 登录校验响应体**：Space-Track 对错误凭证返回 **HTTP 200 + `{"Login":"Failed"}`**（非 4xx），旧逻辑仅判断 `status_code != 200` 会误判登录成功，错误推迟到下游查询才以 401 暴露——这正是开阳宇宙监视静默清零 10 天 / 40 次 401 零告警的直接掩盖层。现增加响应体校验：body 解析为 JSON 且含 `Login` 键即 `raise RuntimeError` 并附 body 前 200 字符。登录成功时 body 为空串，不受影响。
+- **`collect()` 失败态（禁止粉饰）**：`"status"` 由硬编码 `Status.OK` 改为按查询结果判定——核心查询 `all_active is None` → `Status.UNAVAILABLE`；核心成功但子查询有 `None` → `Status.PARTIAL`；全部成功 → `Status.OK`。新增 `error` 字段记录失败摘要；**非 OK 时沿用上次成功值**（读旧 JSON 的数值字段），避免面板显示 0 造成"清零"式误导；无旧文件时才写 0。
+- **`limit` 截断修正（数值口径变化）**：实测 `all_active` 原 `limit=30000` 返回恰好 30000（= limit，截断）、`starlink` 原 `limit=10000` 返回恰好 10000（截断），OneWeb 654 未触顶。现 `all_active` → `limit=100000`（`_query` 新增 `timeout` 参数，该调用设 120s）、`starlink`/`oneweb` → `limit=30000`。**面板数值修正为真实值：`total_active` 30000 → 35048、`starlink` 10000 → 11083**（`by_type` 与 `military_large_payload` 同步变化）。
+- **探针新增 `check_feed_status`**：独立复核 `data/spacetrack.json` 的 `status` 字段，`unavailable` → CRIT、其余非 ok → WARN，并进 ntfy。**复用 `check_fred_lag` 的 notified-state 冷却**（同一 state 文件、key 前缀 `feed:`），状态指纹未变则降级 INFO 不重复推送，恢复 ok 后自动清标记。已注册进 `run_probe`。
+
+### 验收
+
+- `python3 -m py_compile fetch_spacetrack.py silent_failure_probe.py` → `SYNTAX_OK`
+- **登录校验（容器内 mock）**：HTTP 200 + `{"Login":"Failed"}` → `raise`（旧代码会误判成功）；HTTP 200 + 空 body / `{}` → 正常通过未误伤；HTTP 500 → 仍拦截
+- **探针冷却（隔离环境）**：`status=unavailable` 三连跑 → `CRIT` / `INFO`（已通知过，状态未变）/ `INFO`；置回 `ok` → `OK` 且 state 键清除；`status=partial` → `WARN`
+- **生产实跑 `fetch_spacetrack.py`**：`写入 ... active=35048`，落盘 `status=ok` / `error=null` / `starlink=11083` / `oneweb=654` / `payload=19434` / `debris=12521`（对比备份旧值 `active=30000` / `starlink=10000`）
+- **探针 dry**：新增 `feed 开阳宇宙监视(spacetrack): status=ok`，`checks=34`（新增 1 项）
+- **部署**：commit `ab117e0`（改码）→ rsync → md5 真源=运行区一致（`540d3912…` / `36bc5c80…`）→ `docker restart` → Up
+
+### 注意（数值口径）
+
+本次为**修正为真实值**，非故障：`total_active`、`starlink` 及派生的 `by_type`、`military_large_payload` 均会上升，开阳宇宙监视面板数字将出现一次性跳变。
+
 ## [3.8.37] - 2026-09-08
 
 ### Fixed（P2 / question kaiyang-spacewatch-spacetrack-zeroed，CHG-20260908T130113-macro-scan）
