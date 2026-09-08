@@ -1,3 +1,25 @@
+## [3.8.39] - 2026-09-08
+
+### Added（P2 / question fred-japan-jgb-lag-probe-spam 解法A「MOF 日频源治本」，CHG-20260908T203337-macro-scan）
+
+- **新增 `fetch_mof_jgb.py`：日本 10Y 国债日频源（日本财务省 MOF）**。FRED 上 `IRLTLT01JPM156N` 仅有 OECD 月/季/年系列（无日频版本，2026-09-03 频率筛选已核实），官方最新长期滞留在 `2026-06-01`（滞后约 99 天）。MOF 提供**公开无鉴权** CSV：`jgbcme.csv`（Current，仅当月）+ `historical/jgbcme_all.csv`（1974~，全量日频 1.2MB / 13k 行）。**每次两源都拉并取并集**（同日期 current 覆盖 all），规避 current 月度文件跨月重置导致的丢数风险。解析按表头名定位 `10Y`（不硬编码列下标）、日期 `YYYY/M/D` 补零规整、跳过休市空行与 `-` 值。
+- **写入范围只补本地末行之后**：既有 450 行 FRED 月度历史（1989~2026-06）保持不变，MOF 仅追加 `2026-06-02` 起的新日期 —— 避免把月频历史改写为日频而污染回测与窗口语义。**口径切换点 = `2026-06-02`**（此前 OECD/FRED 月频，此后 MOF 日频，口径略有差异，跨期对比需注明）。
+- **失败语义（沿用 spacetrack 教训）**：HTTP/解析失败 → 单源失败降级继续（另一源仍可用）、双源均失败 `raise` 并非零退出，**保留上次成功值、不写 0**；写前自动备份 `IRLTLT01JPM156N.csv.bak-<时间戳>`，按 date 去重（keep=last）+ 排序 + `tmp → os.replace` 原子写回。
+- **调度**：`scheduler.py` JOBS 新增 `mof_jgb` 日档 **05:38**（排在 `fred_fetch` 05:30 之后、`fred_freshness` 05:40 与每 2h 的 `silent_probe` 之前）。
+- **探针条目**：`silent_failure_probe.FRED_LAG_WATCH` 日债条目备注 `日债 10Y(月)` → `日债 10Y(MOF日频)`，`max_lag` **90 → 10**（保留 90 会让「数据又停滞 3 个月」再次静默 3 个月才告警 —— 这正是本次要治的病）。
+
+### 验收
+
+- 语法 + 容器内实跑：`450 → 518 行`，新增 68 行（`2026-06-02` ~ `2026-09-07`，末值 `2.935`）；**二次连跑 0 新增**（去重生效，行数不变）
+- 失败态（容器内 mock）：单源坏 → 降级由另一源完成；双源坏 → `BOTH_FAIL_RAISE_OK`，CSV 行数与末行**不变**（519 / `2026-09-07`），不写 0
+- 探针 dry：`[OK] fred 日债 10Y(MOF日频): 最新 2026-09-07，滞后 1 天（阈值 10）`（切换前为滞后 99 天告警）
+- 部署：commit `0675631` → rsync → md5 真源=运行区一致（`ad739cae…` / `df4d2746…`）→ `docker restart` → Up；`JOBS` 含 `mof_jgb`（05:38），`OUTBOUND_PROXY` 未丢
+
+### 注意
+
+- 每日拉全量 1.2MB（低频、无鉴权），对 MOF 无实质压力；容器内**直连即通**（代理仅作回退兜底）。
+- `scan_weak_signals.scan_japan_carry_risk` 仍**实时调 FRED**（第 578 行，不读本地 CSV），本次换源后该信号仍用 OECD 滞后值 → 转 backlog（改动需评估月频+日频混合序列下 `vals[-4]` 的「3 个月」窗口语义漂移）。
+
 ## [3.8.38] - 2026-09-08
 
 ### Fixed（P2 / backlog「fetch_spacetrack 登录校验与失败态（开阳清零掩盖层）」，CHG-20260908T192626-macro-scan）
