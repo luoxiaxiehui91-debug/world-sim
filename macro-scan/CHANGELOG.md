@@ -1,3 +1,18 @@
+## [3.8.36] - 2026-09-08
+
+### Fixed（P2 / question fred-japan-jgb-lag-probe-spam 解法B，CHG-20260908T111550-macro-scan）
+
+- **静默失败探针 FRED 滞后告警冷却**：`silent_failure_probe.check_fred_lag` 新增 notified-state（`.probe_fredlag_notified`，机制严格参照既有 `GED_NOTIFY_STATE`）——WARN/CRIT 以「序列 + 末行日期」为指纹，指纹未变则降级 INFO 不重复推送。修复日债 `IRLTLT01JPM156N` 滞后期间 ntfy 每 2h 刷屏（09-03~09-08 累计约 60 条）；末行日期前进或恢复健康后自动清标记并恢复推送能力。
+- **FRED 增量写入去重**：`fetch_fred_history.save_series` 增量路径（mode="a"）改为「读旧 CSV → 合并 → 按 date 去重（keep=last）→ 排序 → tmp+os.replace 全量写回」。根因：FRED 在 `observation_start=last+1` 无新数据时仍返回末行观测，旧逻辑无去重地 append，导致日债累计 155 行同日重复（696 行 vs 官方 450 行）。读旧 CSV 失败时回退原追加语义。
+- **数据清理**：`data/fred_history/IRLTLT01JPM156N.csv` 一次性去重（先备份 `.bak`），696 → 450 行，与 FRED 官方 450 数据行完全吻合，末行真值 `2026-06-01,2.67` 保留。
+
+### 验收
+
+- 容器内连跑两次 `silent_failure_probe.py --dry`：首次 `WARN`（推送）、第二次 `INFO`（已通知过，不重复告警），state 文件 `data/.probe_fredlag_notified` 正确落盘
+- 容器内 `save_series` 去重冒烟：同一行 3 次增量追加 + 1 条新值 → 结果仅 2 行数据，表头与排序正确
+- 清理后 CSV 450 数据行 = FRED 官方 450 数据行；改动文件 rsync 后 md5 真源=运行区一致（1ffd9b41… / bce0e88f…）
+- commit `b7045ad`；容器 restart 后状态 Up 正常
+
 ## [3.8.35] - 2026-09-03
 
 ### Added（P2 / question llm-key-ui-write-path + llm-config-doc-drift Enforcement，CHG-20260903T164000，ADR-0015）
