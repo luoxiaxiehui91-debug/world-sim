@@ -1,3 +1,23 @@
+## [3.8.37] - 2026-09-08
+
+### Fixed（P2 / question kaiyang-spacewatch-spacetrack-zeroed，CHG-20260908T130113-macro-scan）
+
+- **Space-Track 凭证转义污染修正（开阳「宇宙监视」清零根因）**：`macro-scan/.env` 第 11 行 `SPACETRACK_PASS` 实际值为 16 字符，比 `S:\KEY\Space-Track KEY.txt` 正确值**多一个反斜杠** —— 写入时 `!` 被转义为 `\!`。该错误值经 compose 注入容器，导致自 2026-08-30 起连续 10 天（40 次）SATCAT 查询返回 401，开阳面板全 0。**修正**：Python 精确替换（不经 shell）+ 备份 `.env.bak-20260908T130113`（600）+ `docker compose up -d --force-recreate` 重新注入 env。
+- 根因更正：此前判断的「Space-Track 外部账号/凭证失效」**不成立**，Space-Track 账号与本地 KEY 均有效，纯属我方配置写入污染。
+
+### 验收
+
+- 三方非明文对拍：本地 KEY `len=15 sha16=6b8ad45ee4b93922` vs `.env` `len=16 sha16=ff500d0f24c6a028`；字符类别序列定位到 index 2 多插入一个符号
+- 实测两套凭证：`LOCAL_KEY` 登录 body=`""` → 查询 HTTP **200**；`.env` 登录 body=`{"Login":"Failed"}` → 查询 HTTP **401**
+- 修正后容器内 `printenv SPACETRACK_PASS` → `len=15`；关键 env 抽查 `WORLDSIM_APP_PW`/`CONTROL_TOKEN`/`FIRMS_MAP_KEY` 3/3 未丢
+- 实跑 `fetch_spacetrack.py`：首次 `Read timed out`（容器刚 force-recreate 网络未稳，偶发），重试两次均成功 `active=30000 payload=14837 debris=12321 starlink=10000 new30d=268`，与 08-29 末次成功值吻合
+- 落盘 `data/spacetrack.json`：`total_active=30000`、`updated=2026-09-08T05:05:29Z`、`status="ok"`
+
+### 遗留
+
+- 脚本健壮性缺陷**未修**：`_get_session` 只校验 HTTP 状态码、不校验登录响应体（Space-Track 对错误凭证返回 200 + `{"Login":"Failed"}`）；`collect()` 查询失败仍写 `status:"ok"` + 全 0。二者叠加使本次配置错误**静默 10 天无告警**，已转 backlog 待另立 CHG。
+- Starlink `limit=10000` 截断精度 bug 仍在（本次实测 `starlink=10000` 即上限值）。
+
 ## [3.8.36] - 2026-09-08
 
 ### Fixed（P2 / question fred-japan-jgb-lag-probe-spam 解法B，CHG-20260908T111550-macro-scan）
