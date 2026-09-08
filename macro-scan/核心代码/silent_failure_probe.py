@@ -690,10 +690,68 @@ def check_fred_lag() -> list:
     return out
 
 
+# 2026-09-08: feed 契约 status 字段健康检查。fetch 类脚本曾硬编码 status=ok，
+# 把凭证错误粉饰成零值静默 10 天；此处独立复核落盘 JSON 的 status 字段。
+FEED_STATUS_WATCH = [
+    ("spacetrack.json", "开阳宇宙监视(spacetrack)"),
+]
+
+
+def check_feed_status() -> list:
+    """feed 落盘 JSON 的 status 字段健康检查（非 ok 即告警）。
+
+    冷却机制复用 FRED 滞后的 notified-state（同一 state 文件，key 前缀 feed:），
+    状态指纹未变则降级 INFO 不重复推送；恢复 ok 后清标记。
+    """
+    out = []
+    state = _fredlag_load_state()
+    state_changed = False
+    for rel, name in FEED_STATUS_WATCH:
+        path = os.path.join(DATA_DIR, rel)
+        key = "feed:" + rel
+        if not os.path.exists(path):
+            lvl, fp, msg = WARN, "missing", f"feed {name}: {rel} 不存在"
+        else:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                data = data if isinstance(data, dict) else {}
+                st = data.get("status")
+                fp = str(st)
+                _err = data.get("error")
+                _suf = f" — {_err}" if _err else ""
+                if st == "unavailable":
+                    lvl = CRIT
+                    msg = f"feed {name}: status=unavailable（采集失败）{_suf}"
+                elif st in (None, "", "ok"):
+                    lvl = OK
+                    msg = f"feed {name}: status={st or 'ok'}"
+                else:
+                    lvl = WARN
+                    msg = f"feed {name}: status={st}{_suf}"
+            except Exception as e:
+                lvl, fp, msg = WARN, "error", f"feed {name}: 读取异常 {e}"
+        if lvl in (WARN, CRIT):
+            if state.get(key) == fp:
+                out.append((INFO, f"{msg}（已通知过，状态未变，不重复告警）"))
+            else:
+                state[key] = fp
+                state_changed = True
+                out.append((lvl, msg))
+        else:
+            if key in state:
+                state.pop(key, None)
+                state_changed = True
+            out.append((lvl, msg))
+    if state_changed:
+        _fredlag_save_state(state)
+    return out
+
+
 def run_probe(alert: bool = True) -> tuple:
     """执行全部检查。返回 (worst_level, results)。"""
     results = []
-    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_tianxuan_grv, check_sqlite_gone, check_feed_fresh, check_predictions_chain, check_ged_stale, check_llm_config):
+    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_tianxuan_grv, check_sqlite_gone, check_feed_fresh, check_predictions_chain, check_ged_stale, check_llm_config, check_feed_status):
         try:
             results.extend(fn())
         except Exception as e:

@@ -67,14 +67,27 @@ class SpaceTrackFetcher(FetcherBase):
                    timeout=30)
         if r.status_code != 200:
             raise RuntimeError(f"Space-Track login failed: {r.status_code}")
+        # 2026-09-08: Space-Track 对错误凭证返回 HTTP 200 + {"Login":"Failed"}，
+        # 仅校验状态码会把登录失败当成功，错误推迟到下游查询才以 401 暴露
+        # （曾致开阳宇宙监视静默清零 10 天 / 40 次 401 无告警）。此处校验响应体：
+        # 登录成功时 body 为空串，若解析出含 Login 键的 JSON 一律视为被拒。
+        _body = (r.text or "").strip()
+        if _body:
+            try:
+                _j = json.loads(_body)
+            except Exception:
+                _j = None
+            if isinstance(_j, dict) and any(str(k).lower() == "login" for k in _j):
+                raise RuntimeError(
+                    f"Space-Track login rejected (HTTP 200 but body says failed): {_body[:200]}")
         self._session = s
         return s
 
-    def _query(self, path: str, limit: int = 10000) -> list | None:
-        """轻量 count 查询，返回记录列表。"""
+    def _query(self, path: str, limit: int = 10000, timeout: int = 30) -> list | None:
+        """轻量 count 查询，返回记录列表。大结果集需调大 timeout（默认 30s 不够）。"""
         s = self._get_session()
         url = f"{BASE}/basicspacedata/query/class/satcat/{path}/format/json/limit/{limit}"
-        r = s.get(url, timeout=30)
+        r = s.get(url, timeout=timeout)
         if r.status_code == 200:
             try:
                 return r.json()
@@ -103,7 +116,9 @@ class SpaceTrackFetcher(FetcherBase):
         cutoff_30d = (now - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
 
         # 1. 全部活跃在轨对象（DECAY=null）
-        all_active = self._query("DECAY/null-val/CURRENT/Y", limit=30000)
+        # 2026-09-08: 原 limit=30000 恰等于返回值（截断），真实为 35048；
+        # 提至 100000 并放宽 timeout（大结果集约需 60-90s）
+        all_active = self._query("DECAY/null-val/CURRENT/Y", limit=100000, timeout=120)
         total_active = len(all_active) if all_active else 0
 
         payload_count  = self._count(all_active, OBJECT_TYPE="PAYLOAD")
@@ -112,11 +127,13 @@ class SpaceTrackFetcher(FetcherBase):
         unknown_count  = self._count(all_active, OBJECT_TYPE="UNKNOWN")
 
         # 2. Starlink
-        starlink_rows = self._query("SATNAME/STARLINK~~/DECAY/null-val/CURRENT/Y", limit=10000)
+        # 原 limit=10000 恰等于返回值（截断），真实为 11083
+        starlink_rows = self._query("SATNAME/STARLINK~~/DECAY/null-val/CURRENT/Y", limit=30000)
         starlink_count = len(starlink_rows) if starlink_rows else 0
 
         # 3. OneWeb
-        oneweb_rows = self._query("SATNAME/ONEWEB~~/DECAY/null-val/CURRENT/Y", limit=5000)
+        # 统一口径（当前 654 未触顶，无影响）
+        oneweb_rows = self._query("SATNAME/ONEWEB~~/DECAY/null-val/CURRENT/Y", limit=30000)
         oneweb_count = len(oneweb_rows) if oneweb_rows else 0
 
         # 4. 近30天新发射对象数
@@ -145,8 +162,30 @@ class SpaceTrackFetcher(FetcherBase):
             total_active, payload_count, debris_count, starlink_count, new_objects_30d
         )
 
+        # 2026-09-08: 按查询结果判定状态，禁止把失败粉饰为 ok
+        # （曾掩盖凭证错误 10 天：查询全 401 仍写 status=ok + 全 0）
+        _sub_results = {
+            "starlink": starlink_rows,
+            "oneweb":   oneweb_rows,
+            "recent":   recent_rows,
+        }
+        if all_active is None:
+            _feed_status = Status.UNAVAILABLE
+            _err = "核心查询 DECAY/null-val/CURRENT/Y 失败"
+        else:
+            _bad = [k for k, v in _sub_results.items() if v is None]
+            if _bad:
+                _feed_status = Status.PARTIAL
+                _err = "子查询失败: " + ",".join(_bad)
+            else:
+                _feed_status = Status.OK
+                _err = None
+        if _feed_status != Status.OK:
+            self.logger.error("[spacetrack] 采集 %s: %s", _feed_status, _err)
+
         result = {
-            "status":          Status.OK,
+            "status":          _feed_status,
+            "error":           _err,
             "_schema_version": "1.0",
             "updated":         now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "total_active":    total_active,
@@ -165,6 +204,20 @@ class SpaceTrackFetcher(FetcherBase):
             "source": "Space-Track.org SATCAT",
             "note": "military_large_payload 为 US/RUS/CHN 大型载荷近似计数，非精确军事分类",
         }
+
+        # 非 OK 时保留上次成功值，避免面板显示 0 造成"清零"式误导
+        if _feed_status != Status.OK:
+            try:
+                with open(os.path.join(DATA_DIR, OUTPUT), encoding="utf-8") as _pf:
+                    _prev = json.load(_pf)
+                if isinstance(_prev, dict) and _prev.get("status") == Status.OK:
+                    for _k in ("total_active", "by_type", "constellations",
+                               "new_objects_30d", "military_large_payload"):
+                        if _k in _prev:
+                            result[_k] = _prev[_k]
+                    self.logger.warning("[spacetrack] 沿用上次成功值（本次 %s）", _feed_status)
+            except Exception:
+                pass
 
         # 直接写出文件（兼容 scheduler 直接调用）
         try:
