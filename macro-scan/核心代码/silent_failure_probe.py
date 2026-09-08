@@ -602,41 +602,91 @@ def check_llm_config() -> list:
     return out
 
 
+# P2 (2026-09-08, ntfy 日债滞后告警刷屏): FRED 滞后「已通知」标记
+# 同一序列在「末行日期未前进」期间只推一次告警，后续同状态降级 INFO（止刷屏）；
+# 数据前进或恢复健康后自动清标记。机制严格参照 check_ged_stale 的 GED_NOTIFY_STATE。
+FRED_LAG_NOTIFY_STATE = os.path.join(DATA_DIR, ".probe_fredlag_notified")
+
+
+def _fredlag_load_state() -> dict:
+    """读取 FRED 滞后已通知标记 {rel: 状态指纹}；不存在/损坏返回空 dict。"""
+    try:
+        with open(FRED_LAG_NOTIFY_STATE, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _fredlag_save_state(state: dict) -> None:
+    """原子写 FRED 滞后已通知标记（tmp + os.replace）。"""
+    try:
+        _tmp = FRED_LAG_NOTIFY_STATE + ".tmp"
+        with open(_tmp, "w", encoding="utf-8") as f:
+            json.dump(state, f)
+        os.replace(_tmp, FRED_LAG_NOTIFY_STATE)
+    except Exception:
+        pass
+
+
 def check_fred_lag() -> list:
-    """FRED 关键序列最新数据日期滞后监控（源断更/停更时告警）。"""
+    """FRED 关键序列最新数据日期滞后监控（源断更/停更时告警）。
+
+    2026-09-08 加已通知冷却：WARN/CRIT 以「序列 + 末行日期」为指纹，指纹未变则
+    降级 INFO 不重复推送（此前日债滞后期间每 2h 推一次，5 天约 60 条 ntfy）；
+    末行日期前进或恢复健康后指纹变化/清标记，重新具备推送能力。
+    """
     from datetime import datetime, date as _date
     out = []
     today = _date.today()
+    state = _fredlag_load_state()
+    state_changed = False
     for rel, name, max_lag in FRED_LAG_WATCH:
         path = os.path.join(DATA_DIR, rel)
         if not os.path.exists(path):
-            out.append((CRIT, f"fred {name}: 文件不存在 {rel}"))
-            continue
-        try:
-            last = None
-            with open(path, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("date"):
-                        continue
-                    try:
-                        last = datetime.strptime(line.split(",")[0], "%Y-%m-%d").date()
-                    except ValueError:
-                        continue
-            if last is None:
-                out.append((CRIT, f"fred {name}: CSV 无有效数据行"))
-                continue
-            lag = (today - last).days
-            if lag > max_lag * 2:
-                out.append((CRIT, f"fred {name}: 数据停在 {last}，滞后 {lag} 天"
-                                  f"（CRIT 阈值 {max_lag * 2}）"))
-            elif lag > max_lag:
-                out.append((WARN, f"fred {name}: 数据停在 {last}，滞后 {lag} 天"
-                                  f"（WARN 阈值 {max_lag}）"))
+            lvl, msg, fp = CRIT, f"fred {name}: 文件不存在 {rel}", "missing"
+        else:
+            try:
+                last = None
+                with open(path, encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("date"):
+                            continue
+                        try:
+                            last = datetime.strptime(line.split(",")[0], "%Y-%m-%d").date()
+                        except ValueError:
+                            continue
+                if last is None:
+                    lvl, msg, fp = CRIT, f"fred {name}: CSV 无有效数据行", "nodata"
+                else:
+                    lag = (today - last).days
+                    fp = str(last)
+                    if lag > max_lag * 2:
+                        lvl, msg = CRIT, (f"fred {name}: 数据停在 {last}，滞后 {lag} 天"
+                                          f"（CRIT 阈值 {max_lag * 2}）")
+                    elif lag > max_lag:
+                        lvl, msg = WARN, (f"fred {name}: 数据停在 {last}，滞后 {lag} 天"
+                                          f"（WARN 阈值 {max_lag}）")
+                    else:
+                        lvl, msg = OK, (f"fred {name}: 最新 {last}，滞后 {lag} 天"
+                                        f"（阈值 {max_lag}）")
+            except Exception as e:
+                lvl, msg, fp = WARN, f"fred {name}: 读取异常 {e}", "error"
+        if lvl in (WARN, CRIT):
+            if state.get(rel) == fp:
+                out.append((INFO, f"{msg}（已通知过，末行未前进，不重复告警）"))
             else:
-                out.append((OK, f"fred {name}: 最新 {last}，滞后 {lag} 天（阈值 {max_lag}）"))
-        except Exception as e:
-            out.append((WARN, f"fred {name}: 读取异常 {e}"))
+                state[rel] = fp
+                state_changed = True
+                out.append((lvl, msg))
+        else:
+            if rel in state:
+                state.pop(rel, None)
+                state_changed = True
+            out.append((lvl, msg))
+    if state_changed:
+        _fredlag_save_state(state)
     return out
 
 

@@ -131,16 +131,30 @@ def save_series(series_id: str, df: pd.DataFrame, mode: str = "w") -> int:
     """
     保存序列到 CSV。
     mode="w": 全量写（覆盖）
-    mode="a": 追加（增量更新）
-    返回写入行数。
+    mode="a": 追加（增量更新）—— 2026-09-08 起先与旧 CSV 合并、按 date 去重后
+              全量写回，杜绝 FRED 在无新数据时仍返回末行观测导致的重复追加
+              （日债 IRLTLT01JPM156N 曾累计 155 行同日重复）。
+    返回新增行数。
     """
     path = csv_path(series_id)
     os.makedirs(HIST_DIR, exist_ok=True)
     if df.empty:
         return 0
-    write_header = (mode == "w") or not os.path.exists(path)
-    df.to_csv(path, mode=mode, index=False, header=write_header)
-    return len(df)
+    new_rows = len(df)
+    if mode == "a" and os.path.exists(path):
+        try:
+            merged = pd.concat([pd.read_csv(path), df], ignore_index=True)
+        except Exception:
+            merged = df          # 旧文件不可读 → 回退原追加语义
+    else:
+        merged = df
+    if "date" in merged.columns:
+        merged = merged.assign(date=merged["date"].astype(str))
+        merged = merged.drop_duplicates(subset=["date"], keep="last").sort_values("date")
+    _tmp = path + ".tmp"
+    merged.to_csv(_tmp, index=False, header=True)
+    os.replace(_tmp, path)      # data 为目录挂载，原子替换容器内外一致可见
+    return new_rows
 
 
 def fetch_and_save(fred: Fred, series_id: str, name: str, force: bool = False) -> dict:
