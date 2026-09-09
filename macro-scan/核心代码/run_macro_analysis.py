@@ -1933,6 +1933,34 @@ def _log_error(country: str, depth: str, topic: str, error_msg: str, traceback_s
     print(f"[ERROR-LOG] 错误已记录到 {log_file}")
 
 
+def _refresh_kaiyang_reports_index():
+    """报告落盘后就近刷新开阳报告数据源（v3.8.29 机制，v3.8.41 抽出复用）。
+
+    v3.8.29 起因：索引重建任务 07:35 会抢在晨报完稿前跑，导致当日报告 07:36~20:35
+    空窗、开阳不显示；修法=报告落盘后就近触发一次 generate_reports_index.py。
+    v3.8.41：该机制原本只覆盖 save_report（宏观分析报告），展望简报落盘后未触发，
+    当日简报同样存在约 13 小时空窗 → 抽出本函数，两处共用。失败仅 WARN 不阻断。
+    """
+    # 2026-09-03 v3.8.29：报告落盘后就近刷新开阳数据源
+    # （修索引重建 07:35 抢跑竞态——晨报 07:36 完稿落 07:36~20:35 空窗，kaiyang 不显示；
+    #   见 questions/world-deduction/20260902-world-deduction-kaiyang-report-index-race.md）
+    try:
+        _reindex_script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                       "generate_reports_index.py")
+        if os.path.exists(_reindex_script):
+            _rr = subprocess.run([sys.executable, _reindex_script],
+                                 capture_output=True, text=True, timeout=180)
+            if _rr.returncode == 0:
+                _tail = _rr.stdout.strip().splitlines()
+                print(f"[REINDEX] 开阳报告索引已刷新：{_tail[-1] if _tail else 'ok'}")
+            else:
+                print(f"[WARN] 开阳报告索引刷新失败 rc={_rr.returncode}："
+                      f"{_rr.stderr.strip()[-200:]}")
+        else:
+            print(f"[WARN] 未找到 {_reindex_script}，跳过开阳索引刷新")
+    except Exception as _reindex_e:
+        print(f"[WARN] 开阳报告索引刷新异常：{_reindex_e}")
+
 def save_report(report: str, topic: str = "综合", country: str = "us", depth: str = "standard", is_fallback: bool = None) -> str:
     """保存报告到文件，同时触发 ntfy 推送和知识库回纳。
 
@@ -2047,25 +2075,7 @@ def save_report(report: str, topic: str = "综合", country: str = "us", depth: 
         except Exception as e:
             print(f"[WARN] ntfy 推送失败: {e}")
 
-    # 2026-09-03 v3.8.29：报告落盘后就近刷新开阳数据源
-    # （修索引重建 07:35 抢跑竞态——晨报 07:36 完稿落 07:36~20:35 空窗，kaiyang 不显示；
-    #   见 questions/world-deduction/20260902-world-deduction-kaiyang-report-index-race.md）
-    try:
-        _reindex_script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                       "generate_reports_index.py")
-        if os.path.exists(_reindex_script):
-            _rr = subprocess.run([sys.executable, _reindex_script],
-                                 capture_output=True, text=True, timeout=180)
-            if _rr.returncode == 0:
-                _tail = _rr.stdout.strip().splitlines()
-                print(f"[REINDEX] 开阳报告索引已刷新：{_tail[-1] if _tail else 'ok'}")
-            else:
-                print(f"[WARN] 开阳报告索引刷新失败 rc={_rr.returncode}："
-                      f"{_rr.stderr.strip()[-200:]}")
-        else:
-            print(f"[WARN] 未找到 {_reindex_script}，跳过开阳索引刷新")
-    except Exception as _reindex_e:
-        print(f"[WARN] 开阳报告索引刷新异常：{_reindex_e}")
+    _refresh_kaiyang_reports_index()
 
     return filename
 
@@ -3013,6 +3023,7 @@ def run_macro_analysis(
         with open(outlook_filename, "w", encoding="utf-8") as f:
             f.write(outlook_md)
         print(f"[30天展望] 已生成：{outlook_filename}")
+        _refresh_kaiyang_reports_index()
     except Exception as e:
         print(f"[30天展望] 警告：生成失败 - {e}")
 
