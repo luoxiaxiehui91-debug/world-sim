@@ -1,3 +1,16 @@
+## [3.8.41] - 2026-09-09
+
+### Fixed（展望简报索引刷新遗漏，v3.8.40 晨间首验发现，CHG-20260909T080058-macro-scan）
+
+- **展望简报落盘后就近刷新开阳报告索引**。v3.8.29 引入的「报告落盘后就近触发 `generate_reports_index.py`」机制（修 07:35 索引抢跑导致当日报告空窗）**原本只覆盖 `save_report`（宏观分析报告）**；而展望简报在主流程中于 `save_report` **之后**才落盘，落盘后无任何刷新动作 → 当日简报最长卡在 **07:35 → 20:35 约 13 小时空窗**、开阳报告中心「30天展望」分组看不到当天份。
+- 修法：把该机制抽成模块级函数 `_refresh_kaiyang_reports_index()`（行为不变：subprocess 调 `generate_reports_index.py`、`timeout=180`、失败仅 WARN 不阻断），`save_report` 与**展望简报落盘后**两处共用（DRY）。
+- 实测：`reports_index.json` 175 → **176** 条，类型 `30天展望` 65 → **66**，今日 `30天展望简报_20260909_both.md` 即时入库；import 模块无副作用（函数体正确缩进，未退化为模块级执行）。
+
+### 晨间首验（v3.8.40 上线后第一个调度周期）
+
+- 03:10 `reports_ttl_cleanup` 首次真实调度跑通：`分析报告 130 份 / 仿真报告 43 份，超期 0`，无异常（90 天窗口内本就不会删，首次真实删除预计 2026-11 中下旬）。
+- 07:30 晨间宏观分析产出 `30天展望简报_20260909_both.md`，新命名生效，源目录旧名残留 **0**。
+- 近 12 小时 macro-scan 日志**零** traceback / ERROR / fail；容器 RestartCount **0**。
 ## [3.8.40] - 2026-09-08
 
 ### Added（P3 / question monthly-outlook-daily-and-no-ttl 方案C「改名 + 报告TTL」，CHG-20260908T232303-macro-scan）
