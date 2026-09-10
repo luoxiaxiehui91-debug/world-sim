@@ -34,8 +34,9 @@ except ImportError:
     DATA_DIR  = os.path.join(_ws, "data")
     WORKSPACE = _ws
 
+KB_ROOT = os.environ.get("KB_ROOT") or os.path.join(WORKSPACE, "知识库")
 CRISIS_CSV = os.path.join(
-    WORKSPACE, "知识库", "财经知识库",
+    KB_ROOT, "财经知识库",
     "02_核心变量因果链", "历史情景_量化指标.csv"
 )
 

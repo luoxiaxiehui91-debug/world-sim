@@ -21,7 +21,8 @@ import time
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))       # /app（容器内）
 WORKSPACE  = os.environ.get("OPENCLAW_WORKSPACE",
              os.path.dirname(SCRIPT_DIR))                      # /workspace 或本地父级
-KB_DIR     = os.path.join(WORKSPACE, "知识库", "财经知识库")   # /workspace/知识库/财经知识库
+KB_ROOT    = os.environ.get("KB_ROOT") or os.path.join(WORKSPACE, "知识库")
+KB_DIR     = os.path.join(KB_ROOT, "财经知识库")   # 默认 <项目根>/知识库/财经知识库
 COLLECTION_NAME = "macro_kb"
 
 
@@ -37,6 +38,11 @@ if __name__ == "__main__":
     # 1. 检查知识库
     if not os.path.exists(KB_DIR):
         print(f"✗ 知识库目录不存在: {KB_DIR}")
+        print()
+        print("  本仓库开源的是框架与逻辑，知识库（研究内容）需要你自己建立。")
+        print("  生成一份示例骨架：")
+        print("      python3 scripts/init_kb.py")
+        print("  详见 docs/KB_SETUP.md。若知识库在别处，用环境变量 KB_ROOT 指过去。")
         sys.exit(1)
 
     # 2. 检查 psycopg（pgvector 后端驱动）

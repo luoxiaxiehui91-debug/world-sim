@@ -131,7 +131,8 @@ def _load_recent_reports(days: int = 7) -> list:
 
 def _load_political_calendar_next(days: int = 14) -> list:
     """接下来14天的重要政治节点。"""
-    cal_path = Path(WORKSPACE) / "知识库" / "political_calendar.yaml"
+    kb_root  = Path(os.environ.get("KB_ROOT") or (Path(WORKSPACE) / "知识库"))
+    cal_path = kb_root / "political_calendar.yaml"
     if not cal_path.exists():
         return []
     try:

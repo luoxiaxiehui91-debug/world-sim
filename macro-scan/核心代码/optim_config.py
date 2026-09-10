@@ -30,10 +30,12 @@ def ensure_dirs() -> None:
 # ── 关键文件路径 ───────────────────────────────────────────────────────────────
 PREDICTIONS_LOG   = os.path.join(DATA_DIR, "predictions_log.json")
 WEAK_SIGNAL_LOG   = os.path.join(DATA_DIR, "weak_signal_log.json")
-GEO_EVENTS_LOG    = os.path.join(WORKSPACE, "知识库", "财经知识库",
+KB_ROOT           = os.environ.get("KB_ROOT") or os.path.join(WORKSPACE, "知识库")
+KB_DIR            = os.path.join(KB_ROOT, "财经知识库")
+GEO_EVENTS_LOG    = os.path.join(KB_DIR,
                                   "02_核心变量因果链", "地缘事件日志.json")
 MAIN_SCRIPT       = os.path.join(WORKSPACE, "核心代码", "run_macro_analysis.py")
-KNOWLEDGE_BASE    = os.path.join(WORKSPACE, "知识库", "财经知识库")
+KNOWLEDGE_BASE    = KB_DIR
 
 # ── 推送配置（已迁移至 ntfy，此端口仅供 scan_weak_signals.py NeoData 接口使用）──
 AUTH_GATEWAY_PORT = os.environ.get("AUTH_GATEWAY_PORT", "28789")

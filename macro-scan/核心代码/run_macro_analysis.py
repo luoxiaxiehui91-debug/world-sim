@@ -107,7 +107,8 @@ FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 # 项目根目录（优先用环境变量，容器内 OPENCLAW_WORKSPACE=/workspace）
 BASE_DIR   = os.environ.get("OPENCLAW_WORKSPACE",
              os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-KB_DIR             = os.path.join(BASE_DIR, "知识库", "财经知识库")
+KB_ROOT    = os.environ.get("KB_ROOT") or os.path.join(BASE_DIR, "知识库")
+KB_DIR     = os.path.join(KB_ROOT, "财经知识库")
 REPORT_DIR         = os.path.join(BASE_DIR, "docs", "分析报告")
 SYSTEM_PROMPT_FILE = os.path.join(BASE_DIR, "system_prompt.md")
 

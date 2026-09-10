@@ -36,7 +36,8 @@ BASE_DIR = os.environ.get(
     "OPENCLAW_WORKSPACE",
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
-KB_DIR = os.path.join(BASE_DIR, "知识库", "财经知识库")
+KB_ROOT = os.environ.get("KB_ROOT") or os.path.join(BASE_DIR, "知识库")
+KB_DIR = os.path.join(KB_ROOT, "财经知识库")
 
 # =========================
 # 反馈回路定义

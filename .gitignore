@@ -13,6 +13,13 @@ macro-scan/docs/分析报告/
 macro-scan/docs/新闻库/
 macro-scan/docs/macro_dashboard.html
 
+# 知识库（研究内容，不随仓库分发）。
+# 本仓库开源的是框架与逻辑；知识库由使用者自建：
+#   python3 scripts/init_kb.py      生成示例骨架
+#   docs/KB_SETUP.md                格式与目录约定
+# 如需放到别处，用环境变量 KB_ROOT 指定。
+macro-scan/知识库/
+
 # 敏感配置（各子项目保留自己的 .gitignore 处理 key.txt 等）
 macro-scan/key.txt
 macro-scan/docker-compose.yml

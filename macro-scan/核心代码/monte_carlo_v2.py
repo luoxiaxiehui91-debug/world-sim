@@ -24,7 +24,8 @@ def _load_calibration_file() -> Dict:
             "OPENCLAW_WORKSPACE",
             os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         )
-        cal_path = os.path.join(_base, "知识库", "财经知识库",
+        _kb_root = os.environ.get("KB_ROOT") or os.path.join(_base, "知识库")
+        cal_path = os.path.join(_kb_root, "财经知识库",
                                 "02_核心变量因果链", "波动率校准参数.json")
         if os.path.exists(cal_path):
             with open(cal_path, "r", encoding="utf-8") as f:

@@ -19,7 +19,8 @@ from datetime import datetime
 
 # ── 路径配置 ──────────────────────────────────────────────
 APP_DIR  = Path(__file__).parent
-KB_DIR   = APP_DIR.parent / "知识库" / "财经知识库"
+KB_ROOT  = Path(os.environ.get("KB_ROOT") or (APP_DIR.parent / "知识库"))
+KB_DIR   = KB_ROOT / "财经知识库"
 DATA_DIR = APP_DIR.parent / "data"
 
 OUTBOUND_PROXY = os.environ.get("OUTBOUND_PROXY", "")

@@ -25,7 +25,8 @@ BASE_DIR = os.environ.get(
     "OPENCLAW_WORKSPACE",
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
-KB_DIR     = os.path.join(BASE_DIR, "知识库", "财经知识库")
+KB_ROOT    = os.environ.get("KB_ROOT") or os.path.join(BASE_DIR, "知识库")
+KB_DIR     = os.path.join(KB_ROOT, "财经知识库")
 CRISIS_CSV = os.path.join(KB_DIR, "02_核心变量因果链", "历史情景_量化指标.csv")
 
 

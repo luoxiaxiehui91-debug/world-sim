@@ -117,7 +117,8 @@ DIMENSION_RUBRICS = {
 # ── 知识库上下文 ───────────────────────────────────────────────────────────────
 def _read_kb_context() -> str:
     """读取知识库中用于结构评估的 4 个关键文档（每个截取前 2500 字符），找不到则返回提示字符串。"""
-    kb_dir = os.path.join(WORKSPACE, "知识库", "财经知识库")
+    kb_root = os.environ.get("KB_ROOT") or os.path.join(WORKSPACE, "知识库")
+    kb_dir  = os.path.join(kb_root, "财经知识库")
     targets = [
         os.path.join(kb_dir, "专题报告", "2026全球宏观基准情景.md"),
         os.path.join(kb_dir, "中国", "中国信用脉冲与房地产周期.md"),
@@ -129,7 +130,10 @@ def _read_kb_context() -> str:
         if os.path.exists(path):
             with open(path, encoding="utf-8") as f:
                 chunks.append(f"### {os.path.basename(path)}\n{f.read()[:2500]}")
-    return "\n\n---\n\n".join(chunks) if chunks else "（知识库文档未找到，请基于当前公开信息评估）"
+    return ("\n\n---\n\n".join(chunks) if chunks
+            else "（知识库文档未找到，请基于当前公开信息评估。"
+                 "如需建立自己的知识库，运行 python3 scripts/init_kb.py，"
+                 "详见 docs/KB_SETUP.md）")
 
 
 # ── 评估 Prompt ────────────────────────────────────────────────────────────────

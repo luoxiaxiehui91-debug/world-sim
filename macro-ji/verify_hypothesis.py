@@ -37,7 +37,8 @@ except ImportError:
     WORKSPACE = _ws
 
 WIKI_FILE   = Path(WORKSPACE) / "data" / "scenario_wiki.md"
-PATHS_FILE  = Path(WORKSPACE) / "知识库" / "财经知识库" / "04_分析框架" / "propagation_paths.yaml"
+KB_ROOT     = Path(os.environ.get("KB_ROOT") or (Path(WORKSPACE) / "知识库"))
+PATHS_FILE  = KB_ROOT / "财经知识库" / "04_分析框架" / "propagation_paths.yaml"
 OUTPUT_FILE = Path(DATA_DIR) / "hypothesis_calibration.json"
 
 
