@@ -1,3 +1,24 @@
+## [3.8.43] - 2026-09-10
+
+### Changed（路径参数化，开源实施计划 阶段 2，CHG-20260910T232600-world-deduction）
+
+- **compose 挂载去硬编码**：同目录挂载改相对路径 `./`（Docker 以 compose 文件所在目录为基准，与原绝对路径**等价**，外部使用者 clone 后零配置即可）；跨项目引用改 `${MACRO_SCAN_DIR}` / `${KAIYANG_DIR}`；`RSSHUB_URL` / `OUTBOUND_PROXY` 由字面量改 `${VAR}`。
+- **代理默认值去内网**（19 处）：`PROXY_URL` / `NAS_PROXY_URL` / `GDELT_PROXY` 的默认值 `http://192.168.x.x:7890` → 空串（含 5 处 `os.environ.get` 与 18 处 `except ImportError` 降级表）。真值改由运行区 `.env` 提供，并补齐 compose 注入（此前这些变量**未在 environment 段声明**，配了 `.env` 也进不去容器）。
+- **代码路径常量**：`etl_ged` / `ged_analysis`（GED CSV 路径）、`llm_usage`（数据目录）、`macro-sim/llm_client`（key 文件）、`scripts/check_llm_config`（仓库/运行区定位）、`verify_data` / `delete_sqlite_e0c.sh` / `ged_codebook_extract`（含 `C:/Users` 本机路径）。
+- **开阳前端**：`DEFAULT_API_BASE_URL` 由写死内网 IP 改为按当前访问主机推导；**信任来源白名单机制保留**（仍为 Set 白名单，仅将静态内网 IP 改为动态取当前 hostname，未退化为通配）。
+- **部署脚本归置**：作者环境专用脚本（含 NAS 地址与 `ssh nas`）移入 `scripts/dev/` 并参数化；通用基础设施脚本（`infra/pg/`）参数化后保留原位。
+
+### 验收（实测）
+
+- 非知识库的代码/配置内 `/vol2/1000`、`192.168.31.108`、`C:/Users`、`S:/2026` 命中 **0**（知识库内 10 处随阶段 3 数据外置一并消失）
+- 容器 `up -d --force-recreate` 后：挂载 **5/5 实证生效**（容器内可见宿主文件）、control API / web server / 开阳面板均 **HTTP 200**、`py_compile` 与 `bash -n` 全通过
+- 代理链路保持（真值落入运行区 `.env` 并成功注入容器）
+
+### 已知限制
+
+- `MACRO_SCAN_DIR` / `KAIYANG_DIR` 仅用于 compose 的 volumes 插值，**不注入容器**（属正常，非缺陷）。
+- 发现仍有 **55 个变量代码读取但 compose 未注入**（本阶段只补齐代理类 4 个），属独立的注入层完整性问题，另行处理。
+
 ## [3.8.42] - 2026-09-10
 
 ### Security（ntfy 主题名轮换 + 注入层环境变量化，开源前置，CHG-20260910T181638-world-deduction）
