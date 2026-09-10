@@ -9,6 +9,7 @@ services:
     environment:
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
       - WORLDSIM_APP_PW=${WORLDSIM_APP_PW}
+      - NTFY_URL=${NTFY_URL}
       - REPORT_DIR=/app/reports
     volumes:
       - ./output:/app/output

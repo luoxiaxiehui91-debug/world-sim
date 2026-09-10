@@ -39,7 +39,7 @@ NTFY_TOPIC 默认值改为空字符串：
 
 ```python
 # 改前
-NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "***REMOVED***")
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "$NTFY_TOPIC")
 
 # 改后
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "")

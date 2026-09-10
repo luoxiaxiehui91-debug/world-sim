@@ -12,7 +12,7 @@
 
 ```
 # 推演系统文档漂移巡检
-0 10 * * * NTFY_TOPIC=***REMOVED*** python3 /vol2/1000/software/macro-scan/核心代码/check_doc_drift.py >> /vol2/1000/software/macro-scan/logs/doc_drift.log 2>&1
+0 10 * * * NTFY_TOPIC=$NTFY_TOPIC python3 /vol2/1000/software/macro-scan/核心代码/check_doc_drift.py >> /vol2/1000/software/macro-scan/logs/doc_drift.log 2>&1
 ```
 
 ## 原因

@@ -35,7 +35,7 @@ from tianji_db import (
     update_prediction_verified, log_weight_update,
 )
 
-NTFY_URL = os.environ.get("NTFY_URL", "https://ntfy.sh/***REMOVED***")
+NTFY_URL = os.environ.get("NTFY_URL", "")
 GRV_HISTORY_PATH = os.path.join(DATA_DIR, "grv_history.jsonl")
 
 # 触发反哺的最小样本量

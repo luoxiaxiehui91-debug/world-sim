@@ -122,7 +122,7 @@ Round1 三路只读设计（fix-arch-2 架构/C3 硬化 · fix-domain-2 域/回�
 | heartbeat | `.scheduler_heartbeat` >10min WARN / >20min CRIT | P0-3 调度停摆复发监控 |
 | artifacts | `grv_latest.json` >30h/40h；`news_export.json` >2h/6h；当日 `observability_*.json` 缺失 WARN | 关键产物新鲜度 |
 
-告警走 `ntfy_utils.push_text_with_priority`（topic `***REMOVED***`，CRIT=priority 5 / WARN=4）。注册 `scheduler.py` JOBS `("silent_probe", "I120", ...)`，每 2 小时兜底。
+告警走 `ntfy_utils.push_text_with_priority`（topic `$NTFY_TOPIC`，CRIT=priority 5 / WARN=4）。注册 `scheduler.py` JOBS `("silent_probe", "I120", ...)`，每 2 小时兜底。
 
 **告警通道注入验证**（不接受"未验证过的告警通道"）：monkeypatch 心跳阈值至 1s/2s 强制进 CRIT 分支 → `INJECT_VERDICT = CRIT`、`ntfy 已推送`、实际推送送达。全绿路径 `PROBE verdict=OK checks=9 bad=0`。
 

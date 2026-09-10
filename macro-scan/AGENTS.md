@@ -224,8 +224,8 @@ pre-commit install   # 在源码区 S:\world-sim\macro-scan\ 执行一次即可
 ```
 FRED_API_KEY=<见 S:\macro-scan\key.txt>
 OUTBOUND_PROXY=http://192.168.31.108:7890    # 仅FRED使用
-NTFY_TOPIC=***REMOVED***
-NTFY_CMD_TOPIC=***REMOVED***
+NTFY_TOPIC=$NTFY_TOPIC
+NTFY_CMD_TOPIC=$NTFY_CMD_TOPIC
 NTFY_CMD_SECRET=1900
 RSSHUB_URL=http://192.168.31.108:12000
 OPENCLAW_WORKSPACE=/workspace

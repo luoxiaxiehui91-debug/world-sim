@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-NTFY_URL    = "https://ntfy.sh/***REMOVED***"
+NTFY_URL    = os.environ.get("NTFY_URL", "")
 REPORT_DIR  = Path(os.environ.get("REPORT_DIR", "/app/reports"))
 TRIGGER_PATH = Path("/app/macro_data/sim_trigger.json")
 _TRAJ_RETAIN = 20   # F1：报告目录内保留最近 N 份 *_grv_traj.json（天枢 export 只需最新一份）

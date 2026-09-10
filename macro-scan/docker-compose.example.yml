@@ -26,8 +26,8 @@ services:
       - OPENAI_COMPAT_URL=https://token-plan-cn.xiaomimimo.com/v1
       - OPENAI_COMPAT_KEY=你的XIAOMI_API_KEY
       - USE_EXTERNAL_LLM=1
-      - NTFY_TOPIC=***REMOVED***
-      - NTFY_CMD_TOPIC=***REMOVED***
+      - NTFY_TOPIC=${NTFY_TOPIC}
+      - NTFY_CMD_TOPIC=${NTFY_CMD_TOPIC}
       - NTFY_CMD_SECRET=你的NTFY_CMD_SECRET
       - RUN_ON_START=true
       - RSSHUB_URL=http://192.168.31.108:12000

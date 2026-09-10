@@ -1508,7 +1508,7 @@ geo_risk_vector.py 更新 grv_latest.json
 
 - **`核心代码/scheduler.py`**：删除 doc_drift 任务（改由 NAS crontab 负责）
 - **`CLAUDE.md`**：维护铁律节新增联动矩阵表格和首次接手说明；第7条新增"只在源码区改代码"规定
-- **NAS crontab**：新增 `0 10 * * * NTFY_TOPIC=***REMOVED*** python3 .../check_doc_drift.py`
+- **NAS crontab**：新增 `0 10 * * * NTFY_TOPIC=$NTFY_TOPIC python3 .../check_doc_drift.py`
 
 ---
 
@@ -1606,7 +1606,7 @@ geo_risk_vector.py 更新 grv_latest.json
 **修改内容**：
 
 - `核心代码/fetch_climate_signals.py` 第31行：`optim_config` import 失败时的 fallback 改为 `os.environ.get("CRUCIX_REMOTE_URL", "...")`，与其他模块的 fallback 风格一致
-- `核心代码/update_kb_numbers.py` 第26行：`NTFY_TOPIC` 默认值从硬编码的 `"***REMOVED***"` 改为 `""`，与 `daily_narrative.py` / `situation_detector.py` / `weekly_synthesis.py` 行为一致（无环境变量时静默跳过推送）
+- `核心代码/update_kb_numbers.py` 第26行：`NTFY_TOPIC` 默认值从硬编码的 `"$NTFY_TOPIC"` 改为 `""`，与 `daily_narrative.py` / `situation_detector.py` / `weekly_synthesis.py` 行为一致（无环境变量时静默跳过推送）
 
 **新增**：`docs/operations/20260629-macro-scan-hardcoded-path-fix.md`（运维日志）
 
@@ -3134,7 +3134,7 @@ docker exec macro-scan python /app/build_rag_index.py
 
 **功能：** 手机 ntfy app 向指令主题发消息，容器自动触发对应操作并推送结果。
 
-**指令主题：** `***REMOVED***`  
+**指令主题：** `$NTFY_CMD_TOPIC`  
 **密钥：** `1900`（docker-compose.yml `NTFY_CMD_SECRET`，原为 `wDt5RKQ8ggQ`，2026-05-23 改）
 
 **可用指令（格式：`<密钥> <指令> [参数]`）：**
@@ -3151,7 +3151,7 @@ docker exec macro-scan python /app/build_rag_index.py
 | `help` | 返回指令列表 |
 
 **实现细节：**
-- 监听：`GET https://ntfy.sh/***REMOVED***/sse`（SSE 长连接，断线自动重连）
+- 监听：`GET https://ntfy.sh/$NTFY_CMD_TOPIC/sse`（SSE 长连接，断线自动重连）
 - 密钥校验：首词不匹配则静默丢弃
 - 日志：`/var/log/macro-scan/listener.log`
 - 需重建镜像（已执行 `docker compose up --build -d`）
@@ -3907,7 +3907,7 @@ return False
 - PID 12: ntfy_listener.py ✅
 - scheduler.py: ❌ 未运行
 
-**环境变量：** NTFY_TOPIC=***REMOVED*** ✅，OPENCLAW_WORKSPACE=/workspace ✅
+**环境变量：** NTFY_TOPIC=$NTFY_TOPIC ✅，OPENCLAW_WORKSPACE=/workspace ✅
 
 **待修复（CF-7）：**
 1. 修正 `docker-compose.yml`：将 `build: .` 改为 `image: macro-scan:v6`（使用已构建的 v6 镜像）
@@ -4583,7 +4583,7 @@ python run_macro_analysis.py --hypothesis "台海军事冲突升级"
 python run_macro_analysis.py --hypothesis "美联储意外加息" --hypothesis-severity L1
 ```
 
-**手机 ntfy（向 ***REMOVED*** 发消息）：**
+**手机 ntfy（向 $NTFY_CMD_TOPIC 发消息）：**
 ```
 1900 hypothesis 台海冲突升级
 1900 hypothesis 台海 L2

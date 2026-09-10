@@ -168,7 +168,7 @@ CREATE TABLE predictions (
 
 - **无 accuracy_dashboard / verify_result.json**（v0.2 设想已废弃）
 - 准确率展示 = CLI：`tianji_verifier.py --report`（总预测数/待验证/已验证/人工确认中 + Brier 均值 + BSS + 锐度，已验证 <5 时提示样本不足）
-- ntfy 推送（`NTFY_URL=https://ntfy.sh/***REMOVED***`）：地缘人工确认请求、玉衡反哺建议、玉衡健康检查告警
+- ntfy 推送（`NTFY_URL=https://ntfy.sh/$NTFY_TOPIC`）：地缘人工确认请求、玉衡反哺建议、玉衡健康检查告警
 
 ## 六、运行状态与已知缺口（08-06 实测）
 

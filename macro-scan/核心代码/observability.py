@@ -273,7 +273,7 @@ def daily_health_push() -> None:
     """
     import urllib.request
     try:
-        ntfy_url = os.environ.get("NTFY_URL", "https://ntfy.sh/***REMOVED***")
+        ntfy_url = os.environ.get("NTFY_URL", "")
         today = datetime.date.today().isoformat()
 
         # ── 数字1：grv_latest.json updated 时间戳 ──────────────────────────

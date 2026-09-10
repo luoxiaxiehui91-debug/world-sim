@@ -42,7 +42,7 @@ HERFINDAHL_WARN_RATIO = 3.0 # 集中度超过初始基线3倍触发警告
 MIN_PARTICIPATION_RATE = 0.3 # 有效信源占总信源比例 < 30% 触发警告
 EFFECTIVE_WEIGHT_THRESHOLD = 0.1  # 权重 > 0.1 算有效信源
 
-NTFY_URL = os.environ.get("NTFY_URL", "https://ntfy.sh/***REMOVED***")
+NTFY_URL = os.environ.get("NTFY_URL", "")
 
 
 def _load_yaml(path: str) -> dict:

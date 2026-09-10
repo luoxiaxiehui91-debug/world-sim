@@ -89,7 +89,7 @@
 | 人道风险 | HDX CKAN API（直连限流） | `data/hdx_*.json` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/ \| grep hdx` | humanitarian_risk，落盘 |
 | pgvector 向量库 | `知识库/` (558 .md) | worldsim-pg.rag.embeddings (4156块) | `docker exec worldsim-pg psql -U worldsim_app -d worldsim -c "SELECT COUNT(*) FROM rag.embeddings WHERE collection_name='macro_kb'"` | BAAI/bge-m3 嵌入（E0-B 退役 chroma） |
 | 新闻库 | RSSHub + Crucix | `data/news.db` + `latest_news.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import sqlite3; c=sqlite3.connect('/workspace/data/news.db'); print(c.execute('SELECT COUNT(*) FROM articles').fetchone()[0])"` | 双源 |
-| ntfy 推送 | `run_macro_analysis.py` | ntfy.sh/***REMOVED*** | `curl -s ntfy.sh/***REMOVED***/json?poll=1` | 强制直连 |
+| ntfy 推送 | `run_macro_analysis.py` | ntfy.sh/$NTFY_TOPIC | `curl -s ntfy.sh/$NTFY_TOPIC/json?poll=1` | 强制直连 |
 
 ---
 
@@ -171,7 +171,7 @@ docker exec macro-scan-macro-scan-1 cat /workspace/data/observability_$(date +%Y
 docker exec macro-scan-macro-scan-1 cat /workspace/data/grv_latest.json
 
 # 最近推送
-curl -s "https://ntfy.sh/***REMOVED***/json?poll=1&since=1h"
+curl -s "https://ntfy.sh/$NTFY_TOPIC/json?poll=1&since=1h"
 
 # 所有状态一键 (Web UI)
 curl -s http://192.168.31.108:8899/api/data | python3 -m json.tool | head -30
@@ -181,7 +181,7 @@ curl -s http://192.168.31.108:8899/api/data | python3 -m json.tool | head -30
 
 ## ntfy 指令速查
 
-向 `***REMOVED***` 发消息，格式 `1900 <指令>`：
+向 `$NTFY_CMD_TOPIC` 发消息，格式 `1900 <指令>`：
 
 | 指令 | 效果 |
 |:-----|:-----|

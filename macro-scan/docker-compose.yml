@@ -35,8 +35,8 @@ services:
       - OPENAI_COMPAT_URL=https://token-plan-cn.xiaomimimo.com/v1
       - OPENAI_COMPAT_KEY=${OPENAI_COMPAT_KEY}
       - USE_EXTERNAL_LLM=1
-      - NTFY_TOPIC=***REMOVED***
-      - NTFY_CMD_TOPIC=***REMOVED***
+      - NTFY_TOPIC=${NTFY_TOPIC}
+      - NTFY_CMD_TOPIC=${NTFY_CMD_TOPIC}
       - NTFY_CMD_SECRET=${NTFY_CMD_SECRET}
       - EIA_API_KEY=${EIA_API_KEY}
       - RUN_ON_START=true

@@ -56,7 +56,7 @@ M1 已采纳：**独立容器、独立 compose，不挂 macro-sim 下**。天玑
 - 容器：`macro-scan-tianji-1`（image `macro-tianji:latest`，`restart: unless-stopped`，**healthy**），2026-08-04 22:37 上线
 - 代码：四文件 sha256 ≡ 仓库 `macro-ji/`（镜像烘焙 COPY 模式，改码须重建镜像）
 - 依赖：仅 `pyyaml>=6.0`（requirements.txt）
-- 推送：ntfy（`NTFY_URL=https://ntfy.sh/***REMOVED***`）
+- 推送：ntfy（`NTFY_URL=https://ntfy.sh/$NTFY_TOPIC`）
 - 版本锚点：无 VERSION 文件；以镜像名 + 上线时间计版本（v1.0.0，2026-08-04）
 
 DB 实测计数：

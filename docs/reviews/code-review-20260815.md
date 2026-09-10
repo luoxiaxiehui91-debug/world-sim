@@ -264,8 +264,8 @@ return {"outcome_value": actual_val, "brier_score": brier}
 - **类别**：control-secret-leak｜**审查维度**：security
 - **问题**：ntfy control command secret '1900' (and the rotated-out old secret) is committed in plaintext and the command topic is a public ntfy.sh topic, so anyone can forge control commands.
 - **说明**：Root cause is a design one: a guessable shared secret transmitted in cleartext over a public broker gives no real protection. Rotate the secret, but more importantly move to an authenticated/private channel (ntfy access tokens + protected topic, or a private broker). The live secret in macro-scan/docker-compose.yml is gitignored, but the value is thoroughly leaked in the tracked docs/source above.
-- **触发场景/影响**：The command channel is the public topic ***REMOVED*** on ntfy.sh (world-readable AND world-writable, no ACL). The only gate is a shared secret prefix (parse_command in ntfy_listener.py checks parts[0] == NTFY_CMD_SECRET). That secret is the 4-digit '1900', disclosed across many tracked files. An attacker publishes e.g. `1900 hypothesis ... deep` or `1900 pause <fetcher>` / spawns arbitrary fetcher subprocesses, driving LLM cost and disrupting the pipeline. Worse: because the secret is sent as the first token of every command over a public topic, any subscriber harvests it in cleartext even if it were strong.
-- **证据**：TuiYan_CHANGELOG.md:3030  「密钥：1900（docker-compose.yml NTFY_CMD_SECRET，原为 <OLD_NTFY_SECRET_REDACTED>，2026-05-23 改）」— leaks BOTH the current secret and the previous one. Also: macro-scan/AGENTS.md:210 `NTFY_CMD_SECRET=1900`; ntfy_listener.py:324 hardcodes `1900 confirm_situation` in push text; docs/overview.md:59-68, INDEX.md:184-191, 世界推演系统_人类说明文档.md:125-146 all document the `1900 <cmd>` format; docker-compose.example.yml:33-34 exposes the topic names ***REMOVED*** / ***REMOVED***.
+- **触发场景/影响**：The command channel is the public topic $NTFY_CMD_TOPIC on ntfy.sh (world-readable AND world-writable, no ACL). The only gate is a shared secret prefix (parse_command in ntfy_listener.py checks parts[0] == NTFY_CMD_SECRET). That secret is the 4-digit '1900', disclosed across many tracked files. An attacker publishes e.g. `1900 hypothesis ... deep` or `1900 pause <fetcher>` / spawns arbitrary fetcher subprocesses, driving LLM cost and disrupting the pipeline. Worse: because the secret is sent as the first token of every command over a public topic, any subscriber harvests it in cleartext even if it were strong.
+- **证据**：TuiYan_CHANGELOG.md:3030  「密钥：1900（docker-compose.yml NTFY_CMD_SECRET，原为 <OLD_NTFY_SECRET_REDACTED>，2026-05-23 改）」— leaks BOTH the current secret and the previous one. Also: macro-scan/AGENTS.md:210 `NTFY_CMD_SECRET=1900`; ntfy_listener.py:324 hardcodes `1900 confirm_situation` in push text; docs/overview.md:59-68, INDEX.md:184-191, 世界推演系统_人类说明文档.md:125-146 all document the `1900 <cmd>` format; docker-compose.example.yml:33-34 exposes the topic names $NTFY_TOPIC / $NTFY_CMD_TOPIC.
 - **交叉验证**：2 个独立 skeptic — skeptic1=CONFIRMED(sev→High)；skeptic2=CONFIRMED(sev→Medium)
 
 ### [H15] High · CONFIRMED（skeptic 修正建议：Medium/Medium） — macro-scan(天枢)
@@ -652,7 +652,7 @@ CALIBRATION PATH (50 steps): MacroWorldState(history[0]) → MacroSimModel.step(
 
 PREDICTION PATH (100 MC × 24 steps): load_agents fresh + apply calibrated params → for run_i in 0..99: random.seed(run_i), _add_initial_noise (Gaussian on 10 endogenous + GRV/spread/VIX exogenous) → copy.deepcopy(agents_template) → MacroSimModel.run(24 free steps). Each step: (1) agents decide via decide_with_decision (soul→red_line→faction_weights×boost→weighted_sample→bias_action, or legacy if-else), using visible_actions from action_history deque at info_delay offset; (2) gm_resolve_rules → per-agent delta (A1-A12 hardcoded branches + SovereignAgent grv_dimensions direct write) + transmission matrix (src_delta × coeff × 0.5 × tgt_magnitude) + positive feedback (consecutive_negative_steps≥3 → A7/A12 forced_activate); (3) _apply_delta (sentiment×0.25 scale, em_capital_outflow/bank_credit/liquidity_premium clamp[-1,1], others clamp[0,1]); (4) apply_natural_decay (sentiment×0.995, bank_credit×0.97, etc., VIX→baseline 80/20 mean reversion); (5) apply_bleed_rules (6 rules); (6) board_decay_step (×0.95 toward baseline). validate_run_actions per run (consistency check, tagged on last snapshot). Post-loop: _detect_bifurcation (std>2.0 + bimodal 15% threshold on GRV series) → _cluster_runs (natural-break on final sentiment if std>0.15 else final GRV) → 2-3 PathResult objects → _extract_key_events (>40% frequency, max 8) → _generate_narrative (GLM-Z1-9B, 256 tokens) → list[PathResult] sorted by probability desc.
 
-OUTPUT: _write_report → /app/reports/YYYY-MM-DD_HH-MM_演化_L{level}_校准{score}.md. _archive_to_tianji → forecast_tracker.db: INSERT INTO predictions (grv_direction, quarterly horizon) + INSERT INTO reasoning_trace (causal_chains from key_events[:5]). _send_ntfy → ntfy.sh/***REMOVED***.
+OUTPUT: _write_report → /app/reports/YYYY-MM-DD_HH-MM_演化_L{level}_校准{score}.md. _archive_to_tianji → forecast_tracker.db: INSERT INTO predictions (grv_direction, quarterly horizon) + INSERT INTO reasoning_trace (causal_chains from key_events[:5]). _send_ntfy → ntfy.sh/$NTFY_TOPIC.
 
 **外部依赖**
 
@@ -664,7 +664,7 @@ OUTPUT: _write_report → /app/reports/YYYY-MM-DD_HH-MM_演化_L{level}_校准{s
   - /app/macro_data/slow_variables.json: monthly IRP/UCRI/GCI slow variables (Sprint-2 feature).
   - /app/macro_data/sim_trigger.json: daemon trigger file. Non-empty JSON with level+event fields starts a simulation run; file is cleared (written empty) immediately after reading.
   - Silicon Flow API (https://api.siliconflow.cn/v1): GLM-Z1-9B (THUDM/GLM-Z1-9B-0414) for calibration LLM param adjustment and consistency Layer 2 check. Qwen3.5-27B for narrative generation. Key from SILICONFLOW_API_KEY env or /vol2/1000/software/macro-scan/key.txt.
-  - ntfy.sh/***REMOVED***: push notification endpoint for simulation completion summary.
+  - ntfy.sh/$NTFY_TOPIC: push notification endpoint for simulation completion summary.
   - /workspace/data/static/military_backdrop.md: SIPRI military background injected into narrative generation prompts.
   - /app/data/calibration_cache.json: 7-day calibration result cache (CACHE_VERSION=14). Stale or version-mismatched cache triggers full 50-step re-calibration.
   - /app/data/calib_probe.json + calib_tuning_state.json: probe diagnostics and adaptive trigger threshold state.
@@ -839,7 +839,7 @@ grv_latest.json 消费路径最复杂：同一 feed 被 WorldPanel / GrvPanel / 
   - grv_history.jsonl — GRV维度历史值，宿主 macro-scan/data/
   - gdelt_history.jsonl — 天玑校准器输入，宿主 macro-scan/data/
   - tianji_trigger.json — T2共享触发文件，天枢写/天玑消费
-  - ntfy.sh/***REMOVED*** — 外部推送服务(人工验证请求/权重建议/健康告警)
+  - ntfy.sh/$NTFY_TOPIC — 外部推送服务(人工验证请求/权重建议/健康告警)
   - pyyaml>=6.0 — 唯一第三方依赖(requirements.txt)；缺失时_load_yaml()返回{}(静默降级)
   - FRED_API_KEY — 环境变量，当前docker-compose明文硬编码(a3f1dc8f...)
 

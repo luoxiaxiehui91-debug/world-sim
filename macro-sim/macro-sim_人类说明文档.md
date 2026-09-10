@@ -51,7 +51,7 @@ YYYY-MM-DD_仿真_校准{score}.md
 
 NAS 上对应路径为 `/vol2/1000/software/macro-scan/docs/仿真报告/`，本机路径 `S:\world-sim\macro-scan\docs\仿真报告\`（报告写入 macro-scan 侧，非 macro-sim 侧）。
 
-同时通过 ntfy 推送摘要到手机（`https://ntfy.sh/***REMOVED***`）。
+同时通过 ntfy 推送摘要到手机（`https://ntfy.sh/$NTFY_TOPIC`）。
 
 ---
 

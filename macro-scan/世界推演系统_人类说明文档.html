@@ -247,7 +247,7 @@
      三、手机操作指南
 ══════════════════════════════════════════════ -->
 <h2>三、手机操作指南</h2>
-<p>手机安装 ntfy 客户端，订阅 <code>***REMOVED***</code> 接收报告。</p>
+<p>手机安装 ntfy 客户端，订阅 <code>$NTFY_TOPIC</code> 接收报告。</p>
 
 <h3>3.1 报告自动推送时间</h3>
 <table>
@@ -263,7 +263,7 @@
 <p style="font-size:12px;color:var(--text-dim)">后台静默任务：每日 05:30 FRED 数据、05:40 GPR、05:45 中国数据、每 6h 弱信号扫描、每日 06:10 GRV 聚合、06:05 制裁聚合（v3.5.63 新增）。</p>
 
 <h3>3.2 手动发送指令（手机 → 系统）</h3>
-<p>向 <code>***REMOVED***</code> 发消息，格式 <code>1900 &lt;指令&gt;</code>：</p>
+<p>向 <code>$NTFY_CMD_TOPIC</code> 发消息，格式 <code>1900 &lt;指令&gt;</code>：</p>
 <table>
   <tr><th>指令</th><th>效果</th></tr>
   <tr><td><code>1900 ask 你的问题</code></td><td><strong>自由问答</strong>，约 30 秒返回</td></tr>
