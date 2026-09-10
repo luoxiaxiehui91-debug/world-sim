@@ -1,3 +1,24 @@
+## [3.8.42] - 2026-09-10
+
+### Security（ntfy 主题名轮换 + 注入层环境变量化，开源前置，CHG-20260910T181638-world-deduction）
+
+- **ntfy 两个主题名轮换为 32 位随机串**（告警 / 命令频道各一个）。原主题名长期硬编码在 6 个被跟踪文件中，且代码走 `https://ntfy.sh/` 公共服（匿名可读可写，实测匿名 GET 即返回真实推送正文）→ 主题名一旦随开源公开，任何人可订阅告警、可向命令频道发指令。轮换后旧名自动作废。
+- **主题名改为环境变量注入**：`NTFY_TOPIC` / `NTFY_CMD_TOPIC` / `NTFY_URL` 三个 compose 项由字面量改为 `${VAR}`，真值落运行区 untracked `.env`（600）→ **新主题名零字符入库**（提交前 `git grep -lF` 校验命中 0）。与既有 `NTFY_CMD_SECRET` 的注入方式对齐。
+- **去掉 5 个 .py 中的硬编码默认值**：`macro-scan/核心代码/observability.py`、`macro-scan/核心代码/weight_matrix.py`、`macro-ji/tianji_verifier.py`、`macro-ji/weight_matrix.py` 的 `os.environ.get("NTFY_URL", "https://ntfy.sh/<旧名>")` → 默认空串；`macro-sim/run.py` 的纯字面量赋值 → `os.environ.get("NTFY_URL", "")`。并给 `macro-sim/docker-compose.yml` 补 `NTFY_URL=${NTFY_URL}` 注入（该文件原本既无 env_file 也无该变量，否则改造后天璇推送为空值）。
+- **16 个 md/html 文档中的旧主题名 → `$NTFY_TOPIC` / `$NTFY_CMD_TOPIC` 占位符**（合计 34 处）：文档只描述机制，不再含具体频道名。
+- **`.env.example` 补 `NTFY_TOPIC=` / `NTFY_CMD_TOPIC=` 空值模板**。
+
+### 实测
+
+- 运行区 `.env` 写入后复核 3 处全 OK（权限 600）；`docker compose up -d --force-recreate` 后容器内 `NTFY_TOPIC` / `NTFY_CMD_TOPIC` / `NTFY_URL` 均为新值（非旧名）。
+- 双频道直连 POST 均 HTTP 200（`event=message`），告警频道 GET 可读。
+- ⚠️ **代理对 ntfy.sh 的 HTTPS 不稳定**：经 `192.168.31.108:7890` 的 POST/GET 实测返回 000（`SSL_ERROR_SYSCALL`），直连正常 —— 与 `ntfy_listener.py` 既有注释一致，非本次引入。
+
+### 已知限制
+
+- 手机端 ntfy App 需手动删除旧频道、订阅新告警频道；命令频道改为向新频道发送。
+- `macro-sim`（天璇）为 COPY 型部署，**本次未重建镜像**，其 `run.py` 改动待下次自然重建方生效；当前容器内仍是旧代码（纯硬编码）→ 天璇 ntfy 推送暂用旧主题名（旧名仍可用，不中断）。
+
 ## [3.8.41] - 2026-09-09
 
 ### Fixed（展望简报索引刷新遗漏，v3.8.40 晨间首验发现，CHG-20260909T080058-macro-scan）
