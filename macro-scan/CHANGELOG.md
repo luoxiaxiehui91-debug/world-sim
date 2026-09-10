@@ -1,3 +1,30 @@
+## [3.8.44] - 2026-09-10
+
+### Changed（知识库外置，开源实施计划 阶段 3，CHG-20260910T234442-world-deduction）
+
+- **知识库移出 git 追踪**（617 文件 / 22 MB）。原因：内含 4 个文件为券商研报全文（16 家机构、含免责声明与「未经授权不得复制或引用」条款），属第三方版权内容。`git rm -r --cached` + `.gitignore`，**磁盘文件完整保留**（实测 617 个仍在，运行区 702 个未受影响）。
+- **12 处 KB 路径支持 `KB_ROOT` 环境变量**：形式为 `os.environ.get("KB_ROOT") or <原默认表达式>`，未设时取值与改造前**完全一致**。涉及 `build_rag_index` / `mc_engine` / `optim_config` / `run_macro_analysis` / `scorer` / `update_kb_numbers` / `assess_structural_dimensions` / `calibrate_mc` / `monte_carlo_v2` / `daily_narrative` / `weekly_synthesis` / `macro-ji·verify_hypothesis`。
+- **缺失引导**：`build_rag_index.py` 与 `assess_structural_dimensions.py` 的缺失分支由静默降级升级为明确提示（指向 bootstrap 脚本与文档）。
+- **新增 `scripts/init_kb.py`**：生成知识库骨架（14 个示例文件，**零第三方内容**），支持 `--dest` / `--force` / `--list`。
+- **新增 `docs/KB_SETUP.md`**：目录约定、各文件格式要求（含 CSV 21 列顺序）、`KB_ROOT` 用法、RAG 索引构建、缺失降级说明。
+- `macro-scan/.env.example` 补 `KB_ROOT` 与 `OPENCLAW_WORKSPACE` 说明。
+- `tests/test_audit_scan_secrets_guard.py`：对知识库内文件加存在性跳过（未初始化知识库时属预期情况，不再判失败）。
+
+### 验收（实测）
+
+- `git ls-files` 中知识库命中 **0**；磁盘 617 文件、运行区 702 文件均完好
+- 容器内默认路径解析 = `/workspace/知识库/财经知识库`，目录与文件均存在
+- **功能零退化**：`mc_engine._load_vol_calibration()` 读到 11 个条目；`scorer.CRISIS_CSV` 读到 41 行
+- `KB_ROOT` 覆盖生效；指向不存在路径时输出 bootstrap 引导并以退出码 **1** 结束
+- `init_kb.py` 生成 14 文件；CSV 21 列、JSON/YAML 均可解析；8 个 `.md` 可进 RAG 索引
+- `py_compile` **14/14** 通过
+
+### 已知限制
+
+- **git 历史中仍有知识库内容**，需 filter-repo 清理（另行 CHG）。
+- 天玑（macro-ji）容器内 `verify_hypothesis.py` 未同步（默认路径不变，功能正常），下次重建时生效。
+- 知识库自身存在新旧编号目录并存（8 对目录内容高度重叠），属使用者个人资产整理，不在本次范围。
+
 ## [3.8.43] - 2026-09-10
 
 ### Changed（路径参数化，开源实施计划 阶段 2，CHG-20260910T232600-world-deduction）
