@@ -248,8 +248,8 @@ SPACETRACK_PASS = os.environ.get("SPACETRACK_PASS",  "REDACTED_SPACETRACK_PASS")
 
 - **单元/维度**: 安全与密钥专项 · 安全配置
 - **位置**: `docs/decisions/worldsim-rename-check.md:45`
-- **描述**: 决策文档 P0-2 条目中原样抄录了 backup-pg.sh 的硬编码密码 PGPASSWORD="***REMOVED***"。该文件受 git 追踪。文档本身注明此密码与 connection.env 中的 WORLDSIM_APP_PW/WORLDSIM_RO_PW 不匹配、"已失效"，故实际危害降低；但一个看似真实的 DB 密码字符串进入版本库仍属密钥卫生问题，且无法确证其在任何历史时点从未生效。
-- **证据**: worldsim-rename-check.md:45 `PGPASSWORD="***REMOVED***"` 与 connection.env 的 WORLDSIM_APP_PW / WORLDSIM_RO_PW 均不匹配（布尔比对 NO_MATCH）
+- **描述**: 决策文档 P0-2 条目中原样抄录了 backup-pg.sh 的硬编码密码 PGPASSWORD="<redacted>"。该文件受 git 追踪。文档本身注明此密码与 connection.env 中的 WORLDSIM_APP_PW/WORLDSIM_RO_PW 不匹配、"已失效"，故实际危害降低；但一个看似真实的 DB 密码字符串进入版本库仍属密钥卫生问题，且无法确证其在任何历史时点从未生效。
+- **证据**: worldsim-rename-check.md:45 `PGPASSWORD="<redacted>"` 与 connection.env 的 WORLDSIM_APP_PW / WORLDSIM_RO_PW 均不匹配（布尔比对 NO_MATCH）
 - **建议**: 从文档中移除该明文，用 <redacted> 描述即可；确认该密码确未在任何 PG 实例上生效，如有疑虑则轮换。
 
 ### 🟡 [MEDIUM] .gitignore 声明忽略 macro-scan/docker-compose.yml，但该文件实际被 git 追踪

@@ -42,7 +42,7 @@
 - **后果**：PG（E0-C 后唯一事实源，articles=32560）**无任何可用备份**。改名需重建 PG 容器（deploy-pg.sh 幂等重跑），窗口内无回滚数据 → **改名必须先修备份并跑通一次真实备份**，否则不得动。
 
 ### 🔴 P0-2 backup-pg.sh 硬编码密码已失效
-- `PGPASSWORD="***REMOVED***"` 与 `connection.env` 的 WORLDSIM_APP_PW / WORLDSIM_RO_PW **均不匹配**（布尔比对 NO_MATCH，未打印值）→ 即使修好语法，pg_dump 认证也会失败。
+- `PGPASSWORD="<redacted>"` 与 `connection.env` 的 WORLDSIM_APP_PW / WORLDSIM_RO_PW **均不匹配**（布尔比对 NO_MATCH，未打印值）→ 即使修好语法，pg_dump 认证也会失败。
 - 且明文密码在脚本中 = 密钥泄露面（脚本非 git 树，无版本控制）。
 
 ### 🟠 P1-1 STAMP 硬编码 + OUT 未拼时间戳
