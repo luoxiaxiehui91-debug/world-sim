@@ -10,7 +10,7 @@
 # 认证方案：docker exec 容器内以 worldsim_admin 免密执行（deploy-pg.sh 同款），脚本内不落任何密码。
 set -euo pipefail
 
-WORLD=/vol2/1000/software/worldsim-pg
+WORLD=${WORLDSIM_PG_DIR:-/opt/worldsim-pg}
 PG_CONTAINER=worldsim-pg
 BACKUP_DIR="$WORLD/backups"
 STAMP=$(date +%Y%m%d-%H%M)
@@ -24,6 +24,6 @@ docker exec "$PG_CONTAINER" pg_dump -Fc -U worldsim_admin -h localhost -p 5432 -
 find "$BACKUP_DIR" -name "worldsim-*.dump" -mtime +14 -delete
 
 # 写备份成功 marker（供 silent_failure_probe 监控备份新鲜度，防 backup 再静默挂）
-date +%s > /vol2/1000/software/macro-scan/data/.last_pg_backup
+date +%s > ${DATA_DIR:-/opt/macro-scan/data}/.last_pg_backup
 
 echo "backup done: $OUT ($(du -h "$OUT" | cut -f1))"

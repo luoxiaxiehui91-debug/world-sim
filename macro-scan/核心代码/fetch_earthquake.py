@@ -46,7 +46,7 @@ except ImportError:
                 "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson",
                 "USGS_EARTHQUAKE_URL",
             ),
-            "PROXY_URL": ("http://192.168.31.108:7890", "PROXY_URL"),
+            "PROXY_URL": ("", "PROXY_URL"),
         },
     )
     DATA_DIR = _cfg["DATA_DIR"]

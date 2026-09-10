@@ -57,7 +57,7 @@ OPEN_SANCTIONS_DATA_URL = os.environ.get(
 )
 
 # ── 出站代理（NAS 出口，部分外部源直连不可达时走此，与 FRED 代理一致）──
-PROXY_URL = os.environ.get("PROXY_URL", "http://192.168.31.108:7890")
+PROXY_URL = os.environ.get("PROXY_URL", "")
 
 # ── 新接入源配置（P0+P1，env 可覆盖）─────────────────────────────────────────
 # P0 — USGS 地震（真免key，实时 GeoJSON feed，带 time 时间戳）

@@ -107,7 +107,7 @@ if [ "$MODE_ALL" -eq 1 ] || [ "$MODE_LIST" -eq 1 ]; then
   echo ""
   note "  浏览器数据核对命令（NAS 侧，与浏览器并排看）："
   note "    ssh nas 'curl -s http://localhost:8080/data/news_geo.json | head -c 400'"
-  note "    ssh nas 'python3 /vol2/1000/software/world-sim/macro-scan/docs/qa-scripts/verify_data.py'"
+  note "    ssh <host> 'python3 <repo>/macro-scan/docs/qa-scripts/verify_data.py'"
   rec SKIP G-M3 "浏览器人工项待主理人复核（清单已打印）"
 fi
 

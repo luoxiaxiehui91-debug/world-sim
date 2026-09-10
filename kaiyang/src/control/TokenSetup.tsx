@@ -78,7 +78,7 @@ export function TokenSetup({ onSaved }: { onSaved?: () => void }) {
         </button>
       </div>
       <p className="text-[10px] leading-relaxed text-white/30">
-        Token 来自天枢运行区 compose 的 CONTROL_TOKEN（NAS: /vol2/1000/software/macro-scan/docker-compose.yml）。仅存于本机浏览器 localStorage。
+        Token 来自天枢运行区 compose 的 CONTROL_TOKEN（运行区 compose）。仅存于本机浏览器 localStorage。
       </p>
     </div>
   );

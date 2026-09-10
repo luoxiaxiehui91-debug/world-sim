@@ -68,7 +68,7 @@ def _load_key(env_var: str, fallback_path: str) -> str:
 
 SILICONFLOW_KEY = _load_key(
     "SILICONFLOW_API_KEY",
-    "/vol2/1000/software/macro-scan/key.txt"
+    os.environ.get("SILICONFLOW_KEY_FILE", "")
 )
 
 

@@ -12,8 +12,8 @@
 # 用法：bash delete_sqlite_e0c.sh [--dry-run]
 set -euo pipefail
 
-DATA=/vol2/1000/software/macro-scan/data
-BK=/vol2/1000/software/worldsim-pg/backups
+DATA=${DATA_DIR:-/workspace/data}
+BK=${BACKUP_DIR:-./backups}
 TS=$(date +%Y%m%d-%H%M%S)
 DRY=${1:-}
 

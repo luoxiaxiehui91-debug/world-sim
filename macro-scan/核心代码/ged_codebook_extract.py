@@ -1,8 +1,9 @@
+import os
 import sys
-sys.path.insert(0, r"C:/Users/luoxi/.workbuddy/binaries/python/envs/gedpdflib")
+sys.path.insert(0, os.environ.get("GEDPDFLIB_PATH", ""))
 from pypdf import PdfReader
 
-PATH = r"S:/20260729/ged261.pdf"
+PATH = os.environ.get("GED_PDF_PATH", "")
 r = PdfReader(PATH)
 print("PAGES:", len(r.pages))
 full = []

@@ -10,13 +10,13 @@ services:
       - "8900:8900"      # Control API (A3a)
 
     volumes:
-      - /vol2/1000/software/macro-scan/核心代码:/app
-      - /vol2/1000/software/macro-scan/entrypoint.sh:/entrypoint.sh
-      - /vol2/1000/software/macro-scan/data:/workspace/data
-      - /vol2/1000/software/macro-scan/docs:/workspace/docs
-      - /vol2/1000/software/macro-scan/logs:/var/log/macro-scan
-      - /vol2/1000/software/macro-scan/知识库:/workspace/知识库
-      - /vol2/1000/software/macro-scan/config:/workspace/config
+      - ./核心代码:/app
+      - ./entrypoint.sh:/entrypoint.sh
+      - ./data:/workspace/data
+      - ./docs:/workspace/docs
+      - ./logs:/var/log/macro-scan
+      - ./知识库:/workspace/知识库
+      - ./config:/workspace/config
 
     environment:
       - OPENCLAW_WORKSPACE=/workspace
@@ -25,7 +25,10 @@ services:
       - SPACETRACK_PASS=${SPACETRACK_PASS}
       - FIRMS_MAP_KEY=${FIRMS_MAP_KEY}
       - TZ=Asia/Shanghai
-      - OUTBOUND_PROXY=http://192.168.31.108:7890
+      - OUTBOUND_PROXY=${OUTBOUND_PROXY}
+      - PROXY_URL=${PROXY_URL}
+      - NAS_PROXY_URL=${NAS_PROXY_URL}
+      - GDELT_PROXY=${GDELT_PROXY}
       # 08-18 P1-6 纪律补齐：PG-only 写开关 + 网络 + 控制面 token（.env 提供，占位不落明文）
       - WORLDSIM_SQLITE_OFF=1
       - WORLDSIM_APP_PW=${WORLDSIM_APP_PW}
@@ -40,7 +43,8 @@ services:
       - NTFY_CMD_SECRET=${NTFY_CMD_SECRET}
       - EIA_API_KEY=${EIA_API_KEY}
       - RUN_ON_START=true
-      - RSSHUB_URL=http://192.168.31.108:12000
+      - RSSHUB_URL=${RSSHUB_URL}
+      - KAIYANG_ORIGIN=${KAIYANG_ORIGIN}
       - DASHBOARD_OUTPUT=/workspace/docs/macro_dashboard.html
 
     logging:
@@ -57,9 +61,9 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - /vol2/1000/software/kaiyang/dist:/usr/share/nginx/html:ro
-      - /vol2/1000/software/macro-scan/data:/usr/share/nginx/data:ro
-      - /vol2/1000/software/kaiyang/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${KAIYANG_DIR}/dist:/usr/share/nginx/html:ro
+      - ./data:/usr/share/nginx/data:ro
+      - ${KAIYANG_DIR}/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - macro-scan
     logging:

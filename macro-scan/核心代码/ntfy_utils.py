@@ -16,7 +16,7 @@ import requests
 NTFY_REPORT_TOPIC = os.environ.get("NTFY_TOPIC", "")
 
 # data-freshness（Spec 3.4 步骤 5）：支持自托管 ntfy Base URL 切换
-# 默认 https://ntfy.sh/，可设 NTFY_BASE_URL=http://192.168.31.108:2586 切到 NAS 自托管
+# 默认 https://ntfy.sh/，可设 NTFY_BASE_URL=http://<自建ntfy主机>:2586 切到 NAS 自托管
 NTFY_BASE_URL = os.environ.get("NTFY_BASE_URL", "https://ntfy.sh/").rstrip("/")
 
 

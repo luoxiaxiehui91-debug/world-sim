@@ -47,7 +47,7 @@ except ImportError:
          "AEMET_API_KEY", "AEMET_BASE"],
         {
             "DATA_DIR": FetcherBase.default_data_dir(),
-            "PROXY_URL": ("http://192.168.31.108:7890", "PROXY_URL"),
+            "PROXY_URL": ("", "PROXY_URL"),
             "UK_CARBON_INTENSITY_BASE": ("https://api.carbonintensity.org.uk", "UK_CARBON_INTENSITY_BASE"),
             "NATIONAL_GRID_ESO_BMRS_KEY": ("", "NATIONAL_GRID_ESO_BMRS_KEY"),
             "NREL_API_KEY": ("", "NREL_API_KEY"),

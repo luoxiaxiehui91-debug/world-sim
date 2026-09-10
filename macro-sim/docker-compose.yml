@@ -14,9 +14,9 @@ services:
     volumes:
       - ./output:/app/output
       # macro-scan 数据（读写；sim_trigger.json 同在此目录挂载下，杜绝单文件 bind 的 inode 断链）
-      - /vol2/1000/software/macro-scan/data:/app/macro_data:rw
+      - ${MACRO_SCAN_DIR}/data:/app/macro_data:rw
       # 报告写入 macro-scan docs/仿真报告/（可读写）
-      - /vol2/1000/software/macro-scan/docs/仿真报告:/app/reports
+      - ${MACRO_SCAN_DIR}/docs/仿真报告:/app/reports
     # 守护模式：常驻等待 sim_trigger.json，有则自动跑仿真
     command: ["python3", "-u", "run.py", "--daemon"]
 

@@ -23,10 +23,10 @@ services:
     volumes:
       # 目录挂载铁律：读天枢 data（forecast_tracker.db / fred_history/ / grv_history.jsonl）
       # 禁单文件 bind mount（闸二）；与天璇 macro-sim 共用同一挂载源（同卷不同容器）
-      - /vol2/1000/software/macro-scan/data:/app/macro_data:rw
+      - ${MACRO_SCAN_DIR}/data:/app/macro_data:rw
       # config 目录（grv_weights.yaml / prior.yaml —— weight_matrix 与 tianji_verifier 依赖）
-      - /vol2/1000/software/macro-scan/config:/app/config:rw
-      - /vol2/1000/software/macro-scan/知识库:/app/知识库:ro
+      - ${MACRO_SCAN_DIR}/config:/app/config:rw
+      - ${MACRO_SCAN_DIR}/知识库:/app/知识库:ro
 
   verify-cron:
     image: macro-tianji:latest
@@ -45,11 +45,11 @@ services:
       - WORLDSIM_APP_PW=${WORLDSIM_APP_PW}
       - TZ=Asia/Shanghai
     volumes:
-      - /vol2/1000/software/macro-scan/data:/app/macro_data:rw
-      - /vol2/1000/software/macro-scan/config:/app/config:rw
-      - /vol2/1000/software/macro-scan/知识库:/app/知识库:ro
+      - ${MACRO_SCAN_DIR}/data:/app/macro_data:rw
+      - ${MACRO_SCAN_DIR}/config:/app/config:rw
+      - ${MACRO_SCAN_DIR}/知识库:/app/知识库:ro
       # WIKI_FILE 路径兼容：verify_hypothesis 按 WORKSPACE/data 找 scenario_wiki.md
-      - /vol2/1000/software/macro-scan/data:/app/data:ro
+      - ${MACRO_SCAN_DIR}/data:/app/data:ro
     command: ["python3", "tianji_verify_cron.py"]
     healthcheck:
       # 08-18 P0-1 强化：真实 PG 连接（此前仅 import 模块 → env 空也 healthy 假象）

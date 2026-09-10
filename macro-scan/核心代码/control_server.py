@@ -64,11 +64,11 @@ app = FastAPI(title="天枢控制 API", version="1.1.0")
 # 阻止任意网站跨域驱动控制 API（配合 fail-closed token）。
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://192.168.31.108:8080",  # 开阳面板（NAS nginx）
-        "http://localhost:8080",       # 本地开发
+    allow_origins=[o for o in [
+        os.environ.get("KAIYANG_ORIGIN", ""),  # 开阳面板来源（部署时按需配置，如 http://<你的主机>:8080）
+        "http://localhost:8080",               # 本地开发
         "http://127.0.0.1:8080",
-    ],
+    ] if o],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -403,7 +403,7 @@ _NEWS_UA = {
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
 }
 # 天枢容器直连外网不可达（实测 Network unreachable）——抓标题必须走 NAS 代理
-_NEWS_PROXY_URL = os.environ.get("PROXY_URL", "http://192.168.31.108:7890")
+_NEWS_PROXY_URL = os.environ.get("PROXY_URL", "")
 
 
 def _is_public_url(url: str) -> bool:

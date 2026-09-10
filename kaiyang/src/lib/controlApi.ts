@@ -183,7 +183,11 @@ export function setApiToken(token: string | null): void {
  * localStorage 可覆盖 API_BASE_URL（kaiyang_control_api_base_url），若被注入
  * 恶意 URL，token 自动附带会外泄。token 只发往本机回环或 NAS 局域网地址。
  */
-const TRUSTED_CONTROL_HOSTS = new Set(['192.168.31.108', 'localhost', '127.0.0.1']);
+const TRUSTED_CONTROL_HOSTS = new Set([
+  window.location.hostname, // 当前页面来源主机（部署时即本机）
+  'localhost',
+  '127.0.0.1',
+]);
 
 function isTrustedControlBase(): boolean {
   try {

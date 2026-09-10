@@ -47,7 +47,7 @@ _cfg = FetcherBase.load_config_with_fallback(
     ["DATA_DIR", "PROXY_URL", "EIA_API_KEY"],
     {
         "DATA_DIR":    FetcherBase.default_data_dir(),
-        "PROXY_URL":   ("http://192.168.31.108:7890", "PROXY_URL"),
+        "PROXY_URL":   ("", "PROXY_URL"),
         "EIA_API_KEY": ("", "EIA_API_KEY"),
     },
 )

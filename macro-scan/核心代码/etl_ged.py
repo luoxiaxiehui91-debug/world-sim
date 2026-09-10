@@ -28,7 +28,7 @@ optim_config 为**可选**依赖（缺失时回退到环境变量），保证脱
 
 用法
 ----
-    python etl_ged.py --ged-csv S:/20260729/data/GEDEvent_v26_1.csv \\
+    python etl_ged.py --ged-csv /path/to/GEDEvent_v26_1.csv \\
                       --data-dir S:/macro-scan/data
     python etl_ged.py --dry-run          # 只跑闸门，不写产物
     python etl_ged.py --limit 50000      # 抽样自测
@@ -438,8 +438,8 @@ def resolve_ged_csv(cli_value: Optional[str], data_dir: str) -> str:
     candidates.extend([
         os.path.join(data_dir, "ged_raw", f"GEDEvent_{DATASET_VERSION.replace('.', '_')}.csv"),
         os.path.join(data_dir, "GEDEvent_v26_1.csv"),
-        r"S:/20260729/data/GEDEvent_v26_1.csv",
-        "/vol2/1000/software/macro-scan/data/ged_raw/GEDEvent_v26_1.csv",
+        # 可由 GED_CSV_PATH 覆盖（空串会被 os.path.isfile 跳过）
+        os.environ.get("GED_CSV_PATH", ""),
     ])
     for path in candidates:
         if path and os.path.isfile(path):

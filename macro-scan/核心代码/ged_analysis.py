@@ -1,6 +1,7 @@
+import os
 import csv, sys, collections, statistics
 
-PATH = r"S:/20260729/GEDEvent_v26_1.csv"
+PATH = os.environ.get("GED_CSV_PATH", "")
 
 rows = 0
 header = None

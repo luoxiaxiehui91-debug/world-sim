@@ -3,7 +3,7 @@ web_server.py — 世界推演系统 Web 对话界面（Phase 3A）
 
 提供比 ntfy 更好的 Q&A 体验：浏览器访问，支持自由提问和历史查询。
 
-端口：8899（局域网访问：http://192.168.31.108:8899）
+端口：8899（局域网访问：http://<部署主机>:8899）
 依赖：pip install fastapi uvicorn（容器内按需安装）
 
 启动方式（entrypoint.sh 追加）：

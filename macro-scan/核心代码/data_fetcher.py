@@ -35,7 +35,7 @@ REPORT_DIR = os.path.join(BASE_DIR, "docs", "分析报告")
 CACHE_FILE = os.path.join(REPORT_DIR, ".indicator_cache.json")
 
 # 代理配置（FRED API可能需要代理访问）
-FRED_PROXIES = None  # 默认不用代理；如需代理设为 {"https": "http://192.168.31.108:7890"}
+FRED_PROXIES = None  # 默认不用代理；如需代理设为 {"https": "http://<代理主机>:7890"}
 # 自动检测：如果直接访问FRED 403，尝试NAS代理
 _AUTO_PROXY_TESTED = False
 
@@ -194,7 +194,7 @@ def _try_set_fred_proxy() -> bool:
     """尝试切换到NAS代理（403时自动调用）"""
     global FRED_PROXIES
     # 代理地址优先取环境变量，容器内未设置则用默认LAN地址
-    proxy_host = os.environ.get("OUTBOUND_PROXY", "http://192.168.31.108:7890")
+    proxy_host = os.environ.get("OUTBOUND_PROXY", "")
     if not proxy_host:
         return False
     # 支持两种格式：完整 URL "http://host:port" 或裸地址 "host:port"

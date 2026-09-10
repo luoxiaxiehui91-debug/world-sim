@@ -33,12 +33,7 @@ import json
 import os
 
 # data 根（天枢运行时数据目录；天璇挂载为 /app/macro_data）
-DATA_DIR = os.environ.get(
-    "WORLDSIM_DATA_DIR",
-    "/vol2/1000/software/macro-scan/data"
-    if os.path.isdir("/vol2/1000/software/macro-scan/data")
-    else "/workspace/data",
-)
+DATA_DIR = os.environ.get("WORLDSIM_DATA_DIR", "/workspace/data")
 CONFIG_PATH = os.path.join(DATA_DIR, "llm_config.json")
 
 # config 根（git tracked 兜底模板 + 控制台密钥落点；容器内 /workspace/config 为 bind 挂载）

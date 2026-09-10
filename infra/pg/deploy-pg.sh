@@ -2,7 +2,7 @@
 # worldsim-pg 部署/重建固化脚本（A0，C 方案修复）。幂等，可安全重跑。
 # 仅限 NAS 本机执行。依赖已存在的 worldsim_default 网络。
 set -euo pipefail
-WORLD=/vol2/1000/software/worldsim-pg
+WORLD=${WORLDSIM_PG_DIR:-/opt/worldsim-pg}
 PG_CONTAINER=worldsim-pg
 PG_NET=worldsim_default
 PG_HBA="$WORLD/pgdata/pg_hba.conf"

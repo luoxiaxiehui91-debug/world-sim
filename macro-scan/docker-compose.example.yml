@@ -20,7 +20,7 @@ services:
       - OPENCLAW_WORKSPACE=/workspace
       - FRED_API_KEY=你的FRED_API_KEY
       - TZ=Asia/Shanghai
-      - OUTBOUND_PROXY=http://192.168.31.108:7890
+      - OUTBOUND_PROXY=${OUTBOUND_PROXY}
       - SILICONFLOW_API_KEY=你的SILICONFLOW_API_KEY
       - SILICONFLOW_MODEL=deepseek-ai/DeepSeek-V4-Flash
       - OPENAI_COMPAT_URL=https://token-plan-cn.xiaomimimo.com/v1
@@ -30,7 +30,7 @@ services:
       - NTFY_CMD_TOPIC=${NTFY_CMD_TOPIC}
       - NTFY_CMD_SECRET=你的NTFY_CMD_SECRET
       - RUN_ON_START=true
-      - RSSHUB_URL=http://192.168.31.108:12000
+      - RSSHUB_URL=${RSSHUB_URL}
       - DASHBOARD_OUTPUT=/workspace/docs/macro_dashboard.html
 
     logging:

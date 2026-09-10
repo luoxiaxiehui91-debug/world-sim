@@ -70,7 +70,7 @@ except ImportError:
                 "https://data.opensanctions.org/datasets/latest/sanctions/targets.simple.csv",
                 "OPEN_SANCTIONS_DATA_URL",
             ),
-            "PROXY_URL": ("http://192.168.31.108:7890", "PROXY_URL"),
+            "PROXY_URL": ("", "PROXY_URL"),
         },
     )
     DATA_DIR = _cfg["DATA_DIR"]

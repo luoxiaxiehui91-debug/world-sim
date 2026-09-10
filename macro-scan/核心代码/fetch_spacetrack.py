@@ -32,7 +32,7 @@ _cfg = FetcherBase.load_config_with_fallback(
     ["DATA_DIR", "PROXY_URL"],
     {
         "DATA_DIR":  FetcherBase.default_data_dir(),
-        "PROXY_URL": ("http://192.168.31.108:7890", "PROXY_URL"),
+        "PROXY_URL": ("", "PROXY_URL"),
     },
 )
 DATA_DIR        = _cfg["DATA_DIR"]

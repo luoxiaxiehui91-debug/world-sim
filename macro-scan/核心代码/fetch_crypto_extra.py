@@ -35,7 +35,7 @@ except ImportError:
         ["DATA_DIR", "PROXY_URL", "BINANCE_API_BASE", "KRAKEN_API_BASE"],
         {
             "DATA_DIR": FetcherBase.default_data_dir(),
-            "PROXY_URL": ("http://192.168.31.108:7890", "PROXY_URL"),
+            "PROXY_URL": ("", "PROXY_URL"),
             "BINANCE_API_BASE": ("https://api.binance.com", "BINANCE_API_BASE"),
             "KRAKEN_API_BASE": ("https://api.kraken.com", "KRAKEN_API_BASE"),
         },

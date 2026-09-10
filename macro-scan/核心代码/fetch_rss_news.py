@@ -14,8 +14,8 @@ import feedparser
 
 logger = logging.getLogger(__name__)
 
-RSSHUB_BASE = os.environ.get("RSSHUB_URL", "http://192.168.31.108:12000")
-NAS_PROXY_URL = os.environ.get("NAS_PROXY_URL", "http://192.168.31.108:7890")
+RSSHUB_BASE = os.environ.get("RSSHUB_URL", "")
+NAS_PROXY_URL = os.environ.get("NAS_PROXY_URL", "")
 
 # (路径, 来源名, country_tag, 保留天数)
 # 路径以 http:// 或 https:// 开头 = 外部直连 URL（不走 RSSHub），其余走 RSSHUB_BASE

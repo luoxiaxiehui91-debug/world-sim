@@ -59,7 +59,7 @@ log = logging.getLogger("fetch_gdelt_geo")
 SCHEMA_VERSION: str = "news-geo-1.0"
 
 GDELT_BASE_URL: str = "http://data.gdeltproject.org"
-GDELT_PROXY_URL: str = os.environ.get("GDELT_PROXY", "http://192.168.31.108:7890")
+GDELT_PROXY_URL: str = os.environ.get("GDELT_PROXY", "")
 PROXIES: Dict[str, str] = {
     "http": GDELT_PROXY_URL,
     "https": GDELT_PROXY_URL,
@@ -111,7 +111,7 @@ def _fetch_gdelt_export(url: str, proxy_url: str, timeout: int = 30) -> Optional
 
     Args:
         url: GDELT v2 export zip 完整 URL（如 http://data.gdeltproject.org/...zip）
-        proxy_url: 代理 URL（如 http://192.168.31.108:7890）
+        proxy_url: 代理 URL（如 http://<代理主机>:7890）
         timeout: 请求超时（秒）
 
     Returns:

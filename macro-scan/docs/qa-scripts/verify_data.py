@@ -4,7 +4,7 @@
 verify_data.py — 开阳 M-1 news_geo 事件图层 · 数据层验收脚本
 
 对应验收文档：arg-map-qa-2026-08-11.md（§1 AC-M1-01~12 / §5 AC-R-01~04 / §6 门禁 G-M1~M5）
-输入：/vol2/1000/software/macro-scan/data/news_geo.json（可 --data-dir 覆盖）
+输入：/app/data/news_geo.json（可 --data-dir 覆盖）
 
 用法（NAS 侧，ssh nas 后直接跑；或 ssh nas 'python3 docs/qa-scripts/verify_data.py ...'）：
     python3 verify_data.py                  # 默认模式：AC-M1-01~12 + AC-R-04 + G-M4（event_type 域校验）
@@ -13,7 +13,7 @@ verify_data.py — 开阳 M-1 news_geo 事件图层 · 数据层验收脚本
     python3 verify_data.py --gate           # 门禁模式：G-M1/G-M2/G-M4/G-M5 汇总判定（配合 --snapshot 累积）
     python3 verify_data.py --bench-jsonl    # 基准：测 news_geo.jsonl 全扫耗时（AC-R-01 参考，判定 <=60s）
     python3 verify_data.py --baseline       # 基线重采：打印并落盘 qa-baseline-<date>.json（部署后先跑）
-    python3 verify_data.py --data-dir DIR   # 覆盖 data 目录（默认 /vol2/1000/software/macro-scan/data）
+    python3 verify_data.py --data-dir DIR   # 覆盖 data 目录（默认 /app/data）
     python3 verify_data.py --window-hours N # 时间窗小时数（默认 168=7d；arch 定稿 24h 窗时传 24）
     python3 verify_data.py --max-age-hours N# updated 新鲜度阈值（默认 36h 覆盖日频；I15 调度传 1）
 
@@ -33,7 +33,7 @@ import datetime
 import statistics
 
 # ── 常量 ────────────────────────────────────────────────────────────────
-DEFAULT_DATA_DIR = "/vol2/1000/software/macro-scan/data"
+DEFAULT_DATA_DIR = os.environ.get("DATA_DIR", "/workspace/data")
 REQUIRED_FIELDS = {"id", "lat", "lng", "event_type", "intensity", "country"}
 EVENT_TYPE_DOMAIN = {"conflict", "protest", "disaster", "political", "unknown"}
 FOUR_ENUM = {"conflict", "protest", "disaster", "political"}

@@ -8,14 +8,14 @@
 #   --logs       查看最近 50 行 scheduler 日志
 #   无参数        等同于 --sync（全量同步）
 #
-# 注意：2026-07-29 修复——原 NAS_SRC 指向不存在的 /vol2/1000/software/macro-scan-src，
+# 注意：2026-07-29 修复——原 NAS_SRC 指向已不存在的旧运行区路径，
 # 改为指向 Git repo 的 macro-scan 子目录。SMB 挂载不可靠，所有操作通过 NAS 本地 rsync。
 
 set -e
 
-NAS_HOST="TSX@192.168.31.108"
-NAS_SRC="/vol2/1000/software/world-sim/macro-scan"  # 2026-07-29 修复：源从 Git repo 取
-NAS_DIR="/vol2/1000/software/macro-scan"
+NAS_HOST="${NAS_HOST:?错误：请先设置 NAS_HOST 环境变量，格式 user@host}"
+NAS_SRC="${NAS_REPO_DIR:-/opt/world-sim/macro-scan}"  # 2026-07-29 修复：源从 Git repo 取
+NAS_DIR="${NAS_RUNTIME_DIR:-/opt/macro-scan}"
 CONTAINER="macro-scan-macro-scan-1"
 
 # 读取 VERSION

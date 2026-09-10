@@ -25,7 +25,7 @@
 
 用法：
     python generate_gci_anchors.py \
-        --data-dir C:/Users/I327394/Desktop/S/world-sim/macro-scan/data
+        --data-dir /path/to/macro-scan/data
 """
 
 import argparse

@@ -5,7 +5,7 @@
 
 set -e
 
-NAS="TSX@192.168.31.108"
+NAS="${NAS_HOST:?错误：请先设置 NAS_HOST 环境变量，格式 user@host}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 deploy_scan() {
@@ -24,14 +24,14 @@ deploy_scan() {
     --exclude='docs/macro_dashboard.html' \
     --exclude='__pycache__/' \
     --exclude='*.pyc' \
-    "${SCRIPT_DIR}/macro-scan/" "${NAS}:/vol2/1000/software/macro-scan/"
-  ssh "${NAS}" "cd /vol2/1000/software/macro-scan && docker compose restart"
+    "${SCRIPT_DIR}/macro-scan/" "${NAS}:${NAS_DIR:-/opt/macro-scan}/"
+  ssh "${NAS}" "cd ${NAS_DIR:-/opt/macro-scan} && docker compose restart"
   echo "==> macro-scan 部署完成"
 }
 
 deploy_sim() {
   echo "==> 部署 macro-sim（方案 A：仓库直构，2026-08-06 天璇双通道收敛）..."
-  ssh "${NAS}" "cd /vol2/1000/software/world-sim/macro-sim && docker build -t macro-sim:latest . && docker compose up -d --force-recreate"
+  ssh "${NAS}" "cd ${NAS_REPO_DIR:-/opt/world-sim}/macro-sim && docker build -t macro-sim:latest . && docker compose up -d --force-recreate"
   echo "==> macro-sim 部署完成"
 }
 

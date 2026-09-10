@@ -24,8 +24,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path("/vol2/1000/software/world-sim")
-RUNTIME = Path("/vol2/1000/software/macro-scan")
+REPO = Path(os.environ.get("REPO_DIR", Path(__file__).resolve().parent.parent))
+RUNTIME = Path(os.environ.get("RUNTIME_DIR", REPO.parent / "macro-scan"))
 TRUTH_PATH = RUNTIME / "data" / "llm_config.json"
 TEMPLATE_PATH = RUNTIME / "config" / "llm_config.default.json"
 REPO_TEMPLATE = REPO / "macro-scan" / "config" / "llm_config.default.json"

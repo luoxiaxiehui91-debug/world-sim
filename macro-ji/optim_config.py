@@ -2,7 +2,7 @@
 optim_config.py — 天玑容器精简路径模块（macro-ji）
 
 只声明天玑内核三件需要的最小常量：DATA_DIR/WORKSPACE/FRED_API_KEY。
-DATA_DIR 显式指向挂载卷 /app/macro_data（宿主机 /vol2/1000/software/macro-scan/data），
+DATA_DIR 显式指向挂载卷 /app/macro_data（宿主机上的天枢数据目录），
 绝不用 __file__ 推导（防落非持久卷，P0-D 同族红线）。
 """
 import os

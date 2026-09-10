@@ -34,7 +34,7 @@ except ImportError:
         ["DATA_DIR", "PROXY_URL", "HDX_API_BASE", "HDX_QUERY"],
         {
             "DATA_DIR": FetcherBase.default_data_dir(),
-            "PROXY_URL": ("http://192.168.31.108:7890", "PROXY_URL"),
+            "PROXY_URL": ("", "PROXY_URL"),
             "HDX_API_BASE": ("https://data.humdata.org/api/3/action", "HDX_API_BASE"),
             "HDX_QUERY": ("humanitarian OR conflict OR crisis", "HDX_QUERY"),
         },

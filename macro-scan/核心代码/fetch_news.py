@@ -40,7 +40,7 @@ try:
     )
 except Exception:
     DATA_DIR = os.environ.get("DATA_DIR", "/workspace/data")
-    PROXY_URL = os.environ.get("PROXY_URL", "http://192.168.31.108:7890")
+    PROXY_URL = os.environ.get("PROXY_URL", "")
     MARKETAUX_API_KEY = os.environ.get("MARKETAUX_API_KEY", "")
     MARKETAUX_API_URL = os.environ.get(
         "MARKETAUX_API_URL", "https://api.marketaux.com/v1/news/all"
