@@ -44,10 +44,10 @@ M1 已采纳：**独立容器、独立 compose，不挂 macro-sim 下**。天玑
 | 数据 | 宿主路径 | 容器路径 | 说明 |
 |------|---------|---------|------|
 | 验证库（PG） | `worldsim-pg:5432` db=`worldsim` schema=`tianji` | psycopg 直连（search_path=tianji,public） | 08-15 D2 起全走 PG；SQLite `forecast_tracker.db` 已于 P6（08-16）删除 |
-| 触发文件 | `/vol2/1000/software/macro-scan/data/tianji_trigger.json` | `/app/macro_data/tianji_trigger.json` | 天枢写、天玑消费 |
-| config 卷 | `/vol2/1000/software/macro-scan/config/` | `/app/config/` | `grv_weights.yaml`（玉衡读+写回）/ `prior.yaml`（缺失，见已知缺口） |
-| FRED 历史 | `/vol2/1000/software/macro-scan/data/fred_history/` | `/app/macro_data/fred_history/` | 定量验证取数（`_fetch_fred_value`） |
-| GRV 历史 | `/vol2/1000/software/macro-scan/data/grv_history.jsonl` | `/app/macro_data/grv_history.jsonl` | 定量验证取数（`_fetch_grv_value`） |
+| 触发文件 | `<部署目录>/macro-scan/data/tianji_trigger.json` | `/app/macro_data/tianji_trigger.json` | 天枢写、天玑消费 |
+| config 卷 | `<部署目录>/macro-scan/config/` | `/app/config/` | `grv_weights.yaml`（玉衡读+写回）/ `prior.yaml`（缺失，见已知缺口） |
+| FRED 历史 | `<部署目录>/macro-scan/data/fred_history/` | `/app/macro_data/fred_history/` | 定量验证取数（`_fetch_fred_value`） |
+| GRV 历史 | `<部署目录>/macro-scan/data/grv_history.jsonl` | `/app/macro_data/grv_history.jsonl` | 定量验证取数（`_fetch_grv_value`） |
 
 > 玉衡写回（`apply_weight_adjustment` → `grv_weights.yaml`）依赖 config 卷 **rw** 挂载。
 

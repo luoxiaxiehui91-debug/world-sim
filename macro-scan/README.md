@@ -1,13 +1,13 @@
 # 世界推演系统 — NAS 部署说明
 
 > **AI 工作入口**：见 [`AGENTS.md`](AGENTS.md)（含操作约束、联动矩阵、阅读路径）。  
-> **Monorepo 根目录**：`S:\world-sim\`，统一部署脚本见根目录 `deploy.sh`。
+> **Monorepo 根目录**：`<仓库根>\`，统一部署脚本见根目录 `deploy.sh`。
 
 ## 目录结构
 
 ```
-/vol2/1000/software/macro-scan/   （NAS 内部路径）
-S:\world-sim\macro-scan\           （本机源码路径，SMB 挂载 software 共享为 S:）
+<部署目录>/macro-scan/   （NAS 内部路径）
+<仓库根>\macro-scan\           （本机源码路径，SMB 挂载 software 共享为 S:）
 ├── 核心代码/        ← Python 脚本（Docker 容器 /app，热挂载）
 │   ├── run_macro_analysis.py       主入口（8步分析+假设推演分支）
 │   ├── hypothesis_engine.py        假设推演引擎（M0+P0+M1+M2）
@@ -51,9 +51,9 @@ S:\world-sim\macro-scan\           （本机源码路径，SMB 挂载 software �
 ## NAS Docker 启动
 
 ```bash
-ssh TSX@192.168.31.108   # 密码见 KEY/fnOS-key.txt
+ssh TSX@<主机地址>   # 密码见 <你的密钥文件>
 
-cd /vol2/1000/software/macro-scan
+cd <部署目录>/macro-scan
 docker compose up -d
 ```
 
@@ -97,7 +97,7 @@ docker exec macro-scan-macro-scan-1 tail -50 /var/log/macro-scan/us_daily.log
 ## 假设推演快速上手
 
 ```bash
-ssh TSX@192.168.31.108
+ssh TSX@<主机地址>
 
 docker exec macro-scan-macro-scan-1 python3 /app/run_macro_analysis.py \
   --hypothesis "台海军事冲突升级" --hypothesis-severity L2
@@ -108,13 +108,13 @@ docker exec macro-scan-macro-scan-1 python3 /app/run_macro_analysis.py \
 ## SSH 连接说明
 
 ```bash
-ssh -i ~/.ssh/id_ed25519 TSX@192.168.31.108
-# 密码备用：见 S:\KEY\fnOS-key.txt
+ssh -i ~/.ssh/id_ed25519 TSX@<主机地址>
+# 密码备用：见 <你的密钥文件>
 ```
 
 ## 注意事项
 
-- 代码热挂载：直接编辑 `S:\world-sim\macro-scan\核心代码\` 下的 .py 文件，容器内即时生效，无需重建镜像
+- 代码热挂载：直接编辑 `<仓库根>\macro-scan\核心代码\` 下的 .py 文件，容器内即时生效，无需重建镜像
 - GPR下载较慢：matteoiacoviello.com 官网服务器响应慢，timeout=300s，属正常现象
 - GRV更新依赖：须先有 GPR CSV（05:40）和 GDELT 扫描（06:00），才能在 06:10 生成 GRV
 - entrypoint.sh：必须无 UTF-8 BOM，改动后需 `docker build` 重建镜像

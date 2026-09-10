@@ -4,7 +4,7 @@
 
 - **展示 + 控制双职能**：① 展示侧只读契约文件；② 控制侧经受控指令通道下发操作，开阳自身不执行业务逻辑。
 - **永不自行获取**：开阳**永不**直接调用数据源 / 爬虫 / 外部 API，唯一数据来源是只读契约文件（部署经 `DATA_BASE_URL` 只读挂载）。
-- **独立子项目**：位于 `S:\world-sim\kaiyang`，与 `macro-scan` / `macro-sim` 平级，纳入 world-sim monorepo。代码层与天枢 / 天璇 / 天玑 / crucix **完全隔离**（用户硬性铁律）。
+- **独立子项目**：位于 `<仓库根>\kaiyang`，与 `macro-scan` / `macro-sim` 平级，纳入 world-sim monorepo。代码层与天枢 / 天璇 / 天玑 / crucix **完全隔离**（用户硬性铁律）。
 
 > 设计总纲见 [`docs/DESIGN.md`](./docs/DESIGN.md)；数据契约权威标准见 [`docs/DATA_CONTRACT.md`](./docs/DATA_CONTRACT.md)；AI 协作者入口见 [`AGENTS.md`](./AGENTS.md)；变更记录见 [`CHANGELOG.md`](./CHANGELOG.md)；任务路线图见 [`ROADMAP.md`](./ROADMAP.md)。
 
@@ -55,4 +55,4 @@ Wave1 ✅ | Wave2 P0 ✅（控制面 + crucix 分类图层+核设施 139/139）
 - **3D 地球**正常工作，**2D 地图为 D3 geoNaturalEarth1 + SVG 重写**（1.8.0，Leaflet 方案已废弃；根治第三方瓦片覆盖不全问题）
 - **news_geo GDELT geo feed 已上线**（1.9.0），免改代码自动上图
 - **market_quotes 行情面板已上线**（1.9.0），前端 60s 轮询实时刷新
-- **控制面连真实 API**（`MOCK_ENABLED=false`，HTTP REST :8900，默认地址 192.168.31.108）
+- **控制面连真实 API**（`MOCK_ENABLED=false`，HTTP REST :8900，默认地址 <主机地址>）

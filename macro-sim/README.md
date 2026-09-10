@@ -112,7 +112,7 @@ macro-scan 检测到 GRV 告警时，自动写 `data/sim_trigger.json`，macro-s
 
 ```bash
 echo '{"level":3,"event":"手动触发"}' > \
-  /vol2/1000/software/macro-scan/data/sim_trigger.json
+  <部署目录>/macro-scan/data/sim_trigger.json
 ```
 
 ---
@@ -121,14 +121,14 @@ echo '{"level":3,"event":"手动触发"}' > \
 
 ```bash
 # 首次部署
-touch /vol2/1000/software/macro-sim/sim_log.db
-mkdir -p /vol2/1000/software/macro-scan/docs/仿真报告
-touch /vol2/1000/software/macro-scan/data/sim_trigger.json
+touch <部署目录>/macro-sim/sim_log.db
+mkdir -p <部署目录>/macro-scan/docs/仿真报告
+touch <部署目录>/macro-scan/data/sim_trigger.json
 
 # 同步代码 + rebuild
 rsync -av --exclude='.git' --exclude='output/' --exclude='sim_log.db' \
-  macro-sim-src/ /vol2/1000/software/macro-sim/
-cd /vol2/1000/software/macro-sim
+  macro-sim-src/ <部署目录>/macro-sim/
+cd <部署目录>/macro-sim
 docker build -t macro-sim:latest .
 docker compose up -d
 ```
