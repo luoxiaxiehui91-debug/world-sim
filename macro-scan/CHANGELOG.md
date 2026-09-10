@@ -1,3 +1,29 @@
+## [3.8.45] - 2026-09-11
+
+### Added（可运行性，开源实施计划 阶段 4，CHG-20260911T004121-world-deduction）
+
+- **新增 `scripts/init_db.sh`**：数据库初始化统一入口。一条命令完成：创建 Docker 网络 → 启动 `pgvector/pgvector:pg16` → 建库与角色 → 按序执行 4 个建表 SQL（覆盖 `public` / `news` / `forecast` / `tianji` / `rag` 五个 schema）→ 校验。幂等，不覆盖已有密钥文件；应用密码唯一来源为 `macro-scan/.env`。
+
+### Changed
+
+- **根 `README.md` 重写为开源版**：项目简介 / 能力表 / 组件表 / 架构图（mermaid）/ **8 步 Quick Start** / 配置参考 / 知识库说明 / 文档导航 / 免责声明。移除全部私有环境信息（内网 IP、NAS 绝对路径、Windows 路径、`private` 标注，实测命中 0）；版本号不再硬编码。
+- **3 个 Dockerfile 参数化**：新增 `ARG BASE_IMAGE`（默认 `docker.1ms.run/library/python:3.11-slim`）与 `ARG PIP_INDEX_URL`（默认国内加速源），**默认值不变**；海外使用者可用 `--build-arg` 切回官方源。
+- **补 3 份 `.env.example` 缺失的 compose 插值变量**：`macro-scan` 加 `KAIYANG_DIR`，`macro-ji` / `macro-sim` 加 `MACRO_SCAN_DIR`（阶段 2 参数化 compose 时遗漏说明，会导致从零 clone 启动失败）。
+- 子项目 `README.md` ×4 与 `docs/overview.md` 的私有环境信息通用化（26 处 → `<主机地址>` / `<部署目录>` / `<仓库根>` / `<你的密钥文件>`）。
+
+### 验收（实测）
+
+- 根 README 私有信息命中 **0**；引用的 8 个文件全部存在；mermaid 块闭合
+- `init_db.sh` `bash -n` 通过，行尾 LF
+- Dockerfile 复验：3 个文件的 `ARG` 声明与变量引用齐全，未参数化的 pip 行 **0**；实测 `docker build macro-ji/` 成功
+- 全仓库代码/配置（`*.py` / `*.sh` / `*.yml` / `*.ts` / `*.tsx`）内网信息命中 **0**（保持阶段 2 成果）
+
+### 已知限制
+
+- `docs/` 与子项目的历史文档（CHANGELOG / 审查 / 决策记录，共 70 个文件）仍含内网事实，属审计链原貌，未改动。
+- 天玑容器内的 `verify_hypothesis.py` 为 `docker cp` 注入，未持久化进镜像（默认路径不变，功能正常）。
+- 本版本 Quick Start 尚未经「从零 clone」实测（属阶段 5），可能存在与实际不符的步骤。
+
 ## [3.8.44] - 2026-09-10
 
 ### Changed（知识库外置，开源实施计划 阶段 3，CHG-20260910T234442-world-deduction）
