@@ -1,4 +1,11 @@
-FROM docker.1ms.run/library/python:3.11-slim
+# 基础镜像与 pip 源可用 build-arg 覆盖（默认保留国内加速源）。
+# 海外网络或自建镜像代理请改回官方源，例如：
+#   docker build \
+#     --build-arg BASE_IMAGE=python:3.11-slim \
+#     --build-arg PIP_INDEX_URL=https://pypi.org/simple/ \
+#     -t <image> <context>
+ARG BASE_IMAGE=docker.1ms.run/library/python:3.11-slim
+FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
@@ -10,7 +17,8 @@ ENV TZ=Asia/Shanghai
 
 # 安装依赖（用国内 pip 镜像）
 COPY requirements.txt .
-RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} -r requirements.txt
 
 # 复制源码
 COPY run.py ./
