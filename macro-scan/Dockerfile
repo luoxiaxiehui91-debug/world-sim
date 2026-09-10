@@ -24,8 +24,11 @@ WORKDIR /app
 COPY requirements.txt .
 # wheels/ 目录预下载了 feedparser + sgmllib3k，避免构建时访问外网
 COPY wheels/ /tmp/wheels/
-ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple/
-ARG PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
+# 注：默认 pip 源原为 tuna，实测在当前网络环境下其索引不可达
+#     （报 "No matching distribution found"，连 requests 都查不到），
+#     改用 aliyun —— 与 macro-ji / macro-sim 保持一致，实测可用。
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ARG PIP_TRUSTED_HOST=mirrors.aliyun.com
 RUN pip install --no-cache-dir \
     -i ${PIP_INDEX_URL} \
     --trusted-host ${PIP_TRUSTED_HOST} \

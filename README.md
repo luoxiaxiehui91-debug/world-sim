@@ -97,7 +97,9 @@ cp macro-ji/.env.example macro-ji/.env
 cp macro-sim/.env.example macro-sim/.env
 ```
 
-编辑 `macro-scan/.env`，至少填写下列 8 项；其余为可选数据源，留空即跳过：
+三个 `.env` 都要填，各自的必需项如下（其余为可选数据源，留空即跳过）：
+
+**`macro-scan/.env`（天枢）**
 
 | 变量 | 用途 | 获取方式 |
 |---|---|---|
@@ -105,20 +107,34 @@ cp macro-sim/.env.example macro-sim/.env
 | `FRED_API_KEY` | 宏观主数据源 | [FRED 申请](https://fred.stlouisfed.org/docs/api/api_key.html)（免费） |
 | `SILICONFLOW_API_KEY` | LLM 与向量嵌入 | [硅基流动控制台](https://cloud.siliconflow.cn) |
 | `CONTROL_TOKEN` | 控制台鉴权 | 自定义随机串 |
-| `NTFY_TOPIC` | 告警推送频道 | 自定义；不使用 ntfy 时留空 |
-| `NTFY_CMD_TOPIC` | 命令下发频道 | 同上（须与上者不同） |
-| `NTFY_CMD_SECRET` | 指令校验词 | 自定义 |
-| `NTFY_URL` | ntfy 服务地址 | 默认 `https://ntfy.sh` |
+| `NTFY_TOPIC` / `NTFY_CMD_TOPIC` / `NTFY_CMD_SECRET` / `NTFY_URL` | ntfy 推送与指令下发（不使用可留空） | 自定义 / 默认 `https://ntfy.sh` |
+
+**`macro-ji/.env`（天玑）**
+
+| 变量 | 用途 |
+|---|---|
+| `WORLDSIM_APP_PW` | 同 macro-scan（同一个数据库账号） |
+| `FRED_API_KEY` | 定量验证取数 |
+| `SILICONFLOW_API_KEY` | LLM 裁判（`llm_judge.py`） |
+| `NTFY_URL` | 告警推送（整串 URL，非主题名） |
+
+**`macro-sim/.env`（天璇）**
+
+| 变量 | 用途 |
+|---|---|
+| `WORLDSIM_APP_PW` | 同上 |
+| `SILICONFLOW_API_KEY` | 叙事生成与 Agent 推演 |
+| `NTFY_URL` | 告警推送 |
 
 **跨项目挂载变量**（compose 插值用，必须是绝对路径）：
 
-```bash
-# 在 macro-ji/.env 与 macro-sim/.env 中
-MACRO_SCAN_DIR=/绝对路径/world-sim/macro-scan
+| 文件 | 变量 | 值 |
+|---|---|---|
+| `macro-ji/.env`、`macro-sim/.env` | `MACRO_SCAN_DIR` | `<绝对路径>/world-sim/macro-scan` |
+| `macro-scan/.env` | `KAIYANG_DIR` | `<绝对路径>/world-sim/kaiyang` |
+| `macro-scan/.env` | `KAIYANG_ORIGIN` | `http://localhost:8080`（控制 API 的 CORS 白名单来源） |
 
-# 在 macro-scan/.env 中
-KAIYANG_DIR=/绝对路径/world-sim/kaiyang
-```
+> `docker compose config` 若报 `variable is not set` 警告，说明上表中有变量未填。
 
 ### 4. 初始化数据库
 
@@ -135,6 +151,8 @@ cd kaiyang && npm ci && npm run build && cd ..
 ```
 
 `dist/` 不被 git 跟踪，需自行构建。
+
+> 若提示 `node: command not found`，说明 Node 未在 `PATH` 中（用 `node -v` 自检）。
 
 ### 6. 构建镜像
 
