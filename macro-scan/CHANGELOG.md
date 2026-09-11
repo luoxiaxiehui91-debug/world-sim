@@ -1,3 +1,26 @@
+## [3.8.48] - 2026-09-11
+
+### Fixed（静默探针预测链判据修正，CHG-20260911T111143-world-deduction）
+
+- `silent_failure_probe.check_predictions_chain` 判定维度由「绝对行数增量」改为「**行数增长 或 `MAX(created_at)` 前进**」任一成立即刷新基线。原判据 `cnt > last_cnt` 在行数因迁移/清理/去重**回退**后恒为假（实测基线 state 停在 2797 行、`tianji.predictions` 实际仅 442 行）→ `changed_at` 永久冻结 → ntfy 每 2h 推 p4「预测链 20/21 天无新增（442 行）」误报，并将于约 09-20 越过 30 天阈值升级 CRIT。
+- 状态文件 `.probe_pred_count.json` 增记 `max_created` 字段；旧 state 无该字段时按**首次基线初始化**处理 —— 本次上线即自愈式重置基线，无需手工改 state 文件。
+- 预测链本体健康（天璇 09-08 落 9 条、天玑 09-11 09:30 `verify_geo_auto` rc=0、近 30 天 11 天有写入），告警为误报。**监控能力未削弱**：行数与 `created_at` 均长期不变时 `days` 仍正常累加并在 14/30 天告警。
+
+### 验收
+
+- 容器内连跑两次 `check_predictions_chain()`：首次 `OK 预测链: 基线初始化 predictions 442 行，created_at 2026-09-08T22:12:08.590419+00:00`；第二次 `OK 预测链: 442 行，0 天无新增（正常窗口）`
+- 状态文件由 `{"count": 2797, "changed_at": 1787313615}` → `{"count": 442, "changed_at": 1789096540, "max_created": "2026-09-08T22:12:08.590419+00:00"}`
+- 改动文件 `py_compile` 通过；探针只读 PG（`SELECT COUNT(*), MAX(created_at)`），不碰采集/分析/写入逻辑
+- 已 rsync 进运行区并 md5 复核；探针由 scheduler 每 2h 新起进程，无需 restart 容器
+
+### 附带闭环
+
+- 补同步 v3.8.47 未进运行区的 `核心代码/fetch_bdi.py`、`核心代码/fetch_spacetrack.py`、`VERSION`、`CHANGELOG.md`（md5 已与 git 真源一致）
+
+### 已知限制
+
+- C 项（state 写入 `except Exception: pass` 静默兜底违反「任何兜底必须留痕」）**未做**，待用户评估是否一并处理
+
 ## [3.8.47] - 2026-09-11
 
 ### Changed（开源收尾，全量检查发现项清理，CHG-20260911T104000-world-deduction）
