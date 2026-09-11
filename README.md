@@ -235,12 +235,16 @@ world-sim/
 | [macro-scan/README.md](macro-scan/README.md) | 天枢子系统说明 |
 | [AGENTS.md](AGENTS.md) | AI 协作入口（系统定位 / 操作约束） |
 | [macro-scan/CHANGELOG.md](macro-scan/CHANGELOG.md) | 版本变更记录 |
+| [CHANGELOG.md](CHANGELOG.md) | **仓库级变更记录**（子系统变更见各自 CHANGELOG） |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南（环境 / 部署模型差异 / 测试 / 提交约定） |
+| [SECURITY.md](SECURITY.md) | 安全策略（私有报告渠道 / 部署者须知） |
 
 ## 开发
 
 - `macro-scan` 的代码通过 volume 挂载（改完即生效）；`macro-ji` / `macro-sim` 为 COPY 模式，改码需重建镜像
 - 提交前确认 `git status` 干净、`.env` 未被纳入版本控制（`.gitignore` 已覆盖）
 - 涉及部署的改动建议在独立分支验证后再合并
+- 参与开发前请先读 [CONTRIBUTING.md](CONTRIBUTING.md)；**安全问题请走 [SECURITY.md](SECURITY.md) 的私有渠道，不要开公开 issue**
 
 ## 许可证
 
