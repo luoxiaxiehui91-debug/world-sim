@@ -466,8 +466,10 @@ def check_predictions_chain() -> list:
         return out
     try:
         with p.cursor() as c:
-            c.execute("SELECT COUNT(*) FROM tianji.predictions")
-            cnt = c.fetchone()[0]
+            c.execute("SELECT COUNT(*), MAX(created_at) FROM tianji.predictions")
+            row = c.fetchone()
+            cnt = int(row[0] or 0)
+            max_created = row[1]
     except Exception as e:
         out.append((WARN, f"预测链: tianji.predictions 读取失败 {e}"))
         return out
@@ -485,8 +487,24 @@ def check_predictions_chain() -> list:
     now = _dt.now(_tz.utc).timestamp()
     last_cnt = int(state.get("count", 0))
     last_chg = float(state.get("changed_at", now))
-    if cnt > last_cnt:
-        state = {"count": cnt, "changed_at": now, "last_growth": cnt - last_cnt}
+    # 2026-09-11 修正（question 20260911-probe-pred-chain-baseline-stuck）：
+    # 仅用「行数增量」判定，在行数因迁移/清理/去重而回退时会永久冻结基线
+    # （实测基线 2797 -> 实际 442，cnt > last_cnt 恒假 -> changed_at 永不刷新 -> 告警永不复位）。
+    # 改为：行数增长 或 MAX(created_at) 前进，任一成立即视为有新增。
+    # created_at 单调不减，不受删除/去重导致的行数波动影响。
+    last_max = state.get("max_created")  # 旧 state 无此字段 -> None，按首次基线初始化处理
+    if hasattr(max_created, "isoformat"):
+        max_created_s = max_created.isoformat()
+    else:
+        max_created_s = str(max_created) if max_created is not None else None
+    grew = (cnt > last_cnt) or (max_created_s is not None and max_created_s != last_max)
+    if grew:
+        state = {
+            "count": cnt,
+            "changed_at": now,
+            "last_growth": max(cnt - last_cnt, 0),
+            "max_created": max_created_s,
+        }
         try:
             _tmp_400 = PRED_COUNT_STATE + ".tmp"
             with open(_tmp_400, "w", encoding="utf-8") as f:
@@ -494,7 +512,12 @@ def check_predictions_chain() -> list:
             os.replace(_tmp_400, PRED_COUNT_STATE)
         except Exception:
             pass
-        out.append((OK, f"预测链: predictions {cnt} 行（较上次新增 {cnt - last_cnt}）"))
+        if last_max is None:
+            out.append((OK, f"预测链: 基线初始化 predictions {cnt} 行，created_at {max_created_s}"))
+        elif max_created_s is not None and max_created_s != last_max:
+            out.append((OK, f"预测链: predictions {cnt} 行，最新 created_at {max_created_s}（有新增）"))
+        else:
+            out.append((OK, f"预测链: predictions {cnt} 行（较上次新增 {cnt - last_cnt}）"))
     else:
         days = (now - last_chg) / 86400.0
         if days >= PRED_CHAIN_CRIT_DAYS:
