@@ -1,3 +1,22 @@
+## [3.8.50] - 2026-09-12
+
+### Fixed（entrypoint.sh 补可执行位，从零 clone `up -d` 必失败，CHG-20260912T004907-world-deduction）
+
+- `macro-scan/entrypoint.sh` 的 **git 索引模式位** 由 `100644` 改为 `100755`。**文件内容一字未改**（md5 `0507e1fc87b66d6a28c546ee404562a4`）。
+- 根因链：`docker-compose.yml` L15 使用**单文件 bind mount** `./entrypoint.sh:/entrypoint.sh` —— 宿主机权限位会**覆盖**镜像内 Dockerfile L44 的 `RUN chmod +x`；而仓库里该文件的模式位是 `100644` → 干净 clone 后 `docker compose up -d` 必报 `exec: "/entrypoint.sh": permission denied`。
+- **能潜伏至今的机制**：仓库 `core.fileMode = false`（local 配置），git **不跟踪**工作区模式位变化 —— 真源工作区文件实际是 `755`（本地 chmod 过），但 `git status` 永远干净，改动进不了仓库。这解释了「生产正常、从零 clone 必挂」的分裂现象。
+- **已证伪的原假设**：曾推测「`deploy.sh` 的 `rsync -a`（`-a` 含 `-p`）会把真源 644 同步到运行区、覆写运行区 755，致生产下次重启起不来」。实测真源工作区本就是 **755**，`rsync -a` 落盘亦为 755 → **生产侧无此隐患**。该假设作废，留档以免后人重复排查。
+- 波及面：全仓另有 69 个「`100644` + shebang」文件，但绝大多数在容器内以 `python3 xxx.py` 调用、不需要 `+x`。按红线「不确定该不该改的，改了比不改更坏」，**本次只改有实测证据的这一个**，其余列入 backlog 待核实。
+
+### 验收
+
+- 仓库层：`git archive HEAD~1` 检出 `-rw-rw-r--`（644）／`git archive HEAD` 检出 `-rwxrwxr-x`（755）—— 前后对照成立
+- 干净 clone：`umask 022` 下 `git clone --depth 1` → `ls -l` = `-rwxr-xr-x`，`[ -x ]` = **EXEC_OK**，md5 未变
+- 容器 bind mount **双边复现**（生产镜像 `macro-scan:v8`，`--rm --entrypoint sh`，不启服务）：挂 755 副本 → `EXEC_OK`；挂强制 644 副本 → `EXEC_FAIL`，故障机制在容器内实证
+- 生产复核：改动前后 17 容器集合一致、8899/8080 均 200、运行区 `entrypoint.sh` 仍 755
+- `git diff --cached --stat` = `1 file changed, 0 insertions(+), 0 deletions(-)`（仅模式位）
+- 已 push：`d02dd38..be69b1c`
+
 ## [3.8.49] - 2026-09-11
 
 ### Fixed（静默探针预测链 state 写入失败留痕，CHG-20260911T140226-world-deduction）
