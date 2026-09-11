@@ -13,7 +13,7 @@ CSV 约定（首行表头，列名灵活自动识别）：
 
 典型获取方式（在 Windows 本机正常浏览器操作，绕开容器出网限制）：
   打开 https://stooq.com/q/d/l/?s=bmd&i=d → 浏览器自动过 PoW → 下载 bmd.csv
-  → 重命名为 bdi_history.csv → 放入 S:\\world-sim\\macro-scan\\data\\
+  → 重命名为 bdi_history.csv → 放入 <仓库根>/macro-scan/data/
 
 输出契约：data/bdi.json
   {

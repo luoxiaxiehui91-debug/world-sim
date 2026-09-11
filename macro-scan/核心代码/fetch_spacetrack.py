@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 fetch_spacetrack.py — Space-Track.org 卫星统计
-凭证：REDACTED_SPACETRACK_ID / 见 S:\KEY\Space-Track.txt
+凭证：REDACTED_SPACETRACK_ID / 见 <你的密钥文件>
 
 统计：
 - 活跃在轨卫星总数（DECAY=null）
@@ -37,7 +37,7 @@ _cfg = FetcherBase.load_config_with_fallback(
 )
 DATA_DIR        = _cfg["DATA_DIR"]
 PROXY_URL       = _cfg["PROXY_URL"]
-# 凭证从环境变量读（SPACETRACK_ID / SPACETRACK_PASS），见 S:\KEY\Space-Track KEY.txt
+# 凭证从环境变量读（SPACETRACK_ID / SPACETRACK_PASS），见 <你的密钥文件>
 SPACETRACK_ID   = os.environ.get("SPACETRACK_ID")
 SPACETRACK_PASS = os.environ.get("SPACETRACK_PASS")
 
