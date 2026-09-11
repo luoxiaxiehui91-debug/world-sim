@@ -45,7 +45,8 @@
 ├── entrypoint.sh                   ⚠️ 改动需重建镜像，文件必须无BOM
 ├── requirements.txt
 ├── system_prompt.md                AI分析框架（热挂载，直接编辑）
-├── TuiYan_CHANGELOG.md             变更日志（改前必读，改后必追加）
+├── CHANGELOG.md                    变更日志（v3.8.25 起；改前必读，改后必追加）
+├── TuiYan_CHANGELOG.md             历史归档（v3.8.24 及更早）
 ```
 
 ## NAS Docker 启动

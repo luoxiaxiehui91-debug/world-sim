@@ -111,7 +111,7 @@
 | 文件 | 路径 | 用途 |
 |:---|:---|:---|
 | VERSION | `VERSION` | 语义化版本号 |
-| CHANGELOG | `TuiYan_CHANGELOG.md` | 变更日志（Keep a Changelog） |
+| CHANGELOG | `CHANGELOG.md`（v3.8.25 起）／`TuiYan_CHANGELOG.md`（v3.8.24 及更早） | 变更日志（Keep a Changelog） |
 | 人类说明文档 | `世界推演系统_人类说明文档.md` | 使用维护手册 |
 | 系统 Prompt | `system_prompt.md` | LLM 分析框架 |
 | scheduler | `核心代码/scheduler.py` | Python 定时调度 |
@@ -141,8 +141,8 @@
 
 ## 关键约束（维护铁律）
 
-1. 修改前：读 `TuiYan_CHANGELOG.md`（了解最新变更）
-2. 修改后：追加 `TuiYan_CHANGELOG.md` → bump `VERSION`（PATCH） → 更新对应文档
+1. 修改前：读 `CHANGELOG.md`（了解最新变更）
+2. 修改后：追加 `CHANGELOG.md` → bump `VERSION`（PATCH） → 更新对应文档
 3. 每次里程碑：打 zip 存 `备份/`
 4. ntfy 推送**强制直连**，不走代理（OUTBOUND_PROXY 仅给 FRED）
 5. `entrypoint.sh` 变更需重建镜像，文件必须无 BOM

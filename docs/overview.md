@@ -78,7 +78,7 @@ FRED / GPR / GDELT / 新闻（RSSHub :12000；crucix 已于 2026-08-12 退场：
 | **当前状态 + 待部署** | `docs/archive/handover-history.md` | 每次维护必读，动态快照 |
 | **时间门控路线图** | `ROADMAP.md` | 下一步要做什么 |
 | **本文件** | `docs/overview.md` | 任何人，架构说明（稳定部分）|
-| 天枢变更日志 | `macro-scan/TuiYan_CHANGELOG.md` | 追查具体变更 |
+| 天枢变更日志 | `macro-scan/CHANGELOG.md`（v3.8.25 起）／`macro-scan/TuiYan_CHANGELOG.md`（v3.8.24 及更早） | 追查具体变更 |
 | 天璇变更日志 | `macro-sim/CHANGELOG.md` | 追查具体变更 |
 | AI 工作入口 | `AGENTS.md` | AI agent 用 |
 

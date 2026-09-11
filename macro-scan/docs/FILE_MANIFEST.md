@@ -10,7 +10,7 @@
 | 文件 | 职责 | 修改影响 |
 |:---|:---|:---|
 | `VERSION` | 语义化版本号 | 无运行影响，每次修改源码后 bump |
-| `TuiYan_CHANGELOG.md` | 变更日志（Keep a Changelog 格式） | 无运行影响，改前必读改后必追加 |
+| `CHANGELOG.md`（现行）／`TuiYan_CHANGELOG.md`（v3.8.24 及更早归档） | 变更日志（Keep a Changelog 格式） | 无运行影响，改前必读改后必追加 |
 | `README.md` | 项目简介、快速启动 | 无运行影响 |
 | `INDEX.md` | 系统状态索引（定时任务/数据管道/LLM链） | 无运行影响，只读 |
 | `AGENTS.md` | Agent 工作指南（维护规则、联动矩阵） | 无运行影响 |

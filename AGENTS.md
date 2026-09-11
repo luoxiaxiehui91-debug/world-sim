@@ -10,7 +10,7 @@
 
 | 子系统 | 定位 | 容器模式 | 版本（as-of 2026-08-18） | NAS 运行目录 |
 |:-------|:-----|:---------|:-----|:-------------|
-| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 维度向量（18 项，含 global_composite 汇总 + 4 GDELT 国别推导维度 + gpr_twn_raw，08-07 实测）；**地缘预测自动验证（verify_geo_auto L1/L2，08-18）+ GRV 分数常态基准校准（#134，08-18）** | **热挂载**（改代码即生效；scheduler.py 改动需 restart） | **v3.8.20** · [CHANGELOG](macro-scan/TuiYan_CHANGELOG.md) | `/vol2/1000/software/macro-scan` |
+| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 维度向量（18 项，含 global_composite 汇总 + 4 GDELT 国别推导维度 + gpr_twn_raw，08-07 实测）；**地缘预测自动验证（verify_geo_auto L1/L2，08-18）+ GRV 分数常态基准校准（#134，08-18）** | **热挂载**（改代码即生效；scheduler.py 改动需 restart） | **v3.8.49** · [CHANGELOG](macro-scan/CHANGELOG.md) | `/vol2/1000/software/macro-scan` |
 | `macro-sim`  | 仿真引擎层：**20个 Agent**（13 金融 A1-A13 + 7 主权 S1-S7，08-18 实测），Monte Carlo×100，月度时间步长；**soul 政权分片 + 内生更迭引擎（08-17）** | **COPY 模式**（改代码需 rebuild 镜像；deploy.sh 仓库直构） | **v2.0.41** · [CHANGELOG](macro-sim/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-sim` |
 | `macro-ji`   | 验证层（天玑）：读天枢 data 做推演验证/反哺（T2 共享触发文件驱动，2026-08-04 独立容器上线） | **COPY 模式**（macro-ji/ 目录 rebuild） | v1.0.0 · [CHANGELOG](macro-ji/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-ji` |
 | `kaiyang`    | 可视化操作面板：只读展示天枢数据 + 控制台（:8080，control API :8900）；**控制面三 tab 中天璇/天玑已上线只读+人工验证（v1.11.29+）** | nginx 静态站（MOCK_ENABLED=false，A3a 已接入，index.html no-cache） | **v1.11.34** · [CHANGELOG](kaiyang/CHANGELOG.md) | `/vol2/1000/software/kaiyang` |
@@ -48,7 +48,7 @@
 1. **本文件**（根 `AGENTS.md`）— 了解系统全貌和操作约束
 2. **`STATUS.md`**（repo 根）— 实时交接状态（部署拓扑/R4 主线/已知坑），08-10 起为实时交接权威（docs/archive/handover-history.md 为 08-07 历史快照）
 3. **`STATUS.md`「待做/已知遗留」节** — 实时扫描当前所有 P1/P2 活跃问题与遗留项（权威源；历史快照见 docs/archive/handover-history.md，前瞻路线图见 docs/roadmap.md）
-4. **`macro-scan/TuiYan_CHANGELOG.md` 前 80 行** — 了解 macro-scan 最新变更状态
+4. **`macro-scan/CHANGELOG.md` 前 80 行** — 了解 macro-scan 最新变更状态（v3.8.25 起；更早见 `TuiYan_CHANGELOG.md`）
 5. **`macro-sim/CHANGELOG.md` 前 80 行** — 了解 macro-sim 最新变更状态
 6. 按任务分支：
    - 处理 macro-scan / 天枢任务 → 读 `macro-scan/AGENTS.md`（完整工作指南）

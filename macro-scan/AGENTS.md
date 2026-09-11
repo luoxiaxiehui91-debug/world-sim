@@ -6,8 +6,36 @@
 
 世界推演系统观测层（天枢）：全球宏观情报自动采集 + LLM分析推演 + 地缘风险向量引擎，运行在 NAS Docker 容器中。
 
-**当前版本**：v3.8.20（2026-08-19）
+**当前版本**：v3.8.49（2026-09-11）
 **主要变更**：
+- v3.8.49（09-11）：静默探针预测链 state 写入失败留痕（`except: pass` → 仅写入失败时 WARN，CHG-20260911T140226）
+- v3.8.48（09-11）：静默探针预测链判据修正——绝对行数增量 `cnt > last_cnt` 改 `MAX(created_at)` 单调游标（基线回退导致告警永不复位，CHG-20260911T111143）
+- v3.8.47（09-11）：开源收尾 + 全量检查发现项清理（Windows 路径脱敏 3 处、删 133MB 测试目录，CHG-20260911T104000）
+- v3.8.46（09-11）：从零 clone 实测（开源阶段 5）——pip 源 tuna→aliyun、补 2 个 `.env.example` 变量，CHG-20260911T081125
+- v3.8.45（09-11）：可运行性（开源阶段 4）——根 README 重写 Quick Start + `scripts/init_db.sh` + 3 个 Dockerfile ARG，CHG-20260911T004121
+- v3.8.44（09-10）：知识库外置（开源阶段 3）——`KB_ROOT` + `scripts/init_kb.py`，CHG-20260910T234442
+- v3.8.43（09-10）：路径参数化（开源阶段 2），CHG-20260910T232600
+- v3.8.42（09-10）：ntfy 主题名轮换 + 注入层环境变量化（开源前置），CHG-20260910T181638
+- v3.8.41（09-09）：展望简报索引刷新遗漏（v3.8.40 晨间首验发现），CHG-20260909T080058
+- v3.8.40（09-08）：展望简报「改名 + 报告 TTL」（question monthly-outlook-daily-and-no-ttl 方案 C），CHG-20260908T232303
+- v3.8.39（09-08）：MOF 日频源治本（question fred-japan-jgb-lag-probe-spam 解法 A），CHG-20260908T203337
+- v3.8.38（09-08）：`fetch_spacetrack` 登录校验与失败态（backlog），CHG-20260908T192626
+- v3.8.37（09-08）：question kaiyang-spacewatch-spacetrack-zeroed，CHG-20260908T130113
+- v3.8.36（09-08）：question fred-japan-jgb-lag-probe-spam 解法 B，CHG-20260908T111550
+- v3.8.35（09-03）：llm-key-ui-write-path + llm-config-doc-drift Enforcement，CHG-20260903T164000，ADR-0015
+- v3.8.34（09-03）：llm-config-doc-drift（P1，用户路由清扫），CHG-20260903T151756
+- v3.8.33（09-03）：L4 尾部情景建模（question l4-tail-scenario-modeling，方案 C 降级折中版，用户拍板）
+- v3.8.32（09-03）：calibration-score-no-decay + 前置阻塞 bug（P2-5）
+- v3.8.31（09-03）：天枢 news_ttl_cleanup 批次入库（PG news.articles 90 天 TTL，08-30 已部署，本次补 git 记录）
+- v3.8.30（09-03）：P5 退役——天枢 verify 域三旧脚本退役（验证功能 08-24 已迁天玑收编）
+- v3.8.29（09-03）：开阳报告索引时序竞态修复（save_report() 落盘后就近刷新开阳数据源）
+- v3.8.27（09-02）：LLM 平台收敛——mimo_plan/mimo_api 拆分 + openai_compat 模型固化 config + 移除预置 OpenAI 平台
+- v3.8.26（08-28）：PG news.articles TTL 清理（P2）
+- v3.8.25（08-27）：天璇 GRV 轨迹 feed 导出（F1 commit 2）
+- v3.8.24（08-27）：F1 天璇推演→开阳可视化通道（commit 2/3，24 月 GRV 多路径轨迹出图）
+- v3.8.23（08-23）：密钥轮换后主模型切换（Qwen3.5-27B 下线 / DeepSeek-V4-Flash 上线）+ 控制台/翻译优化五连
+- v3.8.22（08-23）：P0-A 密钥安全整改第二阶段——compose 明文改 `${VAR}` 引用 + 轮换泄露 key + 废弃 MiniMax
+- v3.8.21（08-22）：health 图层同城聚合 + 双文件明细架构（注：commit 只标 health v1.1.1，实际同时动了天枢 VERSION）
 - v3.8.20（08-18 晚）：GDELT scale 事故修复（calibrator v2 透传 SCALE_REF，`8c2ddc4c`）+ LLM 链路三修复（翻译重试/set_usage 预填充/check_llm_config，`24e3b5f7`）+ llm_config 默认模板入库（`ad5dc3792`）+ GRV 分数常态基准校准 #134（climate FIRMS 阈值/seismic scale，`0e59cd758`）
 - v3.8.19（08-18）：global_composite 混入 GDELT 日频（#77，`913a8f7e`）+ delta 阈值 6→12
 - v3.8.18（08-16/17/18）：卫生事件标题绕开 DOC API（`fetch_health_geo.py` 直接抓 `<title>`，`17cf5d55`）；天玑汇总导出 `tianji_summary_export.py`（I30，`62000504`）；control_server 人工验证端点（`defc5e31`）；**地缘预测自动验证 `verify_geo_auto.py`**（scheduler 0930——L1 FRED 判定器 DFF/利差/VIX 分位 + L2 新闻关键词判定器 PG news.articles，`0ced51c9`+`4d22e6e2`）；死循环预测存档清理（predictions 1102→70）
@@ -16,13 +44,14 @@
 - v3.8.14（08-05）：`market_quotes` 0630 日频 → I15（整合导出提频，零外部请求）；kaiyang 前端 parseTs/fmtRelative 时区语义修复
 - v3.8.13（08-04）：**天玑三内核（tianji_db/tianji_verifier/weight_matrix）迁出 macro-ji 独立容器**（macro-scan-tianji-1，镜像 macro-tianji:latest）；`control_server.py` :8900 上线（A3a HTTP REST）；`fred_freshness.py`/`write_tianji_trigger.py` 新建；scheduler 删 tianji_verify/weight_health job，新增 11 job（compute_fci 0535 / fred_freshness 0540 / compute_probit 0540 / tianji_trigger 0942 / firms 0908 / narrative_proc 0710 / defense_rss 0712 / news_geo_feed 0715 / slow_vars 0935 / spacetrack 0615 / market_quotes I15）；FRED 恢复至 48 CSV + manifest.json；compute_fci.py 源码重建（pycdc 反编译）
 **运维参考**：`世界推演系统_人类说明文档.md`  
-**变更日志**：`TuiYan_CHANGELOG.md`（改前必读，改后必追加）
+**变更日志**：`CHANGELOG.md`（v3.8.25 起；改前必读，改后必追加）。v3.8.24 及更早的历史条目见 `TuiYan_CHANGELOG.md`（历史归档，不再追加）
 
 **AI 阅读路径（按需读取）：**
 
 | 文件 | 内容 | 何时读 |
 |:-----|:-----|:-------|
-| `TuiYan_CHANGELOG.md` | 所有变更历史 | **每次 session 必读**（了解最新状态）|
+| `CHANGELOG.md` | 变更历史（v3.8.25 起） | **每次 session 必读**（了解最新状态）|
+| `TuiYan_CHANGELOG.md` | 变更历史（v3.8.24 及更早，归档） | 仅追溯旧版本时查阅 |
 | `INDEX.md` | 运行状态：调度任务/数据管道/LLM链/ntfy指令/路线图 | 需要查运行细节时 |
 | `世界推演系统_人类说明文档.md` | 使用与维护手册 | 需要了解操作流程时 |
 | `docs/FILE_MANIFEST.md` | 各 py 文件职责 + 挂载路径 + 修改影响 | 不确定改哪个文件时 |
@@ -49,7 +78,8 @@ macro-scan/               ← 本地工作目录（S:\world-sim\macro-scan\，gi
 ├── requirements.txt
 ├── system_prompt.md          ← LLM 分析框架（热挂载，直接编辑即生效）
 ├── crontab                   ← 容器内 cron（备用；主调度用 scheduler.py）
-├── TuiYan_CHANGELOG.md       ← 变更日志
+├── CHANGELOG.md              ← 变更日志（v3.8.25 起，现行）
+├── TuiYan_CHANGELOG.md       ← 历史归档（v3.8.24 及更早，不再追加）
 ├── INDEX.md                  ← 系统状态/任务/数据管道索引（只读）
 └── VERSION                   ← 语义化版本号 (MAJOR.MINOR.PATCH)
 ```
@@ -125,9 +155,9 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 
 ## 维护铁律
 
-1. **改前必读** `TuiYan_CHANGELOG.md`（了解最新状态）
+1. **改前必读** `CHANGELOG.md`（了解最新状态；v3.8.24 及更早见 `TuiYan_CHANGELOG.md`）
 2. **实施前先建 CHG**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-macro-scan.md`（9 字段 frontmatter + `## Pre-Change` 冻结；格式见 `S:\docs\AGENTS.md` §operations/ 系统日志）
-3. **改后必追加** `TuiYan_CHANGELOG.md` → bump `VERSION` → 按联动矩阵更新对应文档 → 版本变更时同步更新 `S:\docs\INDEX.md` 版本状态行 → CHG 补 `## Post-Change` + status `completed`
+3. **改后必追加** `CHANGELOG.md` → bump `VERSION` → 按联动矩阵更新对应文档 → 版本变更时同步更新 `S:\docs\INDEX.md` 版本状态行 → CHG 补 `## Post-Change` + status `completed`
 4. **绝对不要** `git rm`（不加 `--cached`）知识库或 data 下的文件
 5. **绝对不要** 把 `核心代码/` 内的 .py 分子目录
 6. **ntfy 推送强制直连**，不走代理
@@ -143,7 +173,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 | 改了什么 | 必须同时更新 |
 |:---|:---|
 | **任何变更（改代码 / 部署 / 改配置）** | **中央 CHG 文件**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-macro-scan.md`（实施前 `## Pre-Change` 冻结 → 完成后 `## Post-Change` + status `completed`；纯报问题建档不建 CHG）|
-| 任何 `核心代码/*.py` | `TuiYan_CHANGELOG.md` + `VERSION` |
+| 任何 `核心代码/*.py` | `CHANGELOG.md` + `VERSION` |
 | `VERSION` 变更时（无论何种改动触发）| `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
 | `VERSION` 变更时（无论何种改动触发）| `世界推演系统_人类说明文档.md`（文件头版本号 + 第一节"当前能力"节 + 九、当前状态表）|
 | `VERSION` 变更时（无论何种改动触发）| `S:\world-sim\docs\overview.md` 头部版本行（`macro-scan vX.Y.Z`）+ 架构图版本号 |
@@ -188,7 +218,7 @@ pre-commit install   # 在源码区 S:\world-sim\macro-scan\ 执行一次即可
 > 如在 monorepo 中工作，先读根目录 `../AGENTS.md`（系统全貌 + 阅读路径入口）。
 
 ```
-读 AGENTS.md（本文件）→ 读 TuiYan_CHANGELOG.md（最新变更）→ 按需读 INDEX.md（运行状态）
+读 AGENTS.md（本文件）→ 读 CHANGELOG.md（最新变更）→ 按需读 INDEX.md（运行状态）
 → 告知当前版本和最新状态，然后开始工作。
 ```
 
