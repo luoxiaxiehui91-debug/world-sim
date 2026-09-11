@@ -510,8 +510,11 @@ def check_predictions_chain() -> list:
             with open(_tmp_400, "w", encoding="utf-8") as f:
                 json.dump(state, f)
             os.replace(_tmp_400, PRED_COUNT_STATE)
-        except Exception:
-            pass
+        except Exception as e:
+            # 2026-09-11（红线「任何兜底必须留痕」）：此前写失败被静默 pass，
+            # 探针会持续沿用过期基线且无任何提示，无法区分「真无新增」与「基线没写进去」。
+            # 仅写入失败时才告警 —— 正常路径不产生任何输出，不改变探针 verdict。
+            out.append((WARN, f"预测链: 基线 state 写入失败（{e}），本次基线未持久化，下次将重新判定"))
         if last_max is None:
             out.append((OK, f"预测链: 基线初始化 predictions {cnt} 行，created_at {max_created_s}"))
         elif max_created_s is not None and max_created_s != last_max:
