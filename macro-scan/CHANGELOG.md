@@ -1,3 +1,21 @@
+## [3.8.47] - 2026-09-11
+
+### Changed（开源收尾，全量检查发现项清理，CHG-20260911T104000-world-deduction）
+
+- **3 处 Windows 路径注释脱敏**（阶段 2/4 路径参数化的遗漏）：`fetch_bdi.py:16` `S:\world-sim\macro-scan\data\` → `<仓库根>/macro-scan/data/`；`fetch_spacetrack.py:4,40` `S:\KEY\Space-Track*.txt` → `<你的密钥文件>`。**后两处暴露密钥文件存放位置**，优先级最高。
+- `docs/check-doc-links.py` 的 `S:\docs\INDEX.md` **保留不改** —— 它属 `BAD_TOKENS` 坏链接检测规则本身，非路径引用，改动会使脚本失效；且不含用户名与凭证。
+- 删除阶段 5「从零 clone 实测」目录 `_fresh_clone_test`（133 MB）—— 其中 3 份 `.env` 在步骤 8 注入了**生产真实凭证**（未入库、未进历史，但属散落的凭证副本，与「凭证唯一来源」纪律相悖）。
+
+### 验收
+
+- `git grep` HEAD 代码/配置中 Windows 路径与内网信息命中：改前 **4 处** → 改后 **1 处**（仅上述检测规则）
+- 两个改动文件 `py_compile` 通过；**注释级改动，无逻辑变化**，不影响运行区（该目录为 git 真源，运行区经 rsync 同步，本次无需同步）
+- 测试目录已删，磁盘回收 133 MB
+
+### 已知限制
+
+- **`.git` 130.67 MiB 未 gc**：force push 后 `git fetch` 将旧历史对象一并拉回本地（2 个 pack / 10640 对象），gc 可回收约 66 MB，但会失去本地旧历史副本。**刻意保留** —— 回滚仍有 `_backup_worldsim_20260911T093827`（552 MB）整仓备份兜底。
+
 ## [3.8.46] - 2026-09-11
 
 ### Fixed（从零 clone 实测，开源实施计划 阶段 5，CHG-20260911T081125-world-deduction）
