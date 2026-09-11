@@ -1,3 +1,30 @@
+## [3.8.46] - 2026-09-11
+
+### Fixed（从零 clone 实测，开源实施计划 阶段 5，CHG-20260911T081125-world-deduction）
+
+- **`macro-scan/Dockerfile` pip 源 tuna → aliyun**：`mirrors.tuna.tsinghua.edu.cn` 在本网络不可达，`requests==2.33.1` 报 `No matching distribution found`，导致 `docker build macro-scan/` 必然失败（同批 macro-ji / macro-sim 用 aliyun 源均成功，容器内已装 2.33.1、PyPI 官方源亦有）。`ARG PIP_INDEX_URL` 默认值形式不变，海外仍可 `--build-arg` 覆盖。
+- **补两处 compose 插值变量到 `.env.example`**：`macro-scan` 补 `SILICONFLOW_API_KEY`，`macro-ji` 补 `KAIYANG_ORIGIN`。修复前 `compose config` 报 2 条 `variable is not set`，会让从零使用者误判配置错误。
+- 根 `README.md`：补 pip 源 / 基础镜像覆盖说明与实测环境提示。
+
+### 验收（干净目录从零 clone 实测，目录 `_fresh_clone_test/world-sim`，HEAD=94bc47e）
+
+| 步骤 | 结果 |
+|---|---|
+| clone 盘点 | 21 个关键文件到位；`.env` / `知识库/` / `data/` / `kaiyang/dist` 均不存在（阶段 3 隔离性生效） |
+| 2 知识库骨架 | `scripts/init_kb.py` ✅ 14 文件 |
+| 3 环境变量 | 三份 `.env` 生成；生产有值键 20 个、`.env.example` 覆盖 19，`MACRO_SCAN_DIR` 仅 macro-ji 需要且已在其 example 中，**非缺口** |
+| 4 数据库 | `scripts/init_db.sh` 退出 0，21 张表，`vector 0.8.2` |
+| 5 前端构建 | `npm ci` 42s + build 96s，dist 11 文件 6.2M（需把 node 所在目录加入 PATH，属本机环境问题） |
+| 6 镜像构建 | macro-ji ✅ / macro-sim ✅ / **macro-scan ✅（本次修复后复验通过）**，`requests 2.33.1` 装上 |
+| 7 compose config | 三份 exit 0 且 **0 警告**（修复前 2 条 `variable is not set`） |
+| 8 启动 | 依赖冒烟 DEPS OK；Web 控制台 200、Control API `/docs` 200、uvicorn 启动完成 |
+
+### 已知限制
+
+- 步骤 8 用 `!override` 改隔离端口 18999/18900 且**只起 web/control、未启 scheduler**（生产占用 8899/8900，起第二份 scheduler 会重复跑定时任务并写生产库）→ 「完整 `docker compose up -d` + 跑一次采集/分析」尚未实测。
+- 注入层不完整（55/77 变量未在 compose `environment:` 声明）仍为独立 backlog，改 `env_file` 属行为变更，待单独评估。
+- 46 MB wheel `zh_core_web_sm-3.8.0` 仍在仓库；知识库 618 文件与研报仍在 git 历史中 → 阶段 6（filter-repo）待拍板。
+
 ## [3.8.45] - 2026-09-11
 
 ### Added（可运行性，开源实施计划 阶段 4，CHG-20260911T004121-world-deduction）
