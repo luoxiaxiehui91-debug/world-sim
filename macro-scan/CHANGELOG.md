@@ -1,3 +1,18 @@
+## [3.8.49] - 2026-09-11
+
+### Fixed（静默探针预测链 state 写入失败留痕，CHG-20260911T140226-world-deduction）
+
+- `check_predictions_chain` 写基线 state 的 `except Exception: pass` 改为**失败时 append WARN** —— 原写法违反项目红线「**任何兜底必须留痕**」：state 写不进去时探针会持续沿用过期基线且毫无提示，排查时无法区分「真无新增」与「基线没写进去」。
+- 同函数**读取** state 处的 `except Exception: pass` **保持不动**：首次运行文件不存在属预期路径，为其告警会制造噪声。
+- **独立 CHG，不并入已闭环的 A+B**（`CHG-20260911T111143`）—— 每次变更可独立溯源，避免事后分不清是哪次改的。
+
+### 验收
+
+- 正常路径：容器内完整探针 `PROBE verdict=INFO checks=34 bad=0`，与 v3.8.48 一致 → **留痕未自造告警**
+- 失败路径：monkeypatch `os.replace` 抛 `OSError` → `WARN 预测链: 基线 state 写入失败（模拟写入失败），本次基线未持久化，下次将重新判定`
+- 测试残留已清理；生产 state 未被污染，仍为 `{"count": 442, "max_created": "2026-09-08T22:12:08.590419+00:00"}`
+- 补丁匹配数 `1 == 1` 才写入，`py_compile` 通过
+
 ## [3.8.48] - 2026-09-11
 
 ### Fixed（静默探针预测链判据修正，CHG-20260911T111143-world-deduction）
