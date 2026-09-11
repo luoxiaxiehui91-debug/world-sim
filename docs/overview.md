@@ -1,6 +1,6 @@
 # 世界推演系统 · 总览
 
-> macro-scan v3.8.17（天枢）· macro-sim **v2.0.40**（天璇）· kaiyang v1.10.8（开阳）· macro-ji v1.0.0（天玑）· as-of 2026-08-12
+> macro-scan v3.8.49（天枢）· macro-sim **v2.0.40**（天璇）· kaiyang v1.10.8（开阳）· macro-ji v1.0.0（天玑）· as-of 2026-09-11
 >
 > **当前状态与待部署事项** → 见 [`handover-history.md`](archive/handover-history.md)
 > **权威版本记录** → 各子系统 CHANGELOG（本行仅总览快照，不断言版本；文档分治规范见 `docs/governance/document-governance.md`）
@@ -20,7 +20,7 @@ FRED / GPR / GDELT / 新闻（RSSHub :12000；crucix 已于 2026-08-12 退场：
               │  49个调度任务（I15/I30/日档/月档）
               ▼
         ┌─────────────┐
-        │  macro-scan  │  观测层（天枢）v3.8.15
+        │  macro-scan  │  观测层（天枢）v3.8.49
         │              │  采集 → GRV向量 → LLM分析报告 → ntfy手机
         └──────┬──────┘
                │ GRV告警时写 sim_trigger.json
