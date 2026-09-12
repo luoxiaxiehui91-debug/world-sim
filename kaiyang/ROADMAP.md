@@ -1,7 +1,7 @@
 # 开阳（Kaiyang）操作面板 — ROADMAP
 
 > 此文件是开阳项目内权威 todo，与源代码同行。
-> 版本参考：`VERSION`（当前 1.11.27）
+> 版本参考：`VERSION`（当前 1.11.38 —— 逐版本流水以 `CHANGELOG.md` 为准，本文件不复制）
 > 跨项目视角：`S:\docs\backlog\world-deduction.md`
 > AI 工作入口：`AGENTS.md`
 
