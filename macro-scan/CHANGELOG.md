@@ -1,3 +1,19 @@
+## [3.8.51] - 2026-09-12
+
+### Fixed（删除密钥守卫的失效规则 1，CHG-20260912T101550-world-deduction）
+
+- `tests/test_audit_scan_secrets_guard.py` 的规则 1（`_LEAKED_SECRET_LITERALS` 已知泄露字面量黑名单）**已删除**。原因：该黑名单实际存放的是脱敏后遗留的**占位符**（`REDACTED_SPACETRACK_ID` 等），而非真实凭证；而真实凭证与占位符恒不相等、也不含 `REDACTED` 子串 → 该规则**对未来任何真实凭证命中概率为 0**（属「把占位符当秘密」的范畴错误）。
+- **触发本次修复的假阳性**：规则 1 对**含注释的整份文件文本**做 `if secret in src` 子串匹配，命中了 `核心代码/fetch_spacetrack.py:4` **注释**里的同名字面量 → CI `macro-scan (pytest)` 长期红。**真实凭证泄露 = 0**，该文件真实代码 L41-42 为干净的 `os.environ.get("SPACETRACK_ID")`（无硬编码默认值）。
+- **凭证防护未削弱**：规则 2（`os.environ.get` 非空硬编码默认值）与规则 3（顶层明文赋值）**保留不动**，凭证防护由其承担。
+- 原处留注释说明删除理由与溯源，便于后人检索该变量去向。
+
+### 验收
+
+- `pytest tests/test_audit_scan_secrets_guard.py -q` → **`1 passed`**（修复前 `1 failed`）
+- 规则 2/3 完好（`_CRED_ENV_NAMES`、顶层明文明文赋值正则均在场）；`py_compile` 通过（`.pyc` 输出至 /tmp，未污染真源）
+- 改动仅在 `tests/`，不进运行时路径 → 生产零影响（无 rsync / 无 restart / 无 rebuild）
+- 版本联动：`VERSION` + 本 CHANGELOG + `AGENTS.md` + `macro-scan/INDEX.md` + `docs/overview.md` + `世界推演系统_人类说明文档.md` + 中央 `docs/INDEX.md` 版本状态行
+
 ## [3.8.50] - 2026-09-12
 
 ### Fixed（entrypoint.sh 补可执行位，从零 clone `up -d` 必失败，CHG-20260912T004907-world-deduction）

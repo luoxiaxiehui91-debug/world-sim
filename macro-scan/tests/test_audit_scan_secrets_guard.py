@@ -28,14 +28,13 @@ _TARGET_FILES = [
     os.path.join("知识库", "财经知识库", "02_核心变量因果链", "fetch_fred_ultra.py"),
 ]
 
-# 已知泄露的真实凭证字面量（读真实源码确认于 2026-08-29）。
-# 这些字符串绝不应出现在任何受版本控制的源文件中。
-_LEAKED_SECRET_LITERALS = [
-    "REDACTED_SPACETRACK_ID",              # Space-Track 账号邮箱
-    "REDACTED_SPACETRACK_PASS",                   # Space-Track 密码
-    "REDACTED_FIRMS_KEY",  # NASA FIRMS MAP_KEY
-    "REDACTED_FRED_KEY",  # FRED API key
-]
+# 2026-09-12 删除：原「已知泄露真实凭证字面量」黑名单规则（原 _LEAKED_SECRET_LITERALS）。
+# 该黑名单实际存放的是脱敏后遗留的**占位符**（REDACTED_*），而真实凭证与占位符恒不相等、
+# 也不含 REDACTED 子串 → 该规则对未来任何真实凭证命中概率为 0（属「把占位符当秘密」的范畴错误）；
+# 其唯一能命中的恰是占位符字面量自身，曾误报 核心代码/fetch_spacetrack.py:4 的注释致 CI 假阳性。
+# 凭证防护由规则 2（env fallback 非空硬编码默认值）与规则 3（顶层明文赋值）承担。
+# 溯源：questions/world-deduction/20260912-world-deduction-secrets-guard-placeholder-false-positive.md
+#       CHG-20260912T101550-world-deduction
 
 # 凭证类环境变量名（其 env.get 默认值不得是非空硬编码）
 _CRED_ENV_NAMES = [
@@ -66,10 +65,8 @@ def test_no_hardcoded_credentials_in_source():
             continue
         src = _read(rel)
 
-        # 1) 已知泄露凭证字面量绝不应出现
-        for secret in _LEAKED_SECRET_LITERALS:
-            if secret in src:
-                violations.append(f"{rel}: 含已知泄露凭证字面量 <{secret[:6]}...>")
+        # 规则 1（已知泄露字面量黑名单）已于 2026-09-12 删除：其黑名单实际是占位符（REDACTED_*），
+        # 对真实凭证的检测能力恒为 0（真实凭证与占位符恒不相等），曾误报注释致 CI 失败。
 
         # 2) os.environ.get("<CRED>", "<非空字面量>") 形式的硬编码默认值
         for name in _CRED_ENV_NAMES:
