@@ -6,8 +6,9 @@
 
 世界推演系统观测层（天枢）：全球宏观情报自动采集 + LLM分析推演 + 地缘风险向量引擎，运行在 NAS Docker 容器中。
 
-**当前版本**：v3.8.51（2026-09-12）
+**当前版本**：v3.8.52（2026-09-12）
 **主要变更**：
+- v3.8.52（09-12）：fetcher_base 日志目录可配置 + 不可写回退（`LOG_DIR` 硬编码 `/var/log/macro-scan` 致**非 root 环境 PermissionError**、CI 7 测试失败、**开源后必崩**；改 `MACRO_SCAN_LOG_DIR` 可覆盖 + 回退 `<data_dir>/logs` 并 WARN 留痕，CHG-20260912T111307）
 - v3.8.51（09-12）：删除密钥守卫的失效规则 1（黑名单为脱敏遗留占位符 `REDACTED_*`，对真实凭证命中概率恒为 0；却对含注释全文做子串匹配，误报 `fetch_spacetrack.py:4` 注释致 CI 假阳性；规则 2/3 活体守卫保留，CHG-20260912T101550）
 - v3.8.50（09-12）：entrypoint.sh 补可执行位（git 索引 100644→100755；compose 单文件 bind mount 覆盖镜像内 `chmod +x`，从零 clone `up -d` 必报 `permission denied`；附带查明 `core.fileMode=false` 使模式位改动长期进不了仓库，CHG-20260912T004907）
 - v3.8.49（09-11）：静默探针预测链 state 写入失败留痕（`except: pass` → 仅写入失败时 WARN，CHG-20260911T140226）

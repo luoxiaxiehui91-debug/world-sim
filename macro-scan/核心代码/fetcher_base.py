@@ -20,11 +20,53 @@ MarketAux+Currents+Sugra / HDX）提供统一能力：
 import os
 import json
 import time
+import tempfile
 import datetime
 import logging
 import requests
 
-LOG_DIR = "/var/log/macro-scan"
+# 日志目录（B：可用环境变量 MACRO_SCAN_LOG_DIR 覆盖；默认沿用容器内约定路径）
+LOG_DIR = os.environ.get("MACRO_SCAN_LOG_DIR", "/var/log/macro-scan")
+
+
+def _probe_writable(d: str) -> bool:
+    """探测目录是否可写（创建 + 写探针 + 删除）。"""
+    try:
+        os.makedirs(d, exist_ok=True)
+        probe = os.path.join(d, ".write_probe")
+        with open(probe, "w", encoding="utf-8") as fh:
+            fh.write("")
+        os.remove(probe)
+        return True
+    except OSError:
+        return False
+
+
+def resolve_log_dir(data_dir: str = "") -> str:
+    """解析一个**可写**的日志目录（A：不可写时回退，避免非 root 环境 PermissionError）。
+
+    优先级：LOG_DIR（默认 /var/log/macro-scan，可被 MACRO_SCAN_LOG_DIR 覆盖）
+            → <data_dir>/logs → <tempdir>/macro-scan-logs
+
+    回退时输出 WARNING 留痕（项目红线：任何兜底必须留痕）。
+    全部不可写时返回 LOG_DIR —— 保持原行为，由 FileHandler 显式抛出，不静默吞掉。
+    """
+    candidates = [LOG_DIR]
+    if data_dir:
+        candidates.append(os.path.join(data_dir, "logs"))
+    candidates.append(os.path.join(tempfile.gettempdir(), "macro-scan-logs"))
+
+    for d in candidates:
+        if _probe_writable(d):
+            if d != LOG_DIR:
+                logging.getLogger("fetcher").warning(
+                    "日志目录 %s 不可写，已回退至 %s（可用环境变量 MACRO_SCAN_LOG_DIR 显式指定）",
+                    LOG_DIR, d,
+                )
+            return d
+
+    logging.getLogger("fetcher").error("所有候选日志目录均不可写：%s", candidates)
+    return LOG_DIR
 
 
 class Status:
@@ -97,8 +139,8 @@ class FetcherBase:
     def _get_logger(self):
         logger = logging.getLogger(f"fetcher.{self.name}")
         if not logger.handlers:
-            os.makedirs(LOG_DIR, exist_ok=True)
-            h = logging.FileHandler(os.path.join(LOG_DIR, f"{self.name}.log"), encoding="utf-8")
+            log_dir = resolve_log_dir(self.data_dir)
+            h = logging.FileHandler(os.path.join(log_dir, f"{self.name}.log"), encoding="utf-8")
             h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
             logger.addHandler(h)
             logger.setLevel(logging.INFO)

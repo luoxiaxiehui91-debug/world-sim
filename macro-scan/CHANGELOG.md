@@ -1,3 +1,30 @@
+## [3.8.52] - 2026-09-12
+
+### Fixed（fetcher_base 日志目录硬编码致非 root 环境不可用，CHG-20260912T111307-world-deduction）
+
+- `核心代码/fetcher_base.py` 的 `LOG_DIR` 由**硬编码绝对路径** `/var/log/macro-scan` 改为
+  `os.environ.get("MACRO_SCAN_LOG_DIR", "/var/log/macro-scan")`（**可配置**，默认值不变）。
+- 新增 `resolve_log_dir(data_dir)` 与 `_probe_writable()`：写入前做**可写性探测**，不可写则按
+  `LOG_DIR → <data_dir>/logs → <tmp>/macro-scan-logs` 依次回退，**回退时输出 WARNING 留痕**
+  （项目红线「任何兜底必须留痕」）；全部不可写时返回 `LOG_DIR`，由 `FileHandler` 显式抛出，**不静默吞掉**。
+- **问题背景**：`FetcherBase.__init__` 无条件调用 `_get_logger()`，而 `_get_logger()` 无条件
+  `os.makedirs(LOG_DIR, exist_ok=True)` → 非 root 环境下该创建被拒 → 实例化任一天枢 fetcher 即
+  `PermissionError`。CI（非 root runner、无该目录）因此 **7 个测试失败**
+  （airtraffic×2 / bdi×3 / fao×2）；生产容器（root + `Dockerfile:41` 预建目录）**把缺陷完全掩盖**。
+- **影响面**：不止 CI —— **开源后任何非 root 环境**（使用者本机直跑 / 非 root 容器 / 其他 CI 平台）
+  都会崩。属**生产代码可移植性缺陷**，非 CI 配置问题。
+- 同时恢复基类自述的「失败降级、不抛、不阻断调度」契约在该路径上的成立。
+
+### 验收
+
+- **非 root（uid 1000）+ `/var/log/macro-scan` 不可写** → 回退 `<data_dir>/logs` 并输出 WARNING，不抛异常
+- **root（生产等价）** → 仍解析为 `/var/log/macro-scan`，**行为与改动前逐字一致**（无 WARNING）
+- **`MACRO_SCAN_LOG_DIR` 覆盖** → 直接采用该目录
+- **非 root 跑全目录 pytest（CI 等价）** → **`8 passed, 8 xfailed`（0 failed）**；
+  修复前为 `7 failed, 1 passed, 8 xfailed`
+- 改动仅 `fetcher_base.py`；`py_compile` 通过；rsync 至运行区后 md5 一致；
+  `.py` 由 scheduler 每次新起进程生效，**无需 restart**
+
 ## [3.8.51] - 2026-09-12
 
 ### Fixed（删除密钥守卫的失效规则 1，CHG-20260912T101550-world-deduction）
