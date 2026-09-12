@@ -17,7 +17,18 @@
 
 ## [Unreleased]
 
-暂无。
+### Added
+
+- **Git push 纪律（本地两层门禁）**：新增 `.githooks/pre-commit` 与 `.githooks/pre-push`，纳入版本控制随仓库分发，启用方式 `git config core.hooksPath .githooks`。
+  - `pre-commit`：判据由「文件名黑名单」升级为「形态判据」，可拦截硬编码凭证与内网地址；保留原有 `.env` 文件拦截。
+  - `pre-push`（新增）：扫 `origin/main..HEAD` **全区间** —— 补上 `pre-commit` 只检查 staged 的盲区（push 推的是全部历史，不只是最新改动）。
+  - 零硬依赖：优先调用 gitleaks，未安装时回退内建正则，保证任何机器上都生效。
+- **规范文档**：新增 [`docs/PUSH-DISCIPLINE.md`](docs/PUSH-DISCIPLINE.md)，含三层防护模型、push 前自检清单、force push 纪律与泄露事故响应；`CONTRIBUTING.md` 提交约定段同步。
+
+### Changed
+
+- 旧门禁仅存在于 `.git/hooks/`（**不随仓库分发，clone 后即失效**），已迁入 `.githooks/`。
+
 
 ---
 
