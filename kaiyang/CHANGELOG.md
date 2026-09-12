@@ -1,11 +1,26 @@
 # Changelog · 开阳（Kaiyang）操作面板
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-09-03（记录类文档随部署持续更新）
+> 最后核对时间：2026-09-12（记录类文档随部署持续更新）
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
 
+## [1.11.39] 2026-09-12 · 修复 3D 地球不显示（dist 静态资源 700 权限 → nginx 403）
+
+question：world-deduction kaiyang-3d-earth-not-displaying（P1）；CHG-20260912T234000
+- **fix（运维）**：恢复 `dist/assets/` 静态资源可读性 —— `earth-blue-marble.jpg` / `night-sky.png` /
+  `earth-topology.png` / `countries-110m.json` 原为 **700**（属主 TSX uid1000），nginx worker 以 `user nginx`
+  （uid 101）运行，既非属主也不在属组，只能走 **other 位** → **errno 13 Permission denied / HTTP 403** →
+  `GlobePanel`（globe.gl + three）缺本地贴图，**3D 地球不显示**，2D 平面地图同步受影响。
+  已 `chmod -R a+rX dist` → 4 个资源 403 转 200，bind mount 即时生效、**零重启**。
+- **fix（治本）**：`public/assets/*` 源工作树同样为 700，vite 复制 + `rsync -a` 会把权限位带进 dist →
+  已 `chmod -R a+rX public`，杜绝下次 build 复发（git 记录本为 `100644`、`core.fileMode=false`，工作区改动不入库）。
+- **docs**：根 `README.md` 开源构建步骤补 `chmod -R a+rX dist` + 原因说明，防外部用户 `umask 077` /
+  `git archive | tar -x`（无 `-p`）解包场景复现（git clone 默认 644 不受影响）。
+- **非今日引入**：备份权限对照 `dist.bak-20260805`=705（正常）/ `dist.bak-20260902`=700（已坏）→
+  起点在 08-05～09-02 之间；`docs/DEPLOYMENT.md:26` 早有 chmod 规则但两次部署未执行、CI 不 build 不校验 → 静默潜伏约 10 天。
+- **无代码改动**：`src/` 未动，dist 内容 hash 不变，故**无需 rebuild**。
 ## [1.11.38] 2026-09-12 · 顶层 window 引用加 typeof 守卫（修复 CI vitest 失败）
 
 question：world-deduction kaiyang-toplevel-window-breaks-ci（P1）；CHG-20260912T101548
