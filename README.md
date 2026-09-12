@@ -97,7 +97,7 @@ cp macro-ji/.env.example macro-ji/.env
 cp macro-sim/.env.example macro-sim/.env
 ```
 
-三个 `.env` 都要填，各自的必需项如下（其余为可选数据源，留空即跳过）：
+三个 `.env` 都要填，各自的必需项如下（其余变量**保持注释** —— 模板里全部变量默认注释，**解开注释并填值**才会注入容器，避免空值静默失效）：
 
 **`macro-scan/.env`（天枢）**
 

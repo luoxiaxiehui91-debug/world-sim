@@ -18,6 +18,8 @@ services:
       - ./知识库:/workspace/知识库
       - ./config:/workspace/config
 
+    env_file:
+      - .env
     environment:
       - OPENCLAW_WORKSPACE=/workspace
       - FRED_API_KEY=${FRED_API_KEY}
@@ -34,8 +36,8 @@ services:
       - WORLDSIM_APP_PW=${WORLDSIM_APP_PW}
       - CONTROL_TOKEN=${CONTROL_TOKEN}
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
-      - SILICONFLOW_MODEL=deepseek-ai/DeepSeek-V4-Flash
-      - OPENAI_COMPAT_URL=https://token-plan-cn.xiaomimimo.com/v1
+      - SILICONFLOW_MODEL=${SILICONFLOW_MODEL:-deepseek-ai/DeepSeek-V4-Flash}
+      - OPENAI_COMPAT_URL=${OPENAI_COMPAT_URL:-https://token-plan-cn.xiaomimimo.com/v1}
       - OPENAI_COMPAT_KEY=${OPENAI_COMPAT_KEY}
       - USE_EXTERNAL_LLM=1
       - NTFY_TOPIC=${NTFY_TOPIC}
