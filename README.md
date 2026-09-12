@@ -147,10 +147,12 @@ bash scripts/init_db.sh
 ### 5. 构建前端
 
 ```bash
-cd kaiyang && npm ci && npm run build && cd ..
+cd kaiyang && npm ci && npm run build && chmod -R a+rX dist && cd ..
 ```
 
 `dist/` 不被 git 跟踪，需自行构建。
+
+> `chmod -R a+rX dist` **不可省**：开阳由 nginx 容器托管，nginx 以非属主的 `nginx` 用户读取静态资源，只能走 other 权限位。若构建产物 other 位无 `r`（如 `umask 077`，或经 `git archive | tar -x` / Download ZIP 解包），`earth-blue-marble.jpg` 等地球贴图会返回 403，导致 **3D 地球不显示**。
 
 > 若提示 `node: command not found`，说明 Node 未在 `PATH` 中（用 `node -v` 自检）。
 
