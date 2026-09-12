@@ -728,6 +728,14 @@ def build_hypothesis_prompt(
     """HYP-5: matched_paths / conf 由调用方传入，避免与 run_hypothesis 重复计算导致不一致。"""
     if SYSTEM_PROMPT_FILE.exists():
         system_section = SYSTEM_PROMPT_FILE.read_text(encoding="utf-8")
+        # R6 修复：页脚占位符发送给 LLM 前以实际值填充（原样透传需 LLM 自行猜测语义）
+        _c = conf or {}
+        system_section = (
+            system_section
+            .replace("{date}", datetime.datetime.now().strftime("%Y-%m-%d"))
+            .replace("{score}", str(_c.get("score", "N/A")))
+            .replace("{signal}", str(_c.get("signal", "N/A")))
+        )
     else:
         system_section = "你是宏观情景分析引擎，处于假设推演模式。"
 

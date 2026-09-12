@@ -1,5 +1,10 @@
 ## [3.8.52] - 2026-09-12
 
+## v3.8.53（2026-09-12）
+
+- fix(hypothesis): 模板页脚占位符发送前填充（realtime 提案 R6）—— `system_prompt_hypothesis.md` 页脚 `{date}/{score}/{signal}` 原样透传给 LLM；现于 `hypothesis_engine` 读取点以实际值填充（conf 兜底 N/A）。实测报告输出零污染（`{date}` 0 命中），属模板契约卫生修正。CHG-20260912T144128
+
+
 ### Fixed（fetcher_base 日志目录硬编码致非 root 环境不可用，CHG-20260912T111307-world-deduction）
 
 - `核心代码/fetcher_base.py` 的 `LOG_DIR` 由**硬编码绝对路径** `/var/log/macro-scan` 改为
