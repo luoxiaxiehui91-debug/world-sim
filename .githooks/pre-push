@@ -1,0 +1,92 @@
+#!/bin/sh
+# =============================================================
+# world-sim pre-push 门禁（推前最后一道本地闸）
+#
+# 为什么需要它（pre-commit 覆盖不到）：
+#   · pre-commit 只看 staged，而 push 推的是 origin/main..HEAD 全部历史
+#   · 第 3 个 commit 里夹的密钥，pre-commit 那次可能没开或被 --no-verify 绕过
+#
+# 零硬依赖：有 gitleaks 就用，没有则回退内建正则 —— 保证任何机器都生效
+# 已知局限：本地 hook 可被 --no-verify 绕过 → 必须配 CI 与 GitHub Push protection
+#
+# 安装: git config core.hooksPath .githooks
+# =============================================================
+
+set -u
+
+BASE_REF="origin/main"
+
+# 注意：首次推送时远端主干不存在，不能退化成 RANGE=HEAD
+# —— `git diff HEAD` 的语义是「工作区 vs HEAD」（空），等于什么都没扫。
+# 正确做法是与空树比较，覆盖全部历史。
+if git rev-parse --verify --quiet "$BASE_REF" >/dev/null 2>&1; then
+  DIFF_RANGE="$BASE_REF..HEAD"
+  LOG_RANGE="$BASE_REF..HEAD"
+  LABEL="$BASE_REF..HEAD"
+else
+  EMPTY_TREE=$(git hash-object -t tree /dev/null)
+  DIFF_RANGE="$EMPTY_TREE HEAD"
+  LOG_RANGE="HEAD"
+  LABEL="全部历史（首次推送，$BASE_REF 尚不存在）"
+fi
+
+echo "[pre-push] 扫描区间: $LABEL"
+
+FAIL=0
+REPORT=""
+
+# ---------- 第 1 关：敏感文件名（扫全区间，不只 staged） ----------
+# 排除 .githooks 自身：门禁脚本的 PATTERN 定义行含敏感字面量，否则会自匹配误报
+BAD_FILES=$(git diff --name-only $DIFF_RANGE -- . ':(exclude).githooks' 2>/dev/null | grep -E \
+  '(^|/)\.env$|(^|/)key\.txt$|\.pem$|\.p12$|(^|/)[^/]*\.key$|credentials\.json$|service-account.*\.json$')
+
+if [ -n "$BAD_FILES" ]; then
+  REPORT="${REPORT}\n[文件名] 历史区间内出现疑似敏感文件:\n${BAD_FILES}"
+  FAIL=1
+fi
+
+# ---------- 第 2 关：形态扫描（全区间） ----------
+PATTERN='sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{40,}|AKIA[0-9A-Z]{16}|BEGIN (RSA |OPENSSH |EC |DSA |PGP )?PRIVATE KEY|(^|[^0-9])192\.168\.[0-9]{1,3}\.[0-9]{1,3}([^0-9]|$)|/vol2/1000/|TSX@[0-9]'
+
+if command -v gitleaks >/dev/null 2>&1; then
+  echo "[pre-push] 使用 gitleaks..."
+  if ! gitleaks detect --source . --log-opts="$DIFF_RANGE" --redact --verbose 2>&1; then
+    REPORT="${REPORT}\n[gitleaks] 检出疑似凭证（见上方输出）"
+    FAIL=1
+  fi
+else
+  echo "[pre-push] gitleaks 未安装，使用内建正则扫描"
+  HITS=$(git diff $DIFF_RANGE -- . ':(exclude).githooks' 2>/dev/null \
+    | grep '^+' \
+    | grep -v '^+++' \
+    | grep -vE '^\+[[:space:]]*(#|//|\*|<!--|"""|--)' \
+    | grep -nE "$PATTERN" \
+    | head -20)
+  if [ -n "$HITS" ]; then
+    REPORT="${REPORT}\n[形态] 命中敏感形态:\n${HITS}"
+    FAIL=1
+  fi
+fi
+
+# ---------- 第 3 关：作者身份提示（防止用错身份推送） ----------
+AUTHORS=$(git log $LOG_RANGE --format='%ae' 2>/dev/null | sort -u | tr '\n' ' ')
+echo "[pre-push] 提交作者: ${AUTHORS}"
+
+# ---------- 判定 ----------
+if [ "$FAIL" -eq 1 ]; then
+  echo ""
+  echo "=========================================="
+  echo "  ❌ push 被 pre-push 门禁拦截"
+  echo "=========================================="
+  printf "%b\n" "$REPORT"
+  echo ""
+  echo "处理顺序（不能颠倒）："
+  echo "  1. 真实凭证 → 先吊销/轮换；清理历史只是消疤，不是治疗"
+  echo "  2. 误报 → 加入 .gitleaksignore 或调整正则"
+  echo "  3. 紧急绕过 → git push --no-verify（CI / Push protection 会再拦）"
+  echo ""
+  exit 1
+fi
+
+echo "[pre-push] ✅ 通过"
+exit 0

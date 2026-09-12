@@ -113,6 +113,19 @@ cd kaiyang && npm ci && npm run test
 - **改了代码就要同步文档**（`README.md`、`docs/`、对应子系统的 `CHANGELOG.md`）。
 - 涉及部署的改动，建议在独立分支验证后再合并。
 
+- **推送前确认没有把密钥、内网地址或私有路径带进历史**。仓库内置两道本地门禁：
+  `.githooks/pre-commit`（提交前）与 `.githooks/pre-push`（推送前，扫 `origin/main..HEAD` 全区间）。
+  完整规范见 [`docs/PUSH-DISCIPLINE.md`](docs/PUSH-DISCIPLINE.md)。
+
+  首次 clone 后启用一次即可：
+
+  ```bash
+  git config core.hooksPath .githooks
+  ```
+
+- **不要 force push 共享分支**（main）。确有必要时用 `--force-with-lease`，且先 `git fetch` ——
+  长期不 fetch 会让 lease 校验退化成无条件的 `--force`。
+
 > 维护者内部开发另有一套「变更记录（CHG）」流程，托管在外部知识库，**外部贡献者无需遵守**；
 > PR 描述里写清「改了什么 / 怎么验证的」即可。
 
