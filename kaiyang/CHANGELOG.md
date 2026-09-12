@@ -6,6 +6,19 @@
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
 
+## [1.11.38] 2026-09-12 · 顶层 window 引用加 typeof 守卫（修复 CI vitest 失败）
+
+question：world-deduction kaiyang-toplevel-window-breaks-ci（P1）；CHG-20260912T101548
+- **fix**: `config/controlConfig.ts` 的 `DEFAULT_API_BASE_URL` 与 `lib/controlApi.ts` 的 `TRUSTED_CONTROL_HOSTS`
+  曾在**模块顶层**求值 `window.location`（commit `9e440c1` 开源阶段2 路径参数化引入，两处同源），
+  致使 vitest 默认 `environment: node` 下 `window is not defined` → 两个测试文件在 collect 阶段**整文件崩**，
+  CI `kaiyang (vitest)` 长期红（4 annotations）。
+- 照 `config/dataSources.ts` 的既有范式加 `typeof window === 'undefined'` 守卫。**两处必须同修** ——
+  实测只修一处会导致崩溃**平移**到另一处（仍 2 failed）。
+- **浏览器（生产）路径零行为变更**：`typeof window !== 'undefined'` 分支与原文逐字等价；
+  H02 安全语义（`isTrustedControlBase` 信任白名单）不受影响。
+- 附带收益：`components/StatusBar.test.tsx` 由 `(0 test)` 恢复为 `(13 tests)` —— 此前 **13 个测试长期零覆盖**。
+
 ## [1.11.37] 2026-09-03 · LLM 面板恢复密钥框（write-only 通道，ADR-0015）
 
 question：world-deduction llm-key-ui-write-path（P2）+ llm-config-doc-drift Enforcement，配套 macro-scan v3.8.35

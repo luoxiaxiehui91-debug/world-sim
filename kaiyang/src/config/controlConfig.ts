@@ -9,7 +9,9 @@ import type { ScheduleOption } from '@/types/control';
 
 /** 控制 API 默认 Base URL — 指向天枢 control_server.py（:8900） */
 const DEFAULT_API_BASE_URL =
-  `${window.location.protocol}//${window.location.hostname}:8900/api/v1/control/`;
+  typeof window === 'undefined'
+    ? 'http://localhost:8900/api/v1/control/'
+    : `${window.location.protocol}//${window.location.hostname}:8900/api/v1/control/`;
 
 /**
  * 控制 API Base URL。

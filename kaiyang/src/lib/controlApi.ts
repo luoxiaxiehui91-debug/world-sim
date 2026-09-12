@@ -184,7 +184,7 @@ export function setApiToken(token: string | null): void {
  * 恶意 URL，token 自动附带会外泄。token 只发往本机回环或 NAS 局域网地址。
  */
 const TRUSTED_CONTROL_HOSTS = new Set([
-  window.location.hostname, // 当前页面来源主机（部署时即本机）
+  ...(typeof window === 'undefined' ? [] : [window.location.hostname]),
   'localhost',
   '127.0.0.1',
 ]);
