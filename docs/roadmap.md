@@ -2,7 +2,7 @@
 
 > 2026-08-12 从根迁至 `docs/roadmap.md`。产品功能路线图：天璇校准 R4 / crucix 退场 / 开阳补全。
 > 迁移/运维类进展（P0 修复、E0-C PG-only、P6 删库等）见 `docs/decisions/` 与 `STATUS.md`。
-> 最后更新：2026-08-18
+> 最后更新：2026-09-12（补记 08-18 后产品功能里程碑）
 
 ## Sprint-0 已完成
 
@@ -65,3 +65,13 @@
 | **新增角色规划**：印度/东南亚/拉美主权（S8+） | 🔲 远期 | 核心 5+2 稳定后按需扩；接口已预留（soul + agents.yaml + 映射 4 处） |
 | 政权更迭可视化接入开阳报告面板 | ✅ `9240d8f1` | 政权更迭事件卡片（报告面板 + 天璇 Tab） |
 
+## 08-18 后产品功能里程碑（补记于 2026-09-12）
+
+> 只记产品能力里程碑；运维/开源/CI 类进展见 `docs/decisions/` 与 `operations/CHG-*`（本文件不复制版本流水）。
+
+| 日期 | 里程碑 | 指针 |
+|---|---|---|
+| 08-14 | **GDELT scale 校准器落地**：天玑 `tianji_calibrator` 9 维 P95 反推原始计数 + tone_base + hotspot_p95；`geo_risk_vector` / `scan_weak_signals` 统一读 `gdelt_calib.json`；天玑 verifier 每日顺带触发（09-12 实测 v2、样本 568） | commit `9923113` |
+| 09-08 | **日债 10Y 接入 MOF 日频源**（`fetch_mof_jgb` current+all 双源并集）：滞后 99 天 → 1 天 | v3.8.39 / CHG-20260908T203337 |
+| 09-08 | **宇宙监视可信度**：spacetrack 登录校验（看响应体）+ 失败态 + limit 截断修复（total_active 30000→35048） | v3.8.38 / CHG-20260908T192626 |
+| 09-12 | **观测层非 root 可移植**：`fetcher_base` 日志目录可配置（`MACRO_SCAN_LOG_DIR`）+ 不可写回退 + WARNING 留痕 | v3.8.52 / commit `4ca2e09` |
