@@ -1,5 +1,10 @@
 ## [3.8.52] - 2026-09-12
 
+## v3.8.54（2026-09-12）
+
+- fix(gdelt): DOC 拉取加固（realtime 提案 R1）—— `_fetch_gdelt_recent` 48 请求零 sleep 背靠背（违反 GDELT ≤1 req/2s）、429/503 无重试静默丢数、窗口语义误导。现：请求间 sleep(2) + 429/503 指数退避（2/4s 至多 3 次尝试）+ 窗口语义诚实化（48 文件=12h）+ 成功/失败/重试计数摘要。mock 状态机验证全过。CHG-20260912T184954
+
+
 ## v3.8.53（2026-09-12）
 
 - fix(hypothesis): 模板页脚占位符发送前填充（realtime 提案 R6）—— `system_prompt_hypothesis.md` 页脚 `{date}/{score}/{signal}` 原样透传给 LLM；现于 `hypothesis_engine` 读取点以实际值填充（conf 兜底 N/A）。实测报告输出零污染（`{date}` 0 命中），属模板契约卫生修正。CHG-20260912T144128

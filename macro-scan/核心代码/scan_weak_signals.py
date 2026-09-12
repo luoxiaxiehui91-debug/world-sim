@@ -733,22 +733,38 @@ def _parse_gdelt_zip(content: bytes) -> list:
 def _fetch_gdelt_recent(hours: int = 24, max_files: int = 48) -> list:
     """
     下载最近 hours 小时的 GDELT 事件（最多 max_files 个文件）。
-    默认 24h / 48文件 ≈ 12小时窗口，足够检测信号峰值。
+    窗口语义（R1 修正）：GDELT v2 每 15 分钟一个文件，48 文件 = 最多覆盖 **12 小时**（对信号峰值检测足够；
+    如需真 24h 请把 max_files 提到 96，但请求量翻倍）。
+    R1 加固：请求间 sleep(2)（官方礼仪 ≤1 req/2s）+ 429/503 指数退避重试（2/4s，至多 3 次尝试）
+    + 成功/失败/重试计数摘要（限流可见化）。
     """
     urls = _gdelt_urls_last_hours(hours)[:max_files]
     all_rows = []
-    ok = failed = 0
-    for url in urls:
-        try:
-            r = requests.get(url, proxies=_GDELT_PROXY, timeout=12)
+    ok = failed = retried = 0
+    for idx, url in enumerate(urls):
+        if idx:
+            time.sleep(2)  # R1: GDELT 官方礼仪 ≤1 req/2s
+        for attempt in range(3):
+            try:
+                r = requests.get(url, proxies=_GDELT_PROXY, timeout=12)
+            except Exception:
+                if attempt < 2:
+                    retried += 1
+                    time.sleep(2 ** (attempt + 1))  # 2 / 4
+                    continue
+                failed += 1
+                break
             if r.status_code == 200:
                 all_rows.extend(_parse_gdelt_zip(r.content))
                 ok += 1
-            else:
-                failed += 1
-        except Exception:
+                break
+            if r.status_code in (429, 503) and attempt < 2:
+                retried += 1
+                time.sleep(2 ** (attempt + 1))  # 2 / 4
+                continue
             failed += 1
-    print(f"  [GDELT] {ok}/{len(urls)} 文件成功，{len(all_rows)} 条事件，失败 {failed}")
+            break
+    print(f"  [GDELT] {ok}/{len(urls)} 文件成功，{len(all_rows)} 条事件，失败 {failed}，重试 {retried}")
     return all_rows
 
 
