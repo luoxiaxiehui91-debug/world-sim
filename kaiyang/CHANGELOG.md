@@ -25,7 +25,7 @@ question：world-deduction kaiyang-3d-earth-not-displaying（P1）；CHG-2026091
 
 question：world-deduction kaiyang-toplevel-window-breaks-ci（P1）；CHG-20260912T101548
 - **fix**: `config/controlConfig.ts` 的 `DEFAULT_API_BASE_URL` 与 `lib/controlApi.ts` 的 `TRUSTED_CONTROL_HOSTS`
-  曾在**模块顶层**求值 `window.location`（commit `9e440c1` 开源阶段2 路径参数化引入，两处同源），
+  曾在**模块顶层**求值 `window.location`（commit `be245f3` 开源阶段2 路径参数化引入，两处同源），
   致使 vitest 默认 `environment: node` 下 `window is not defined` → 两个测试文件在 collect 阶段**整文件崩**，
   CI `kaiyang (vitest)` 长期红（4 annotations）。
 - 照 `config/dataSources.ts` 的既有范式加 `typeof window === 'undefined'` 守卫。**两处必须同修** ——

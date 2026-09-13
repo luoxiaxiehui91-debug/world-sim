@@ -114,7 +114,7 @@
 | 日期 | 变更内容 | 原因 |
 |------|----------|------|
 | 2026-08-06 | 初版：文档分治规范 + 存量分类清单 + 文件头模板 | 方向 B P0 落地（四方向治理论证） |
-| 2026-09-11 | 刷新 §2 存量分类清单快照：增补现行 `macro-scan/CHANGELOG.md` 与 4 个新文档（`OPEN-DECISIONS.md`/`STATUS.md`/`docs/KB_SETUP.md`/`docs/causal_assumptions.md`）；删除 2 条已不存在文件（根 `ROADMAP.md`、`HANDOVER.md`）；订正 `TuiYan_CHANGELOG.md` 为「已归档、文件头已合规」；更新 `.bak` 计数与扫描日期 | 距上次扫描 36 天，期间发生开源改造与变更日志换文件；今日 `bac5eb1` 已把 7 处导航指向统一到 `CHANGELOG.md`，清单须跟上 |
+| 2026-09-11 | 刷新 §2 存量分类清单快照：增补现行 `macro-scan/CHANGELOG.md` 与 4 个新文档（`OPEN-DECISIONS.md`/`STATUS.md`/`docs/KB_SETUP.md`/`docs/causal_assumptions.md`）；删除 2 条已不存在文件（根 `ROADMAP.md`、`HANDOVER.md`）；订正 `TuiYan_CHANGELOG.md` 为「已归档、文件头已合规」；更新 `.bak` 计数与扫描日期 | 距上次扫描 36 天，期间发生开源改造与变更日志换文件；今日 `4deab1b` 已把 7 处导航指向统一到 `CHANGELOG.md`，清单须跟上 |
 | 2026-09-11 | **发现项（未处理，单独立项）**：`docs/causal_assumptions.md` 自称「契约（CONTRACT）」类，而本规范仅定义 RECORD / INTENT 两类 | 属分类体系变更，超出快照刷新范围，本次仅如实标注 |
 | 2026-09-11 | 订正历史建议：原 `TuiYan_CHANGELOG.md` 条目的「补 §3.1 文件头」建议**已过期**（实测文件头早在 2026-08-27 前已合规），本次删除 | 保留过期建议会误导后续重复执行 |
 

@@ -68,7 +68,7 @@
 - 容器 bind mount **双边复现**（生产镜像 `macro-scan:v8`，`--rm --entrypoint sh`，不启服务）：挂 755 副本 → `EXEC_OK`；挂强制 644 副本 → `EXEC_FAIL`，故障机制在容器内实证
 - 生产复核：改动前后 17 容器集合一致、8899/8080 均 200、运行区 `entrypoint.sh` 仍 755
 - `git diff --cached --stat` = `1 file changed, 0 insertions(+), 0 deletions(-)`（仅模式位）
-- 已 push：`d02dd38..be69b1c`
+- 已 push：`f562f07..5722fe6`
 
 ## [3.8.49] - 2026-09-11
 

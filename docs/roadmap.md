@@ -71,7 +71,7 @@
 
 | 日期 | 里程碑 | 指针 |
 |---|---|---|
-| 08-14 | **GDELT scale 校准器落地**：天玑 `tianji_calibrator` 9 维 P95 反推原始计数 + tone_base + hotspot_p95；`geo_risk_vector` / `scan_weak_signals` 统一读 `gdelt_calib.json`；天玑 verifier 每日顺带触发（09-12 实测 v2、样本 568） | commit `9923113` |
+| 08-14 | **GDELT scale 校准器落地**：天玑 `tianji_calibrator` 9 维 P95 反推原始计数 + tone_base + hotspot_p95；`geo_risk_vector` / `scan_weak_signals` 统一读 `gdelt_calib.json`；天玑 verifier 每日顺带触发（09-12 实测 v2、样本 568） | commit `cf095a5` |
 | 09-08 | **日债 10Y 接入 MOF 日频源**（`fetch_mof_jgb` current+all 双源并集）：滞后 99 天 → 1 天 | v3.8.39 / CHG-20260908T203337 |
 | 09-08 | **宇宙监视可信度**：spacetrack 登录校验（看响应体）+ 失败态 + limit 截断修复（total_active 30000→35048） | v3.8.38 / CHG-20260908T192626 |
-| 09-12 | **观测层非 root 可移植**：`fetcher_base` 日志目录可配置（`MACRO_SCAN_LOG_DIR`）+ 不可写回退 + WARNING 留痕 | v3.8.52 / commit `4ca2e09` |
+| 09-12 | **观测层非 root 可移植**：`fetcher_base` 日志目录可配置（`MACRO_SCAN_LOG_DIR`）+ 不可写回退 + WARNING 留痕 | v3.8.52 / commit `61433e9` |
