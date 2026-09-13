@@ -665,7 +665,7 @@
 
 **配置变更**
 - `optim_config.py`：新增 `EIA_API_KEY = os.environ.get("EIA_API_KEY", "")`
-- `docker-compose.yml`：新增 `EIA_API_KEY=0moTFC6n6AsvySNc5Z1UQ5soeoyCxUAceX5KtuPW` 环境变量（需 `docker compose up -d` 重建生效）
+- `docker-compose.yml`：新增 `EIA_API_KEY=REDACTED_EIA_KEY` 环境变量（需 `docker compose up -d` 重建生效）
 - `scheduler.py`：新增调度行 `energy_eia 0630` + LOG_FILES 对应键
 
 - 治理：VERSION 3.6.2→3.6.3。
