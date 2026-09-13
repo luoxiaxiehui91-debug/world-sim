@@ -28,6 +28,7 @@
 ### Changed
 
 - 旧门禁仅存在于 `.git/hooks/`（**不随仓库分发，clone 后即失效**），已迁入 `.githooks/`。
+- **脱敏**：`macro-scan/TuiYan_CHANGELOG.md` 中一处 `EIA_API_KEY` 明文值替换为占位符。该 key 无权限差异、所涉数据全公开，且经核查 EIA 无 key 管理/吊销入口（官方仅 register 与 forgot-key，后者为「重发原值」）→ 定级 P2。**边界**：历史中 3 个 commit 仍携带该明文，属 `filter-repo` 重写范畴，本次未做。
 
 
 ---
