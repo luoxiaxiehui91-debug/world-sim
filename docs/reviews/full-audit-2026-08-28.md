@@ -39,7 +39,7 @@ SPACETRACK_PASS = os.environ.get("SPACETRACK_PASS",  "REDACTED_SPACETRACK_PASS")
 - **单元/维度**: kaiyang 构建/部署/配置 · 安全配置
 - **位置**: `kaiyang/src/config/controlConfig.ts:32-35, kaiyang/src/state/ControlContext.tsx:37-40, kaiyang/.env.local:1`
 - **描述**: getEnvToken() 通过 import.meta.env.VITE_CONTROL_API_TOKEN 读取控制API令牌，resolveInitialToken() 让该 env 令牌优先于用户在 localStorage 输入的令牌。Vite 会把所有 VITE_ 前缀变量在构建期内联进客户端 JS。该令牌用于向天枢 control_server（DEFAULT_API_BASE_URL='http://192.168.31.108:8900/api/v1/control/'）鉴权控制/写操作。任何在 .env.local 存在时执行的 `vite build`（package.json build 脚本默认加载 .env.local）都会把明文令牌 d76af2153b36...（.env.local 实测有值）烘焙进任何人打开页面即可查看的 bundle。缓解事实：控制服务器为局域网地址(192.168.31.108)，且当前 kaiyang/dist 经 grep 未发现该令牌、.env.local 已被 gitignore 且不在 git 历史中——即当前尚未泄露，属设计层面的前瞻性风险。
-- **证据**: controlConfig.ts:33 `const t = import.meta.env.VITE_CONTROL_API_TOKEN`；ControlContext.tsx:38-39 `const env = getEnvToken(); if (env) return env;`；.env.local:1 `VITE_CONTROL_API_TOKEN=d76af2153b36dcc23a3b4de1515200047d79315c0974fcfa`；grep dist 无匹配(exit 1)；git check-ignore kaiyang/.env.local 命中。
+- **证据**: controlConfig.ts:33 `const t = import.meta.env.VITE_CONTROL_API_TOKEN`；ControlContext.tsx:38-39 `const env = getEnvToken(); if (env) return env;`；.env.local:1 `VITE_CONTROL_API_TOKEN=REDACTED_CONTROL_TOKEN`；grep dist 无匹配(exit 1)；git check-ignore kaiyang/.env.local 命中。
 - **建议**: 控制平面的鉴权令牌不应经前端构建注入。建议移除 getEnvToken()/VITE_CONTROL_API_TOKEN 路径，仅保留用户手动输入(localStorage)方式；或改为由后端在受信任环境下持有令牌、前端通过会话/反向代理鉴权。若必须保留 env 注入，务必确保生产构建绝不加载含真实令牌的 .env.local，并将令牌视为已泄露定期轮换。
 
 ### 🟠 [HIGH] 生效中的 FRED_API_KEY 明文硬编码在多个受版本控制的文件中
@@ -265,7 +265,7 @@ SPACETRACK_PASS = os.environ.get("SPACETRACK_PASS",  "REDACTED_SPACETRACK_PASS")
 - **单元/维度**: 安全与密钥专项 · 安全配置
 - **位置**: `kaiyang/src/config/controlConfig.ts:33（getEnvToken 读 import.meta.env.VITE_CONTROL_API_TOKEN）；配套 kaiyang/.env.local 内含真实 token`
 - **描述**: getEnvToken() 从 import.meta.env.VITE_CONTROL_API_TOKEN 读取控制 API 的 Bearer token，controlApi.ts:212 用它注入 Authorization 头。Vite 的既定行为是把所有 VITE_ 前缀的环境变量在构建时内联进客户端 JS bundle（可验证事实），因此若构建时设置了该变量（kaiyang/.env.local 中确有真实值 d76af2153...），该 token 会被硬编码进发布的前端 JS，任何能加载前端的人都能从 bundle 提取它——而该 token 用于鉴权可触发采集/暂停等操作的控制 API，等于把"密钥"发给了所有前端用户，失去保护意义。当前 .env.local 未被追踪（正确），且代码另有 localStorage 手填 token 的路径可规避此问题。
-- **证据**: controlConfig.ts:33 `const t = import.meta.env.VITE_CONTROL_API_TOKEN as string | undefined;`；kaiyang/.env.local `VITE_CONTROL_API_TOKEN=d76af2153b36dcc23a3b4de1515200047d79315c0974fcfa`
+- **证据**: controlConfig.ts:33 `const t = import.meta.env.VITE_CONTROL_API_TOKEN as string | undefined;`；kaiyang/.env.local `VITE_CONTROL_API_TOKEN=REDACTED_CONTROL_TOKEN`
 - **建议**: 生产构建不要设置 VITE_CONTROL_API_TOKEN，改为完全依赖用户在面板手填 token 存 localStorage 的路径；或将控制 API 置于需登录的反向代理之后，不靠内联到浏览器的静态 token。文档中明确警示 VITE_ 变量会进 bundle。
 
 ### 🟡 [MEDIUM] L3 LLM 负向确认（outcome=0）自动落库门槛恒不可达
