@@ -8,12 +8,21 @@
 #
 # 安装: git config core.hooksPath .githooks
 # 绕过: git commit --no-verify（会被 pre-push / CI / Push protection 再拦）
+#
+# 环境变量:
+#   WORLDSIM_LOCAL_FEATURE_SCAN   1（默认）= 同时扫描本项目私有部署特征；0 = 关闭
+#
+# ⚠️ 本脚本的 PATTERN / LOCAL_PATTERN 与 .githooks/pre-push 是复制关系，
+#    修改其中一处必须同步另一处，否则两关的判据会漂移。
 # =============================================================
 
 set -u
+set -f
 
 FAIL=0
 REPORT=""
+
+LOCAL_SCAN="${WORLDSIM_LOCAL_FEATURE_SCAN:-1}"
 
 # ---------- 第 1 关：敏感文件名（沿用 ADR-0015） ----------
 BAD_FILES=$(git diff --cached --name-only | grep -E \
@@ -25,9 +34,15 @@ if [ -n "$BAD_FILES" ]; then
 fi
 
 # ---------- 第 2 关：形态判据（核心，拦住硬编码密钥与内网地址） ----------
-# 只扫本次新增行，并剔除常见注释行以降低误报（红线 #47）
-PATTERN='sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{40,}|AKIA[0-9A-Z]{16}|BEGIN (RSA |OPENSSH |EC |DSA |PGP )?PRIVATE KEY|(^|[^0-9])192\.168\.[0-9]{1,3}\.[0-9]{1,3}([^0-9]|$)|/vol2/1000/|TSX@[0-9]'
+# 通用凭证形态（开源后仍适用）
+PATTERN='sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{40,}|AKIA[0-9A-Z]{16}|BEGIN (RSA |OPENSSH |EC |DSA |PGP )?PRIVATE KEY'
+# 本项目私有部署特征（内网网段 / 私有部署根路径 / 运维账号形态）—— 开源后应关闭
+LOCAL_PATTERN='(^|[^0-9])192\.168\.[0-9]{1,3}\.[0-9]{1,3}([^0-9]|$)|/vol2/1000/|TSX@[0-9]'
+if [ "$LOCAL_SCAN" = "1" ]; then
+  PATTERN="$PATTERN|$LOCAL_PATTERN"
+fi
 
+# 只扫本次新增行，并剔除常见注释行以降低误报（红线 #47）
 # 排除 .githooks 自身：本脚本的 PATTERN 定义行含敏感字面量，否则会自匹配误报
 HITS=$(git diff --cached -U0 -- . ':(exclude).githooks' 2>/dev/null \
   | grep '^+' \

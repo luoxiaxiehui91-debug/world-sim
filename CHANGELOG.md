@@ -21,7 +21,7 @@
 
 - **Git push 纪律（本地两层门禁）**：新增 `.githooks/pre-commit` 与 `.githooks/pre-push`，纳入版本控制随仓库分发，启用方式 `git config core.hooksPath .githooks`。
   - `pre-commit`：判据由「文件名黑名单」升级为「形态判据」，可拦截硬编码凭证与内网地址；保留原有 `.env` 文件拦截。
-  - `pre-push`（新增）：扫 `origin/main..HEAD` **全区间** —— 补上 `pre-commit` 只检查 staged 的盲区（push 推的是全部历史，不只是最新改动）。
+  - `pre-push`（新增）：扫**本次推送的实际 ref/sha** 全区间 —— 补上 `pre-commit` 只检查 staged 的盲区（push 推的是全部历史，不只是最新改动）。区间来源与身份校验的后续加固见下方 `### Changed`。
   - 零硬依赖：优先调用 gitleaks，未安装时回退内建正则，保证任何机器上都生效。
 - **规范文档**：新增 [`docs/PUSH-DISCIPLINE.md`](docs/PUSH-DISCIPLINE.md)，含三层防护模型、push 前自检清单、force push 纪律与泄露事故响应；`CONTRIBUTING.md` 提交约定段同步。
 
@@ -35,6 +35,13 @@
   - **验证**：tree hash 全集对拍完全一致（仅元数据变更、文件树零改动）；GitHub 服务端 `GH007`（push 时强制校验全历史邮箱）未报错；容器挂载目录 `macro-sim/output` 指纹与重写前一致（14 文件 / 662603 字节）。
   - **副作用修复**：`filter-repo` 会自动删除 `origin` remote 与分支 upstream 配置，已重建。
   - **边界**：工作树中 6 处引用旧 commit hash 的文档已同步为新 hash；另有 1 处（`macro-scan/CHANGELOG.md` 中 `HEAD=94bc47e`）系 2026-09-11 上次重写遗留的 dangling commit，不在本次映射表内，保持原样。
+
+- **【修复】`pre-push` 门禁的扫描区间错配与身份盲区**（2026-09-13）：扫描区间改为**逐 ref 解析 git 经 stdin 传入的真实推送对象**，不再硬编码 `origin/main..HEAD`。后者是「本地领先 main 的量」，与「本次推出去的东西」是两个语义 —— 推非 HEAD 分支 / `git push --all` / 一次推多个 ref 时区间会算错甚至为空，导致密钥形态扫描与敏感文件名检查**一起静默失效**（原缺陷实测：含明文密钥的非 HEAD 分支被放行）。
+  - 新区间规则：远端已有该 ref → `remote_sha..local_sha`；新分支（remote_sha 全零）→ 与**空树**比较（扫该 ref 全部历史）；删除 ref → 跳过；**stdin 为空 → 退化为全历史扫描**（宁可多扫，不可漏扫）。
+  - 提交身份由「提示」升级为**硬拦截**：author 与 committer **双字段**并集对邮箱白名单校验，越界即拒绝推送。
+  - 新增**本地身份静态自检**（`git config user.email`），与「当前有无待推提交」解耦，无需提交即可预警。
+  - 新增环境变量：`WORLDSIM_EMAIL_ALLOWLIST`（追加放行邮箱 glob）、`WORLDSIM_LOCAL_FEATURE_SCAN`（是否扫描本项目私有部署特征，默认 `1`；开源给外部使用时应设为 `0`）。
+  - 同步修正 `refs/remotes/origin/*` 与真实远端的脱钩（历史重写遗留）—— `git status` 不再显示 `ahead 580, behind 572` 之类的假领先。
 
 
 
