@@ -29,6 +29,7 @@
 
 - 旧门禁仅存在于 `.git/hooks/`（**不随仓库分发，clone 后即失效**），已迁入 `.githooks/`。
 - **脱敏**：`macro-scan/TuiYan_CHANGELOG.md` 中一处 `EIA_API_KEY` 明文值替换为占位符。该 key 无权限差异、所涉数据全公开，且经核查 EIA 无 key 管理/吊销入口（官方仅 register 与 forgot-key，后者为「重发原值」）→ 定级 P2。**边界**：历史中 3 个 commit 仍携带该明文，属 `filter-repo` 重写范畴，本次未做。
+- **脱敏**：`docs/reviews/full-audit-2026-08-28.md` 中残留的两处 `CONTROL_TOKEN` 明文值替换为占位符 `REDACTED_CONTROL_TOKEN`（L42 / L268）。**定级 P2** —— 该值经 `VITE_CONTROL_API_TOKEN` 被**构建期内联**进开阳前端产物 （`kaiyang/dist/assets/*.js`，LAN 内任何人 devtools 可读）→ **本不具「秘密」属性**；且控制面 `:8900` 经 check-host.net 6 个公共节点实测**公网不可达** → 转 public 后「能读到、用不了」。**同类复扫**：`docs/reviews/` + `docs/decisions/` 共 22 个 md 按形态判据复查，无第二漏项。**边界**：全历史命中 1 个 commit（`01c4f2f`）仍携带该值，属 `filter-repo` 重写范畴，本次未做；`kaiyang/.env.local` 与 `kaiyang/dist/`（均被 `kaiyang/.gitignore` 忽略）作为运行件/构建产物**有意未动**。（同根因漏项的另一实例：同文件 PG 密码已于 `a1e30ee` 脱敏。）
 
 - **提交邮箱隐私治理（全历史重写）**：仓库全部历史提交的 author（577 条）与 committer（576 条）邮箱由个人 gmail 改写为 GitHub noreply 地址，消除转 public 后邮箱被爬虫索引、跨平台身份关联的暴露面。
   - 重写后 3 个分支全部强推：`main` / `b0/news-forecast-pg` / `test/regression-suite-and-ci`；本地 `git config user.email` 同步改为 noreply，切断后续新提交的再污染源。
