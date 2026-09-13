@@ -30,6 +30,13 @@
 - 旧门禁仅存在于 `.git/hooks/`（**不随仓库分发，clone 后即失效**），已迁入 `.githooks/`。
 - **脱敏**：`macro-scan/TuiYan_CHANGELOG.md` 中一处 `EIA_API_KEY` 明文值替换为占位符。该 key 无权限差异、所涉数据全公开，且经核查 EIA 无 key 管理/吊销入口（官方仅 register 与 forgot-key，后者为「重发原值」）→ 定级 P2。**边界**：历史中 3 个 commit 仍携带该明文，属 `filter-repo` 重写范畴，本次未做。
 
+- **提交邮箱隐私治理（全历史重写）**：仓库全部历史提交的 author（577 条）与 committer（576 条）邮箱由个人 gmail 改写为 GitHub noreply 地址，消除转 public 后邮箱被爬虫索引、跨平台身份关联的暴露面。
+  - 重写后 3 个分支全部强推：`main` / `b0/news-forecast-pg` / `test/regression-suite-and-ci`；本地 `git config user.email` 同步改为 noreply，切断后续新提交的再污染源。
+  - **验证**：tree hash 全集对拍完全一致（仅元数据变更、文件树零改动）；GitHub 服务端 `GH007`（push 时强制校验全历史邮箱）未报错；容器挂载目录 `macro-sim/output` 指纹与重写前一致（14 文件 / 662603 字节）。
+  - **副作用修复**：`filter-repo` 会自动删除 `origin` remote 与分支 upstream 配置，已重建。
+  - **边界**：工作树中 6 处引用旧 commit hash 的文档已同步为新 hash；另有 1 处（`macro-scan/CHANGELOG.md` 中 `HEAD=94bc47e`）系 2026-09-11 上次重写遗留的 dangling commit，不在本次映射表内，保持原样。
+
+
 
 ---
 
