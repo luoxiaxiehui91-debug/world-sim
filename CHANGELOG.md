@@ -48,6 +48,17 @@
 
 ---
 
+### Fixed
+
+- **`macro-scan` 入口脚本权限位缺陷（P2）**：`docker-compose.yml` 中的 `- ./entrypoint.sh:/entrypoint.sh` 为 bind mount，
+  会沿用宿主机权限位并覆盖镜像层，使 `Dockerfile` 的 `COPY` + `chmod +x` 失效。
+  当 clone / 解包后该脚本非 755（如 `umask 077`、Download ZIP 解包）时，
+  容器 root 对其「能读不能执行」→ `permission denied`。
+  修复：显式声明 `entrypoint: ["/bin/bash", "/entrypoint.sh"]`，只需读权限即可执行，**并保留 bind mount 的热更能力**。
+  实测：700 权限下直接执行报 `Permission denied`；改以 bash 执行后 web / control / scheduler 均正常启动。
+  该缺陷由 09-14 「开源第一公里」隔离从零 up 终验发现（`operations/CHG-20260914T232500-world-deduction.md`），
+  定级于 09-15 由 P1 下调为 P2 —— 实测该终验机的 700 属本机 umask 不生效所致，非外部用户普遍场景。
+
 ## [2026-09-11] 开源准备
 
 为把仓库从私有内网项目转为可公开的形态所做的一批改造。目标：**开源框架与逻辑，数据与配置完全外置**，让任何人能从零 clone 后自行搭建。
