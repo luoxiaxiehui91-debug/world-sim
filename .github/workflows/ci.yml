@@ -36,6 +36,10 @@ jobs:
           cache: npm
           cache-dependency-path: kaiyang/package-lock.json
       - run: npm ci
+      - name: tsc typecheck
+        # 本地 `npm run build` 含 tsc，但 CI 不跑 build → 类型错误此前不会被拦截。
+        # 0 错误基线已实测（CHG-20260915T075500）。
+        run: npx tsc --noEmit
       - name: vitest run
         run: npm run test
 
@@ -104,9 +108,49 @@ jobs:
           pip install pytest pytest-timeout
       - name: pytest
         # 只跑 tests/（核心代码/tests 目前是 0 字节空壳）。
-        # test_fetch_commodity_yahoo.py 有已知的可复现挂起（审计 finding 记录：
-        # collect() 中 requests.get 未被 mock 拦截而真实发起 → 挂起），
-        # 用 --ignore 排除；--timeout 作为其余测试的兜底。
+        # test_fetch_commodity_yahoo.py 的 --ignore 于 2026-09-15 解除：原注释
+        # 「requests.get 未被 mock 拦截」为误诊（patch 实际生效），真因是生产 SYMBOLS
+        # 扩展到 15 个后测试 fixture 未同步 → 未知 symbol 抛 KeyError → 被 fetcher_base
+        # 退避重试捕获（2+4+8 秒/个）→ 整体超时。现已对齐基线，
+        # 禁网实测：自带断言 0 失败 / pytest 4 passed / 0.44s（CHG-20260915T075500）。
         run: >
           python -m pytest tests -q -p no:cacheprovider --timeout=90
-          --ignore=tests/test_fetch_commodity_yahoo.py
+
+  # 密扫：只扫本次新增区间（HEAD / PR 增量）。历史 8 个命中已由 NAS gitleaks
+  # 全量扫描兑底（含已脱敏的 CONTROL_TOKEN 与轮换前的旧 key），
+  # 故不全历史扫描，避免 CI 长期红。
+  # 注意：8.30.1 已移除 `detect` 子命令，必须用 `git`。
+  # --redact 必须保留：public 仓库的 Actions 日志对所有人可见。
+  gitleaks:
+    name: gitleaks (HEAD + PR 增量)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks 8.30.1
+        run: |
+          V=8.30.1
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${V}/gitleaks_${V}_linux_x64.tar.gz" -o "$RUNNER_TEMP/gitleaks.tgz"
+          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
+          sudo install -m 0755 "$RUNNER_TEMP/gitleaks" /usr/local/bin/gitleaks
+          gitleaks version
+      - name: Scan new commits only
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "pull_request" ]; then
+            RANGE="${PR_BASE}..${HEAD_SHA}"
+          elif [ -n "${BEFORE:-}" ] && ! printf '%s' "$BEFORE" | grep -qE '^0+$'; then
+            RANGE="${BEFORE}..${HEAD_SHA}"
+          else
+            # 首次推送 / force push 后 before 为全 0
+            RANGE="HEAD~1..HEAD"
+          fi
+          echo "scanning: $RANGE"
+          gitleaks git --log-opts="$RANGE" --no-banner --redact -v
