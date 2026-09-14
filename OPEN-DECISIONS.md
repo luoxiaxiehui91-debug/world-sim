@@ -10,4 +10,4 @@
 >
 > **新增待决项归属**：时区/采集层问题 → 写天枢册；校准/引擎问题 → 写天璇册。两份册格式不一致（天枢散文、天璇表格）为历史遗留，新增条目沿用各册现有格式即可。
 >
-> 架构决策（ADR）以 git commit 形式记录（单人研究系统，未单列 ADR 文档）；STATUS「关键决策」节 + `docs/calib/` 为设计评审权威。
+> 架构决策（ADR）**已单列文档**：`docs/decisions/world-deduction/`（ADR-0001~0017，索引见其 INDEX.md）+ `docs/decisions/docs/`（0001-0002）；STATUS「关键决策」节 + `docs/calib/` 为设计评审权威。〔as-of 2026-09-14 · 复核: `ls docs/decisions/world-deduction/`〕（原句「未单列 ADR 文档」系 08-12 旧况未复核致反转，状态漂移 Wave 2 订正）
