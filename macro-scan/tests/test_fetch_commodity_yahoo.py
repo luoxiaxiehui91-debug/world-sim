@@ -58,6 +58,11 @@ def _fake_get(url, **kwargs):
     sym = url.rstrip("/").split("/")[-1]
     if sym == "AH=F":
         return FakeResp(json.dumps(FIXTURE["AH=F"]), status_code=404)
+    if sym not in FIXTURE:
+        # 生产 SYMBOLS 会扩展（现为 15 个，含 SI=F/SPY/QQQ 等），fixture 未必覆盖全部。
+        # 未知 symbol 返回 404 而非抛 KeyError：异常会被 fetcher_base 的退避重试捕获
+        # （2+4+8 秒/个），使整个测试超时 —— 这正是本文件曾被 --ignore 的真实原因（CHG-20260915T075500）。
+        return FakeResp("{}", status_code=404)
     return _chart_response(sym)
 
 
@@ -77,9 +82,22 @@ def test_normal() -> None:
     print("[test] Yahoo 正常路径（WTI/Brent/Copper 三个 symbol）")
     tmp = tempfile.mkdtemp()
     f = CommodityYahooFetcher(tmp)
-    with patch("requests.get") as mock_get:
-        mock_get.side_effect = _fake_get
-        result = f.collect()
+    # 固定 SYMBOLS 基线到 fixture 覆盖面（排除 404 场景用的 AH=F）：
+    # 本用例只验「解析逻辑」，不验生产 symbol 清单规模 ——
+    # 生产清单已扩到 15 个，沿用生产清单会让其余 symbol 走 404 → status=partial，
+    # 与本用例断言语义冲突（CHG-20260915T075500）。
+    orig_sym, orig_keys = ymod.SYMBOLS, ymod._SYMBOL_KEYS
+    ymod.SYMBOLS = [s for s in orig_sym if s[0] in FIXTURE and s[0] != "AH=F"]
+    ymod._SYMBOL_KEYS = [
+        orig_keys[i] for i, s in enumerate(orig_sym)
+        if s[0] in FIXTURE and s[0] != "AH=F"
+    ]
+    try:
+        with patch("requests.get") as mock_get:
+            mock_get.side_effect = _fake_get
+            result = f.collect()
+    finally:
+        ymod.SYMBOLS, ymod._SYMBOL_KEYS = orig_sym, orig_keys
 
     check(result is not None, "collect 返回非 None")
     check(result.get("status") == Status.OK, "status == ok（无失败 symbol）")
@@ -118,8 +136,13 @@ def test_partial_aluminum() -> None:
     # 注入 AH=F 到 SYMBOLS，模拟架构设计 §3.2 铝 404 场景
     orig_sym = ymod.SYMBOLS
     orig_keys = ymod._SYMBOL_KEYS
-    ymod.SYMBOLS = orig_sym + [("AH=F", "铝", "USD/lb")]
-    ymod._SYMBOL_KEYS = orig_keys + ["aluminum"]
+    # 同 test_normal：把基线收敛到 fixture 覆盖面，再追加 AH=F 404 场景。
+    # 若沿用生产全集（15 个），未被 fixture 覆盖的 symbol 也会 404
+    # → unavailable_symbols 不止 AH=F，与本用例「单 symbol 失败隔离」语义不符（CHG-20260915T075500）。
+    _base = [(s, orig_keys[i]) for i, s in enumerate(orig_sym)
+             if s[0] in FIXTURE and s[0] != "AH=F"]
+    ymod.SYMBOLS = [s for s, _ in _base] + [("AH=F", "aluminum", "铝", "USD/lb", "金属")]
+    ymod._SYMBOL_KEYS = [k for _, k in _base] + ["aluminum"]
     try:
         tmp = tempfile.mkdtemp()
         f = CommodityYahooFetcher(tmp)
