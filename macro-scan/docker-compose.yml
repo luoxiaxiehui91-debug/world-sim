@@ -18,6 +18,11 @@ services:
       - ./知识库:/workspace/知识库
       - ./config:/workspace/config
 
+    # 09-15（P2 修复）：bind mount 沿用宿主机权限位并覆盖镜像层（Dockerfile L43-44 的 COPY + chmod +x 因此失效）。
+    # 若 clone/解包后 entrypoint.sh 非 755（umask 077 / Download ZIP 等），容器 root 对该文件「能读不能执行」→ permission denied。
+    # 显式以 bash 执行只需 r 位（root 可读），一行治根且保留 bind 热更能力。
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+
     env_file:
       - .env
     environment:

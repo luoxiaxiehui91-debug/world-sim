@@ -25,6 +25,15 @@
   - 零硬依赖：优先调用 gitleaks，未安装时回退内建正则，保证任何机器上都生效。
 - **规范文档**：新增 [`docs/PUSH-DISCIPLINE.md`](docs/PUSH-DISCIPLINE.md)，含三层防护模型、push 前自检清单、force push 纪律与泄露事故响应；`CONTRIBUTING.md` 提交约定段同步。
 
+- **CI 三项门禁补齐（CHG-20260915T075500）**：
+  - **新增 `gitleaks` job**：只扫本次新增区间（PR 用 `base..head`；push 用 `before..sha`；首推 / force push 后 `before` 为全 0 时退化为 `HEAD~1..HEAD`），
+    历史 8 个命中仍由 NAS 全量扫描兜底。强制 `--redact`（public 仓库的 Actions 日志对所有人可见）；
+    注意 8.30.1 已移除 `detect` 子命令，须用 `gitleaks git`。
+  - **`kaiyang` job 新增 `npx tsc --noEmit`**：此前 CI 不跑 build，类型错误无人拦；实测 0 错误基线后加入。
+  - **解除 `macro-scan` 的 `--ignore=tests/test_fetch_commodity_yahoo.py`**：原注释「未被 mock 拦截」为误诊，
+    真因是生产 `SYMBOLS` 扩展到 15 个后测试 fixture 未同步（未知 symbol 抛 KeyError → 退避重试 2+4+8 秒/个 → 超时）；
+    已把两个用例的 SYMBOLS 基线收敛到 fixture 覆盖面。禁网实测：自带断言 0 失败、pytest 4 passed / 0.44s（改前 2 failed / 121s）。
+
 ### Changed
 
 - 旧门禁仅存在于 `.git/hooks/`（**不随仓库分发，clone 后即失效**），已迁入 `.githooks/`。
@@ -47,6 +56,17 @@
 
 
 ---
+
+### Fixed
+
+- **`macro-scan` 入口脚本权限位缺陷（P2）**：`docker-compose.yml` 中的 `- ./entrypoint.sh:/entrypoint.sh` 为 bind mount，
+  会沿用宿主机权限位并覆盖镜像层，使 `Dockerfile` 的 `COPY` + `chmod +x` 失效。
+  当 clone / 解包后该脚本非 755（如 `umask 077`、Download ZIP 解包）时，
+  容器 root 对其「能读不能执行」→ `permission denied`。
+  修复：显式声明 `entrypoint: ["/bin/bash", "/entrypoint.sh"]`，只需读权限即可执行，**并保留 bind mount 的热更能力**。
+  实测：700 权限下直接执行报 `Permission denied`；改以 bash 执行后 web / control / scheduler 均正常启动。
+  该缺陷由 09-14 「开源第一公里」隔离从零 up 终验发现（`operations/CHG-20260914T232500-world-deduction.md`），
+  定级于 09-15 由 P1 下调为 P2 —— 实测该终验机的 700 属本机 umask 不生效所致，非外部用户普遍场景。
 
 ## [2026-09-11] 开源准备
 
