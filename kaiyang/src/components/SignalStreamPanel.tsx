@@ -206,11 +206,9 @@ export function SignalRow({ signal: s, index, selected, onSelect, expanded }: Si
             {s.detail && <div>{s.detail}</div>}
             {s.riskNote && <div className="text-amber-200/80">⚠ {s.riskNote}</div>}
             {s.triggerTitles?.map((t, i) => (
-              <div
-                key={i}
-                className="border-l-2 border-accent/30 pl-2"
-                dangerouslySetInnerHTML={{ __html: t }}
-              />
+              <div key={i} className="border-l-2 border-accent/30 pl-2">
+                {t}
+              </div>
             ))}
           </div>
         )}

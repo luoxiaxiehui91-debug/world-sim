@@ -57,11 +57,9 @@ function NewsCard({ item }: { item: NewsItem }) {
           {item.details && <div>{item.details}</div>}
           {item.risk_note && <div className="text-amber-200/80">⚠ {item.risk_note}</div>}
           {item.trigger_titles?.map((t, i) => (
-            <div
-              key={i}
-              className="border-l-2 border-accent/30 pl-2"
-              dangerouslySetInnerHTML={{ __html: t }}
-            />
+            <div key={i} className="border-l-2 border-accent/30 pl-2">
+              {t}
+            </div>
           ))}
           {item.current !== undefined && (
             <div>
