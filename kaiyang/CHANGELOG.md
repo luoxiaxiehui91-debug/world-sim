@@ -6,6 +6,42 @@
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
 
+## [1.11.41] 2026-09-16 · XSS 同族清扫（图表/tooltip 裸插值 + href 消毒）+ CI sink 计数门禁
+
+question：world-deduction kaiyang-trigger-titles-xss（P2）；CHG-20260916T233310
+
+- **fix（安全）· 同族清扫 9 个代码点**（1.11.40 只堵了 2 处；按红线 #81「补丁只打一条路径」穷举后补齐全族）：
+  - ⓑ **裸插值 5 处**：`lib/mapData.ts` `arcTooltipHtml()`（`fromLabel`/`toLabel`）、
+    `components/GrvPanel.tsx` 与 `control/TianxuanTab.tsx` 的 **echarts `tooltip.formatter`**
+    （`label` / `derivedMissing` / `axisValueLabel` / `seriesName`）、`GlobePanel.tsx` `siteTooltipHtml()`、
+    `FlatMapPanel.tsx:630`。
+  - ⓒ **`href` 4 处**：`NewsPanel` / `SignalStreamPanel` / `RiskSignalsPanel` / `EventPopup:151` 统一走 `sanitizeUrl()`。
+- **refactor**：`escapeHtml()` 由 `lib/mapData.ts` 的**私有函数提取为共享模块** `lib/escapeHtml.ts` 并导出 ——
+  原先只有 `pointTooltipHtml()` 能用，导致同族 tooltip / formatter 各自裸插值。保留其原有语义
+  「**渲染层唯一**转义点」；已逐个核对 5 处调用点数据**均未预先转义**，不产生双重转义。
+- **test**：新增 `lib/escapeHtml.test.ts`（6 用例：五字符转义 / `img onerror` 阻断 / `null` 兜底 /
+  非字符串输入 / 普通文本无多余实体 / **双重转义反例** —— 后者固化「只转义一次」的约束）。
+- **ci**：kaiyang job 新增「XSS sink 计数断言」—— `dangerouslySetInnerHTML` ≤ 3、
+  **`href={xxx.` 直接属性绑定 = 0**（两者均排除 `*.test.*`，防测试文件里的字面量造成假阳性）。
+  **已做红/绿双向反证**：注入一处后计数 3→4、断言如期变红，恢复后归 3。
+  基线变红时须人工评估并同步更新注释，**不得自动放宽**。
+- **验证**：`npx tsc --noEmit` 0 错误；`npx vitest run` **22 文件 / 373 用例全绿**（367 + 新增 6）。
+
+### 附带发现（本版一并登记）
+
+- **C-URL 实为 4 处**（原记 3 处）：`EventPopup.tsx:151` 此前漏记，而**同文件 L201 早已使用 `sanitizeUrl()`**
+  → 红线 #81「同文件口径不一致」的第 4 个实例，也是最好修的一类（同文件已有正解）。
+- **echarts `tooltip.formatter` 是独立 sink 类别**：返回 HTML 即原样渲染，但**不含 `dangerouslySetInnerHTML` 字样**
+  → 按关键字 grep 会**整类漏掉**。已补进红线 #81 的枚举清单（三类 → 四类）。
+- **dist 权限回归的根因 = `chmod` 没有脚本**：只写在 `README:152` / `DEPLOYMENT:26`，实际部署时
+  `docker run npx vite build` 直接绕过了它 → 产物又变 705。已在部署区建 `deploy.sh`
+  （build → chmod → 备份 → rsync → 复验；脚本留在部署区、**不进 git**）固化为唯一部署路径。
+  **未改 `package.json` 的 `build` 脚本** —— 加 `chmod` 会让外部 Windows 开发者 `npm run build` 直接失败，
+  而 Windows 场景本不需要该命令（git clone 得 644，无 umask 077 问题）。
+
+**未做（入 backlog 单独评估）**：`eslint react/no-danger` —— kaiyang 无 eslint 配置，引入等于接入整套
+lint 工具链（装包 + 配置 + 全仓既有 lint 错误处置），不该夹带在 XSS 修复里。
+
 ## [1.11.40] 2026-09-16 · 收敛两处存储型 XSS sink（trigger_titles 裸 HTML + markdown 表格漏转义）
 
 question：world-deduction kaiyang-trigger-titles-xss（P2，两轮多 agent 盲审收敛）；CHG-20260916T074000
