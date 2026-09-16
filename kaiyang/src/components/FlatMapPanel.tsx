@@ -6,6 +6,7 @@ import * as topojson from 'topojson-client';
 import worldAtlas from 'world-atlas/countries-110m.json';
 import { MAP_THEME, withAlpha } from '@/config/theme';
 import { regionBbox, type RegionKey } from '@/config/regions';
+import { escapeHtml } from '@/lib/escapeHtml';
 import {
   HIGHLIGHT_THRESHOLD,
   type RiskArc,
@@ -627,7 +628,7 @@ export function FlatMapPanel({
         .text('★')
         .on('mouseenter', function(event: MouseEvent) {
           const pos = toContainerPos(event);
-          setTooltip({ html: `<span>${siteTooltipText(s)}</span>`, x: pos.x, y: pos.y });
+          setTooltip({ html: `<span>${escapeHtml(siteTooltipText(s))}</span>`, x: pos.x, y: pos.y });
         })
         .on('mousemove', function(event: MouseEvent) {
           const pos = toContainerPos(event);

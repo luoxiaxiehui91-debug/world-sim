@@ -1,10 +1,72 @@
 # Changelog · 开阳（Kaiyang）操作面板
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-09-12（记录类文档随部署持续更新）
+> 最后核对时间：2026-09-16（记录类文档随部署持续更新）
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+
+## [1.11.41] 2026-09-16 · XSS 同族清扫（图表/tooltip 裸插值 + href 消毒）+ CI sink 计数门禁
+
+question：world-deduction kaiyang-trigger-titles-xss（P2）；CHG-20260916T233310
+
+- **fix（安全）· 同族清扫 9 个代码点**（1.11.40 只堵了 2 处；按红线 #81「补丁只打一条路径」穷举后补齐全族）：
+  - ⓑ **裸插值 5 处**：`lib/mapData.ts` `arcTooltipHtml()`（`fromLabel`/`toLabel`）、
+    `components/GrvPanel.tsx` 与 `control/TianxuanTab.tsx` 的 **echarts `tooltip.formatter`**
+    （`label` / `derivedMissing` / `axisValueLabel` / `seriesName`）、`GlobePanel.tsx` `siteTooltipHtml()`、
+    `FlatMapPanel.tsx:630`。
+  - ⓒ **`href` 4 处**：`NewsPanel` / `SignalStreamPanel` / `RiskSignalsPanel` / `EventPopup:151` 统一走 `sanitizeUrl()`。
+- **refactor**：`escapeHtml()` 由 `lib/mapData.ts` 的**私有函数提取为共享模块** `lib/escapeHtml.ts` 并导出 ——
+  原先只有 `pointTooltipHtml()` 能用，导致同族 tooltip / formatter 各自裸插值。保留其原有语义
+  「**渲染层唯一**转义点」；已逐个核对 5 处调用点数据**均未预先转义**，不产生双重转义。
+- **test**：新增 `lib/escapeHtml.test.ts`（6 用例：五字符转义 / `img onerror` 阻断 / `null` 兜底 /
+  非字符串输入 / 普通文本无多余实体 / **双重转义反例** —— 后者固化「只转义一次」的约束）。
+- **ci**：kaiyang job 新增「XSS sink 计数断言」—— `dangerouslySetInnerHTML` ≤ 3、
+  **`href={xxx.` 直接属性绑定 = 0**（两者均排除 `*.test.*`，防测试文件里的字面量造成假阳性）。
+  **已做红/绿双向反证**：注入一处后计数 3→4、断言如期变红，恢复后归 3。
+  基线变红时须人工评估并同步更新注释，**不得自动放宽**。
+- **验证**：`npx tsc --noEmit` 0 错误；`npx vitest run` **22 文件 / 373 用例全绿**（367 + 新增 6）。
+
+### 附带发现（本版一并登记）
+
+- **C-URL 实为 4 处**（原记 3 处）：`EventPopup.tsx:151` 此前漏记，而**同文件 L201 早已使用 `sanitizeUrl()`**
+  → 红线 #81「同文件口径不一致」的第 4 个实例，也是最好修的一类（同文件已有正解）。
+- **echarts `tooltip.formatter` 是独立 sink 类别**：返回 HTML 即原样渲染，但**不含 `dangerouslySetInnerHTML` 字样**
+  → 按关键字 grep 会**整类漏掉**。已补进红线 #81 的枚举清单（三类 → 四类）。
+- **dist 权限回归的根因 = `chmod` 没有脚本**：只写在 `README:152` / `DEPLOYMENT:26`，实际部署时
+  `docker run npx vite build` 直接绕过了它 → 产物又变 705。已在部署区建 `deploy.sh`
+  （build → chmod → 备份 → rsync → 复验；脚本留在部署区、**不进 git**）固化为唯一部署路径。
+  **未改 `package.json` 的 `build` 脚本** —— 加 `chmod` 会让外部 Windows 开发者 `npm run build` 直接失败，
+  而 Windows 场景本不需要该命令（git clone 得 644，无 umask 077 问题）。
+
+**未做（入 backlog 单独评估）**：`eslint react/no-danger` —— kaiyang 无 eslint 配置，引入等于接入整套
+lint 工具链（装包 + 配置 + 全仓既有 lint 错误处置），不该夹带在 XSS 修复里。
+
+## [1.11.40] 2026-09-16 · 收敛两处存储型 XSS sink（trigger_titles 裸 HTML + markdown 表格漏转义）
+
+question：world-deduction kaiyang-trigger-titles-xss（P2，两轮多 agent 盲审收敛）；CHG-20260916T074000
+
+- **fix（安全）· C1 休眠 sink**：`components/NewsPanel.tsx` 的 `trigger_titles` 与
+  `components/SignalStreamPanel.tsx` 的 `triggerTitles` 原经 `dangerouslySetInnerHTML={{ __html: t }}` 裸渲染，
+  全链路零转义；改为 React 纯文本子节点 `{t}`。该字段来源是外部 RSS 标题，**本就是纯文本**，明文渲染即正确语义
+  （若日后确需富文本，应引入 DOMPurify 而非恢复裸注入）。
+  定性 **P2 休眠 sink**：前端读的 `news_all.json` / `news_export.json` 实测 `trigger_titles` 命中数 = 0，当前数据链已断。
+- **fix（安全）· N1 表格漏 esc**：`lib/markdown.ts` 的 `tableRow()` 是**唯一**未转义的分支 —— 其余分支均为
+  `inline(esc(...))`（标题 / 引用 / 列表 / 段落），唯独表格单元格是 `inline(c)`，而 `inline()` 自身不转义。
+  → 表格内容可原样吐出 `<img src=x onerror=...>`，经 `ReportsPanel.tsx` / `TianxuanTab.tsx` 的
+  `dangerouslySetInnerHTML={{ __html: renderMarkdown(...) }}` 落地（需 LLM 生成环节作中介）。修复 = 1 行。
+- **test**：`lib/markdown.test.ts` 新增「表格单元格 XSS」回归用例 —— 原 8 个用例只覆盖**段落**路径，
+  表格路径零覆盖，这正是 N1 长期漏网的根因。用例在修复**前实测红**（输出
+  `<tr><td><img src=x onerror=alert(1)></td>…</tr>`），修复后绿。
+- **验证**：`npx tsc --noEmit` 0 错误；`npx vitest run` 21 文件 / 367 用例全绿；`vite build` 成功；
+  dist 产物 `dangerouslySetInnerHTML` 出现数 **20 → 18**（应用侧 sink 5 → 3，其余为 React runtime 内部字符串）；
+  已 rsync 至部署区（`dist.bak-20260916T074634` 备份在案），静态资源 HTTP 200 复验通过。
+- **剩余 3 处 sink（本版未改）**：`ReportsPanel.tsx` / `TianxuanTab.tsx` 的 `renderMarkdown()`（表格路径已堵，
+  其余分支本就有 esc）、`FlatMapPanel.tsx` 的地图 tooltip（见 N2）。
+- **新发现 N2（未修，入 backlog）**：`lib/mapData.ts` 的 `arcTooltipHtml()` 对 `fromLabel` / `toLabel` **裸插值**，
+  而同文件 `pointTooltipHtml()` 对同类字段全程 `escapeHtml()` —— 口径不一致，属同型遗漏。经 `airRoutesAdapter.ts`
+  溯源，两者来自 `airroutes.json`（OpenFlights），当前取值为 IATA 三字码（如 `PEK`），攻击者不可控
+  → 与 C1 同型休眠 sink，定 **P3（卫生级）**。
 
 ## [1.11.39] 2026-09-12 · 修复 3D 地球不显示（dist 静态资源 700 权限 → nginx 403）
 

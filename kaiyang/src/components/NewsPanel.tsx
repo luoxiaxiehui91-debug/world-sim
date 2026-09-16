@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useFeed } from '@/hooks/useFeed';
 import { useStatus } from '@/state/StatusContext';
 import type { NewsItem } from '@/types/contracts';
+import { sanitizeUrl } from '@/lib/newsGeoAdapter';
 import { newsItemsOf } from './SignalStreamPanel';
 
 function NewsCard({ item }: { item: NewsItem }) {
@@ -26,7 +27,7 @@ function NewsCard({ item }: { item: NewsItem }) {
           {/* 标题：有 url 时可点击跳转，否则纯文本 */}
           {item.url ? (
             <a
-              href={item.url}
+              href={sanitizeUrl(item.url)}
               target="_blank"
               rel="noopener noreferrer"
               className="block truncate text-sm text-white/85 hover:text-accent transition-colors"
@@ -57,11 +58,9 @@ function NewsCard({ item }: { item: NewsItem }) {
           {item.details && <div>{item.details}</div>}
           {item.risk_note && <div className="text-amber-200/80">⚠ {item.risk_note}</div>}
           {item.trigger_titles?.map((t, i) => (
-            <div
-              key={i}
-              className="border-l-2 border-accent/30 pl-2"
-              dangerouslySetInnerHTML={{ __html: t }}
-            />
+            <div key={i} className="border-l-2 border-accent/30 pl-2">
+              {t}
+            </div>
           ))}
           {item.current !== undefined && (
             <div>

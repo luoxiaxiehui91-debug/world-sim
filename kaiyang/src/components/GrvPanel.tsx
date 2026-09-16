@@ -5,6 +5,7 @@ import { useFeed } from '@/hooks/useFeed';
 import { adaptGrv } from '@/lib/grvAdapter';
 import { PALETTE, severityColor, withAlpha } from '@/config/theme';
 import { fmtNum } from '@/lib/format';
+import { escapeHtml } from '@/lib/escapeHtml';
 import type { GrvDimension, GrvRaw } from '@/types/contracts';
 
 /** 综合指数头条卡（composite 维度不上地图，改在此处以大数字呈现）。 */
@@ -94,10 +95,10 @@ export function GrvPanel() {
                 ? ` · 置信度 ${Math.round(d.derivedConfidence * 100)}%`
                 : '') +
               (d.derivedMissing?.length
-                ? `<br/><span style="opacity:0.6;font-size:11px">缺失国家：${d.derivedMissing.join(', ')}</span>`
+                ? `<br/><span style="opacity:0.6;font-size:11px">缺失国家：${escapeHtml(d.derivedMissing.join(', '))}</span>`
                 : '')
             : '';
-          return `<b>${d.label}</b>${derivedTxt}<br/>数值：${d.value === null ? '缺失' : fmtNum(d.value)}<br/>不确定区间：${uncTxt}${est}`;
+          return `<b>${escapeHtml(d.label)}</b>${derivedTxt}<br/>数值：${d.value === null ? '缺失' : fmtNum(d.value)}<br/>不确定区间：${uncTxt}${est}`;
         },
       },
       xAxis: {
