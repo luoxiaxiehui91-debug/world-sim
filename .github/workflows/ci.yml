@@ -42,6 +42,21 @@ jobs:
         run: npx tsc --noEmit
       - name: vitest run
         run: npm run test
+      - name: XSS sink 计数断言（防新增）
+        # 基线（2026-09-16 CHG-20260916T233310 修复后实测）：
+        #   ⓐ dangerouslySetInnerHTML = 3 —— ReportsPanel / TianxuanTab / FlatMapPanel，
+        #      均为受控保留（其上游 renderMarkdown / tooltip 构建函数已全部转义）。
+        #   ⓒ href={xxx.} 直接属性绑定 = 0 —— 所有外部 URL 必须走 sanitizeUrl()。
+        #      （EventPopup 的 href={href} 是已消毒的局部变量，不含点号，不受影响）
+        # ⚠️ 断言红了须人工评估该 sink 是否必要并同步更新基线 + 注释，**不得自动放宽**。
+        # 详见红线 #81：「补丁只打在一条路径上，同族没跟着改」。
+        run: |
+          n=$(grep -ro --include=*.ts --include=*.tsx --exclude=*.test.ts --exclude=*.test.tsx 'dangerouslySetInnerHTML' src/ | wc -l)
+          echo "dangerouslySetInnerHTML = $n (基线 3，已排除测试文件)"
+          test "$n" -le 3
+          m=$(grep -rn --include=*.tsx --exclude=*.test.tsx 'href={[a-zA-Z]*\.' src/ | wc -l)
+          echo "href direct property binding = $m (基线 0，已排除测试文件)"
+          test "$m" -eq 0
 
   macro-sim:
     name: macro-sim (pytest)
