@@ -148,7 +148,7 @@ export function EventPopup({ point, related, titleMap, onClose }: EventPopupProp
           </div>
           {point.sourceUrl ? (
             <a
-              href={sanitizeUrl(point.sourceUrl)}
+              href={point.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="mb-2 block rounded border border-white/10 px-2 py-1 text-center text-[11px] transition-colors hover:border-white/30"

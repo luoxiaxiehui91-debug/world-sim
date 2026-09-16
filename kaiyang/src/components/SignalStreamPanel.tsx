@@ -4,7 +4,6 @@ import { useSelection } from '@/state/SelectionContext';
 import { categoryColor, categoryLabel } from '@/config/layerCategories';
 import { PALETTE, withAlpha } from '@/config/theme';
 import { fmtNum, truncate } from '@/lib/format';
-import { sanitizeUrl } from '@/lib/newsGeoAdapter';
 import type { NewsItem } from '@/types/contracts';
 
 /** 信号严重度（由 level / alert_type 文案推断，字段缺失即降级为普通信号）。 */
@@ -195,7 +194,7 @@ export function SignalRow({ signal: s, index, selected, onSelect, expanded }: Si
             <div className="text-white/75">{s.fullTitle}</div>
             {s.url && (
               <a
-                href={sanitizeUrl(s.url)}
+                href={s.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block truncate text-accent/90 transition-colors hover:text-accent"
@@ -207,9 +206,11 @@ export function SignalRow({ signal: s, index, selected, onSelect, expanded }: Si
             {s.detail && <div>{s.detail}</div>}
             {s.riskNote && <div className="text-amber-200/80">⚠ {s.riskNote}</div>}
             {s.triggerTitles?.map((t, i) => (
-              <div key={i} className="border-l-2 border-accent/30 pl-2">
-                {t}
-              </div>
+              <div
+                key={i}
+                className="border-l-2 border-accent/30 pl-2"
+                dangerouslySetInnerHTML={{ __html: t }}
+              />
             ))}
           </div>
         )}

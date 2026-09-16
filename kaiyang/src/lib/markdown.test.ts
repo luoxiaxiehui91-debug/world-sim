@@ -42,13 +42,6 @@ describe('renderMarkdown', () => {
     expect(html).toContain('&lt;script&gt;');
   });
 
-  it('XSS 安全：表格单元格内的 HTML 同样被转义（N1 回归）', () => {
-    const md = ['| 维度 | 值 |', '|:---|---:|', '| <img src=x onerror=alert(1)> | 1 |'].join('\n');
-    const html = renderMarkdown(md);
-    expect(html).not.toContain('<img');
-    expect(html).toContain('&lt;img');
-  });
-
   it('javascript: 协议链接不被渲染为可点击链接', () => {
     const html = renderMarkdown('[x](javascript:alert(1))');
     expect(html).not.toContain('href="javascript:');

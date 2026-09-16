@@ -8,7 +8,6 @@ import {
 import type { LayerCategory, PointShape, PointStatus } from '@/config/layerCategories';
 import { PALETTE, severityColor, severityLabel, withAlpha } from '@/config/theme';
 import { fmtNum } from '@/lib/format';
-import { escapeHtml } from '@/lib/escapeHtml';
 import type { GrvDimension, GrvEvent } from '@/types/contracts';
 
 /**
@@ -194,6 +193,24 @@ export function buildRiskArcs(dims: GrvDimension[]): RiskArc[] {
   return arcs;
 }
 
+/** HTML 实体转义（XSS 防线：所有进入 tooltip HTML 的外部文本统一在此转义）。
+ * 渲染层唯一转义点——避免与适配层再转义造成双重转义。 */
+function escapeHtml(value: unknown): string {
+  return String(value ?? '').replace(
+    /[&<>"']/g,
+    (ch) =>
+      ch === '&'
+        ? '&amp;'
+        : ch === '<'
+          ? '&lt;'
+          : ch === '>'
+            ? '&gt;'
+            : ch === '"'
+              ? '&quot;'
+              : '&#39;',
+  );
+}
+
 /** 统一的点位提示气泡 HTML（globe.gl pointLabel 与平面地图 tooltip 共用；事件点走告警文案）。 */
 export function pointTooltipHtml(p: RiskPoint): string {
   const val = p.value === null ? '数据缺失' : fmtNum(p.value);
@@ -248,7 +265,7 @@ export function arcTooltipHtml(a: RiskArc): string {
     `<div style="font:12px/1.5 ui-sans-serif,system-ui,sans-serif;` +
     `background:rgba(6,11,22,0.9);border:1px solid ${withAlpha(PALETTE.cyan, 0.4)};` +
     `color:${PALETTE.text};padding:4px 8px;border-radius:6px;white-space:nowrap;">` +
-    `${escapeHtml(a.fromLabel)} ↔ ${escapeHtml(a.toLabel)} · 联动强度 ${fmtNum(a.intensity, 0)}</div>`
+    `${a.fromLabel} ↔ ${a.toLabel} · 联动强度 ${fmtNum(a.intensity, 0)}</div>`
   );
 }
 

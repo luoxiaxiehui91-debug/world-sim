@@ -3,7 +3,6 @@ import Globe from 'globe.gl';
 import * as THREE from 'three';
 import { MAP_THEME, PALETTE, withAlpha } from '@/config/theme';
 import { WORLD_CAMERA, regionCamera, type RegionKey } from '@/config/regions';
-import { escapeHtml } from '@/lib/escapeHtml';
 import {
   HIGHLIGHT_THRESHOLD,
   arcTooltipHtml,
@@ -115,8 +114,8 @@ function siteTooltipHtml(site: StrategicSite): string {
     `background:rgba(6,11,22,0.92);border:1px solid ${withAlpha(STRATEGIC_SITE_COLOR, 0.55)};` +
     `box-shadow:0 0 18px ${withAlpha(STRATEGIC_SITE_COLOR, 0.28)};color:${PALETTE.text};` +
     `padding:6px 10px;border-radius:8px;white-space:nowrap;">` +
-    `<b style="color:${STRATEGIC_SITE_COLOR}">✦ ${escapeHtml(site.name)}</b>` +
-    `<br/><span style="opacity:.6">${escapeHtml(siteTooltipText(site))}</span>` +
+    `<b style="color:${STRATEGIC_SITE_COLOR}">✦ ${site.name}</b>` +
+    `<br/><span style="opacity:.6">${siteTooltipText(site)}</span>` +
     `</div>`
   );
 }

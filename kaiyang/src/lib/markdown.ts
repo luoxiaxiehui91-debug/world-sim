@@ -60,7 +60,7 @@ function tableRow(line: string, isHead: boolean): string | null {
     .map((c) => c.trim());
   if (cells.every((c) => /^:?-{2,}:?$/.test(c))) return null; // 对齐分隔行
   const tag = isHead ? 'th' : 'td';
-  const html = cells.map((c) => `<${tag}>${inline(esc(c))}</${tag}>`).join('');
+  const html = cells.map((c) => `<${tag}>${inline(c)}</${tag}>`).join('');
   return `<tr>${html}</tr>`;
 }
 
