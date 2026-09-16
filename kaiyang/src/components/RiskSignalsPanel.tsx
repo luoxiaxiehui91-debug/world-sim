@@ -1,6 +1,7 @@
 import { useFeed } from '@/hooks/useFeed';
 import { severityColor, severityLabel, withAlpha, PALETTE } from '@/config/theme';
 import { fmtNum } from '@/lib/format';
+import { sanitizeUrl } from '@/lib/newsGeoAdapter';
 import type { ReactNode } from 'react';
 import type {
   ClimateSignalsRaw,
@@ -189,7 +190,7 @@ export function RiskSignalsPanel() {
           {news.data?.status === 'ok' && (
             <div className="flex flex-col gap-1">
               {(news.data?.articles ?? []).slice(0, 5).map((a, i) => (
-                <a key={`${a.url ?? ''}-${i}`} href={a.url} target="_blank" rel="noopener noreferrer"
+                <a key={`${a.url ?? ''}-${i}`} href={sanitizeUrl(a.url)} target="_blank" rel="noopener noreferrer"
                    className="line-clamp-1 text-[10px] leading-tight text-white/60 hover:text-cyan-300 hover:underline"
                    title={a.title}>
                   {a.title}

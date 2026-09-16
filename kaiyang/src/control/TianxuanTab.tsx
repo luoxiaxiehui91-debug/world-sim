@@ -19,6 +19,7 @@ import { extractGovernanceEvents } from '@/lib/governance';
 import { GovernanceCard } from '@/components/GovernanceCard';
 import { EChart } from '@/components/EChart';
 import { PALETTE, withAlpha } from '@/config/theme';
+import { escapeHtml } from '@/lib/escapeHtml';
 import type { ReportsIndexRaw, ReportMeta, SimTriggerRaw, TianxuanGrvRaw } from '@/types/contracts';
 
 /**
@@ -159,11 +160,11 @@ function TianxuanTrajChart() {
           }>;
           const shown = arr.filter((p) => !String(p.seriesName ?? '').startsWith('__'));
           if (!shown.length) return '';
-          const head = shown[0].axisValueLabel ?? '';
+          const head = escapeHtml(shown[0].axisValueLabel ?? '');
           const lines = shown.map((p) => {
             const raw = Array.isArray(p.value) ? p.value[1] : p.value;
             const v = raw == null || raw === '' ? '—' : Number(raw).toFixed(1);
-            return `${p.marker ?? ''}${p.seriesName}: ${v}`;
+            return `${p.marker ?? ''}${escapeHtml(p.seriesName)}: ${v}`;
           });
           return [head, ...lines].join('<br/>');
         },
