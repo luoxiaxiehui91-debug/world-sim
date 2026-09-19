@@ -13,7 +13,7 @@ hybrid_llm.call_openai_compat），输出 titles_zh（url→中文标题），�
 增量策略（72h 窗口滚动，事件不断轮换）：
   - 读 news_geo.json events → 去重 URL 集合
   - 读已有 news_titles.json 缓存（不重抓已有、不重翻已有）
-  - 每轮只抓新增 URL（上限 NEW_MAX=40，并发 4，单 URL 12s 超时）
+  - 每轮抓全部新增 URL（上限 NEW_MAX=600 兜底，并发 8，单 URL 12s 超时）
   - 对新增标题 LLM 翻译（每批 25 个；失败保留英文，容错）
   - 写回 news_titles.json（保留 72h 内事件的标题）
 
@@ -47,8 +47,8 @@ PROXY_URL = _cfg["PROXY_URL"]
 
 NEWS_GEO_FILE = os.path.join(DATA_DIR, "news_geo.json")
 OUT_FILE = os.path.join(DATA_DIR, "news_titles.json")
-NEW_MAX = 40          # 每轮最多抓新增标题数（08-16 从 20 调大：2h 增量追平存量更快；40 条翻译 ~4-5min 仍在 I120 调度内）
-CONCURRENCY = 4       # 并发抓取数
+NEW_MAX = 600         # 每轮最多抓新增标题数（09-19：40/轮 追不上 ~340 窗口+262 未覆盖，改为一轮补齐；600 仅防窗口异常膨胀兜底）
+CONCURRENCY = 8       # 并发抓取数（09-19：4→8，约束首轮批量时长）
 # 翻译默认模型：固定 siliconflow/tencent/Hunyuan-MT-7B（由 llm_usage translate_titles 配置决定；08-16 曾用户指定 mimo-v2.5，已切换）
 TIMEOUT = 12          # 单 URL 超时（秒）
 MAX_TITLES = 600      # 缓存上限（72h 窗口事件 ~300，留余量）
