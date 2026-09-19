@@ -6,7 +6,8 @@ import type { RiskPoint } from '@/lib/mapData';
 import type { NewsGeoEvent } from '@/types/contracts';
 
 /** 新闻标题缓存（url → title，localStorage FIFO 200 条）——点击过的点秒开不重复抓 */
-const TITLE_CACHE_KEY = 'kaiyang.newsTitles';
+// 09-19 v2：旧键曾缓存过"未翻译的英文标题"，升版失效旧值（否则已点过的点永远读英文缓存）。
+const TITLE_CACHE_KEY = 'kaiyang.newsTitles.v2';
 
 function loadTitleCache(): Record<string, string> {
   try {
@@ -53,14 +54,21 @@ interface EventPopupProps {
  * v1.10.8 聚合语义：related = 同地点全部事件（同新闻按 source_url 去重，dup 徽标 ×N）。
  * 08-16 v1.11.22：标题三级取数——① titleMap 静态缓存（秒开、零 API）；② localStorage
  * 缓存；③ 后端 /news-title 按需抓取兜底（点过的秒开，新点加载中→失败隐藏）。
+ * 09-19 v1.11.42：① 缓存键升 v2（失效旧英文缓存）；② 取数失败渲染占位「标题获取失败（源站
+ * 限制访问）」而非整行空白；③ 后端 /news-title 抓到英文 <title> 后即时翻译为中文（见 macro-scan）。
  * 安全：所有文本经 React 默认转义渲染；链接 href 经 sanitizeUrl 消毒（仅 http/https）。
  */
 export function EventPopup({ point, related, titleMap, onClose }: EventPopupProps) {
   // 08-16：真实新闻标题——优先 titleMap（预抓缓存）→ localStorage → API 兜底。
   const [newsTitle, setNewsTitle] = useState<string | null>(null);
   const [loadingTitle, setLoadingTitle] = useState(false);
+  // 09-19：区分"取数失败"与"尚未取"——否则失败时渲染条件两分支皆假 → 标题行整行不渲染（用户看到空白）。
+  const [titleFailed, setTitleFailed] = useState(false);
   useEffect(() => {
     const url = point.sourceUrl;
+    setNewsTitle(null);
+    setLoadingTitle(false);
+    setTitleFailed(false);
     if (!url) return;
     // ① 静态预抓缓存命中 → 秒开
     if (titleMap?.[url]) {
@@ -72,23 +80,32 @@ export function EventPopup({ point, related, titleMap, onClose }: EventPopupProp
       setNewsTitle(cache[url]);
       return;
     }
-    // ③ API 兜底（预抓未覆盖的新事件）
+    // ③ API 兜底（预抓未覆盖的新事件；后端抓到英文 <title> 后即时翻译为中文再返回）
     let cancelled = false;
     setLoadingTitle(true);
-    getNewsTitle(url).then((t) => {
-      if (cancelled) return;
-      setLoadingTitle(false);
-      setNewsTitle(t);
-      if (t) {
-        const c = loadTitleCache();
-        c[url] = t;
-        const keys = Object.keys(c);
-        if (keys.length > 200) delete c[keys[0]]; // 简单 FIFO 淘汰
-        try {
-          localStorage.setItem(TITLE_CACHE_KEY, JSON.stringify(c));
-        } catch { /* 配额满静默 */ }
-      }
-    });
+    getNewsTitle(url)
+      .then((t) => {
+        if (cancelled) return;
+        setLoadingTitle(false);
+        if (t) {
+          setNewsTitle(t);
+          const c = loadTitleCache();
+          c[url] = t;
+          const keys = Object.keys(c);
+          if (keys.length > 200) delete c[keys[0]]; // 简单 FIFO 淘汰
+          try {
+            localStorage.setItem(TITLE_CACHE_KEY, JSON.stringify(c));
+          } catch { /* 配额满静默 */ }
+        } else {
+          // 源站 403/429/SSL、页面无 <title>、超时 → 占位提示，不再静默空白
+          setTitleFailed(true);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLoadingTitle(false);
+        setTitleFailed(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -141,6 +158,9 @@ export function EventPopup({ point, related, titleMap, onClose }: EventPopupProp
             {loadingTitle && <div className="text-white/30">标题：加载中…</div>}
             {!loadingTitle && newsTitle && (
               <div className="text-[10px] font-medium text-white/70">标题：{newsTitle}</div>
+            )}
+            {!loadingTitle && !newsTitle && titleFailed && (
+              <div className="text-white/30">标题获取失败（源站限制访问）</div>
             )}
             {point.note && <div>时间：{point.note}</div>}
             {point.rawMetric && <div>强度：{point.rawMetric}</div>}

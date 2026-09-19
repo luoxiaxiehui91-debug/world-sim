@@ -25,6 +25,7 @@ import time
 import urllib.parse
 import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -405,6 +406,12 @@ _NEWS_UA = {
 # 天枢容器直连外网不可达（实测 Network unreachable）——抓标题必须走 NAS 代理
 _NEWS_PROXY_URL = os.environ.get("PROXY_URL", "")
 
+# 09-19：/news-title 即时翻译 —— 进程内中文标题缓存（url → 中文标题），有界 FIFO；重启丢失可接受
+_news_title_cache: dict = {}
+_NEWS_TITLE_CACHE_MAX = 500
+_NEWS_ZH_EXECUTOR = ThreadPoolExecutor(max_workers=4)
+_NEWS_ZH_TIMEOUT = 12  # 单条翻译硬超时（秒）；超时回退英文，避免点击长时间挂起
+
 
 def _is_public_url(url: str) -> bool:
     """SSRF 防护：仅放行公网 http/https（拒绝内网/回环/链路本地/保留地址）。"""
@@ -442,10 +449,37 @@ def _extract_title(body: bytes) -> str:
     return title[:200]
 
 
+def _translate_title_zh(title: str) -> str:
+    """英文新闻标题 → 简体中文（复用 hybrid_llm / llm_usage translate_titles）。
+    已是中文（含 CJK）→ 原样返回；翻译失败/超时 → 返回 ""（调用方回退英文，不阻塞）。"""
+    if not title:
+        return ""
+    if re.search(r"[\u4e00-\u9fff]", title):
+        return title
+
+    def _call() -> str:
+        from hybrid_llm import call_openai_compat
+        resp = call_openai_compat(
+            f"把这条新闻标题翻译成简体中文，只输出中文译文，不要加引号：\n{title}",
+            system="你是新闻标题翻译器。",
+            max_tokens=200,
+            usage="translate_titles",
+        )
+        return (resp or "").strip().strip('"').strip("'").strip()
+
+    try:
+        return _NEWS_ZH_EXECUTOR.submit(_call).result(timeout=_NEWS_ZH_TIMEOUT)
+    except Exception as e:
+        print(f"[control_server] news-title 翻译失败（回退英文）：{str(e)[:80]}")
+        return ""
+
+
 @app.get("/api/v1/control/news-title")
 def news_title(url: str = "", request: Request = None):
-    """按需抓取新闻 URL 页面 <title>。返回 {"title": "..."}，失败/不可信返回空。
-    超时 6s + 只读前 64KB + SSRF 公网校验。"""
+    """按需抓取新闻 URL 页面 <title> 并即时翻译为中文。返回 {"title": "..."}，失败/不可信返回空。
+    超时 15s + 只读前 64KB + SSRF 公网校验。
+    09-19：抓到英文 <title> 后复用 hybrid_llm 即时翻译（usage=translate_titles）；
+    已是中文则原样返回；翻译失败/超时回退英文（不阻塞）。"""
     _check_token(request)
     if not url or not _is_public_url(url):
         return {"title": ""}
@@ -459,7 +493,20 @@ def news_title(url: str = "", request: Request = None):
         opener = urllib.request.build_opener(proxy)
         with opener.open(req, timeout=15) as r:
             body = r.read(65536)
-        return {"title": _extract_title(body)}
+        en = _extract_title(body)
+        if not en:
+            return {"title": ""}
+        # 09-19：命中进程内缓存直接返回（避免同一 URL 重复抓取 + 翻译）
+        hit = _news_title_cache.get(url)
+        if hit:
+            return {"title": hit}
+        zh = _translate_title_zh(en)
+        out = zh or en  # 翻译失败回退英文（保持原行为，不阻塞）
+        if zh:
+            if len(_news_title_cache) >= _NEWS_TITLE_CACHE_MAX:
+                _news_title_cache.pop(next(iter(_news_title_cache)), None)
+            _news_title_cache[url] = out
+        return {"title": out}
     except Exception:
         return {"title": ""}
 

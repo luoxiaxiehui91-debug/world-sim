@@ -1,3 +1,8 @@
+## v3.8.56（2026-09-19）
+
+- fix(control_server): 开阳地理新闻弹框标题**「点击即翻」** —— `/news-title` 抓到英文 `<title>` 后复用 `hybrid_llm.call_openai_compat(usage=translate_titles)` **即时翻译为中文**返回；已是中文（含 CJK 正则 `[\u4e00-\u9fff]`）原样返回；翻译失败/超时（12s 硬超时）**回退英文**（不阻塞）；新增**有界进程内缓存**（url→中文，上限 500，FIFO）。实测：`record-bee.com`（原英文）→「特朗普政府开始在德克萨斯州的大弯（Big Bend）地区建设边境墙」、`tucson.com` →「缅怀马丁·路德·金 Jr. 对图森的访问」；`indiankanoon.org`（HTTP 403）仍返回空（由前端占位提示兜底）。因 `control_server.py` 无 reload，**重启容器**生效（:8900 约 10s 中断）。CHG-20260919T151618-world-deduction
+
+
 ## v3.8.55（2026-09-19）
 
 - fix(news_titles): 开阳地理新闻层标题中文化覆盖率修复 —— `fetch_news_titles.py` 每轮抓取上限 `NEW_MAX` 40→600（去掉人为截断，一轮补齐全部未覆盖 URL）+ 抓取并发 `CONCURRENCY` 4→8。实测覆盖率 23%（78/340）→ **83.8%（284/339）**，翻译 208/208 无失败、无硅基流动限流，单轮耗时 2m17s（I120 2h 内）。CHG-20260919T142130-world-deduction

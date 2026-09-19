@@ -18,6 +18,7 @@ import { adaptSpace } from '@/lib/spaceAdapter';
 import { adaptHealth } from '@/lib/healthAdapter';
 import { buildEventBars, buildRiskArcs, buildRiskPoints, downsampleLayer, type RiskPoint } from '@/lib/mapData';
 import { buildNuclearPoints, mergeNuclear } from '@/lib/nuclearData';
+import { sanitizeUrl } from '@/lib/newsGeoAdapter';
 import {
   ALL_CATEGORIES,
   DEFAULT_VISIBLE_CATEGORIES,
@@ -152,11 +153,19 @@ export function WorldPanel() {
   const { data: newsGeoRaw } = useFeed<NewsGeoRaw>('news_geo');
   // 08-16：新闻标题预抓缓存（静态文件；EventPopup 弹框真实标题秒读，未命中走 API 兜底）。
   // titles_zh（LLM 中文翻译）覆盖 titles（英文）——弹框优先显示中文标题。
+  // 09-19：**key 归一化**——news_titles.json 的 key = news_geo 原始 source_url，而弹框查找侧
+  // 用 sanitizeUrl(new URL().href)（JS 会抹掉默认端口 :443 等）→ 不归一化则键失配、已有中文查不到。
   const { data: newsTitlesRaw } = useFeed<NewsTitlesRaw>('news_titles');
-  const newsTitleMap = useMemo(
-    () => ({ ...(newsTitlesRaw?.titles ?? {}), ...(newsTitlesRaw?.titles_zh ?? {}) }),
-    [newsTitlesRaw],
-  );
+  const newsTitleMap = useMemo(() => {
+    const raw = { ...(newsTitlesRaw?.titles ?? {}), ...(newsTitlesRaw?.titles_zh ?? {}) };
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      const nk = sanitizeUrl(k) ?? k;
+      out[nk] = v;
+      if (nk !== k) out[k] = v; // 兼容原始键形态（幂等，零成本）
+    }
+    return out;
+  }, [newsTitlesRaw]);
   // 08-14 aircraft 子图层：OpenSky 实时航班（feed 缺失 → []，K5 不白屏）
   const { data: airRaw } = useFeed<AirTrafficRaw>('airtraffic');
   // 08-14 air 图层：全球航线网（OpenFlights 静态结构数据，feed 缺失 → []）

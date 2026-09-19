@@ -1,9 +1,35 @@
 # Changelog · 开阳（Kaiyang）操作面板
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-09-16（记录类文档随部署持续更新）
+> 最后核对时间：2026-09-19（记录类文档随部署持续更新）
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
+
+
+## [1.11.42] 2026-09-19 · 地理新闻弹框标题：缓存键归一化 + 失败占位 + 后端点击即翻
+
+question：world-deduction kaiyang-geo-news-popup-title-en-blank（P2）；CHG-20260919T151618-world-deduction
+
+修复 1.11.41 之后用户仍反馈的「还是有不少英文 / 怎么还有不显示标题的」。实测三症状（中文 272 / 英文 22 / 空白 39，共 333 去重 URL）：
+
+- **fix（标题缓存键归一化）· `components/WorldPanel.tsx`**：构建 `newsTitleMap` 时用 `sanitizeUrl`
+  （= `new URL().href`，与弹框查找侧**同一函数**）归一化缓存 key。根因 = `news_titles.json` 的 key 是
+  `news_geo` 原始 `source_url`（GDELT 给显式 `:443`），而查找侧 `new URL().href` 会抹掉默认端口
+  → 缓存 284 key 中 7 个失配、**6 条已翻译中文查不到**（Node 复现：raw 命中 278 → norm 272）。
+  归一化后对今后**任意**归一化差异免疫，不依赖重跑 fetcher。
+- **fix（失败占位）· `components/EventPopup.tsx`**：新增 `titleFailed` 态，取数失败渲染
+  「标题获取失败（源站限制访问）」而非**整行空白**（原渲染条件 `loadingTitle || newsTitle` 在 API
+  返回空串时两分支皆假 → 用户无法区分「源站拒抓」与「功能坏了」）；localStorage 键
+  `kaiyang.newsTitles` → **`.v2`** 以失效旧英文缓存（否则已点过的点永远读英文）。
+- **配套（后端，见 macro-scan v3.8.56）· `/news-title` 点击即翻**：抓到英文 `<title>` 后复用
+  `hybrid_llm.call_openai_compat(usage=translate_titles)` 即时翻译中文返回；已是中文原样返回；
+  失败/超时（12s 硬超时）回退英文；加有界进程内缓存（url→中文，上限 500）。
+- **验证**：`npx tsc --noEmit` 0 错误；`vite build` 成功（`index-a8PbZh2N.js`）；`vitest` **22 文件 /
+  373 用例全绿**；`deploy.sh` 全 5 步通过（chmod a+rX / backup `dist.bak-20260919T151714` / rsync /
+  curl `index.html` + asset 双 200）。部署产物 = 本次构建产物（md5 `1ac6fb15…` 一致）；行为特征串
+  （字符串字面量，minify 保留）在位；产物 other 位可读（`rwxr-xr-x`）。
+- **不能根治（占位提示）**：WAF/付费墙 403（5 条）、JS 渲染无 `<title>`（8 条）、302（1 条）仍取不到
+  标题；`indiankanoon.org`（16 条 403，非新闻法律库）等列入 question 遗留评估。
 
 
 ## [1.11.41] 2026-09-16 · XSS 同族清扫（图表/tooltip 裸插值 + href 消毒）+ CI sink 计数门禁
