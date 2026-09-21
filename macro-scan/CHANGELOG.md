@@ -1,3 +1,8 @@
+## v3.8.57（2026-09-22）
+
+- fix(narrative_processor + fetch_hdx): 叙事预处理源列表**接线错位 + 静默失效 + HDX 维度接入** —— `narrative_processor.py` 的 `json_sources` 列表中 `energy.json` / `hdx_latest.json` 两条指向**不存在的文件**（实际产出为 `energy_eia.json` / `hdx_risk.json`；`git log -S` 证这两个文件名从未被任何 fetcher 产出，属建表即错），且 `ingest_from_json_file` 缺文件时**静默 `return 0`**、不打日志 ⇒ 失效长期不可见。DB 实证 `tianji.narrative_chunks` 中 opensanctions / energy_eia / gdacs / hdx / climate_signals **五维全 0 条**，6 条源仅 `sdr_summary` 一条生效。本次：①两处文件名改对；②两处静默 `return 0` 改 `[WARN]` 日志（文件不存在 / 解析失败），`articles` 为空加 `[INFO]` 留痕（语义失配可见化）；③`fetch_hdx.py` 修 naive/aware datetime 缺陷（`if dt >= cutoff:` 位于内层 try 之外，naive 串与 aware cutoff 比较抛 `TypeError` → 每日降级占位），比较前补 `if dt.tzinfo is None: dt = dt.replace(tzinfo=timezone.utc)`；④成功态由 `recent[:10]` 派生 `articles`（纯增量，既有键语义与取值不变），落地源列表里 `source_id="hdx"` 的既有设计意图。实测：`fetch_hdx.py` 由恒 `status=unavailable/parse_error` 转 `status=ok activity=100 updated_30d=25`、`articles=10`；`narrative_processor.py` 实跑 `JSON12条` 且**无「文件不存在」类 WARN**；`tianji.narrative_chunks` 的 `hdx` 来源 **0 → 9 条**。副作用：`disaster_risk` 触发一次密度突增标记（冷启动一次性，仅影响天璇推演该维度 token 预算 2000→3000，**无通知外溢**）。未完成另立：sanctions_risk / disaster_signals / climate_signals 三源的叙事化转换（数值型，属新功能）。CHG-20260922T063404-world-deduction
+
+
 ## v3.8.56（2026-09-19）
 
 - fix(control_server): 开阳地理新闻弹框标题**「点击即翻」** —— `/news-title` 抓到英文 `<title>` 后复用 `hybrid_llm.call_openai_compat(usage=translate_titles)` **即时翻译为中文**返回；已是中文（含 CJK 正则 `[\u4e00-\u9fff]`）原样返回；翻译失败/超时（12s 硬超时）**回退英文**（不阻塞）；新增**有界进程内缓存**（url→中文，上限 500，FIFO）。实测：`record-bee.com`（原英文）→「特朗普政府开始在德克萨斯州的大弯（Big Bend）地区建设边境墙」、`tucson.com` →「缅怀马丁·路德·金 Jr. 对图森的访问」；`indiankanoon.org`（HTTP 403）仍返回空（由前端占位提示兜底）。因 `control_server.py` 无 reload，**重启容器**生效（:8900 约 10s 中断）。CHG-20260919T151618-world-deduction

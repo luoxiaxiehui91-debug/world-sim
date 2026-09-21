@@ -217,14 +217,23 @@ def ingest_article(
 def ingest_from_json_file(json_path: str, source_id: str, content_field: str = "content"):
     """从 fetcher 输出的 JSON 文件摄取文章（通用入口）。"""
     if not os.path.exists(json_path):
+        print(f"[narrative_processor][WARN] 源列表文件不存在，跳过摄取: "
+              f"{os.path.basename(json_path)} (source_id={source_id})")
         return 0
     try:
         with open(json_path, encoding="utf-8") as f:
             data = json.load(f)
-    except Exception:
+    except Exception as e:
+        print(f"[narrative_processor][WARN] 源列表文件解析失败，跳过摄取: "
+              f"{os.path.basename(json_path)} (source_id={source_id}): {e}")
         return 0
 
     articles = data if isinstance(data, list) else data.get("articles", [])
+    if not articles:
+        # 语义失配（数值/风险指标型 JSON 无叙事文本）属已知设计问题，用 INFO 留痕而非 WARN，避免每日刷屏
+        print(f"[narrative_processor][INFO] 源文件无 articles 可摄取（语义失配，非故障）: "
+              f"{os.path.basename(json_path)} (source_id={source_id})")
+        return 0
     source_map = load_source_map()
     count = 0
     for item in articles:
@@ -412,9 +421,9 @@ def run_daily_narrative_processing():
     # 2. 从各 fetcher JSON 摄取（列举关键文件）
     json_sources = [
         (os.path.join(DATA_DIR, "sanctions_risk.json"),     "opensanctions",  "description"),
-        (os.path.join(DATA_DIR, "energy.json"),             "energy_eia",     "summary"),
+        (os.path.join(DATA_DIR, "energy_eia.json"),         "energy_eia",     "summary"),
         (os.path.join(DATA_DIR, "disaster_signals.json"),   "gdacs",          "description"),
-        (os.path.join(DATA_DIR, "hdx_latest.json"),         "hdx",            "description"),
+        (os.path.join(DATA_DIR, "hdx_risk.json"),           "hdx",            "description"),
         (os.path.join(DATA_DIR, "climate_signals.json"),    "climate_signals","summary"),
         (os.path.join(DATA_DIR, "sdr_summary.json"),      "kiwisdr_sdr",   "description"),
     ]

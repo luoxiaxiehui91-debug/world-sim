@@ -92,6 +92,9 @@ class HdxFetcher(FetcherBase):
                     dt = datetime.datetime.fromisoformat(mm.replace("Z", "+00:00"))
                 except Exception:
                     continue
+                # naive 串（无 Z/偏移）按 UTC 解释，避免与 aware cutoff 比较抛 TypeError
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=datetime.timezone.utc)
                 if dt >= cutoff:
                     recent.append({
                         "name": ds.get("name"),
@@ -101,12 +104,23 @@ class HdxFetcher(FetcherBase):
                     })
             # 每有 1 个近30天更新的危机数据集 +4 分，封顶 100
             activity = min(100, len(recent) * 4)
+            top = recent[:10]
+            # 派生 articles 供 narrative_processor 摄取（HDX 维度叙事化，落地源列表里 source_id=hdx 的既有设计意图）
+            articles = []
+            for d in top:
+                title = d.get("title") or d.get("name") or "HDX dataset"
+                org = d.get("organization") or "unknown organization"
+                mm2 = d.get("metadata_modified") or ""
+                desc = f"HDX crisis dataset '{title}' published by {org}, last modified {mm2}."
+                if len(desc) >= 20:
+                    articles.append({"title": title, "description": desc, "published_at": mm2})
             return {
                 "status": "ok",
                 "crisis_activity_index": activity,
                 "datasets_updated_30d": len(recent),
                 "total_searched": len(results),
-                "recent": recent[:10],
+                "recent": top,
+                "articles": articles,
                 "source": "HDX CKAN",
             }
         except Exception as e:
