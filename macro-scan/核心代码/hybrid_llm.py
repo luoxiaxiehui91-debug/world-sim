@@ -18,6 +18,38 @@ SILICONFLOW_URL   = "https://api.siliconflow.cn/v1"
 SILICONFLOW_MODEL = os.environ.get("SILICONFLOW_MODEL", "deepseek-ai/DeepSeek-V4-Flash")
 
 
+_PG_HOST_LLM = "worldsim-pg"
+_PG_PORT_LLM = 5432
+_PG_DB_LLM   = "worldsim"
+_PG_USER_LLM = "worldsim_app"
+
+
+def _log_token_usage(usage_id=None, platform=None, model=None, prompt_tokens=None,
+                     completion_tokens=None, total_tokens=None, call_ms=None,
+                     ok=True, err=None):
+    """LLM 用量记账（CHG-20260924T002608）：非侵入，任何异常只提示、绝不中断主流程。"""
+    try:
+        pw = os.environ.get("WORLDSIM_APP_PW")
+        if not pw:
+            return
+        import psycopg
+        conn = psycopg.connect(host=_PG_HOST_LLM, port=_PG_PORT_LLM, dbname=_PG_DB_LLM,
+                               user=_PG_USER_LLM, password=pw, autocommit=True,
+                               connect_timeout=5)
+        try:
+            conn.execute(
+                "INSERT INTO public.llm_token_usage (usage_id, platform, model,"
+                " prompt_tokens, completion_tokens, total_tokens, call_ms, ok, err)"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (usage_id, platform, model, prompt_tokens, completion_tokens,
+                 total_tokens, call_ms, ok, (str(err)[:500] if err else None)),
+            )
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[llm_token_usage] 记账失败(不影响主流程): {type(e).__name__}: {str(e)[:120]}")
+
+
 def _sf_key() -> str:
     """SiliconFlow 密钥（09-03 ADR-0015：config/.env 优先热读取 → env 兜底；
     由模块级常量改为调用时读取，控制台改 key 免 recreate 即时生效）。"""
@@ -192,6 +224,16 @@ def call_local(prompt: str, system: str = "", max_tokens: int = 2048) -> str:
                 last_error = ValueError(f"SiliconFlow 返回空响应（模型={SILICONFLOW_MODEL}）")
                 continue  # 重试
             print(f"[call_local] OK | result_chars={len(result)} elapsed={elapsed:.1f}s attempt={attempt}")
+            try:
+                _u = (resp.json() or {}).get("usage") or {}
+                _log_token_usage(
+                    usage_id=None, platform="siliconflow", model=SILICONFLOW_MODEL,
+                    prompt_tokens=_u.get("prompt_tokens"), completion_tokens=_u.get("completion_tokens"),
+                    total_tokens=_u.get("total_tokens"),
+                    call_ms=int(elapsed * 1000), ok=True,
+                )
+            except Exception:
+                pass
             return result
         except _RetryableError as e:
             print(f"[call_local] 可重试错误 | attempt={attempt} error={e}")
@@ -263,6 +305,16 @@ def call_openai_compat(prompt: str, system: str = "", max_tokens: int = 4096,
             if not result:
                 raise ValueError("OpenAI兼容端点返回空响应")
             print(f"[call_openai_compat] OK | result_chars={len(result)} elapsed={time.time()-start_ts:.1f}s")
+            try:
+                _u = (resp.json() or {}).get("usage") or {}
+                _log_token_usage(
+                    usage_id=usage, platform=(resolved or {}).get("platform"), model=model,
+                    prompt_tokens=_u.get("prompt_tokens"), completion_tokens=_u.get("completion_tokens"),
+                    total_tokens=_u.get("total_tokens"),
+                    call_ms=int((time.time() - start_ts) * 1000), ok=True,
+                )
+            except Exception:
+                pass
             return result
         except ValueError as e:
             if "空响应" in str(e) and _attempt < 2:

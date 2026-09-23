@@ -69,14 +69,17 @@ class CryptoExtraFetcher(FetcherBase):
 
     def __init__(self, data_dir: str):
         super().__init__(data_dir)
-        self.proxies = None
+        # CHG-20260924T002608：境外站点直连不可达，默认走代理（失败再退回直连兜底）
+        self.proxies = {"http": PROXY_URL, "https": PROXY_URL} if PROXY_URL else None
 
     def _get(self, url, params=None, headers=None, timeout=20):
+        # CHG-20260924T002608：先走代理（原顺序先直连，境外站点必失败并留 ERROR 噪音）
         r = self.request(url, params=params, headers=headers, timeout=timeout)
         if r is not None:
             return r
-        if PROXY_URL:
-            self.proxies = {"http": PROXY_URL, "https": PROXY_URL}
+        if self.proxies:
+            # 代理也失败 → 退回直连兜底
+            self.proxies = None
             return self.request(url, params=params, headers=headers, timeout=timeout)
         return None
 
