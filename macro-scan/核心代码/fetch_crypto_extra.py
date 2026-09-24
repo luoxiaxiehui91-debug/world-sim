@@ -78,9 +78,15 @@ class CryptoExtraFetcher(FetcherBase):
         if r is not None:
             return r
         if self.proxies:
-            # 代理也失败 → 退回直连兜底
+            # 代理也失败 → 退回直连兜底。
+            # 回归修正（2026-09-24 23:06）：必须恢复 self.proxies，否则一次失败后
+            # 实例状态被永久置空，后续所有请求退化为直连，整天都拿不到数据。
+            _saved = self.proxies
             self.proxies = None
-            return self.request(url, params=params, headers=headers, timeout=timeout)
+            try:
+                return self.request(url, params=params, headers=headers, timeout=timeout)
+            finally:
+                self.proxies = _saved
         return None
 
     def _fetch_binance(self) -> dict:
