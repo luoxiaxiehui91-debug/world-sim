@@ -1,3 +1,10 @@
+## v3.8.59（2026-09-26）
+
+- feat(llm-usage): **token 用量消费侧** —— ①视图 `public.llm_token_usage_daily`，按「北京时间日界 + usage_id + platform + model」聚合 calls/tokens/avg_ms/failures（基表 ts 为 UTC，日界须 `AT TIME ZONE 'Asia/Shanghai'`，直接 `::date` 会错日）；②只读端点 `GET /api/v1/control/llm-token-stats?days=N`，`_check_token` 鉴权（实测无 token/错 token/错头均 401，正确 Bearer 200），返回 total + by_day + by_usage；③告警脚本 `scripts/check_llm_usage.py`，今日用量 > 前 7 日日均 ×2.0 则 ntfy 告警并 exit 1，同日冷却防刷屏，支持 `--heartbeat`。⚠️ 端点生效**需重启容器**（`control_server.py` 无 reload）。
+- fix(hybrid_llm): 补 **失败调用记账**（此前 `ok=false` 恒 0，算不出失败率）——在 `call_openai_compat` 的 ValueError/RequestException 最终失败、`call_local` 重试耗尽与**不可重试错误直接抛出**共 4 处记账；重试中间不记（避免重复计数），实测注入不可达地址后入库 `ok=false` 且重试多次只记 1 条。同时修正误导性日志：`ntfy_utils.push_text` 内部吞异常且无返回值，原「已推送」会给出假的送达确认，改为「已发起（送达与否以实际收到为准）」。
+- chore: `call_local` 埋点首次验证成功（此前无样本），入库 model=DeepSeek-V4-Flash。⚠️ 附带发现：`usage_id=(none)` 的 14 次调用占 8.2 万 tokens（天璇推演类，单次重），而 translate_titles 703 次仅 4.9 万 ⇒ 成本大头**无法归因**（调用方未传 usage 参数），建议在 `reason()` 链路补 `usage_id`。CHG-20260926T001031-world-deduction
+
+
 ## v3.8.58（2026-09-24）
 
 - feat(hybrid_llm + fetch_crypto_extra): **LLM token 用量账本 + 代理日志噪音消除** —— ①新增 `public.llm_token_usage` 表（ts/usage_id/platform/model/prompt_tokens/completion_tokens/total_tokens/call_ms/ok/err），在 `hybrid_llm.py` 的 `call_openai_compat` 与 `call_local` 两处**非侵入埋点**：从响应 `usage` 字段取**接口返回的真实 token 数**（此前日志里的 `prompt_tokens` 只是 `_estimate_tokens()` 估算），记账逻辑整体 try/except 包裹，**失败只打一行提示、绝不中断 LLM 主流程**；容器内经 `WORLDSIM_APP_PW` + `psycopg`(v3) 建可写连接（`pg_read` 为只读，不可复用）。②`fetch_crypto_extra.py` 取数顺序由「先直连、失败后设代理」反转为「**先走代理、失败后退回直连兜底**」——原顺序下境外站点（binance/kraken）直连必然不可达，每次请求都先留下 1 条 ERROR，形成每日约 280 条的**确定性日志噪音**并淹没真实故障；实测代理对 binance/kraken/google 均返回 200，反转后本次实跑 **新增 ERROR = 0** 且 `status=ok, binance=8 kraken=3` 数据不变。⚠️ 同时订正旧记录「出网代理覆盖不全」：**代理配置完好**（4 个代理变量全部有值、30+ fetcher 使用），真实问题是 failover 顺序导致的日志噪音，非故障、非代理缺失。其余 10 余个同构 failover 文件本次未动（噪音量级集中在 crypto_extra）。CHG-20260924T002608-world-deduction

@@ -239,12 +239,22 @@ def call_local(prompt: str, system: str = "", max_tokens: int = 2048) -> str:
             print(f"[call_local] 可重试错误 | attempt={attempt} error={e}")
             last_error = e
             continue  # 重试
-        except Exception:
+        except Exception as e:
+            # CHG-20260926T001031：不可重试错误直接抛出，须在此记账
+            # （只在「重试耗尽」处记账会漏掉这条路径，失败在账本里不可见）
+            _log_token_usage(usage_id=None, platform="siliconflow", model=SILICONFLOW_MODEL,
+                             prompt_tokens=total_tokens, call_ms=None, ok=False, err=e)
             raise  # 不可重试错误，直接抛出
 
     # 所有重试耗尽
+    # CHG-20260926T001031：失败记账（重试中间不记，只在此处最终失败时记一次）
     if last_error:
+        _log_token_usage(usage_id=None, platform="siliconflow", model=SILICONFLOW_MODEL,
+                         prompt_tokens=total_tokens, call_ms=None, ok=False, err=last_error)
         raise last_error
+    _log_token_usage(usage_id=None, platform="siliconflow", model=SILICONFLOW_MODEL,
+                     prompt_tokens=total_tokens, call_ms=None, ok=False,
+                     err="SiliconFlow 空响应（重试耗尽）")
     raise ValueError(f"SiliconFlow 返回空响应（模型={SILICONFLOW_MODEL}，重试{_CALL_LOCAL_MAX_RETRIES}次后仍失败）")
 
 
@@ -322,6 +332,10 @@ def call_openai_compat(prompt: str, system: str = "", max_tokens: int = 4096,
                 print(f"[call_openai_compat] 空响应重试 {_attempt+1}/2（{_backoff}s）")
                 time.sleep(_backoff)
                 continue
+            # CHG-20260926T001031：仅在最终失败时记账（重试中间不记，避免重复计数）
+            _log_token_usage(usage_id=usage, platform=(resolved or {}).get("platform"),
+                             model=model, call_ms=int((time.time() - start_ts) * 1000),
+                             ok=False, err=e)
             raise
         except requests.RequestException as e:
             if _attempt < 2:
@@ -329,6 +343,10 @@ def call_openai_compat(prompt: str, system: str = "", max_tokens: int = 4096,
                 print(f"[call_openai_compat] 请求异常重试 {_attempt+1}/2（{_backoff}s）: {str(e)[:60]}")
                 time.sleep(_backoff)
                 continue
+            # CHG-20260926T001031：仅在最终失败时记账
+            _log_token_usage(usage_id=usage, platform=(resolved or {}).get("platform"),
+                             model=model, call_ms=int((time.time() - start_ts) * 1000),
+                             ok=False, err=e)
             raise
 
 

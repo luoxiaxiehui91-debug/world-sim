@@ -538,6 +538,47 @@ def llm_usage_list(request: Request = None):
         return {"error": str(e)}
 
 
+@app.get("/api/v1/control/llm-token-stats")
+def llm_token_stats(request: Request, days: int = 7):
+    """LLM **token 用量统计**（只读，CHG-20260926T001031）。
+
+    与 `/api/v1/control/llm-usage` 不是同一个东西：后者是**使用点配置**（哪个用途用哪个模型），
+    本端点是**实际消耗**（每天烧了多少 token、多少次、失败几次）。数据源为视图
+    `public.llm_token_usage_daily`，日界按北京时间。
+    """
+    _check_token(request)
+    try:
+        cur = _pg_exec(
+            "SELECT d, usage_id, platform, model, calls, prompt_tokens, completion_tokens,"
+            " total_tokens, avg_ms, failures FROM public.llm_token_usage_daily"
+            " WHERE d >= ((now() AT TIME ZONE 'Asia/Shanghai')::date - %s)"
+            " ORDER BY d DESC, total_tokens DESC", (int(days),))
+        cols = [c.name for c in cur.description] if cur.description else []
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"查询失败: {e}")
+
+    def _bucket():
+        return {"calls": 0, "total_tokens": 0, "prompt_tokens": 0,
+                "completion_tokens": 0, "failures": 0}
+
+    by_day, by_usage, total = {}, {}, _bucket()
+    for r in rows:
+        d, u = str(r.get("d")), r.get("usage_id") or "(none)"
+        for bucket in (by_day.setdefault(d, _bucket()),
+                       by_usage.setdefault(u, _bucket()),
+                       total):
+            bucket["calls"] += r.get("calls") or 0
+            bucket["total_tokens"] += r.get("total_tokens") or 0
+            bucket["prompt_tokens"] += r.get("prompt_tokens") or 0
+            bucket["completion_tokens"] += r.get("completion_tokens") or 0
+            bucket["failures"] += r.get("failures") or 0
+    return {"days": int(days), "total": total,
+            "by_day": by_day, "by_usage": by_usage, "rows": rows}
+
+
 @app.put("/api/v1/control/llm-usage/{usage_id}")
 async def llm_usage_update(usage_id: str, request: Request):
     """修改 LLM 使用点（平台 + 模型；写 data/llm_config.json，原子写+模板自动再生）。
