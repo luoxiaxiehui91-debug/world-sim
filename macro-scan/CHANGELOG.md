@@ -1,3 +1,10 @@
+## v3.8.60（2026-09-26）
+
+- feat(llm): **模型升级 `mimo-v2.5-pro` → `mimo-v2.6-pro`** —— `openai_compat` 使用点三处同步：运行时 `data/llm_config.json`、默认模板 `config/llm_config.default.json`（真源+运行区，git 跟踪，`data/` 不跟踪时靠它兜底）、`llm_usage.py` 注释。升级前已实测两模型均可用（v2.6 → 200/3.8s）；升级后 `resolve("openai_compat")` 返回 v2.6、`call_openai_compat` 与 `reason(auto)` 均 200。⚠️ 次日需观察 morning/us_daily/china_daily 报告质量。
+- fix(hybrid_llm): **重调用成本可归因** —— `reason(mode="auto")` 的 `_auto_chain()` 调 `call_openai_compat` 时**未传 `usage`**，导致账本 `usage_id` 为空（占 8.2 万 tokens 的大头无法归因）。现显式传 `usage="openai_compat"`（对齐既有使用点，未新建）。已澄清：`openai_compat` 是**历史遗留命名**，实际指向小米 MiMo（`token-plan-cn.xiaomimimo.com`，日志统计 2107 次调用），与 OpenAI 账户无关；且 env `OPENAI_COMPAT_URL` 与配置的 `base_url` 完全一致（39 字符），传 usage 前后**端点未变**。
+- feat(scheduler): **LLM 用量巡检随项目分发** —— 脚本由 `scripts/check_llm_usage.py` 迁入 `核心代码/llm_usage_check.py` 并注册进 `scheduler.py` JOBS（每日 2110）+ 日志映射。原 `scripts/` 未被 compose 挂载（volumes 仅 `核心代码`、`data`、`entrypoint.sh`），容器内不可见，且 NAS crontab 侧无 `WORLDSIM_APP_PW` ⇒ **挂 NAS crontab 等于本机私货，开源用户无此功能**。迁入后随项目走，clone 即自带；`scripts/` 版已删除。⚠️ `scheduler.py` 改动需重启容器；`GET /api/v1/control/fetchers` 只列 fetcher 类 job，判断 job 是否注册应以 `scheduler.JOBS`（现 62 个）为准。CHG-20260926T084449-world-deduction
+
+
 ## v3.8.59（2026-09-26）
 
 - feat(llm-usage): **token 用量消费侧** —— ①视图 `public.llm_token_usage_daily`，按「北京时间日界 + usage_id + platform + model」聚合 calls/tokens/avg_ms/failures（基表 ts 为 UTC，日界须 `AT TIME ZONE 'Asia/Shanghai'`，直接 `::date` 会错日）；②只读端点 `GET /api/v1/control/llm-token-stats?days=N`，`_check_token` 鉴权（实测无 token/错 token/错头均 401，正确 Bearer 200），返回 total + by_day + by_usage；③告警脚本 `scripts/check_llm_usage.py`，今日用量 > 前 7 日日均 ×2.0 则 ntfy 告警并 exit 1，同日冷却防刷屏，支持 `--heartbeat`。⚠️ 端点生效**需重启容器**（`control_server.py` 无 reload）。

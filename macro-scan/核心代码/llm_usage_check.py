@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LLM token 用量飙升巡检（CHG-20260926T001031）。
+"""LLM token 用量飙升巡检（CHG-20260926T001031；CHG-20260926T084449 迁入核心代码/ 随项目调度）。
 
 规则：今日（北京时间）total_tokens > 前 BASELINE_DAYS 日同口径日均 × THRESHOLD → 告警。
 数据源：视图 `public.llm_token_usage_daily`（日界已按 Asia/Shanghai 归一）。
@@ -53,7 +53,7 @@ def _mark_alerted(today):
         with open(STATE_FILE, "w", encoding="utf-8") as f:
             json.dump({"last_alert_date": today}, f)
     except Exception as e:
-        print(f"[check_llm_usage] 状态文件写入失败: {e}")
+        print(f"[llm_usage_check] 状态文件写入失败: {e}")
 
 
 def _push(title, msg):
@@ -65,13 +65,13 @@ def _push(title, msg):
     """
     try:
         if not os.environ.get("NTFY_TOPIC"):
-            print("[check_llm_usage] NTFY_TOPIC 未配置，跳过推送（仅本地判定）")
+            print("[llm_usage_check] NTFY_TOPIC 未配置，跳过推送（仅本地判定）")
             return
         from ntfy_utils import push_text
         push_text(title, msg)
-        print(f"[check_llm_usage] ntfy 推送已发起：{title}（送达与否以实际收到为准）")
+        print(f"[llm_usage_check] ntfy 推送已发起：{title}（送达与否以实际收到为准）")
     except Exception as e:
-        print(f"[check_llm_usage] ntfy 推送异常（不影响判定）: {type(e).__name__}: {str(e)[:120]}")
+        print(f"[llm_usage_check] ntfy 推送异常（不影响判定）: {type(e).__name__}: {str(e)[:120]}")
 
 
 def main():
@@ -82,10 +82,10 @@ def main():
         from pg_read import connect
         conn = connect()
     except Exception as e:
-        print(f"[check_llm_usage] pg_read 不可用: {type(e).__name__}: {str(e)[:120]}")
+        print(f"[llm_usage_check] pg_read 不可用: {type(e).__name__}: {str(e)[:120]}")
         return 1
     if conn is None:
-        print("[check_llm_usage] PG 连接失败")
+        print("[llm_usage_check] PG 连接失败")
         return 1
 
     try:
@@ -130,11 +130,11 @@ def main():
             _push("LLM token 用量飙升", msg)
             _mark_alerted(t)
         else:
-            print("[check_llm_usage] 今日已告警，冷却中（不重复推送）")
-        print("[check_llm_usage] " + msg.replace("\n", " | "))
+            print("[llm_usage_check] 今日已告警，冷却中（不重复推送）")
+        print("[llm_usage_check] " + msg.replace("\n", " | "))
         return 1
 
-    print(f"[check_llm_usage] 正常：{t} {today_tok} tokens（基线 {baseline:.0f}）")
+    print(f"[llm_usage_check] 正常：{t} {today_tok} tokens（基线 {baseline:.0f}）")
     return 0
 
 

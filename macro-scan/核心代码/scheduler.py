@@ -107,6 +107,7 @@ JOBS = [
     ("health_push",  "2100", "1-7", None, [PYTHON, "-c",
         "from observability import daily_health_push; daily_health_push()"
     ]),  # 每日健康摘要推送（三数字：GRV时间戳/降级fetcher数/predictions行数）
+    ("llm_usage_check", "2110", "1-7", None, [PYTHON, "llm_usage_check.py"]),   # LLM token 用量巡检（今日 vs 前7日均值超 2.0 倍告警；CHG-20260926T084449）
     ("slow_vars",   "0935", "1-7", 1,   [PYTHON, "slow_variables.py"]),              # 天玑 慢变量更新（每月1日）
     ("spacetrack",  "0615", "1-7", None, [PYTHON, "fetch_spacetrack.py"]),            # Space-Track 卫星统计（日频，06:15）
     ("market_quotes","I15","1-7", None, [PYTHON, "market_quotes.py"]),               # 市场行情快照整合（commodity+crypto，I15 跟 crypto 走——crypto 源已 I15 采集，整合导出提频零外部请求）
@@ -169,6 +170,7 @@ LOG_FILES = {
     "defense_rss":     f"{LOG_DIR}/defense_rss.log",
     "slow_vars":       f"{LOG_DIR}/slow_vars.log",
     "health_push":     f"{LOG_DIR}/health_push.log",
+    "llm_usage_check": f"{LOG_DIR}/llm_usage_check.log",
     "spacetrack":      f"{LOG_DIR}/spacetrack.log",
     "market_quotes":   f"{LOG_DIR}/market_quotes.log",
     "compute_probit":  f"{LOG_DIR}/compute_probit.log",

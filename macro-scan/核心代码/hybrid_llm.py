@@ -409,7 +409,9 @@ def reason(prompt: str, system: str = "", mode: str = "auto",
         # 08-23：链首为 MiMo（原首选平台已退役）；失败降 SiliconFlow
         if os.environ.get("OPENAI_COMPAT_URL"):
             try:
-                return call_openai_compat(prompt, system, max_tokens)
+                # CHG-20260926T084449：显式传 usage，使账本可归因
+                # （此前未传 ⇒ usage_id 为 NULL，占大头的重调用无法归因到 "openai_compat"）
+                return call_openai_compat(prompt, system, max_tokens, usage="openai_compat")
             except Exception as e:
                 print(f"[hybrid_llm] MiMo 失败，降级 SiliconFlow: {e}")
         return call_local(prompt, system, max_tokens)

@@ -90,7 +90,7 @@ LLM_USAGES = [
         "name": "通用 OpenAI 兼容",
         "purpose": "hybrid_llm.call_openai_compat 无显式 usage 的调用（含 run_macro_analysis 宏观分析）",
         "platform": "mimo_plan",
-        "default_model": None,  # 由 llm_config.json 固化 mimo-v2.5-pro（2026-09-02 起不再经 env 注入模型）
+        "default_model": None,  # 由 llm_config.json 固化 mimo-v2.6-pro（2026-09-02 起不再经 env 注入模型；2026-09-26 由 v2.5-pro 升级）
         "container": "tianshu",
         "adjustable": True,
     },

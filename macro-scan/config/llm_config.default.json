@@ -25,7 +25,7 @@
     },
     "openai_compat": {
       "platform": "mimo_plan",
-      "model": "mimo-v2.5-pro",
+      "model": "mimo-v2.6-pro",
       "base_url": "https://token-plan-cn.xiaomimimo.com/v1"
     }
   }
