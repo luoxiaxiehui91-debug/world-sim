@@ -1,3 +1,11 @@
+## v3.8.62（2026-09-26）
+
+- fix(hybrid_llm): **降级路径成本归因** —— `call_local` 增加 `usage: str | None = None` 参数；`reason()` 的 `mode="local"` 分支传 `usage="local"`、auto 降级分支传 `usage="general_llm"`；`call_local` 内 **4 处**埋点的 `usage_id=None` 统一改为 `usage_id=usage`。此前 auto 链降级到 SiliconFlow 的调用在账本里记 NULL（只能靠 `platform=siliconflow` 间接区分），现归入 `general_llm` 并可经 platform 区分实际平台；直接调用 `call_local` 不传 usage 时行为不变（向后兼容）。
+  ⚠️ **过程修正**：首轮替换**漏了成功路径埋点**——该处写作多行格式（`_log_token_usage(` 与 `usage_id=None` 不在同一行），与其余 3 处单行格式不同，替换断言 `count==3` 通过**未能暴露漏项**；实跑降级路径发现账本仍记 NULL 后反查容器内文件才定位，已补齐并复验（`usage_id=None` 全文件残留归 0）。**教训**：同语义代码存在多种排版格式时，锚点须覆盖全部格式；`count==N` 通过不等于覆盖完整，应以「改后全文残留判据」+「每条路径实跑」终检。
+- docs(llm-usage): **使用点数量更正** —— `LLM_USAGES` 实际为 **7 个**（translate_titles / general_llm / rag_embedding / verify_llm / chronicle / sim_mc / sim_narrative），4 处文档仍写「5 使用点」：`macro-scan/AGENTS.md`（兜底模板须一致的使用点数）、`kaiyang/AGENTS.md`（面板说明）、`kaiyang/docs/DATA_CONTRACT.md`（清单标题 + 补 `verify_llm`/`chronicle` 两行）、`llm_usage.py` 预填充注释。历史条目（`NEXT_SESSION_HANDOFF` v1.11.26、`ROADMAP`）保持原样。
+- chore(docs): **内网 IP 清理** —— `macro-scan/AGENTS.md` 的 Ollama 停用说明去除内网 IP 字面量；**活跃文档零命中**，剩余 6 处全在历史/归档文档（`TuiYan_CHANGELOG.md`×5、`macro-sim/docs/archive/design.md`×1），按「历史陈述冻结」原则有意保留。CHG-20260926T091845-world-deduction
+
+
 ## v3.8.61（2026-09-26）
 
 - refactor(llm-usage): **使用点 `openai_compat` → `general_llm` 改名**（消除命名误导）—— 该使用点名为「OpenAI 兼容」但**实际指向小米 MiMo**（`token-plan-cn.xiaomimimo.com`，日志统计 2107 次调用），与 OpenAI 账户无关；09-26 该名字曾导致一次真实误判（据名以为「从未使用」）。改动：①代码 7 处（`llm_usage.py` 的 id/name/注释、`hybrid_llm.py` 的 `llm_usage_get_model` 默认值与 auto 链 `usage=`、`silent_failure_probe.py` 注释）；②配置 3 处（运行区 `data/llm_config.json` 的 `usages` 键、真源+运行区 `config/llm_config.default.json` 键与 `_note`）；③文档 4 处（总仓/`macro-scan` AGENTS.md 使用点清单、`kaiyang/docs/NEXT_SESSION_HANDOFF.md`、`kaiyang/docs/DATA_CONTRACT.md` 表格行并顺带更新模型至 v2.6-pro）。

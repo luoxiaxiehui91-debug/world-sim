@@ -381,8 +381,9 @@ def set_usage(usage_id: str, platform: str, model: str,
     cfg = load_config()
     cfg.setdefault("usages", {})
     # 08-18 修复：首次写预填充——文件缺失/损坏时 usages 为空，若只写当前 1 条会
-    # 生成"部分固化"配置（其余 5 个使用点不在文件里，面板看不出异常）。用静态清单
-    # 预填全部使用点（key 留空走 env），保证任何时刻文件都是完整 6 条。
+    # 生成"部分固化"配置（其余使用点不在文件里，面板看不出异常）。用静态清单
+    # 预填全部使用点（key 留空走 env），保证任何时刻文件都是完整 7 条
+    # （CHG-20260926T091845 更正：原文写"5/6 条"，实际 LLM_USAGES 为 7 个使用点）。
     if not cfg["usages"]:
         for _item in LLM_USAGES:
             _uid = _item["id"]

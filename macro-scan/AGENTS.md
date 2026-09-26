@@ -239,13 +239,13 @@ pre-commit install   # 在源码区 S:\world-sim\macro-scan\ 执行一次即可
 | crucix | :3117 | ~~英文地缘新闻+多源情报（FIRMS/EIA/GDELT等30源）~~ **已退场（08-12 G1 停容器）**，仅历史参考 |
 | rsshub | :12000 | 中文财经 RSS（财新/第一财经/华尔街见闻/东方财富研报）|
 
-> ⚠️ Ollama（192.168.31.56）已停用，MiniMax 已于 08-23 退役。LLM 降级链（auto）：MiMo v2.5-pro → SiliconFlow DeepSeek-V4-Flash → 纯数据报告；新闻标题翻译走 SiliconFlow Hunyuan-MT-7B。
+> ⚠️ Ollama（已停用，原内网地址从略），MiniMax 已于 08-23 退役。LLM 降级链（auto）：MiMo v2.5-pro → SiliconFlow DeepSeek-V4-Flash → 纯数据报告；新闻标题翻译走 SiliconFlow Hunyuan-MT-7B。
 > **08-16 LLM 统一配置**：`核心代码/llm_usage.py` 静态清单使用点（translate_titles / general_llm / rag_embedding / sim_mc / sim_narrative；2026-09-26 前第 2 项名为 openai_compat）× 2 平台（mimo_plan / siliconflow），运行时配置 `data/llm_config.json`（开阳控制台「LLM 配置」面板读写，`GET/PUT /api/v1/control/llm-usage`）。**配置优先于 env/常量**；天璇读共享文件。翻译模型 Hunyuan-MT-7B（`fetch_news_titles.py` 走 `usage="translate_titles"`）；RAG 嵌入 `rag_engine.py` 走 `resolve_embedding()`（bge-m3）。改 `llm_usage.py`/`hybrid_llm.py` 后须重启 control_server（:8900）并 curl 验证新路由生效。
 
 ### ⛓ 模型变更「五联同步」强制清单（ADR-0010 派生）
 > 任何 LLM 模型/平台变更，**必须同步以下五处**，缺一即视为未完成（否则必然再次漂移，参见 2026-09-03 `CHG-20260903T151756` 教训）：
 > 1. **运行区真相** `data/llm_config.json`（开阳面板 PUT 或 SSH 改 NAS，唯一真源）
-> 2. **兜底模板** `config/llm_config.default.json`（git tracked，灾难恢复用，5 使用点须一致）
+> 2. **兜底模板** `config/llm_config.default.json`（git tracked，灾难恢复用，7 使用点须一致）
 > 3. **compose/环境变量** `docker-compose.yml` + `docker-compose.example.yml`（仅当涉及 env 注入的模型；禁留 `OPENAI_COMPAT_MODEL` 类双源开关）
 > 4. **活跃文档** AGENTS.md / INDEX.md / 世界推演系统_人类说明文档.md / kaiyang `DATA_CONTRACT.md` `NEXT_SESSION_HANDOFF.md` / 根 `AGENTS.md` / `STATUS.md`
 > 5. **代码静态清单与 docstring** `核心代码/llm_usage.py`（`PLATFORMS` 模型列表 + `LLM_USAGES` 默认模型）、`hybrid_llm.py` / `run_macro_analysis.py` 降级链 docstring

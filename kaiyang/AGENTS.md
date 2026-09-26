@@ -47,7 +47,7 @@
 | **dist/ 不进 git** | 构建产物在 .gitignore，NAS 部署需手动 `npm run build` + scp |
 | **MOCK_ENABLED** | 默认 `false`（v1.7.2+），连接真实控制 API（HTTP REST :8900）；调试时用 `VITE_CONTROL_MOCK=true` 恢复 mock |
 | **⛔ 构建必带 token** | `VITE_CONTROL_API_TOKEN=<compose 的 CONTROL_TOKEN> npm run build`（v1.11.15+，控制台开箱即用；不带 → 前端无内置 token → 控制台 401；token 轮换同步更新，见 `docs/DEPLOYMENT.md` §1） |
-| **LLM 配置面板** | 控制台 TokenSetup 下方「LLM 使用点 N 个 · 配置」——5 使用点 × 2 平台（MiMo Plan/SiliconFlow）可换平台+模型+API key（后端 `llm_usage.py`，写 `data/llm_config.json` 原子写；key 不回显明文）；改动后端 `llm_usage.py` / `hybrid_llm.py` 后须重启 control_server（:8900）并 curl 验证新路由生效 |
+| **LLM 配置面板** | 控制台 TokenSetup 下方「LLM 使用点 N 个 · 配置」——7 使用点 × 2 平台（MiMo Plan/SiliconFlow）可换平台+模型+API key（后端 `llm_usage.py`，写 `data/llm_config.json` 原子写；key 不回显明文）；改动后端 `llm_usage.py` / `hybrid_llm.py` 后须重启 control_server（:8900）并 curl 验证新路由生效 |
 | **d3 事件 + React 重渲染** | 在 d3 元素挂 click 且 handler 触发 setState → 节点重建 → 冒泡到祖先时 target detached → closest 误判。**子元素 handler 有副作用必须 `event.stopPropagation()`**（v1.11.24→25 血泪）；验证用真实鼠标序列（dispatchEvent 会假通过） |
 
 ---

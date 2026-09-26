@@ -196,7 +196,8 @@ class _RetryableError(Exception):
     pass
 
 
-def call_local(prompt: str, system: str = "", max_tokens: int = 2048) -> str:
+def call_local(prompt: str, system: str = "", max_tokens: int = 2048,
+               usage: str | None = None) -> str:
     """调用 SiliconFlow API 生成报告（原 Ollama 接口，已迁移至 SiliconFlow）。
 
     支持自动重试：空响应、429/503、超时时自动重试最多 _CALL_LOCAL_MAX_RETRIES 次。
@@ -227,7 +228,7 @@ def call_local(prompt: str, system: str = "", max_tokens: int = 2048) -> str:
             try:
                 _u = (resp.json() or {}).get("usage") or {}
                 _log_token_usage(
-                    usage_id=None, platform="siliconflow", model=SILICONFLOW_MODEL,
+                    usage_id=usage, platform="siliconflow", model=SILICONFLOW_MODEL,
                     prompt_tokens=_u.get("prompt_tokens"), completion_tokens=_u.get("completion_tokens"),
                     total_tokens=_u.get("total_tokens"),
                     call_ms=int(elapsed * 1000), ok=True,
@@ -242,17 +243,17 @@ def call_local(prompt: str, system: str = "", max_tokens: int = 2048) -> str:
         except Exception as e:
             # CHG-20260926T001031：不可重试错误直接抛出，须在此记账
             # （只在「重试耗尽」处记账会漏掉这条路径，失败在账本里不可见）
-            _log_token_usage(usage_id=None, platform="siliconflow", model=SILICONFLOW_MODEL,
+            _log_token_usage(usage_id=usage, platform="siliconflow", model=SILICONFLOW_MODEL,
                              prompt_tokens=total_tokens, call_ms=None, ok=False, err=e)
             raise  # 不可重试错误，直接抛出
 
     # 所有重试耗尽
     # CHG-20260926T001031：失败记账（重试中间不记，只在此处最终失败时记一次）
     if last_error:
-        _log_token_usage(usage_id=None, platform="siliconflow", model=SILICONFLOW_MODEL,
+        _log_token_usage(usage_id=usage, platform="siliconflow", model=SILICONFLOW_MODEL,
                          prompt_tokens=total_tokens, call_ms=None, ok=False, err=last_error)
         raise last_error
-    _log_token_usage(usage_id=None, platform="siliconflow", model=SILICONFLOW_MODEL,
+    _log_token_usage(usage_id=usage, platform="siliconflow", model=SILICONFLOW_MODEL,
                      prompt_tokens=total_tokens, call_ms=None, ok=False,
                      err="SiliconFlow 空响应（重试耗尽）")
     raise ValueError(f"SiliconFlow 返回空响应（模型={SILICONFLOW_MODEL}，重试{_CALL_LOCAL_MAX_RETRIES}次后仍失败）")
@@ -397,7 +398,7 @@ def reason(prompt: str, system: str = "", mode: str = "auto",
     if mode == "claudecode":
         return call_claudecode(prompt, system)
     if mode == "local":
-        return call_local(prompt, system, max_tokens)
+        return call_local(prompt, system, max_tokens, usage="local")
     if mode == "claude":
         return call_claude(prompt, system, max_tokens)
     if mode == "openai":
@@ -414,7 +415,8 @@ def reason(prompt: str, system: str = "", mode: str = "auto",
                 return call_openai_compat(prompt, system, max_tokens, usage="general_llm")
             except Exception as e:
                 print(f"[hybrid_llm] MiMo 失败，降级 SiliconFlow: {e}")
-        return call_local(prompt, system, max_tokens)
+        # CHG-20260926T091845：降级调用同属 general_llm 语义，显式传 usage 以便账本归因
+        return call_local(prompt, system, max_tokens, usage="general_llm")
 
     _ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     _future = _ex.submit(_auto_chain)
