@@ -1,3 +1,11 @@
+## v3.8.61（2026-09-26）
+
+- refactor(llm-usage): **使用点 `openai_compat` → `general_llm` 改名**（消除命名误导）—— 该使用点名为「OpenAI 兼容」但**实际指向小米 MiMo**（`token-plan-cn.xiaomimimo.com`，日志统计 2107 次调用），与 OpenAI 账户无关；09-26 该名字曾导致一次真实误判（据名以为「从未使用」）。改动：①代码 7 处（`llm_usage.py` 的 id/name/注释、`hybrid_llm.py` 的 `llm_usage_get_model` 默认值与 auto 链 `usage=`、`silent_failure_probe.py` 注释）；②配置 3 处（运行区 `data/llm_config.json` 的 `usages` 键、真源+运行区 `config/llm_config.default.json` 键与 `_note`）；③文档 4 处（总仓/`macro-scan` AGENTS.md 使用点清单、`kaiyang/docs/NEXT_SESSION_HANDOFF.md`、`kaiyang/docs/DATA_CONTRACT.md` 表格行并顺带更新模型至 v2.6-pro）。
+  **未改**：函数名 `call_openai_compat`（改名无收益、改动面大）、env `OPENAI_COMPAT_URL`/`OPENAI_COMPAT_KEY`（注入层，ADR-0013/0015 管辖）、platform `mimo_plan`、CHANGELOG/TuiYan/audit 历史条目、v3.8.27 历史陈述、历史账本既有 `usage_id='openai_compat'` 行（用量流水保留原真）。
+  **验证**：`resolve("general_llm")` → mimo_plan/mimo-v2.6-pro ✔；`resolve("openai_compat")` → **None**（`llm_usage.py:327` 未知 id 返 None ⇒ 调用方 fallback env，**降级而非崩溃**，这是本次的安全网）✔；`reason(mode="auto")` 200 且账本记 `general_llm` ✔；`GET /api/v1/control/llm-usage` 的 usages 含 general_llm、不含 openai_compat ✔；**运行区零残留**，真源剩余 5 处均为有意保留（3 处改名说明 + 2 处 v3.8.27 历史条目）✔。
+  ⚠️ `llm_usage.py` 被 `control_server` 引用，改动**需重启容器**生效。附带发现（未处理）：`LLM_USAGES` 实际已 7 个使用点（另有 `verify_llm`/`chronicle`），多份文档仍写「5 使用点」，属既有文档滞后。CHG-20260926T085749-world-deduction
+
+
 ## v3.8.60（2026-09-26）
 
 - feat(llm): **模型升级 `mimo-v2.5-pro` → `mimo-v2.6-pro`** —— `openai_compat` 使用点三处同步：运行时 `data/llm_config.json`、默认模板 `config/llm_config.default.json`（真源+运行区，git 跟踪，`data/` 不跟踪时靠它兜底）、`llm_usage.py` 注释。升级前已实测两模型均可用（v2.6 → 200/3.8s）；升级后 `resolve("openai_compat")` 返回 v2.6、`call_openai_compat` 与 `reason(auto)` 均 200。⚠️ 次日需观察 morning/us_daily/china_daily 报告质量。

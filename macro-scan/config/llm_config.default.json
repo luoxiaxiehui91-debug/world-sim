@@ -1,7 +1,7 @@
 {
   "schema_version": "2.0",
   "platforms": {},
-  "_note": "LLM 统一配置默认模板（08-18：llm_config.json 曾丢失 2 天无感，git 不跟踪 data/ → 模板入库兜底恢复）。运行区文件在 data/llm_config.json（开阳面板 PUT 生成，key 留空走 env）。恢复：cp config/llm_config.default.json data/llm_config.json。openai_compat.model 已固化 mimo-v2.5-pro（开阳面板可改，不再跟随 env）。sim_minimax 已于 08-23 随 MiniMax 退役移除，恢复模板同步不含。",
+  "_note": "LLM 统一配置默认模板（08-18：llm_config.json 曾丢失 2 天无感，git 不跟踪 data/ → 模板入库兜底恢复）。运行区文件在 data/llm_config.json（开阳面板 PUT 生成，key 留空走 env）。恢复：cp config/llm_config.default.json data/llm_config.json。general_llm.model 已固化 mimo-v2.5-pro（开阳面板可改，不再跟随 env）。sim_minimax 已于 08-23 随 MiniMax 退役移除，恢复模板同步不含。",
   "usages": {
     "translate_titles": {
       "platform": "siliconflow",
@@ -23,7 +23,7 @@
       "model": "deepseek-ai/DeepSeek-V4-Flash",
       "base_url": "https://api.siliconflow.cn/v1"
     },
-    "openai_compat": {
+    "general_llm": {
       "platform": "mimo_plan",
       "model": "mimo-v2.6-pro",
       "base_url": "https://token-plan-cn.xiaomimimo.com/v1"

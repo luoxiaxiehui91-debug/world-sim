@@ -86,8 +86,8 @@ LLM_USAGES = [
         "adjustable": True,
     },
     {
-        "id": "openai_compat",
-        "name": "通用 OpenAI 兼容",
+        "id": "general_llm",
+        "name": "通用 LLM 通道",
         "purpose": "hybrid_llm.call_openai_compat 无显式 usage 的调用（含 run_macro_analysis 宏观分析）",
         "platform": "mimo_plan",
         "default_model": None,  # 由 llm_config.json 固化 mimo-v2.6-pro（2026-09-02 起不再经 env 注入模型；2026-09-26 由 v2.5-pro 升级）
@@ -390,7 +390,7 @@ def set_usage(usage_id: str, platform: str, model: str,
             _plat = _all_platforms().get(_pid)
             _model = _item.get("default_model") or ""
             if not _plat or not _model:
-                continue  # openai_compat default_model=None → 跳过，由调用方显式设置
+                continue  # general_llm default_model=None → 跳过，由调用方显式设置
             cfg["usages"][_uid] = {
                 "platform": _pid,
                 "model": _model,

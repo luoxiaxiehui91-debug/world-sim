@@ -603,7 +603,7 @@ def check_llm_config() -> list:
     """LLM 统一配置（llm_config.json）完整性监控（08-18：文件曾丢失 2 天无感——
     面板显示静态清单兜底，用户看不出配置未持久化；丢失后翻译回落 env 仍工作）。
 
-    检查：文件存在 + JSON 可解析 + usages 覆盖 ≥5 个使用点（openai_compat
+    检查：文件存在 + JSON 可解析 + usages 覆盖 ≥5 个使用点（general_llm
     default_model=None 可能缺席，至少 5）。缺失/损坏/覆盖不足 → WARN（不 CRIT：
     回落静态默认仍可运行，但面板设置无法持久化）。
     """

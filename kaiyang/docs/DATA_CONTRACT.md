@@ -391,7 +391,7 @@
 | id | 名称 | 默认平台 | 默认模型 | 消费方 |
 | --- | --- | --- | --- | --- |
 | `translate_titles` | 新闻标题翻译 | siliconflow | tencent/Hunyuan-MT-7B | fetch_news_titles.py（usage="translate_titles"） |
-| `openai_compat` | 通用 OpenAI 兼容 | mimo_plan | mimo-v2.5-pro | hybrid_llm.call_openai_compat 无显式 usage（含宏观分析，auto 链首选） |
+| `general_llm` | 通用 LLM 通道 | mimo_plan | mimo-v2.6-pro | hybrid_llm.call_openai_compat 无显式 usage（含宏观分析，auto 链首选）；2026-09-26 前名为 `openai_compat` |
 | `rag_embedding` | 知识库嵌入 | siliconflow | BAAI/bge-m3 | rag_engine.py（resolve_embedding，`{base_url}/embeddings`） |
 | `sim_mc` | 天璇 Monte Carlo | siliconflow | GLM-Z1-9B-0414 | macro-sim llm_client.call_llm(use_minimax=False) |
 | `sim_narrative` | 天璇 叙事合成 | siliconflow | deepseek-ai/DeepSeek-V4-Flash | macro-sim llm_client.call_llm(use_minimax=True 叙事路径) |

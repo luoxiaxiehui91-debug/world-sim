@@ -240,7 +240,7 @@ pre-commit install   # 在源码区 S:\world-sim\macro-scan\ 执行一次即可
 | rsshub | :12000 | 中文财经 RSS（财新/第一财经/华尔街见闻/东方财富研报）|
 
 > ⚠️ Ollama（192.168.31.56）已停用，MiniMax 已于 08-23 退役。LLM 降级链（auto）：MiMo v2.5-pro → SiliconFlow DeepSeek-V4-Flash → 纯数据报告；新闻标题翻译走 SiliconFlow Hunyuan-MT-7B。
-> **08-16 LLM 统一配置**：`核心代码/llm_usage.py` 静态清单 5 使用点（translate_titles / openai_compat / rag_embedding / sim_mc / sim_narrative）× 2 平台（mimo_plan / siliconflow），运行时配置 `data/llm_config.json`（开阳控制台「LLM 配置」面板读写，`GET/PUT /api/v1/control/llm-usage`）。**配置优先于 env/常量**；天璇读共享文件。翻译模型 Hunyuan-MT-7B（`fetch_news_titles.py` 走 `usage="translate_titles"`）；RAG 嵌入 `rag_engine.py` 走 `resolve_embedding()`（bge-m3）。改 `llm_usage.py`/`hybrid_llm.py` 后须重启 control_server（:8900）并 curl 验证新路由生效。
+> **08-16 LLM 统一配置**：`核心代码/llm_usage.py` 静态清单使用点（translate_titles / general_llm / rag_embedding / sim_mc / sim_narrative；2026-09-26 前第 2 项名为 openai_compat）× 2 平台（mimo_plan / siliconflow），运行时配置 `data/llm_config.json`（开阳控制台「LLM 配置」面板读写，`GET/PUT /api/v1/control/llm-usage`）。**配置优先于 env/常量**；天璇读共享文件。翻译模型 Hunyuan-MT-7B（`fetch_news_titles.py` 走 `usage="translate_titles"`）；RAG 嵌入 `rag_engine.py` 走 `resolve_embedding()`（bge-m3）。改 `llm_usage.py`/`hybrid_llm.py` 后须重启 control_server（:8900）并 curl 验证新路由生效。
 
 ### ⛓ 模型变更「五联同步」强制清单（ADR-0010 派生）
 > 任何 LLM 模型/平台变更，**必须同步以下五处**，缺一即视为未完成（否则必然再次漂移，参见 2026-09-03 `CHG-20260903T151756` 教训）：

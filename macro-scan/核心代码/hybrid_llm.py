@@ -273,7 +273,7 @@ def call_openai_compat(prompt: str, system: str = "", max_tokens: int = 4096,
                 or get_secret("OPENAI_COMPAT_KEY") or ANTHROPIC_API_KEY)
     model    = (model
                 or (resolved or {}).get("model")
-                or llm_usage_get_model(usage or "openai_compat")
+                or llm_usage_get_model(usage or "general_llm")
                 or os.environ.get("CLAUDE_MODEL", "gpt-4o"))
     if not base_url:
         raise ValueError("未设置 OPENAI_COMPAT_URL")
@@ -410,8 +410,8 @@ def reason(prompt: str, system: str = "", mode: str = "auto",
         if os.environ.get("OPENAI_COMPAT_URL"):
             try:
                 # CHG-20260926T084449：显式传 usage，使账本可归因
-                # （此前未传 ⇒ usage_id 为 NULL，占大头的重调用无法归因到 "openai_compat"）
-                return call_openai_compat(prompt, system, max_tokens, usage="openai_compat")
+                # （此前未传 ⇒ usage_id 为 NULL，占大头的重调用无法归因到 "general_llm"）
+                return call_openai_compat(prompt, system, max_tokens, usage="general_llm")
             except Exception as e:
                 print(f"[hybrid_llm] MiMo 失败，降级 SiliconFlow: {e}")
         return call_local(prompt, system, max_tokens)
