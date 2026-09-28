@@ -7,9 +7,9 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getFetchers } from '@/lib/controlApi';
+import { getFetchers, getLlmTokenStats } from '@/lib/controlApi';
 import { useControl } from '@/state/ControlContext';
-import type { Fetcher } from '@/types/control';
+import type { Fetcher, LlmTokenStats } from '@/types/control';
 
 // ── 通用异步状态 ────────────────────────────────────────────
 
@@ -63,4 +63,50 @@ export function useFetchers(): AsyncState<Fetcher[]> & { refresh: () => void } {
   }, [fetch, token]);
 
   return { ...state, refresh: fetch };
+}
+
+// ── useLlmTokenStats ─────────────────────────────────────────
+
+/** 获取 LLM token 用量统计（只读），支持天数切换与手动刷新 */
+export function useLlmTokenStats(
+  days = 7,
+): AsyncState<LlmTokenStats> & { refresh: () => void } {
+  const { token, setToken } = useControl();
+  const [state, setState] = useState<AsyncState<LlmTokenStats>>({
+    data: null,
+    loading: true,
+    error: null,
+  });
+  const mountedRef = useRef(true);
+
+  const fetchStats = useCallback(async () => {
+    setState((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      const res = await getLlmTokenStats(days);
+      if (mountedRef.current) {
+        setState({ data: res, loading: false, error: null });
+      }
+    } catch (err) {
+      if ((err as { code?: number }).code === 401) {
+        setToken(null);
+      }
+      if (mountedRef.current) {
+        setState({
+          data: null,
+          loading: false,
+          error: err instanceof Error ? err.message : '获取 token 用量失败',
+        });
+      }
+    }
+  }, [days, setToken]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    fetchStats();
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [fetchStats, token]);
+
+  return { ...state, refresh: fetchStats };
 }

@@ -1,10 +1,26 @@
 # Changelog · 开阳（Kaiyang）操作面板
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-09-19（记录类文档随部署持续更新）
+> 最后核对时间：2026-09-29（记录类文档随部署持续更新）
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+
+## [1.11.43] 2026-09-29 · 新增 LLM token 用量面板（控制面板「用量」Tab）
+
+CHG-20260929T004344-world-deduction；对应 backlog 条目「token 用量账本的面板展示」（P3，迁移自已归档 question `20260924-world-deduction-llm-token-ledger-and-proxy-log-noise.md`）
+
+账本（`public.llm_token_usage` + 日级视图 `llm_token_usage_daily` + 端点 `GET /api/v1/control/llm-token-stats` + 告警脚本 `核心代码/llm_usage_check.py`）此前已全部落地，但**开阳无展示入口**，查看用量需手敲 SQL 或 curl。本次补齐消费侧：
+
+- `control/LlmTokenStatsTab.tsx`（新建）：总览（近 N 天合计 tokens / 调用次数 / 失败数）+ 按用途 + 按日 + 明细前 8 行；支持 7/14/30 天切换与手动刷新。**只读，无任何写操作**
+- `hooks/useControlApi.ts` 新增 `useLlmTokenStats(days)`：照 `useFetchers` 同构（`AsyncState` 三态 + `refresh` + 401 自动 `setToken(null)`）
+- `lib/controlApi.ts` 新增 `getLlmTokenStats(days)`：`apiFetch('/llm-token-stats?days=N', {}, true)`（第三参 `true` = 404 不抛，兼容后端未升级场景）
+- `types/control.ts` 新增 `TokenBucket` / `LlmTokenStats` / `LlmTokenStatRow`；`ControlTab` 加 `'llm_usage'`
+- `TabBar.tsx` 加「用量」Tab（📊）；`ControlDrawer.tsx` 加渲染分支
+
+⚠️ 实现要点：`by_day` / `by_usage` 是**对象不是数组**，须 `Object.entries()` 后渲染；抽屉宽 380px，排版按 `text-[11px]/[10px]/[9px]` 三级紧凑排布。
+
+未做（有意）：用量飙升告警的面板化 —— 告警已由 `llm_usage_check.py` + ntfy 承担，面板只负责「看得见」。
 
 ## [1.11.42] 2026-09-19 · 地理新闻弹框标题：缓存键归一化 + 失败占位 + 后端点击即翻
 

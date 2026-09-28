@@ -187,7 +187,8 @@ export type ControlTab =
   | 'tianxuan'
   | 'tianji'
   | 'yuheng'
-  | 'operation_log';
+  | 'operation_log'
+  | 'llm_usage';
 
 /** Tab 配置项 */
 export interface TabConfig {
@@ -309,4 +310,40 @@ export interface VerifyPredictionResponse {
   outcome?: number;
   brier?: number;
   note?: string | null;
+}
+
+// ── LLM token 用量（只读，GET /api/v1/control/llm-token-stats）──────────
+
+/** 用量桶：次数 / tokens 三分量 / 失败数 */
+export interface TokenBucket {
+  calls: number;
+  total_tokens: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  failures: number;
+}
+
+/** LLM token 用量统计响应 */
+export interface LlmTokenStats {
+  days: number;
+  total: TokenBucket;
+  /** key = 'YYYY-MM-DD'（对象，非数组） */
+  by_day: Record<string, TokenBucket>;
+  /** key = usage_id（对象，非数组） */
+  by_usage: Record<string, TokenBucket>;
+  rows: LlmTokenStatRow[];
+}
+
+/** 用量明细行 */
+export interface LlmTokenStatRow {
+  d: string;
+  usage_id: string | null;
+  platform: string | null;
+  model: string | null;
+  calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  avg_ms: number | null;
+  failures: number;
 }

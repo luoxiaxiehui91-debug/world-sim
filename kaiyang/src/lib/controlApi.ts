@@ -23,6 +23,7 @@ import type {
   HumanPendingPrediction,
   HumanPendingResponse,
   VerifyPredictionResponse,
+  LlmTokenStats,
 } from '@/types/control';
 
 // ── Mock 数据 ──────────────────────────────────────────────
@@ -514,4 +515,9 @@ export async function verifyPrediction(
     body: JSON.stringify({ prediction_id: predictionId, outcome, note: note || undefined }),
   });
   return res ?? { ok: false };
+}
+
+/** 获取 LLM token 用量统计（只读；09-29 开阳用量面板） */
+export async function getLlmTokenStats(days = 7): Promise<LlmTokenStats | null> {
+  return apiFetch<LlmTokenStats>(`/llm-token-stats?days=${days}`, {}, true);
 }

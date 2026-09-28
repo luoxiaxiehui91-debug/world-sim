@@ -1,6 +1,6 @@
 /**
  * Tab 导航栏组件
- * 五 Tab：天枢 / 天璇 / 天玑 / 玉衡 / 操作日志
+ * 六 Tab：天枢 / 天璇 / 天玑 / 玉衡 / 操作日志 / 用量
  */
 
 import { useControl } from '@/state/ControlContext';
@@ -16,6 +16,7 @@ const TABS: TabConfig[] = [
   { key: 'yuheng', label: '玉衡', icon: '⚖️' },
   // 已评：保留镜像，等待后端 P1+
   { key: 'operation_log', label: '日志', icon: '📋' },
+  { key: 'llm_usage', label: '用量', icon: '📊' },
 ];
 
 export function TabBar() {
