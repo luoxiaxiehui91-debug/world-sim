@@ -96,6 +96,14 @@ NEWS_GEO_WINDOW_HOURS: int = int(os.environ.get("NEWS_GEO_WINDOW_HOURS", "24"))
 NEWS_GEO_MIN_MENTIONS: int = int(os.environ.get("NEWS_GEO_MIN_MENTIONS", "15"))
 NEWS_GEO_MAX_EVENTS: int = int(os.environ.get("NEWS_GEO_MAX_EVENTS", "1800"))
 NEWS_GEO_AGGREGATE: bool = os.environ.get("NEWS_GEO_AGGREGATE", "0") in ("1", "true", "True")
+
+# CHG-20261002T000220：保留窗口**观测**（只读）——统计各档保留天数下的存活量与 seen_slot 解析失败占比。
+# ⚠️ 观测阶段**不改写入行为**：_merge_jsonl 的写入路径与写入内容逐字不变，仅新增 probe 统计。
+# 关闭：NEWS_GEO_RETENTION_PROBE=0
+NEWS_GEO_RETENTION_PROBE: bool = os.environ.get("NEWS_GEO_RETENTION_PROBE", "1") in ("1", "true", "True")
+NEWS_GEO_RETENTION_PROBE_DAYS: List[int] = [
+    int(x) for x in os.environ.get("NEWS_GEO_RETENTION_PROBE_DAYS", "30,14,7,3").split(",") if x.strip()
+]
 NEWS_GEO_SCHEMA_VERSION: str = "1.0"
 
 
@@ -413,6 +421,39 @@ def _compute_new_slots(state: Mapping[str, Any], now_slots: List[str]) -> List[s
     return [s for s in now_slots if s > last]
 
 
+# ── CHG-20261002T000220：保留窗口观测产物（只读）────────────────────────────
+#
+# 为 news_geo.jsonl 保留窗口（灰度终点 14 天）提供真实分布依据：
+#   keep/keep_bytes —— 各档保留天数下的存活行数与估算字节；
+#   no_ts           —— seen_slot/fetched_at 均无法解析的行数（过滤阶段的最大误删风险）；
+#   oldest_age_days —— 最老行年龄。
+# ⚠️ 本阶段只统计、不过滤、不删除。
+
+
+def _write_retention_probe(probe: Mapping[str, Any], rows_window: int) -> None:
+    """观测产物 → data/news_geo_window_probe.json（原子写；异常由调用方兜底）。"""
+    out: Dict[str, Any] = dict(probe)
+    out["rows_window"] = rows_window
+    out["generated_at"] = _utcnow_ts()
+    out["generated_at_cst"] = datetime.now(timezone.utc).astimezone(
+        timezone(timedelta(hours=8))
+    ).strftime("%Y-%m-%d %H:%M:%S")
+    out["keep_mb"] = {
+        k: round(v / 1048576.0, 1) for k, v in (out.get("keep_bytes") or {}).items()
+    }
+    path = os.path.join(DATA_DIR, "news_geo_window_probe.json")
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)
+    log.info(
+        "[retention-probe] scanned old=%s new=%s | no_ts old=%s new=%s | keep14=%s行/%sMB | oldest=%sd",
+        out["scanned"]["old"], out["scanned"]["new"],
+        out["no_ts"]["old"], out["no_ts"]["new"],
+        out["keep"].get("14"), out["keep_mb"].get("14"), out["oldest_age_days"],
+    )
+
+
 def _merge_jsonl(
     path: str,
     new_events: List[Mapping[str, Any]],
@@ -449,6 +490,36 @@ def _merge_jsonl(
     added = 0
     deduped = 0
 
+    # CHG-20261002T000220：保留窗口观测（只读）——O(1) 计数器，不额外驻留行
+    probe: Optional[Dict[str, Any]] = None
+    if NEWS_GEO_RETENTION_PROBE:
+        probe = {
+            "days": list(NEWS_GEO_RETENTION_PROBE_DAYS),
+            "keep": {str(d): 0 for d in NEWS_GEO_RETENTION_PROBE_DAYS},
+            "keep_bytes": {str(d): 0 for d in NEWS_GEO_RETENTION_PROBE_DAYS},
+            "no_ts": {"old": 0, "new": 0},
+            "scanned": {"old": 0, "new": 0},
+            "oldest_age_days": None,
+            "now": _utcnow_ts(),
+        }
+
+    def _probe_tally(ev: Mapping[str, Any], nbytes: int, src: str) -> None:
+        """累计一行的窗口归属（O(1)）。ts 解析失败只计 no_ts，不参与存活统计。"""
+        if probe is None:
+            return
+        probe["scanned"][src] += 1
+        ts = _seen_slot_ts(ev)
+        if ts is None:
+            probe["no_ts"][src] += 1
+            return
+        age = probe["now"] - ts
+        if probe["oldest_age_days"] is None or age / 86400.0 > probe["oldest_age_days"]:
+            probe["oldest_age_days"] = round(age / 86400.0, 2)
+        for d in NEWS_GEO_RETENTION_PROBE_DAYS:
+            if age <= d * 86400:
+                probe["keep"][str(d)] += 1
+                probe["keep_bytes"][str(d)] += nbytes
+
     def _in_window(ev: Mapping[str, Any]) -> bool:
         if window_start is None:
             return True
@@ -475,6 +546,8 @@ def _merge_jsonl(
                         continue
                     seen.add(k)
                     before += 1
+                    if probe is not None:
+                        _probe_tally(d, len(line) + 1, "old")
                     if fout is not None:
                         fout.write(json.dumps(d, ensure_ascii=False) + "\n")
                     if _in_window(d):
@@ -488,6 +561,8 @@ def _merge_jsonl(
                 continue
             seen.add(k)
             added += 1
+            if probe is not None:
+                _probe_tally(ev, len(json.dumps(ev, ensure_ascii=False)) + 1, "new")
             if fout is not None:
                 fout.write(json.dumps(ev, ensure_ascii=False) + "\n")
             if _in_window(ev):
@@ -503,7 +578,7 @@ def _merge_jsonl(
         except OSError:
             pass
     return {"before": before, "added": added, "after": before + added,
-            "deduped": deduped, "rows": rows_window}
+            "deduped": deduped, "rows": rows_window, "probe": probe}
 
 # ── news_geo.json 导出（路线 A：开阳事件图层直接消费 jsonl）────────────────────
 #
@@ -998,6 +1073,13 @@ def run_incremental(num_slots: int = 4) -> Dict[str, Any]:
     # CHG-20261001T143514：流式合并，只把派生所需窗口内的行留在内存
     window_start = int(now.timestamp()) - NEWS_GEO_WINDOW_HOURS * 3600
     merge = _merge_jsonl(jsonl_path, all_events, window_start=window_start)
+
+    # CHG-20261002T000220：保留窗口观测落盘（只读；失败不阻断增量主流程）
+    if merge.get("probe"):
+        try:
+            _write_retention_probe(merge["probe"], len(merge.get("rows", [])))
+        except Exception as exc:
+            log.warning("[retention-probe] 落盘失败（不阻断主流程）: %s", exc)
 
     state[STATE_KEY_LAST_SLOT] = slots_ok[-1] if slots_ok else state.get(STATE_KEY_LAST_SLOT)
     state[STATE_KEY_LAST_RUN_AT] = _utcnow_ts()
