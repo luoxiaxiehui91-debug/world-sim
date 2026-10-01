@@ -1,10 +1,45 @@
 # Changelog · 开阳（Kaiyang）操作面板
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-09-29（记录类文档随部署持续更新）
+> 最后核对时间：2026-10-01（记录类文档随部署持续更新）
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+
+## [1.11.44] 2026-10-01 · nginx `/data/` 收敛为 29 条白名单（零鉴权暴露面收窄 99.46%）
+
+CHG-20261001T144635；对应 question `20261001-world-deduction-kaiyang-data-dir-unauthenticated-exposure.md`（P2）。
+
+**问题**：`default.conf` 原 `location /data/ { alias /usr/share/nginx/data/; }` 把整个 `macro-scan/data`
+暴露成 HTTP —— LAN 内任意主机**零凭据**可取 **444 文件 / 638.9 MB**，含 `news_geo.jsonl`（493 MB）、
+制裁名单 CSV（73.8 MB，1941 行含邮箱）、`chroma_db_backup_*.sqlite3`、`news.db.bak-c1`、报告与日志。
+（autoindex 未开、目录穿越 400，但无需任何凭据；严格扫描**无凭证/密钥**。）
+
+**改动**：把整目录 alias 换成 **29 条精确匹配 `location =` + 一条兜底 404**
+
+```nginx
+location = /data/news_geo.json {
+    alias /usr/share/nginx/data/news_geo.json;
+    add_header Cache-Control "no-cache, no-store, must-revalidate";
+}
+# …其余 28 条同构…
+location /data/ { return 404; }
+```
+
+白名单来自前端 bundle 实际请求的固定 path（3.46 MB），非人工挑选。
+⚠️ 两个坑已避开：①兜底用**普通前缀** `location /data/`（用 `^~` 会屏蔽精确匹配使白名单全失效）
+②每条都保留原 `Cache-Control: no-cache`（前端依赖实时性）。
+
+**实测**（reload 后）：
+- 白名单 **29/29 全部 200**
+- 非白名单全部 404：`news_geo.jsonl`、`sanctions_cache/targets.simple.csv`、`llm_config.json`、
+  `predictions_log.json`、`news_geo_state.json`、`crypto_history/*`
+- 目录形态 `/data/`、`/data/crypto_history/`、`/data/reports/` → 404（与改动前一致，无回归）
+- 前端 `/`、`/index.html`、`assets/index-*.js` → 200
+- **前端零回归**：reload 后 40 秒窗口内 `/data/` 请求 1384+1383+694+… 全为 200；
+  出现的 13 条 404 **UA 全为 curl**（本轮验证脚本与 D 派测试的探测），无一来自浏览器
+
+未做：不动数据、不动挂载、不动前端代码；不触碰 `:8900` 控制面（另一议题）与 CONTROL_TOKEN 封条项。
 
 ## [1.11.43] 2026-09-29 · 新增 LLM token 用量面板（控制面板「用量」Tab）
 
