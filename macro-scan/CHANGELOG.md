@@ -1,3 +1,33 @@
+## v3.8.63（2026-10-01）
+
+**gdelt_geo 增量合并改流式：单次 RSS 峰值 2437 MB → 181 MB（不删任何数据）** —— CHG-20261001T143514
+
+起因：天枢容器每 15 分钟跑一次 `fetch_gdelt_geo.py --incremental`，进程 RSS 峰值 **2.4 GB**、容器
+`memory.peak` **3.6 GB**、主机 swap 已用 2 GiB。根因两层：`data/news_geo.jsonl` 无界增长至
+**499 MB / 104 万行**（无条数上限、无时间窗口、无分片），且 `_merge_jsonl()` 每次把整个文件**全量
+`json.loads()` 进内存**构建 `rows`（list[dict]，约占 2268 MB）+ `seen`（set，约 51 MB）。
+
+改动（`核心代码/fetch_gdelt_geo.py`）：
+- `_merge_jsonl` 改**流式**：新增 `window_start` / `force_write` 参数，边读边写 tmp，
+  只在 `rows_window` 中保留派生 `news_geo.json` 所需的**窗口内行**（默认 24 h，`NEWS_GEO_WINDOW_HOURS` 可配）
+- **`after` 语义保持** = `before + added`（总行数，`state.TOTAL_EVENTS` 依赖），
+  **不是** `rows` 长度；`rows` 由"全量"收窄为"窗口内"，因下游 `_build_news_geo_events` 本就按同一窗口过滤（幂等）
+- 空批次（`new_events` 为空）**不重写 476 MB 盘**，仍流式扫描取窗口行供派生
+- 调用点 `run_incremental` 传 `window_start`；Route A 注释同步更新
+
+实测（容器内实跑一次，采样 `VmRSS` 373 点）：
+- 进程 RSS 峰值 **2436.8 → 181.1 MB（−92.6%）**，结束 RSS 43.6 MB
+- 单轮耗时 **149.5 s**（历史 max 墙钟 756 s）
+- `news_geo.json` 逐 `id` 比对：实施前 627 / 实施后 628，**missing = 0**、extra = 1（真实新事件），
+  字段结构 10 个字段零差集，`schema_version` 仍 1.0
+- jsonl 行数 1,044,396 → **1,044,663（+267，只增不减）**；无 `.tmp` 残留
+
+⚠️ **未删任何一行数据**。根因第 2 层（全量加载放大器）已解决；第 1 层（数据无界增长，约 2 万条/天）
+**仍在**，保留窗口另行立项（须按 `seen_slot` 而非 `sql_date`，后者已证伪会丢事件）。
+
+配套：本次已 gzip 备份 `_rollback/news_geo.jsonl.gz-20261001T143514`（60 MB）与旧代码
+`fetch_gdelt_geo.py.bak-20261001T143514`。
+
 ## v3.8.62（2026-09-26）
 
 - fix(hybrid_llm): **降级路径成本归因** —— `call_local` 增加 `usage: str | None = None` 参数；`reason()` 的 `mode="local"` 分支传 `usage="local"`、auto 降级分支传 `usage="general_llm"`；`call_local` 内 **4 处**埋点的 `usage_id=None` 统一改为 `usage_id=usage`。此前 auto 链降级到 SiliconFlow 的调用在账本里记 NULL（只能靠 `platform=siliconflow` 间接区分），现归入 `general_llm` 并可经 platform 区分实际平台；直接调用 `call_local` 不传 usage 时行为不变（向后兼容）。
