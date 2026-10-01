@@ -413,52 +413,97 @@ def _compute_new_slots(state: Mapping[str, Any], now_slots: List[str]) -> List[s
     return [s for s in now_slots if s > last]
 
 
-def _merge_jsonl(path: str, new_events: List[Mapping[str, Any]], key: str = "event_id") -> Dict[str, int]:
-    """加载现有 jsonl + 去重 + 追加新事件 + 原子写回。
+def _merge_jsonl(
+    path: str,
+    new_events: List[Mapping[str, Any]],
+    key: str = "event_id",
+    window_start: Optional[int] = None,
+    force_write: bool = False,
+) -> Dict[str, Any]:
+    """流式合并 jsonl：边读边写，不再全量驻留 rows（CHG-20261001T143514）。
+
+    旧实现把整个文件读入 rows（list[dict]）后整体写回，内存随文件规模线性增长
+    （实测 499 MB / 104 万行时单次进程 RSS 约 2.4 GB）。本实现逐行读取并直接写入
+    tmp，只在 rows_window 中保留**派生 news_geo.json 所需的窗口内**行。
+
+    Args:
+        path: jsonl 路径
+        new_events: 本轮新增事件
+        key: 去重键，默认 event_id
+        window_start: 派生窗口起点（UTC unix）；None = 不收窄（rows 返回全量，兼容旧行为）
+        force_write: 强制重写盘（默认仅在本轮有新增或文件不存在时写）
 
     Returns:
-        {"before": int, "added": int, "after": int, "deduped": int, "rows": List}
-        rows 为合并后全量行（供 run_incremental 末尾派生 news_geo.json，零边际读成本）。
+        {"before": 已存在行数, "added": 新增行数, "after": 写入 tmp 的总行数,
+         "deduped": 被去重的新事件数, "rows": 窗口内行}
+
+    ⚠️ 语义（与旧实现有意差异，勿回改）：
+        - after = before + added —— **总行数**，不是 rows 的长度；
+          state 的 TOTAL_EVENTS 与日志 total_after_dedup 依赖它。
+        - rows = 窗口内行，供 _build_news_geo_events 派生 news_geo.json；
+          该函数内部本就按同一窗口过滤，故传入窗口内行功能等价（幂等）。
     """
     seen: set = set()
-    rows: List[Mapping[str, Any]] = []
+    rows_window: List[Mapping[str, Any]] = []
     before = 0
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    d = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                k = d.get(key)
-                if k is None or k in seen:
-                    continue
-                seen.add(k)
-                rows.append(d)
-                before += 1
     added = 0
     deduped = 0
-    for ev in new_events:
-        k = ev.get(key)
-        if k is None:
-            continue
-        if k in seen:
-            deduped += 1
-            continue
-        seen.add(k)
-        rows.append(ev)
-        added += 1
+
+    def _in_window(ev: Mapping[str, Any]) -> bool:
+        if window_start is None:
+            return True
+        ts = _seen_slot_ts(ev)
+        return ts is not None and ts >= window_start
+
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        for r in rows:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    os.replace(tmp, path)
-    return {"before": before, "added": added, "after": len(rows), "deduped": deduped, "rows": rows}
-
+    need_write = force_write or bool(new_events) or not os.path.exists(path)
+    fout = open(tmp, "w", encoding="utf-8") if need_write else None
+    try:
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        d = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    k = d.get(key)
+                    if k is None or k in seen:
+                        continue
+                    seen.add(k)
+                    before += 1
+                    if fout is not None:
+                        fout.write(json.dumps(d, ensure_ascii=False) + "\n")
+                    if _in_window(d):
+                        rows_window.append(d)
+        for ev in new_events:
+            k = ev.get(key)
+            if k is None:
+                continue
+            if k in seen:
+                deduped += 1
+                continue
+            seen.add(k)
+            added += 1
+            if fout is not None:
+                fout.write(json.dumps(ev, ensure_ascii=False) + "\n")
+            if _in_window(ev):
+                rows_window.append(ev)
+    finally:
+        if fout is not None:
+            fout.close()
+    if need_write:
+        os.replace(tmp, path)
+    elif os.path.exists(tmp):
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    return {"before": before, "added": added, "after": before + added,
+            "deduped": deduped, "rows": rows_window}
 
 # ── news_geo.json 导出（路线 A：开阳事件图层直接消费 jsonl）────────────────────
 #
@@ -950,7 +995,9 @@ def run_incremental(num_slots: int = 4) -> Dict[str, Any]:
                     all_events.append(ev)
         slots_ok.append(slot_s)
 
-    merge = _merge_jsonl(jsonl_path, all_events)
+    # CHG-20261001T143514：流式合并，只把派生所需窗口内的行留在内存
+    window_start = int(now.timestamp()) - NEWS_GEO_WINDOW_HOURS * 3600
+    merge = _merge_jsonl(jsonl_path, all_events, window_start=window_start)
 
     state[STATE_KEY_LAST_SLOT] = slots_ok[-1] if slots_ok else state.get(STATE_KEY_LAST_SLOT)
     state[STATE_KEY_LAST_RUN_AT] = _utcnow_ts()
@@ -961,8 +1008,9 @@ def run_incremental(num_slots: int = 4) -> Dict[str, Any]:
     state[STATE_KEY_SCHEMA] = STATE_SCHEMA_VERSION
     _save_state(state_path, state)
 
-    # Route A：从合并后全量行生成 news_geo.json（架构文档 arg-map-arch-2026-08-11 §4）。
-    # 复用 _merge_jsonl 已载入内存的行，零边际读成本；异常不阻断增量主流程。
+    # Route A：从合并后的窗口内行生成 news_geo.json（架构文档 arg-map-arch-2026-08-11 §4）。
+    # CHG-20261001T143514：改为流式合并后 rows 仅含窗口内行（默认 24h）；
+    # _build_news_geo_events 内部仍按同一窗口过滤（幂等）；异常不阻断增量主流程。
     try:
         export_events = _build_news_geo_events(merge.get("rows", []), now)
         export_written = _write_news_geo_json(export_events)
