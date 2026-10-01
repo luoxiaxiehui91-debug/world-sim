@@ -104,6 +104,17 @@ NEWS_GEO_RETENTION_PROBE: bool = os.environ.get("NEWS_GEO_RETENTION_PROBE", "1")
 NEWS_GEO_RETENTION_PROBE_DAYS: List[int] = [
     int(x) for x in os.environ.get("NEWS_GEO_RETENTION_PROBE_DAYS", "30,14,7,3").split(",") if x.strip()
 ]
+
+# CHG-20261002T004002：`news_geo.jsonl` 保留窗口（**写入侧过滤**，灰度第一步 30 天 → 终点 14 天）。
+# ⚠️ 与派生窗口 NEWS_GEO_WINDOW_HOURS(=24h) **解耦**：保留窗口必须 ≥ 派生窗口的 2 倍，
+#    否则 `news_geo.json` 会因源行被裁而丢事件 —— 模块加载即硬失败，不做静默降级。
+# 0 / 极大值 = 禁用（只停止继续裁剪，**不恢复已裁数据**）。
+NEWS_GEO_RETENTION_DAYS: int = int(os.environ.get("NEWS_GEO_RETENTION_DAYS", "30"))
+if 0 < NEWS_GEO_RETENTION_DAYS * 24 < NEWS_GEO_WINDOW_HOURS * 2:
+    raise RuntimeError(
+        "NEWS_GEO_RETENTION_DAYS=%d 必须 ≥ NEWS_GEO_WINDOW_HOURS(%dh) 的 2 倍，"
+        "否则派生文件 news_geo.json 会丢事件" % (NEWS_GEO_RETENTION_DAYS, NEWS_GEO_WINDOW_HOURS)
+    )
 NEWS_GEO_SCHEMA_VERSION: str = "1.0"
 
 
@@ -476,7 +487,11 @@ def _merge_jsonl(
 
     Returns:
         {"before": 已存在行数, "added": 新增行数, "after": 写入 tmp 的总行数,
-         "deduped": 被去重的新事件数, "rows": 窗口内行}
+         "deduped": 被去重的新事件数, "rows": 窗口内行,
+         "written": 实际写入 tmp 的行数（保留窗口后）, "dropped": 被保留窗口裁掉的行数}
+
+    ⚠️ CHG-20261002T004002 起：`after` **仍 = before + added**（v3.8.63 承诺的语义，勿回改）；
+    启用保留窗口后真实落盘行数看 `written`（`after` 会大于 `written`）。
 
     ⚠️ 语义（与旧实现有意差异，勿回改）：
         - after = before + added —— **总行数**，不是 rows 的长度；
@@ -489,6 +504,9 @@ def _merge_jsonl(
     before = 0
     added = 0
     deduped = 0
+    # CHG-20261002T004002：保留窗口写入侧计数
+    written = 0
+    dropped = 0
 
     # CHG-20261002T000220：保留窗口观测（只读）——O(1) 计数器，不额外驻留行
     probe: Optional[Dict[str, Any]] = None
@@ -526,6 +544,18 @@ def _merge_jsonl(
         ts = _seen_slot_ts(ev)
         return ts is not None and ts >= window_start
 
+    # CHG-20261002T004002：保留窗口（只作用于**写入侧**，不影响 rows_window 派生）
+    retention_start: Optional[int] = None
+    if NEWS_GEO_RETENTION_DAYS > 0:
+        retention_start = _utcnow_ts() - NEWS_GEO_RETENTION_DAYS * 86400
+
+    def _in_retention(ev: Mapping[str, Any]) -> bool:
+        """保留窗口判定。ts 解析失败 → **保守保留**（不删无时间戳数据）。"""
+        if retention_start is None:
+            return True
+        ts = _seen_slot_ts(ev)
+        return True if ts is None else ts >= retention_start
+
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     tmp = path + ".tmp"
     need_write = force_write or bool(new_events) or not os.path.exists(path)
@@ -548,8 +578,12 @@ def _merge_jsonl(
                     before += 1
                     if probe is not None:
                         _probe_tally(d, len(line) + 1, "old")
-                    if fout is not None:
-                        fout.write(json.dumps(d, ensure_ascii=False) + "\n")
+                    if _in_retention(d):
+                        written += 1
+                        if fout is not None:
+                            fout.write(json.dumps(d, ensure_ascii=False) + "\n")
+                    else:
+                        dropped += 1
                     if _in_window(d):
                         rows_window.append(d)
         for ev in new_events:
@@ -563,8 +597,12 @@ def _merge_jsonl(
             added += 1
             if probe is not None:
                 _probe_tally(ev, len(json.dumps(ev, ensure_ascii=False)) + 1, "new")
-            if fout is not None:
-                fout.write(json.dumps(ev, ensure_ascii=False) + "\n")
+            if _in_retention(ev):
+                written += 1
+                if fout is not None:
+                    fout.write(json.dumps(ev, ensure_ascii=False) + "\n")
+            else:
+                dropped += 1
             if _in_window(ev):
                 rows_window.append(ev)
     finally:
@@ -578,7 +616,8 @@ def _merge_jsonl(
         except OSError:
             pass
     return {"before": before, "added": added, "after": before + added,
-            "deduped": deduped, "rows": rows_window, "probe": probe}
+            "deduped": deduped, "rows": rows_window, "probe": probe,
+            "written": written, "dropped": dropped}
 
 # ── news_geo.json 导出（路线 A：开阳事件图层直接消费 jsonl）────────────────────
 #
@@ -1084,7 +1123,14 @@ def run_incremental(num_slots: int = 4) -> Dict[str, Any]:
     state[STATE_KEY_LAST_SLOT] = slots_ok[-1] if slots_ok else state.get(STATE_KEY_LAST_SLOT)
     state[STATE_KEY_LAST_RUN_AT] = _utcnow_ts()
     state[STATE_KEY_TOTAL_SLOTS] = state.get(STATE_KEY_TOTAL_SLOTS, 0) + len(slots_ok)
-    state[STATE_KEY_TOTAL_EVENTS] = merge["after"]
+    # CHG-20261002T004002：启用保留窗口后真实存量 = written（after 仍 = before+added）
+    state[STATE_KEY_TOTAL_EVENTS] = merge.get("written", merge["after"])
+
+    if NEWS_GEO_RETENTION_DAYS > 0:
+        log.info(
+            "[retention] 保留窗口 %d 天：写入 %s 行（裁剪 %s 行）",
+            NEWS_GEO_RETENTION_DAYS, merge.get("written"), merge.get("dropped"),
+        )
     state[STATE_KEY_RUN_COUNT] = state.get(STATE_KEY_RUN_COUNT, 0) + 1
     state[STATE_KEY_FAIL_SLOTS] = 0 if slots_ok else state.get(STATE_KEY_FAIL_SLOTS, 0) + len(slots_failed)
     state[STATE_KEY_SCHEMA] = STATE_SCHEMA_VERSION
