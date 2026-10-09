@@ -56,6 +56,23 @@ if [ -n "$HITS" ]; then
   FAIL=1
 fi
 
+# ---------- 第 3 关：联动文档同步（check_doc_sync.py；2026-10-09 修复接入） ----------
+# 判据（底线矩阵）：核心代码/*.py 变更须同步 CHANGELOG.md + VERSION；
+# 新增/删除 .py 还须同步 docs/FILE_MANIFEST.md。缺文档则拦截。
+# 解释器或脚本缺失时跳过（不拦），避免环境差异导致误拦。
+DOCSYNC="macro-scan/核心代码/check_doc_sync.py"
+if [ -f "$DOCSYNC" ]; then
+  PY_BIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)
+  if [ -n "$PY_BIN" ]; then
+    DOCSYNC_RC=0
+    DOCSYNC_OUT=$("$PY_BIN" "$DOCSYNC" 2>&1) || DOCSYNC_RC=$?
+    if [ "$DOCSYNC_RC" -ne 0 ]; then
+      REPORT="${REPORT}\n[联动] 代码改动未同步文档:\n${DOCSYNC_OUT}"
+      FAIL=1
+    fi
+  fi
+fi
+
 # ---------- 判定 ----------
 if [ "$FAIL" -eq 1 ]; then
   echo ""

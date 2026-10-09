@@ -4,6 +4,13 @@
 **版本**：v3.5.25  
 **适用项目**：macro-scan  
 
+> **⚠️ 2026-10-09 现状勘误（现行体制以本节为准）**
+> - 源码区已迁移至 monorepo：`S:\world-sim\macro-scan\`（旧 `S:\macro-scan-src\` 已废弃）；本文其余部分按旧结构书写，保留历史原貌。
+> - **pre-commit 安装方式已更换**：弃用 `pip install pre-commit / pre-commit install`（`.pre-commit-config.yaml` 已删除）；现役 hook = `.gethooks/pre-commit`，安装 = `git config core.hooksPath .gethooks`（hook 已入仓库版本控制）。
+> - 联动拦截已并入 `.gethooks/pre-commit`「第 3 关」（调用 `macro-scan/核心代码/check_doc_sync.py`；判据 = 底线矩阵：`核心代码/*.py` 变更须同步 `CHANGELOG.md` + `VERSION`；新增/删除 .py 还须 `docs/FILE_MANIFEST.md`）。
+> - `check_doc_drift.py` **未激活**（2026-10-09 核实：不在 crontab / scheduler）；保留待定。
+> - 变更记录：`S:\docs\operations\CHG-20261009T183228-world-deduction.md`。
+
 ---
 
 ## 概览

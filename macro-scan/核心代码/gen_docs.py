@@ -135,8 +135,8 @@ OFFLINE_TOOLS = {
     "build_rag_index.py": ("重建 pgvector 向量索引（worldsim-pg）", "docker exec ... python3 build_rag_index.py"),
     "build_report_data.py": ("知识库数据采集", "手动执行"),
     "diag_p0.py": ("P0 阶段诊断工具", "手动执行"),
-    "check_doc_sync.py": ("pre-commit 联动文档检查脚本", "自动（pre-commit hook）"),
-    "check_doc_drift.py": ("文档漂移巡检，发现运行区 py 比 CHANGELOG 新则 ntfy 告警", "自动（scheduler 每日 10:00）"),
+    "check_doc_sync.py": ("pre-commit 联动文档检查脚本", "自动（.githooks/pre-commit 第 3 关）"),
+    "check_doc_drift.py": ("文档漂移巡检（未激活；判据待适配）", "未激活（2026-10-09 核实：不在 crontab/scheduler；保留待定）"),
     "gen_docs.py": ("从代码生成 INDEX.md/FILE_MANIFEST.md 对应节", "python 核心代码/gen_docs.py --target all"),
 }
 

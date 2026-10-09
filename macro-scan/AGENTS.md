@@ -161,7 +161,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 ## 维护铁律
 
 1. **改前必读** `CHANGELOG.md`（了解最新状态；v3.8.24 及更早见 `TuiYan_CHANGELOG.md`）
-2. **实施前先建 CHG**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-macro-scan.md`（9 字段 frontmatter + `## Pre-Change` 冻结；格式见 `S:\docs\AGENTS.md` §operations/ 系统日志）
+2. **实施前先建 CHG**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-world-deduction.md（=中央 KB 项目名，非组件名）`（9 字段 frontmatter + `## Pre-Change` 冻结；格式见 `S:\docs\AGENTS.md` §operations/ 系统日志）
 3. **改后必追加** `CHANGELOG.md` → bump `VERSION` → 按联动矩阵更新对应文档 → 版本变更时同步更新 `S:\docs\INDEX.md` 版本状态行 → CHG 补 `## Post-Change` + status `completed`
 4. **绝对不要** `git rm`（不加 `--cached`）知识库或 data 下的文件
 5. **绝对不要** 把 `核心代码/` 内的 .py 分子目录
@@ -171,18 +171,16 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 
 ### 改代码后必须同步的文档
 
-> **任务开始时**：用 TodoWrite 逐项列出本次涉及的每个文档更新目标（每个文件一条），不在收尾时回想。
+> **任务开始时**：用 TodoWrite 逐项列出本次涉及的文档更新目标（按工作块分组；纯文档同步可合并为一条、描述内列明文件清单，涉及 ≥5 个文件时必须合并），不在收尾时回想。
 
 **（改了左边 → 必须同时更新右边）**
 
 | 改了什么 | 必须同时更新 |
 |:---|:---|
-| **任何变更（改代码 / 部署 / 改配置）** | **中央 CHG 文件**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-macro-scan.md`（实施前 `## Pre-Change` 冻结 → 完成后 `## Post-Change` + status `completed`；纯报问题建档不建 CHG）|
-| 任何 `核心代码/*.py` | `CHANGELOG.md` + `VERSION` |
+| **任何变更（改代码 / 部署 / 改配置）** | **中央 CHG 文件**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-world-deduction.md（=中央 KB 项目名，非组件名）`（实施前 `## Pre-Change` 冻结 → 完成后 `## Post-Change` + status `completed`；纯报问题建档不建 CHG）|
+| ★ 任何 `核心代码/*.py` | `CHANGELOG.md` + `VERSION` |
 | `VERSION` 变更时（无论何种改动触发）| `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
-| `VERSION` 变更时（无论何种改动触发）| `世界推演系统_人类说明文档.md`（文件头版本号 + 第一节"当前能力"节 + 九、当前状态表）|
-| `VERSION` 变更时（无论何种改动触发）| `S:\world-sim\docs\overview.md` 头部版本行（`macro-scan vX.Y.Z`）+ 架构图版本号 |
-| `VERSION` 变更时（无论何种改动触发）| `macro-scan/INDEX.md` 头部版本号 |
+| **结构 / 对外能力实质变化时**（非每次版本变更）| 低频结构文档三份（⚠️ 2026-10-09 校准，最后全面修订 = v3.8.54 / 2026-09-12）：`世界推演系统_人类说明文档.md`（头部版本号 + "当前能力"节 + 状态表）/ `S:\world-sim\docs\overview.md`（头部版本行 + 架构图版本号）/ `macro-scan/INDEX.md`（头部版本号）|
 | `核心代码/scheduler.py` | + `INDEX.md`（运行 `gen_docs.py --target scheduler` 刷新）|
 | `核心代码/hybrid_llm.py` | + `INDEX.md`（LLM调用链表手动更新）|
 | `核心代码/ntfy_listener.py` | + `INDEX.md`（运行 `gen_docs.py --target ntfy` 刷新）|
@@ -191,19 +189,20 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 | `核心代码/hypothesis_engine.py` 或 `hypothesis_config.py` | + `docs/archive/假设推演功能设计方案.md`（假设推演工作流节，历史参考）|
 | `核心代码/scorer.py` | + `AGENTS.md`（路径架构节 CRISIS_CSV 常量）|
 | `核心代码/situation_tracker.py` 或 `situation_detector.py` | + `世界推演系统_人类说明文档.md` |
-| 新增或删除 `核心代码/*.py` | + `FILE_MANIFEST.md`（运行 `gen_docs.py --target manifest` 刷新）|
+| ★ 新增或删除 `核心代码/*.py` | + `FILE_MANIFEST.md`（运行 `gen_docs.py --target manifest` 刷新）|
 | `Dockerfile` 或 `entrypoint.sh` | + `INDEX.md`（活跃容器表）|
 | `README.md`（路径/版本/结构变更）| + `世界推演系统_人类说明文档.md`（五、文件位置表）|
 
 
-**pre-commit 会自动拦截**：commit 时如果改了代码但联动文档未 staged，会打印具体提示并阻止提交。
+**★ 行由 pre-commit 自动拦截（2026-10-09 修复后真实生效）**：commit 时若改了 `核心代码/*.py` 而未同步 `CHANGELOG.md` + `VERSION`（新增/删除 .py 还需 `docs/FILE_MANIFEST.md`），`.githooks/pre-commit` 第 3 关会打印缺失清单并阻止提交（紧急绕过：`git commit --no-verify`）。**其余联动项（含低频结构文档）为人工 checklist**，未标 ★ 的行不参与自动拦截。
 
 ### 首次接手项目
 
 ```bash
-pip install pre-commit
-pre-commit install   # 在源码区 S:\world-sim\macro-scan\ 执行一次即可
+git config core.hooksPath .gethooks   # 在源码区 S:\world-sim\ 执行一次即可（hook 已入仓库版本控制）
 ```
+
+> 2026-10-09 起弃用 `pip install pre-commit / pre-commit install`（框架配置 `.pre-commit-config.yaml` 已删除）；现役 hook = `.gethooks/pre-commit`（敏感串扫描 + 联动文档检查）。
 
 ---
 

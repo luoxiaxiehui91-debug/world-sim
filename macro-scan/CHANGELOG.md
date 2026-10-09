@@ -1,3 +1,29 @@
+## v3.8.67（2026-10-09）
+
+**文档同步防线修复 + 文档治理校准** —— CHG-20261009T183228（question 20261009-doc-sync-guard-dead）
+
+目标：修复 2026-06-29 建立的「文档同步保障机制」全线失效（check_doc_sync 判据停在旧仓库结构且未接入现役 hook、check_doc_drift 无任何调度、死框架配置残留），并校准文档条款与现实的偏差。
+
+改动：
+- **`核心代码/check_doc_sync.py`（重写）**：判据适配 monorepo（`macro-scan/核心代码/`）；收敛为「底线矩阵」＝ ★ `核心代码/*.py` 变更须同步 `CHANGELOG.md` + `VERSION`、★ 新增/删除 .py 须同步 `docs/FILE_MANIFEST.md`；`compute_missing()` 纯函数化（可单测）
+- **`.githooks/pre-commit`**：新增「第 3 关：联动文档同步」（调用 check_doc_sync；解释器或脚本缺失时跳过不拦，防环境差异误拦）
+- **`AGENTS.md`（治理校准）**：CHG 命名示例 `-macro-scan.md` → `-world-deduction.md`（×2）；任务粒度「每个文件一条」→「按工作块分组（≥5 个文件合并）」；「pre-commit 会自动拦截」宣称准确化（★ 标记＝自动拦截项，其余为人工 checklist）；3 份低频结构文档（人类说明文档 / docs/overview.md / macro-scan INDEX.md）条款降级为「结构/对外能力实质变化时」；首次接手指引改 `git config core.hooksPath .gethooks`
+- **`.pre-commit-config.yaml` 删除**（与 hooksPath 冲突的死框架配置）；运行区同名副本一并清理
+- **`docs/operations/runbooks/doc-sync-install-uninstall.md`**：头部加「2026-10-09 现状勘误」段
+- **`gen_docs.py` + `docs/FILE_MANIFEST.md`**：`check_doc_drift.py` 描述改「未激活」（原称 automatic 与实际不符）；`check_doc_sync.py` 改「自动（.gethooks/pre-commit 第 3 关）」
+
+### 验收（2026-10-09 实测）
+
+- ✅ 单测：`check_doc_sync.py` 判据 6 用例全过（正反例 + 边界）
+- ✅ 集成演练：staged 缺 `CHANGELOG.md`/`VERSION` → 第 3 关拦截并精确报缺；带齐 → 放行（本批真实提交过门）
+- ✅ `sh -n .gethooks/pre-commit` 语法通过；真源＝运行区 md5 一致
+
+### 遗留（不阻塞闭环）
+
+- `check_doc_drift.py` 未激活（判据待适配；修复激活 or 移除待定）
+- 3 份低频结构文档内容刷新（错过 11 个版本）待单独立项
+- 运行区 `AGENTS.md` 长期未同步（Sep-12 旧版）——处置方案待定
+
 ## v3.8.66（2026-10-09）
 
 **LLM 模型配置重构 P1：模型名单点化 + 四层兜底 + 防漂移守卫** —— CHG-20261009T124233（question 20261009-llm-usage-static-model-list-stale）
