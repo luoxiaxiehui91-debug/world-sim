@@ -8,7 +8,7 @@
 > - 源码区已迁移至 monorepo：`S:\world-sim\macro-scan\`（旧 `S:\macro-scan-src\` 已废弃）；本文其余部分按旧结构书写，保留历史原貌。
 > - **pre-commit 安装方式已更换**：弃用 `pip install pre-commit / pre-commit install`（`.pre-commit-config.yaml` 已删除）；现役 hook = `.gethooks/pre-commit`，安装 = `git config core.hooksPath .gethooks`（hook 已入仓库版本控制）。
 > - 联动拦截已并入 `.gethooks/pre-commit`「第 3 关」（调用 `macro-scan/核心代码/check_doc_sync.py`；判据 = 底线矩阵：`核心代码/*.py` 变更须同步 `CHANGELOG.md` + `VERSION`；新增/删除 .py 还须 `docs/FILE_MANIFEST.md`）。
-> - `check_doc_drift.py` **未激活**（2026-10-09 核实：不在 crontab / scheduler）；保留待定。
+> - `check_doc_drift.py` **已移除（2026-10-09）** —— 核实为孤儿死脚本：crontab 0 命中 / scheduler.JOBS 0 命中 / `logs/doc_drift.log` 末次记录 2026-07-01；判据过时（比对已停更的 `TuiYan_CHANGELOG.md`，且只比 mtime 不看内容）。真源 + 运行区副本一并删除，备份 `_rollback/doc-sync-cleanup-20261009/`。CHG-20261009T231536。
 > - 变更记录：`S:\docs\operations\CHG-20261009T183228-world-deduction.md`。
 
 ---
@@ -27,7 +27,7 @@
 | 组件 | 位置 | 是否在 git |
 |:---|:---|:---|
 | `check_doc_sync.py` | `S:\macro-scan-src\核心代码\` | ✅ |
-| `check_doc_drift.py` | `S:\macro-scan-src\核心代码\` | ✅ |
+| `check_doc_drift.py` | ~~`S:\macro-scan-src\核心代码\`~~（已删除） | ❌ 已移除（2026-10-09，CHG-20261009T231536；原在 git） |
 | `gen_docs.py` | `S:\macro-scan-src\核心代码\` | ✅ |
 | `.pre-commit-config.yaml` | `S:\macro-scan-src\` | ✅ |
 | pre-commit hook | `S:\macro-scan-src\.git\hooks\pre-commit` | ❌（本地）|
@@ -167,5 +167,5 @@ ssh TSX@192.168.31.108 "rm /vol2/1000/software/macro-scan/核心代码/check_doc
 - `AGENTS.md` — 联动矩阵完整规则
 - `docs/operations/20260629-macro-scan-nas-crontab-doc-drift.md` — NAS crontab 操作日志
 - `核心代码/check_doc_sync.py` — pre-commit 检查逻辑
-- `核心代码/check_doc_drift.py` — 漂移巡检逻辑
+- `核心代码/check_doc_drift.py` — 漂移巡检逻辑（**已于 2026-10-09 移除**，CHG-20261009T231536）
 - `核心代码/gen_docs.py` — 文档自动生成工具

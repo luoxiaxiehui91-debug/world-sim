@@ -1,3 +1,23 @@
+## v3.8.68（2026-10-09）
+
+**死防线清理 ①③：移除孤儿脚本 `check_doc_drift.py` + 运行区 `AGENTS.md` 旧副本** —— CHG-20261009T231536（承接 question 20261009-doc-sync-guard-dead 遗留段）
+
+改动：
+- **`核心代码/check_doc_drift.py` 删除**（真源 `git rm` + 运行区 `rm`）：三项证据确认孤儿死脚本 —— crontab 0 命中、`scheduler.JOBS` 0 命中、`logs/doc_drift.log` 末次记录 2026-07-01（约 100 天零执行）；判据过时（比对已停更的 `TuiYan_CHANGELOG.md`，只比 mtime 不看内容，2026-08-28 full-audit LOW 项已定性）。备份 `_rollback/doc-sync-cleanup-20261009/`
+- **`核心代码/gen_docs.py`**：`OFFLINE_TOOLS` 移除 check_doc_drift 条目 → `python3 核心代码/gen_docs.py --target manifest` 再生 `docs/FILE_MANIFEST.md`（离线工具表 6 → 5 条）
+- **`docs/operations/runbooks/doc-sync-install-uninstall.md`**：勘误段「未激活/保留待定」→「已移除（2026-10-09）」；组件表行 + 组件说明行同步标注
+- **运行区 `AGENTS.md` 旧副本删除**（Sep-12 版，28 KB；运行区非 git 工作区、无任何工具读取）：真源 `world-sim/macro-scan/AGENTS.md` **不动**
+
+### 验收（2026-10-09 实测）
+
+- ✅ 活动引用清零：`gen_docs.py` / `FILE_MANIFEST.md` / 运行区 `核心代码/` 中 `grep -c check_doc_drift` = **0**（历史文档中的记载属历史记录，未改动）
+- ✅ pre-commit 第 3 关双演练：**删 `核心代码/*.py` 且缺联动文档 → 拦截 RC=1**（精确报缺 CHANGELOG+VERSION+FILE_MANIFEST）；**补齐 → 放行 RC=0**；本批真实提交过门
+- ✅ 真源＝运行区 md5 一致（gen_docs.py / FILE_MANIFEST.md / runbook / CHANGELOG / VERSION）；运行区 `check_doc_drift.py`、`AGENTS.md` 已不存在
+
+### 遗留（不阻塞闭环）
+
+- 3 份低频结构文档内容刷新（错过 11 个版本）—— **评估时点：10-10 P2 任务完成后**
+
 ## v3.8.67（2026-10-09）
 
 **文档同步防线修复 + 文档治理校准** —— CHG-20261009T183228（question 20261009-doc-sync-guard-dead）
