@@ -18,13 +18,16 @@ import urllib.request
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from llm_usage import fallback_embedding_model   # 09 重构（D2=C）：嵌入兜底模型真源
+
 try:
     import psycopg
 except ImportError:
     psycopg = None
 
 COLLECTION_NAME = "macro_kb"
-EMBED_MODEL     = os.environ.get("SILICONFLOW_EMBED_MODEL", "BAAI/bge-m3")
+# 09 重构（D2=C）：嵌入模型不再本地硬编码/读 env——运行值走 llm_usage.resolve_embedding
+# （配置优先 → .bak 快照 → 模板），代码兜底唯一存于 llm_usage._FALLBACK_EMBED_MODEL。
 SILICONFLOW_EMBED_URL = "https://api.siliconflow.cn/v1/embeddings"
 CHUNK_SIZE      = 600
 CHUNK_OVERLAP   = 150
@@ -55,9 +58,9 @@ def _get_embedding(text: str) -> Optional[List[float]]:
 def _get_embeddings_batch(texts: List[str]) -> List[Optional[List[float]]]:
     """批量获取向量，一次 API 调用处理多条文本。失败返回空列表。
     08-16：优先走 llm_usage 配置（rag_embedding 使用点——平台/模型/API key
-    开阳控制台可改），未配置 fallback env SILICONFLOW_API_KEY + 常量。"""
+    开阳控制台可改）；09 重构：代码兜底模型由 llm_usage 派生（不再本地硬编码）。"""
     embed_url = SILICONFLOW_EMBED_URL
-    embed_model = EMBED_MODEL
+    embed_model = fallback_embedding_model()
     try:
         from llm_usage import get_secret
         api_key = get_secret("SILICONFLOW_API_KEY") or ""
@@ -189,7 +192,7 @@ def build_index(kb_dir: str, chroma_dir: str = None, _unused: str = "") -> int:
     """
     print(f"[RAG] 扫描知识库: {kb_dir}")
     chunks, metas = _load_kb_docs(kb_dir)
-    print(f"[RAG] 共 {len(chunks)} 个文本块，开始向量化（硅基流动 {EMBED_MODEL}）...")
+    print(f"[RAG] 共 {len(chunks)} 个文本块，开始向量化（SiliconFlow /v1/embeddings）...")
     return _build_index_pg(chunks, metas)
 
 

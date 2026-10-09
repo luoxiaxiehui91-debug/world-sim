@@ -2,35 +2,39 @@
 """
 llm_usage.py — LLM 使用点统一登记 + 运行时配置（08-16，开阳控制台统一修改模型）
 
-背景：系统多处调用 LLM（MiMo / Claude / SiliconFlow / MiniMax），模型散落在环境变量
-与代码常量里。此模块提供：
-  1. LLM_USAGES 静态清单（每个使用点的 id/名称/用途/默认平台/默认模型）
-  2. PLATFORMS 内置平台清单（id/名称/默认 base_url/预置模型列表）
-  3. llm_config.json 运行时配置（data 目录，天枢/天璇共享；配置优先于默认）
+背景：系统多处调用 LLM（MiMo / Claude / SiliconFlow），模型曾散落在环境变量与代码常量里。
+本模块是**模型名的唯一取值链**（09 重构）：
+  1. LLM_USAGES 静态清单（9 个使用点：id/名称/用途/默认平台；模型不再硬编码）
+  2. PLATFORMS 内置平台清单（id/名称/base_url；静态模型列表已清空，下拉走实时 /models）
+  3. llm_config.json 运行时配置（data 目录，天枢/天璇共享）
   4. resolve(usage_id) —— 调用方按使用点解析 (base_url, api_key, model)
-  5. get_model / set_usage —— 控制 API 读写
 
-配置文件契约（data/llm_config.json，v2.0，原子写）：
+取值链（唯一入口，四层兜底；源码中模型字面量只允许出现在本文件 _FALLBACK_* 区）：
+  L1 配置 data/llm_config.json → L2 快照 .bak（写前自动轮转）→ L3 模板
+  config/llm_config.default.json → L4 代码兜底 _FALLBACK_*。
+  每次回落均留痕：日志 [FALLBACK] + get_config_source()（truth/snapshot/template/code）。
+
+配置文件契约（data/llm_config.json，v2.0，原子写 + 写前快照轮转）：
   {
     "schema_version": "2.0",
     "updated": "ISO",
     "platforms": {                        # 用户自定义平台（可选；内置平台见 PLATFORMS）
       "custom1": {"name": "公司内网", "base_url": "https://.../v1", "models": ["m1", "m2"]}
     },
-    "usages": {                           # 使用点覆盖（只存被修改过的）
-      "translate_titles": {"platform": "mimo_plan", "model": "mimo-v2.5", "api_key": "sk-..."}
+    "usages": {                           # 使用点覆盖（保存时自动补齐全部使用点）
+      "translate_titles": {"platform": "<pid>", "model": "<model-id>", "base_url": "https://.../v1"}
     }
   }
 
 接入方式：
-  from llm_usage import resolve, get_model
+  from llm_usage import resolve
   cfg = resolve("translate_titles")   # dict(base_url, api_key, model) 或 None
-  model = get_model("translate_titles") or TRANSLATE_MODEL
 """
 
 import datetime
 import json
 import os
+import threading
 
 # data 根（天枢运行时数据目录；天璇挂载为 /app/macro_data）
 DATA_DIR = os.environ.get("WORLDSIM_DATA_DIR", "/workspace/data")
@@ -39,6 +43,7 @@ CONFIG_PATH = os.path.join(DATA_DIR, "llm_config.json")
 # config 根（git tracked 兜底模板 + 控制台密钥落点；容器内 /workspace/config 为 bind 挂载）
 _CONFIG_DIR = os.path.join(os.path.dirname(DATA_DIR), "config")
 TEMPLATE_PATH = os.path.join(_CONFIG_DIR, "llm_config.default.json")
+SNAPSHOT_PATH = CONFIG_PATH + ".bak"   # L2 快照：save_config 写前自动轮转为「上一个已知好版本」
 SECRETS_PATH = os.environ.get("WORLDSIM_SECRETS_PATH") or os.path.join(_CONFIG_DIR, ".env")
 
 # 平台 id → 密钥 env 变量名（控制台密钥写入 + fetch_platform_models 共用单一映射）
@@ -49,39 +54,63 @@ PLATFORM_ENV_KEYS = {
 }
 
 
+# ── 全仓唯一模型字面量区（L4 兜底；09 重构 D5/D2=C）────────────────────
+# 职责：三层配置全部不可用时「别崩」，**不是**「用最新」——升级模型请走控制台/配置，
+# 不要改这里；本区变动须同步跑 scripts/check_llm_config.py（G1 字面量对拍）。
+_FALLBACK_MODELS = {                     # 平台 → 兜底模型（chat 用途）
+    "siliconflow": "deepseek-ai/DeepSeek-V4-Flash",
+    "mimo_plan": "mimo-v2.6-pro",
+    "mimo_api": "mimo-v2.6-pro",
+}
+_FALLBACK_EMBED_MODEL = "BAAI/bge-m3"    # 嵌入用途兜底（嵌入模型与 chat 不同池）
+
+
+def fallback_model(platform_id: str) -> str:
+    """L4 代码兜底模型（chat）；未知平台回落 siliconflow 兜底值。"""
+    return _FALLBACK_MODELS.get(platform_id) or _FALLBACK_MODELS["siliconflow"]
+
+
+def fallback_embedding_model() -> str:
+    """L4 代码兜底模型（嵌入）。"""
+    return _FALLBACK_EMBED_MODEL
+
+
 # ── 内置平台清单 ────────────────────────────────────────────────────
-# id → {name, base_url, models[预置模型，供前端下拉], default_model}
+# id → {name, base_url, models[实时下拉为准，静态已清空], default_model=代码兜底}
+# D5（09 重构）：models 静态清单清空——下拉候选走实时 /models（fetch_platform_models），
+# 拉取失败时前端回落 default_model 展示；取值路径不受影响（走 resolve 链）。
 PLATFORMS = {
     "mimo_plan": {
         "name": "小米 MiMo Plan",
         "base_url": "https://token-plan-cn.xiaomimimo.com/v1",
-        "models": ["mimo-v2.5"],
-        "default_model": "mimo-v2.5",
+        "models": [],
+        "default_model": _FALLBACK_MODELS["mimo_plan"],
     },
     "mimo_api": {
         "name": "小米 MiMo API",
         "base_url": "https://api.xiaomimimo.com/v1",
-        "models": ["mimo-v2.5"],
-        "default_model": "mimo-v2.5",
+        "models": [],
+        "default_model": _FALLBACK_MODELS["mimo_api"],
     },
     "siliconflow": {
         "name": "硅基流动 SiliconFlow",
         "base_url": "https://api.siliconflow.cn/v1",
-        "models": ["THUDM/GLM-Z1-9B-0414", "Qwen/Qwen3-8B", "deepseek-ai/DeepSeek-V4-Flash", "tencent/Hunyuan-MT-7B"],
-        "default_model": "THUDM/GLM-Z1-9B-0414",
+        "models": [],
+        "default_model": _FALLBACK_MODELS["siliconflow"],
     },
 }
 
 
 # ── LLM 使用点静态清单 ────────────────────────────────────────────
-# platform: 默认平台 id；default_model: None = 跟随平台默认/环境变量
+# platform: 默认平台 id（配置缺该字段时的取值来源）；default_model 一律 None——
+# 模型由配置决定，配置缺失时回落平台默认（= code fallback，见 resolve）。
 LLM_USAGES = [
     {
         "id": "translate_titles",
         "name": "新闻标题翻译",
         "purpose": "fetch_news_titles.py 标题英→中（LLM 逐条并发 4）",
-        "platform": "mimo_plan",
-        "default_model": "mimo-v2.5",
+        "platform": "siliconflow",
+        "default_model": None,
         "container": "tianshu",
         "adjustable": True,
     },
@@ -90,16 +119,25 @@ LLM_USAGES = [
         "name": "通用 LLM 通道",
         "purpose": "hybrid_llm.call_openai_compat 无显式 usage 的调用（含 run_macro_analysis 宏观分析）",
         "platform": "mimo_plan",
-        "default_model": None,  # 由 llm_config.json 固化 mimo-v2.6-pro（2026-09-02 起不再经 env 注入模型；2026-09-26 由 v2.5-pro 升级）
+        "default_model": None,
         "container": "tianshu",
         "adjustable": True,
     },
     {
         "id": "rag_embedding",
         "name": "知识库嵌入",
-        "purpose": "RAG 向量检索（rag_engine 入库 + 查询；bge-m3，SiliconFlow /v1/embeddings）",
+        "purpose": "RAG 向量检索（rag_engine 入库 + 查询，SiliconFlow /v1/embeddings）",
         "platform": "siliconflow",
-        "default_model": "BAAI/bge-m3",
+        "default_model": None,
+        "container": "tianshu",
+        "adjustable": True,
+    },
+    {
+        "id": "call_local",
+        "name": "天枢本地推理通道",
+        "purpose": "hybrid_llm.call_local（SiliconFlow chat；reason(local) 与 auto 降级链）",
+        "platform": "siliconflow",
+        "default_model": None,
         "container": "tianshu",
         "adjustable": True,
     },
@@ -108,7 +146,7 @@ LLM_USAGES = [
         "name": "天玑行为判定器",
         "purpose": "L3 行为类预测自动验证（_ACTION_CRITERIA+新闻标题→三值判定，macro-ji llm_judge.py）",
         "platform": "siliconflow",
-        "default_model": "deepseek-ai/DeepSeek-V4-Flash",
+        "default_model": None,
         "container": "tianji",
         "adjustable": True,
     },
@@ -117,25 +155,34 @@ LLM_USAGES = [
         "name": "天璇编年史生成",
         "purpose": "仿真 history JSONL → 编年史读物分章生成（core/chronicler.py，长文 max_tokens 4000+）",
         "platform": "siliconflow",
-        "default_model": "deepseek-ai/DeepSeek-V4-Flash",
+        "default_model": None,
+        "container": "tianxuan",
+        "adjustable": True,
+    },
+    {
+        "id": "readable",
+        "name": "天璇可读版报告",
+        "purpose": "多 Agent 仿真 → 可读报告（macro-sim core/readable_report.py）",
+        "platform": "siliconflow",
+        "default_model": None,
         "container": "tianxuan",
         "adjustable": True,
     },
     {
         "id": "sim_mc",
         "name": "天璇 Monte Carlo",
-        "purpose": "macro-sim llm_client SILICONFLOW_MODEL（MC 默认 GLM-Z1-9B）",
+        "purpose": "macro-sim llm_client Monte Carlo 通道（MC 批量调用）",
         "platform": "siliconflow",
-        "default_model": "THUDM/GLM-Z1-9B-0414",
+        "default_model": None,
         "container": "tianxuan",
         "adjustable": True,
     },
     {
         "id": "sim_narrative",
         "name": "天璇 叙事合成",
-        "purpose": "macro-sim llm_client QWEN_LARGE（叙事用更强模型）",
+        "purpose": "macro-sim llm_client 叙事合成通道（叙事用更强模型）",
         "platform": "siliconflow",
-        "default_model": "deepseek-ai/DeepSeek-V4-Flash",
+        "default_model": None,
         "container": "tianxuan",
         "adjustable": True,
     },
@@ -144,28 +191,86 @@ _USAGE_IDS = {u["id"] for u in LLM_USAGES}
 
 
 # ── 配置读写 ───────────────────────────────────────────────────────
+# 配置来源状态（供 get_config_source / 巡检 / 控制台可见性；09 重构）：
+#   truth（L1 主配置）| snapshot（L2 .bak 快照）| template（L3 模板）| code（L4 代码兜底）
+_config_state: dict = {"source": "truth", "warned": None}
+_config_lock = threading.Lock()   # 09 审查修复：control_server 多线程读写下防瞬态错读
 
-def load_config() -> dict:
-    """读 llm_config.json；不存在/损坏 → 空配置（全部走默认）。"""
+
+def _try_load_json(path: str) -> tuple[dict | None, str]:
+    """读并校验配置结构；失败返回 (None, 原因)。"""
     try:
-        with open(CONFIG_PATH, encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             cfg = json.load(f)
         if isinstance(cfg, dict) and isinstance(cfg.get("usages"), dict):
-            return cfg
-    except Exception:
-        pass
+            return cfg, ""
+        return None, "结构非法（usages 缺失/非 dict）"
+    except FileNotFoundError:
+        return None, "文件不存在"
+    except Exception as e:
+        return None, f"{type(e).__name__}: {str(e)[:100]}"
+
+
+def _set_config_source(source: str, reason: str = "") -> None:
+    """记录配置来源；回落时留痕（同一来源+原因只打一次，避免高频重复日志）。"""
+    with _config_lock:
+        _config_state["source"] = source
+        if source == "truth":
+            _config_state["warned"] = None
+            return
+        sig = (source, reason)
+        if _config_state.get("warned") != sig:
+            _config_state["warned"] = sig
+            print(f"[llm_usage] ⚠️ [FALLBACK] 主配置不可用（{reason}），已回落 {source} 层")
+
+
+def load_config() -> dict:
+    """四层兜底加载（09 重构）：
+    L1 主配置 data/llm_config.json → L2 快照 .bak（写前自动轮转）→
+    L3 模板 config/llm_config.default.json → L4 代码兜底（空配置，全走 _FALLBACK_*）。
+    回落留痕见 _set_config_source；来源经 get_config_source() 暴露。"""
+    cfg, err = _try_load_json(CONFIG_PATH)
+    if cfg is not None:
+        _set_config_source("truth")
+        return cfg
+    cfg, _ = _try_load_json(SNAPSHOT_PATH)
+    if cfg is not None:
+        _set_config_source("snapshot", err)
+        return cfg
+    cfg, _ = _try_load_json(TEMPLATE_PATH)
+    if cfg is not None:
+        _set_config_source("template", err)
+        return cfg
+    _set_config_source("code", err)
     return {"schema_version": "2.0", "platforms": {}, "usages": {}}
 
 
+def get_config_source() -> str:
+    """当前配置来源（truth/snapshot/template/code）——控制台展示 + 巡检报警用。"""
+    load_config()  # 刷新来源状态
+    with _config_lock:
+        return _config_state["source"]
+
+
 def save_config(cfg: dict) -> bool:
-    """原子写 llm_config.json。返回是否成功。"""
+    """原子写 llm_config.json（tmp → os.replace）。
+    顺序（09 审查修复）：候选先写 tmp → 旧版轮转为 .bak 快照（L2，last-known-working）
+    → os.replace(tmp → 主配置)。该顺序保证任意单点失败（dump 失败 / 轮转失败 /
+    replace 失败）都不丢旧配置；轮转失败只告警不阻断。"""
     try:
         os.makedirs(DATA_DIR, exist_ok=True)
         cfg["schema_version"] = "2.0"
         cfg["updated"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        # 候选先落 tmp（此刻旧主配置不受影响——写失败则整体放弃，磁盘零变化）
         tmp = CONFIG_PATH + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
+        # 轮转：旧版移交 .bak 快照（L2）；失败只告警不阻断
+        if os.path.exists(CONFIG_PATH):
+            try:
+                os.replace(CONFIG_PATH, SNAPSHOT_PATH)
+            except OSError as e:
+                print(f"[llm_usage] ⚠️ 快照轮转失败（继续写入）: {e}")
         os.replace(tmp, CONFIG_PATH)
         return True
     except Exception as e:
@@ -261,10 +366,39 @@ def secret_status() -> list[dict]:
     return out
 
 
+def _validate_template_candidate(cfg: dict) -> tuple[bool, str]:
+    """模板再生前校验（09 重构，防「主配置坏值 → 模板同步变坏」污染）：
+    ① usage 集合不得缩水（⊇ 模板现有集合）；② platform 须在平台清单内、model 非空。"""
+    usages = cfg.get("usages") or {}
+    if not usages:
+        return False, "usage 集合为空"
+    try:
+        with open(TEMPLATE_PATH, encoding="utf-8") as f:
+            cur = (json.load(f) or {}).get("usages") or {}
+    except Exception:
+        cur = {}
+    missing = sorted(set(cur) - set(usages))
+    if missing:
+        return False, f"usage 集合缩水（缺 {missing}）"
+    platforms = set(PLATFORMS) | set(cfg.get("platforms") or {})
+    for uid, u in sorted(usages.items()):
+        u = u or {}
+        if not u.get("platform") or not u.get("model"):
+            return False, f"{uid} 的 platform/model 为空"
+        if u.get("platform") not in platforms:
+            return False, f"{uid} 的平台 {u.get('platform')} 不在平台清单内"
+    return True, ""
+
+
 def _regen_default_template(cfg: dict) -> None:
     """五联同步第②联自动化（09-03，llm-config-doc-drift 教训）：set_usage 成功后
     从真源再生兜底模板（保留 _note），消除「UI 改模型 → 模板漂移」的结构性根源。
-    失败只告警不阻断（真源已落盘，巡检脚本 check_llm_config.py 会兜底告警）。"""
+    09 重构：再生前先过 _validate_template_candidate（坏值不许污染模板）；
+    校验失败 / 再生失败只告警不阻断（真源已落盘，巡检脚本 check_llm_config.py 会兜底告警）。"""
+    ok, why = _validate_template_candidate(cfg)
+    if not ok:
+        print(f"[llm_usage] ⚠️ 模板再生被拒（{why}）——兜底模板保持上一好版本")
+        return
     try:
         note = ""
         try:
@@ -359,6 +493,29 @@ def resolve_embedding(usage_id: str = "rag_embedding") -> dict | None:
     }
 
 
+def _preflight_model(platform_id: str, model: str) -> tuple[bool, str]:
+    """写入前预检（09 重构，与 G4 哨兵同源）：目标模型须在平台实时 /models 列表内。
+    档位 env LLM_PREFLIGHT = enforce（默认，不在列表 → 拒绝）/ warn（告警放行）/ off；
+    拉取失败或超时一律放行（不因外部不可用阻断保存）。"""
+    mode = (os.environ.get("LLM_PREFLIGHT") or "enforce").strip().lower()
+    if mode == "off":
+        return True, ""
+    try:
+        models = fetch_platform_models(platform_id, timeout=3.0)
+    except Exception:
+        return True, ""  # 模型列表不可用（网络/无 key）→ 放行，由 G4 哨兵每日侧盯着
+    if not models:
+        return True, ""  # 列表为空（端点不支持/过滤后为空）→ 不能证明模型无效，放行
+    if model in models or model.lower() in {m.lower() for m in models}:
+        return True, ""
+    msg = (f"模型 {model} 不在 {platform_id} 的实时可用列表"
+           "（厂商已下线或名称有误）")
+    if mode == "warn":
+        print(f"[llm_usage] ⚠️ 写入预检告警：{msg}（warn 档已放行）")
+        return True, ""
+    return False, msg + "；确需保存请设 LLM_PREFLIGHT=warn 或 =off"
+
+
 def set_usage(usage_id: str, platform: str, model: str,
               api_key: str | None = None) -> tuple[bool, str]:
     """控制台修改使用点（平台 + 模型）。platform 必须在清单内。
@@ -378,20 +535,23 @@ def set_usage(usage_id: str, platform: str, model: str,
     plat = _all_platforms().get(platform)
     if not plat:
         return False, f"未知平台: {platform}"
+    ok_pf, why_pf = _preflight_model(platform, model)
+    if not ok_pf:
+        return False, why_pf
     cfg = load_config()
     cfg.setdefault("usages", {})
     # 08-18 修复：首次写预填充——文件缺失/损坏时 usages 为空，若只写当前 1 条会
     # 生成"部分固化"配置（其余使用点不在文件里，面板看不出异常）。用静态清单
-    # 预填全部使用点（key 留空走 env），保证任何时刻文件都是完整 7 条
-    # （CHG-20260926T091845 更正：原文写"5/6 条"，实际 LLM_USAGES 为 7 个使用点）。
+    # 预填全部使用点（model 取平台默认 = 代码兜底，随后被控制台值覆盖），
+    # 保证任何时刻文件都是完整 9 条（09 重构：LLM_USAGES.default_model 统一为 None）。
     if not cfg["usages"]:
         for _item in LLM_USAGES:
             _uid = _item["id"]
             _pid = _item.get("platform") or ""
             _plat = _all_platforms().get(_pid)
-            _model = _item.get("default_model") or ""
+            _model = (_plat or {}).get("default_model") or ""
             if not _plat or not _model:
-                continue  # general_llm default_model=None → 跳过，由调用方显式设置
+                continue
             cfg["usages"][_uid] = {
                 "platform": _pid,
                 "model": _model,
@@ -421,8 +581,11 @@ def _mask_key(k: str | None) -> str | None:
 
 
 def effective_models() -> list[dict]:
-    """清单 + 当前生效配置（给控制 API / 开阳展示；key 脱敏）。"""
+    """清单 + 当前生效配置（给控制 API / 开阳展示；key 脱敏）。
+    09 重构：新增 config_source 字段（truth/snapshot/template/code），回落可见。"""
     cfg = load_config().get("usages", {})
+    with _config_lock:
+        source = _config_state["source"]
     platforms = _all_platforms()
     out = []
     for u in LLM_USAGES:
@@ -442,6 +605,7 @@ def effective_models() -> list[dict]:
             "default_model": default_model,
             "api_key_masked": _mask_key(override.get("api_key")),
             "overridden": bool(override.get("platform") or override.get("model")),
+            "config_source": source,
         })
     return out
 
@@ -449,9 +613,10 @@ def effective_models() -> list[dict]:
 _PLAT_MODELS_CACHE: dict = {}      # pid -> (ts, [model_id])
 _PLAT_MODELS_TTL = 3600.0          # 1h：模型清单变化低频，避免面板每次开都外呼
 
-def fetch_platform_models(platform_id: str) -> list[str]:
+def fetch_platform_models(platform_id: str, timeout: float = 20.0) -> list[str]:
     """实时拉取平台可用模型全集（OpenAI 兼容 /models 端点，1h 内存缓存）。
-    供开阳控制台下拉动内置；失败抛异常，调用方应回落静态 models 清单。
+    供开阳控制台下拉 + set_usage 写入预检；失败抛异常（预检侧放行、面板侧提示）。
+    timeout：面板调用用默认 20s；写入预检传 3s 短超时。
     返回已按 id 排序、剔除明显非对话类（tts/asr/voice）。"""
     import json as _json
     import os as _os
@@ -473,7 +638,7 @@ def fetch_platform_models(platform_id: str) -> list[str]:
     base = (plat.get("base_url") or "").rstrip("/")
     req = _urllib_request.Request(
         base + "/models", headers={"Authorization": "Bearer " + key})
-    r = _json.loads(_urllib_request.urlopen(req, timeout=20).read())
+    r = _json.loads(_urllib_request.urlopen(req, timeout=timeout).read())
     models = sorted(m.get("id") or "" for m in r.get("data", []) if m.get("id"))
     models = [m for m in models if not _re.search(r"(tts|asr|voice)", m, _re.I)]
     _PLAT_MODELS_CACHE[platform_id] = (now, models)

@@ -1,3 +1,38 @@
+## v3.8.66（2026-10-09）
+
+**LLM 模型配置重构 P1：模型名单点化 + 四层兜底 + 防漂移守卫** —— CHG-20261009T124233（question 20261009-llm-usage-static-model-list-stale）
+
+目标：消灭「模型名真源 13 处、升级漏改必漂移」的结构性缺陷。P1 范围＝天枢侧 + 守卫（天璇/天玑接配置 = P2、compose 余项 = P3）。
+
+改动：
+- **`核心代码/llm_usage.py`（重构核心）**：
+  - 新增 `_FALLBACK_MODELS` / `_FALLBACK_EMBED_MODEL` —— **全仓唯一模型字面量区**（职责＝「别崩」非「用最新」）；`PLATFORMS.models` 静态清单清空（下拉走实时 `/models`）
+  - 使用点 **7 → 9**（新增 `call_local` / `readable`；`translate_titles` 静态平台校正为 siliconflow）；`LLM_USAGES.default_model` 统一 None
+  - `load_config()` → **四层兜底**（L1 配置 → L2 `.bak` 快照 → L3 模板 → L4 代码兜底），回落打印 `[FALLBACK]`，新增 `get_config_source()`
+  - `save_config()` 写前**自动轮转 `.bak` 快照**（last-known-working；顺序＝候选写 tmp → 轮转 → replace）
+  - `_regen_default_template()` 加**再生前校验**（usage 集合不缩水 + platform/model 合法）——坏值不许污染模板
+  - `set_usage()` 加**写入前预检**（目标模型须在平台实时 `/models`；`LLM_PREFLIGHT=enforce/warn/off`，拉取失败/空列表放行）
+- **`核心代码/hybrid_llm.py`**：删 `SILICONFLOW_MODEL` env 私有链，`call_local` 模型改 `resolve("call_local")` + fallback；`reason(mode="local")` 记账统一 `usage="call_local"`
+- **`核心代码/rag_engine.py`**：删 `EMBED_MODEL` env 私有链，兜底改 `fallback_embedding_model()`
+- **`核心代码/control_server.py`**：`/llm-usage` 返回加 `config_source`；PUT 走线程池（防预检网络 I/O 阻塞事件循环）
+- **`scripts/check_llm_config.py`（守卫升级）**：`STALE_PATTERNS` 补 `mimo-v2.5`；新增 **G1** 代码字面量对拍（ast+tokenize，不依赖硬编码名单）/ **G2** 配置来源报警 / **G4** 模型可用性哨兵
+- **compose × 3 + `.env.example`**：删 `SILICONFLOW_MODEL`（D2=C：模型名不再经 env；地址/密钥类不动）
+- 文案收尾（G1/G3 上线即抓）：`build_rag_index.py` / `run_macro_analysis.py` / `kaiyang/docs/NEXT_SESSION_HANDOFF.md` 去完整模型 ID
+
+### 验收（2026-10-09 实测，6 条全过）
+
+- ✅ 字面量收敛：`macro-scan/` 内 .py 仅 `llm_usage._FALLBACK_*` 区含模型名（G1 复扫 0 命中）
+- ✅ `/llm-usage`：9 使用点全 `config_source=truth`
+- ✅ `check_llm_config.py` RC=0（真源=模板=git；G1/G2/G4 全过）
+- ✅ 兜底演练：主配置改名 → `[FALLBACK]` 回落 snapshot → 恢复 truth（端到端 `_local_model()` 验证）
+- ✅ 快照轮转演练：改一次使用点 → `.bak` 精确保留旧值（双向 diff）
+- ✅ 污染防护：缩水 usage 集合 → 模板再生被拒（hash 不变）+ 写入预检拦截无效模型
+
+### 遗留（P2/P3）
+
+- 天璇 `llm_client.py` / `chronicler.py` / `readable_report.py`、天玑 `llm_judge.py` 仍硬编码/仅读 env（F-1 待修）→ P2 接配置
+- 天玑 compose `VERIFY_LLM_MODEL` 待删、天璇补 config 挂载 → P2；`_local_model` base_url/key 深度统一 → P3 评估
+
 ## v3.8.65（2026-10-02）
 
 **`news_geo.jsonl` 保留窗口灰度第一步：30 天（选项 A 一次性截断）** —— CHG-20261002T004002

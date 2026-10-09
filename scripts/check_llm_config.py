@@ -8,21 +8,30 @@
 检查项：
   1. 运行区真源 data/llm_config.json vs 兜底模板 config/llm_config.default.json
   2. 兜底模板 vs git 真源模板（漂移=有已再生改动未 commit）
-  3. 活跃文档残留旧模型名（MiniMax-M3 / Qwen3.5-27B / OPENAI_COMPAT_MODEL；
-     CHANGELOG/archive/reviews/知识库/ROADMAP 属历史不扫；含「退役/已切换/已移除/已删除/历史/归档」注释行放行）
+  3. 活跃文档残留旧模型名（MiniMax-M3 / Qwen3.5-27B / OPENAI_COMPAT_MODEL / mimo-v2.5；
+     CHANGELOG/archive/reviews/知识库/ROADMAP 属历史不扫；含豁免词注释行放行）
   4. config/.env 安全面：权限 0600、git check-ignore 通过、无明文入 truth config（api_key 字段）
   5. git pre-commit hook 在位且可执行（拒绝 .env 入库，防泄漏 GitHub）
+  6. G1 代码模型字面量对拍（09 重构新增）：配置值+兜底值集合 vs 全仓 .py 字符串字面量，
+     唯一合法落点 = llm_usage.py 的 _FALLBACK_* 赋值区——不依赖硬编码名单，换模型自动抓
+  7. G2 配置加载来源报警（09 重构新增）：get_config_source() != truth（主配置不可用已回落）
+  8. G4 模型可用性哨兵（09 重构新增）：配置模型不在平台实时 /models 列表（疑似下线/改名）
 
 失败 → ntfy 推送（内容不含任何密钥值）→ exit 1；全过 → 静默 exit 0。
 用法：check_llm_config.py [--heartbeat]（heartbeat=全过时也推一条，供周一心跳防「脚本死了没声音」）
 依赖 env：NTFY_TOPIC（cron.d 提供；缺省只打印不推送）。
 """
+import ast
+import io
 import json
 import os
 import stat
 import subprocess
 import sys
+import tokenize
 from pathlib import Path
+
+_FSTRING_MIDDLE = getattr(tokenize, "FSTRING_MIDDLE", -1)  # py3.12+ 兼容
 
 REPO = Path(os.environ.get("REPO_DIR", Path(__file__).resolve().parent.parent))
 RUNTIME = Path(os.environ.get("RUNTIME_DIR", REPO.parent / "macro-scan"))
@@ -33,13 +42,14 @@ SECRETS_PATH = RUNTIME / "config" / ".env"
 
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "")
 
-STALE_PATTERNS = ["MiniMax-M3", "Qwen3.5-27B", "OPENAI_COMPAT_MODEL"]
+STALE_PATTERNS = ["MiniMax-M3", "Qwen3.5-27B", "OPENAI_COMPAT_MODEL", "mimo-v2.5"]
+# （09 重构补 mimo-v2.5：此前名单不含 mimo，对 09-26 升级残留完全瞎）
 # 命中豁免词：历史叙述/规则文本语境（含旧模型名但非「现状残留」）。
 # 例：STATUS 历史段「全仓切 deepseek」、版本表「MiniMax-M3主力」、规则「禁留 OPENAI_COMPAT_MODEL」。
 # 真残留=无动作词的静态现状句（如「当前默认 MiniMax-M3」），不含这些词，不会被误豁免。
 ALLOW_MARKERS = ("退役", "已切换", "已移除", "已删除", "历史", "归档",
                  "收敛", "下线", "切换", "禁留", "主力", "迁移", "重构",
-                 "修复", "轮换", "清理", "删除", "切走", "→", "->")
+                 "修复", "轮换", "清理", "删除", "切走", "→", "->", "残留")
 # 目录名级跳过：archive/archived/reviews 为历史归档（可能出现在 macro-scan/docs 等任意层级）
 SKIP_DIRS = {".git", "node_modules", "dist", "archived", "archive", "reviews",
              "__pycache__", "知识库"}
@@ -183,12 +193,221 @@ def check_precommit_hook(problems: list[str]):
         problems.append("git pre-commit hook 无执行权限")
 
 
+# ── G1 / G2 / G4（09 重构，question 20261009-llm-usage-static-model-list-stale）────
+
+G1_SCAN_ROOT = REPO / "macro-scan"          # P1 扫描范围=天枢侧；P2 接完天璇/天玑后扩至全仓
+FALLBACK_DEF_FILE = "macro-scan/核心代码/llm_usage.py"
+
+
+def _collect_configured_models() -> tuple[set[str], str]:
+    """G1：允许出现在代码里的模型名全集 = 真源/模板 usages 值 + llm_usage 兜底区值。
+    返回 (names, err)：err 非空 = 收集不完整（调用方报警并跳过本项）。"""
+    names: set[str] = set()
+    for p in (TRUTH_PATH, TEMPLATE_PATH):
+        d = _load_json(p)
+        if "__error__" in d:
+            continue
+        for u in (d.get("usages") or {}).values():
+            m = (u or {}).get("model")
+            if m:
+                names.add(m)
+    lu_path = REPO / FALLBACK_DEF_FILE
+    try:
+        tree = ast.parse(lu_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        return names, f"llm_usage.py 解析失败: {e}"
+    found = False
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)):
+            continue
+        tname = node.targets[0].id
+        if tname == "_FALLBACK_MODELS":
+            try:
+                names |= {str(v) for v in ast.literal_eval(node.value).values()}
+                found = True
+            except Exception as e:
+                return names, f"_FALLBACK_MODELS 解析失败: {e}"
+        elif tname == "_FALLBACK_EMBED_MODEL":
+            try:
+                names.add(str(ast.literal_eval(node.value)))
+                found = True
+            except Exception:
+                pass
+    if not found:
+        return names, "未在 llm_usage.py 找到 _FALLBACK_* 定义（代码兜底区缺失）"
+    return names, ""
+
+
+def _fallback_allowed_ranges() -> list[tuple[int, int]]:
+    """llm_usage.py 中 _FALLBACK_* 赋值表达式的行号区间（模型字面量唯一合法落点）。"""
+    try:
+        tree = ast.parse((REPO / FALLBACK_DEF_FILE).read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    out = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id in ("_FALLBACK_MODELS", "_FALLBACK_EMBED_MODEL")):
+            out.append((node.lineno, getattr(node, "end_lineno", node.lineno)))
+    return out
+
+
+def check_model_literals(problems: list[str]):
+    """检查项 6（G1）：代码模型字面量 vs 配置对拍——不依赖硬编码名单。
+    禁令集合 = 配置值 + 代码兜底值；扫 .py 字符串字面量（tokenize，注释/docstring 语境自动豁免）；
+    唯一合法落点 = llm_usage.py 的 _FALLBACK_* 赋值区。"""
+    names, err = _collect_configured_models()
+    if err or not names:
+        problems.append(f"G1 无法执行：{err or '模型名集合为空'}")
+        return
+    names = {n for n in names if len(n) >= 6}   # 防短串误伤
+    allowed = _fallback_allowed_ranges()
+    hits = []
+    for root, dirs, files in os.walk(G1_SCAN_ROOT):
+        rel_root = Path(root).relative_to(REPO).as_posix()
+        dirs[:] = [d for d in dirs
+                   if d not in SKIP_DIRS and f"{rel_root}/{d}".strip("/") not in SKIP_DIRS]
+        for fn in files:
+            if not fn.endswith(".py"):
+                continue
+            p = Path(root) / fn
+            rel = p.relative_to(REPO).as_posix()
+            try:
+                text = p.read_text(encoding="utf-8", errors="ignore")
+                toks = list(tokenize.generate_tokens(io.StringIO(text).readline))
+            except Exception:
+                continue
+            for tok in toks:
+                if not (tok.type == tokenize.STRING or tok.type == _FSTRING_MIDDLE):
+                    continue
+                raw = tok.string
+                try:
+                    val = ast.literal_eval(raw) if tok.type == tokenize.STRING else raw
+                except Exception:
+                    val = raw
+                if not isinstance(val, str):
+                    continue
+                if not any(n in val for n in names):
+                    continue
+                if rel == FALLBACK_DEF_FILE and any(lo <= tok.start[0] <= hi for lo, hi in allowed):
+                    continue
+                hits.append(f"{rel}:{tok.start[0]}")
+    if hits:
+        problems.append(
+            "G1 代码残留模型字面量（唯一合法落点=llm_usage._FALLBACK_* 区；"
+            "模型名请只写配置）:\n  " + "\n  ".join(sorted(set(hits))[:10]))
+
+
+def _import_runtime_llm_usage():
+    """导入运行区 llm_usage（G2 用；DATA_DIR 设运行区 data 以匹配 NAS 侧路径）。"""
+    try:
+        os.environ.setdefault("WORLDSIM_DATA_DIR", str(RUNTIME / "data"))
+        core = str(RUNTIME / "核心代码")
+        if core not in sys.path:
+            sys.path.insert(0, core)
+        import llm_usage
+        return llm_usage
+    except Exception as e:
+        print(f"[llmcheck] G2 跳过：运行区 llm_usage 导入失败（{type(e).__name__}: {str(e)[:80]}）")
+        return None
+
+
+def check_config_source(problems: list[str]):
+    """检查项 7（G2）：配置加载来源 != truth → 报警（主配置不可用，正在用兜底层）。
+    回落瞬间由 llm_usage 打印 [FALLBACK] 留痕；本项守「此刻仍在回落态」。"""
+    lu = _import_runtime_llm_usage()
+    if lu is None:
+        return
+    try:
+        src = lu.get_config_source()
+    except AttributeError:
+        print("[llmcheck] G2 跳过：运行区 llm_usage 无 get_config_source（未升级或已回滚）")
+        return
+    except Exception as e:
+        problems.append(f"G2 配置来源检查异常: {type(e).__name__}: {str(e)[:120]}")
+        return
+    if src != "truth":
+        problems.append(
+            f"G2 配置加载来源={src}（非 truth）：主配置 data/llm_config.json 不可用，"
+            "正在使用更早的兜底层——请检查并修复主配置")
+
+
+_PLATFORM_ENV_KEYS = {   # mirror llm_usage.PLATFORM_ENV_KEYS（审计工具独立定义，防自证偏差）
+    "siliconflow": "SILICONFLOW_API_KEY",
+    "mimo_plan": "OPENAI_COMPAT_KEY",
+    "mimo_api": "MIMO_API_KEY",
+}
+
+
+def _read_secrets_file() -> dict:
+    out = {}
+    if SECRETS_PATH.exists():
+        try:
+            for line in SECRETS_PATH.read_text(encoding="utf-8").splitlines():
+                s = line.strip()
+                if not s or s.startswith("#") or "=" not in s:
+                    continue
+                k, _, v = s.partition("=")
+                out[k.strip()] = v.strip().strip('"').strip("'")
+        except Exception:
+            pass
+    return out
+
+
+def check_model_availability(problems: list[str]):
+    """检查项 8（G4）：模型可用性哨兵——配置模型不在平台实时 /models 列表 → 报警
+    （疑似厂商下线/改名）。拉取失败/无 key → 跳过（外部不可用不误报）。"""
+    import urllib.request
+    truth = _load_json(TRUTH_PATH)
+    if "__error__" in truth:
+        return
+    usages = truth.get("usages") or {}
+    if not usages:
+        return
+    secrets = _read_secrets_file()
+    fetched: dict = {}   # base_url -> list[str] | None（None=跳过）
+    for uid, u in sorted(usages.items()):
+        u = u or {}
+        base = (u.get("base_url") or "").rstrip("/")
+        model = u.get("model") or ""
+        pid = u.get("platform") or ""
+        if not (base and model):
+            continue
+        if base not in fetched:
+            env_name = _PLATFORM_ENV_KEYS.get(pid, "")
+            key = secrets.get(env_name) or os.environ.get(env_name) or ""
+            if not key:
+                fetched[base] = None
+                continue
+            try:
+                req = urllib.request.Request(
+                    base + "/models", headers={"Authorization": "Bearer " + key})
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    d = json.loads(r.read())
+                fetched[base] = [m.get("id") or "" for m in (d.get("data") or []) if m.get("id")]
+            except Exception as e:
+                print(f"[llmcheck] G4 跳过 {pid}（/models 拉取失败：{type(e).__name__}: {str(e)[:80]}）")
+                fetched[base] = None
+        ids = fetched.get(base)
+        if not ids:
+            continue
+        low = {x.lower() for x in ids}
+        if model.lower() not in low:
+            problems.append(
+                f"G4 模型可用性：使用点 {uid} 的 {model} 不在 {pid} 实时列表（疑似下线/改名）")
+
+
 def main() -> int:
     heartbeat = "--heartbeat" in sys.argv
     problems: list[str] = []
     check_truth_vs_template(problems)
     check_template_vs_git(problems)
     check_stale_model_names(problems)
+    check_model_literals(problems)        # G1（09 重构）
+    check_config_source(problems)         # G2（09 重构）
+    check_model_availability(problems)    # G4（09 重构）
     check_secrets_safety(problems)
     check_precommit_hook(problems)
 
@@ -199,7 +418,8 @@ def main() -> int:
         _push("⚠️ 推演系统 LLM 配置漂移告警", msg[:3500])
         return 1
 
-    print(f"[llmcheck] 全过（真源=模板=git；文档无旧模型名；.env 安全面 OK；hook 在位）")
+    print(f"[llmcheck] 全过（真源=模板=git；文档无旧模型名；G1 字面量收敛；"
+          f"G2 配置来源=truth；.env 安全面 OK；hook 在位）")
     if heartbeat:
         _push("✅ LLM 配置巡检心跳", "本周 LLM 配置漂移巡检全过（真源/模板/git 一致，密钥安全面正常）。")
     return 0

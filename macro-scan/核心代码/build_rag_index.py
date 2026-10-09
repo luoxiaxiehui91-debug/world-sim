@@ -4,7 +4,7 @@ build_rag_index.py — 知识库向量索引构建脚本（pgvector 后端，E0-
 通过 docker exec 运行：
     docker exec macro-scan-macro-scan-1 python /app/build_rag_index.py
 
-Embedding 走硅基流动 BAAI/bge-m3，需 SILICONFLOW_API_KEY 环境变量。
+Embedding 走硅基流动（/v1/embeddings，模型由 llm_usage rag_embedding 配置决定），需 SILICONFLOW_API_KEY 环境变量。
 向量库为 worldsim-pg 的 rag.embeddings 表（pgvector）。知识库有重大更新时
 重新运行即可，会自动 TRUNCATE + 原子重建。
 
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print(f"知识库路径: {KB_DIR}")
     print(f"向量库:     worldsim-pg.rag.embeddings（collection={COLLECTION_NAME}）")
-    print(f"Embedding:  硅基流动 BAAI/bge-m3")
+    print(f"Embedding:  硅基流动（/v1/embeddings，模型由 llm_usage 配置）")
     print()
 
     # 1. 检查知识库

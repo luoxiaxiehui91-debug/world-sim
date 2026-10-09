@@ -529,11 +529,13 @@ def platform_models(request: Request = None):
 
 @app.get("/api/v1/control/llm-usage")
 def llm_usage_list(request: Request = None):
-    """LLM 使用点清单 + 当前生效配置 + 平台选项（开阳 LLM 配置面板数据源）。"""
+    """LLM 使用点清单 + 当前生效配置 + 平台选项（开阳 LLM 配置面板数据源）。
+    config_source（09 重构）：truth/snapshot/template/code——配置回落时前端可提示。"""
     _check_token(request)
     try:
-        from llm_usage import effective_models, platform_options
-        return {"usages": effective_models(), "platforms": platform_options()}
+        from llm_usage import effective_models, platform_options, get_config_source
+        return {"usages": effective_models(), "platforms": platform_options(),
+                "config_source": get_config_source()}
     except Exception as e:
         return {"error": str(e)}
 
@@ -593,8 +595,10 @@ async def llm_usage_update(usage_id: str, request: Request):
     model = (body.get("model") or "").strip()
     api_key = body.get("api_key")
     try:
+        import asyncio
         from llm_usage import set_usage
-        ok, msg = set_usage(usage_id, platform, model, api_key)
+        # 09 审查修复：set_usage 含写入预检网络 I/O（≤3s），丢线程池避免阻塞事件循环
+        ok, msg = await asyncio.to_thread(set_usage, usage_id, platform, model, api_key)
     except Exception as e:
         return {"ok": False, "error": str(e)}
     if not ok:

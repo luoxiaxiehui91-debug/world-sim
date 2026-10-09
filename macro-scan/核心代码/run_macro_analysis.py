@@ -803,7 +803,7 @@ def call_llm_primary(prompt: str, mode: str = "local") -> str:
 
     主链与降级（任一失败自动切换下一级）：
       1. hybrid_llm.reason(mode)：mode="auto"（默认）→ MiMo → Claude(未配跳过) → SiliconFlow；
-         mode="local" → 强制 SiliconFlow（deepseek-ai/DeepSeek-V4-Flash）
+         mode="local" → 强制 SiliconFlow（usage=call_local，模型见 llm_usage 配置）
       2. MiMo API 兜底（_mimo_fallback）
       3. 空字符串（调用方负责降级到 _make_fallback_section）
     """

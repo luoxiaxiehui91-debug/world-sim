@@ -22,7 +22,6 @@ services:
       - TZ=Asia/Shanghai
       - OUTBOUND_PROXY=${OUTBOUND_PROXY}
       - SILICONFLOW_API_KEY=你的SILICONFLOW_API_KEY
-      - SILICONFLOW_MODEL=deepseek-ai/DeepSeek-V4-Flash
       - OPENAI_COMPAT_URL=https://token-plan-cn.xiaomimimo.com/v1
       - OPENAI_COMPAT_KEY=你的XIAOMI_API_KEY
       - USE_EXTERNAL_LLM=1

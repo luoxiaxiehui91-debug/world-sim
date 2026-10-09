@@ -8,6 +8,7 @@ import concurrent.futures
 from optim_config import ANTHROPIC_API_KEY
 from llm_usage import get_model as llm_usage_get_model
 from llm_usage import resolve, get_secret
+from llm_usage import fallback_model
 
 _TMP_DIR = os.environ.get("TMPDIR", "/tmp")
 CLAUDECODE_PROMPT_FILE   = os.path.join(_TMP_DIR, "llm_prompt.txt")
@@ -15,7 +16,13 @@ CLAUDECODE_RESPONSE_FILE = os.path.join(_TMP_DIR, "llm_response.txt")
 CLAUDECODE_TIMEOUT       = 600   # 秒
 
 SILICONFLOW_URL   = "https://api.siliconflow.cn/v1"
-SILICONFLOW_MODEL = os.environ.get("SILICONFLOW_MODEL", "deepseek-ai/DeepSeek-V4-Flash")
+
+
+def _local_model() -> str:
+    """call_local 使用模型（09 重构 D2=C）：统一走 llm_usage.resolve("call_local")
+    （配置优先 → .bak 快照 → 模板 → 代码兜底）；不再读 env SILICONFLOW_MODEL。
+    模型名唯一存于 llm_usage._FALLBACK_MODELS。"""
+    return (resolve("call_local") or {}).get("model") or fallback_model("siliconflow")
 
 
 _PG_HOST_LLM = "worldsim-pg"
@@ -134,10 +141,11 @@ def call_claudecode(prompt: str, system: str = "") -> str:
     raise TimeoutError(f"Claude Code 未在 {CLAUDECODE_TIMEOUT}s 内响应")
 
 
-def _do_siliconflow_request(prompt: str, system: str, max_tokens: int):
+def _do_siliconflow_request(prompt: str, system: str, max_tokens: int, model: str):
     """执行单次 SiliconFlow API 请求，返回 (result_str, response_obj, elapsed)。
     result_str 为 None 表示空响应（需要重试）。
     抛出可重试异常（HTTPError 429/503）或不可重试异常。
+    model：由 call_local 经统一配置链解析后传入（09 重构，不再读 env）。
     """
     start_ts = time.time()
     try:
@@ -145,7 +153,7 @@ def _do_siliconflow_request(prompt: str, system: str, max_tokens: int):
             f"{SILICONFLOW_URL}/chat/completions",
             headers={"Authorization": f"Bearer {_sf_key()}", "Content-Type": "application/json"},
             json={
-                "model": SILICONFLOW_MODEL,
+                "model": model,
                 "max_tokens": max_tokens,
                 "temperature": 0.3,
                 "messages": [
@@ -205,6 +213,7 @@ def call_local(prompt: str, system: str = "", max_tokens: int = 2048,
     if not _sf_key():
         raise ValueError("SILICONFLOW_API_KEY 未设置")
 
+    model = _local_model()  # 09 重构：统一配置链（resolve → fallback），不再读 env
     prompt_tokens = _estimate_tokens(prompt)
     system_tokens = _estimate_tokens(system or MACRO_SYSTEM_PROMPT)
     total_tokens = prompt_tokens + system_tokens
@@ -218,17 +227,17 @@ def call_local(prompt: str, system: str = "", max_tokens: int = 2048,
             time.sleep(delay)
 
         try:
-            result, resp, elapsed = _do_siliconflow_request(prompt, system, max_tokens)
+            result, resp, elapsed = _do_siliconflow_request(prompt, system, max_tokens, model)
             if result is None:
                 # 空响应
                 print(f"[call_local] 空响应 | attempt={attempt} elapsed={elapsed:.1f}s")
-                last_error = ValueError(f"SiliconFlow 返回空响应（模型={SILICONFLOW_MODEL}）")
+                last_error = ValueError(f"SiliconFlow 返回空响应（模型={model}）")
                 continue  # 重试
             print(f"[call_local] OK | result_chars={len(result)} elapsed={elapsed:.1f}s attempt={attempt}")
             try:
                 _u = (resp.json() or {}).get("usage") or {}
                 _log_token_usage(
-                    usage_id=usage, platform="siliconflow", model=SILICONFLOW_MODEL,
+                    usage_id=usage, platform="siliconflow", model=model,
                     prompt_tokens=_u.get("prompt_tokens"), completion_tokens=_u.get("completion_tokens"),
                     total_tokens=_u.get("total_tokens"),
                     call_ms=int(elapsed * 1000), ok=True,
@@ -243,20 +252,20 @@ def call_local(prompt: str, system: str = "", max_tokens: int = 2048,
         except Exception as e:
             # CHG-20260926T001031：不可重试错误直接抛出，须在此记账
             # （只在「重试耗尽」处记账会漏掉这条路径，失败在账本里不可见）
-            _log_token_usage(usage_id=usage, platform="siliconflow", model=SILICONFLOW_MODEL,
+            _log_token_usage(usage_id=usage, platform="siliconflow", model=model,
                              prompt_tokens=total_tokens, call_ms=None, ok=False, err=e)
             raise  # 不可重试错误，直接抛出
 
     # 所有重试耗尽
     # CHG-20260926T001031：失败记账（重试中间不记，只在此处最终失败时记一次）
     if last_error:
-        _log_token_usage(usage_id=usage, platform="siliconflow", model=SILICONFLOW_MODEL,
+        _log_token_usage(usage_id=usage, platform="siliconflow", model=model,
                          prompt_tokens=total_tokens, call_ms=None, ok=False, err=last_error)
         raise last_error
-    _log_token_usage(usage_id=usage, platform="siliconflow", model=SILICONFLOW_MODEL,
+    _log_token_usage(usage_id=usage, platform="siliconflow", model=model,
                      prompt_tokens=total_tokens, call_ms=None, ok=False,
                      err="SiliconFlow 空响应（重试耗尽）")
-    raise ValueError(f"SiliconFlow 返回空响应（模型={SILICONFLOW_MODEL}，重试{_CALL_LOCAL_MAX_RETRIES}次后仍失败）")
+    raise ValueError(f"SiliconFlow 返回空响应（模型={model}，重试{_CALL_LOCAL_MAX_RETRIES}次后仍失败）")
 
 
 def call_openai_compat(prompt: str, system: str = "", max_tokens: int = 4096,
@@ -386,11 +395,11 @@ def reason(prompt: str, system: str = "", mode: str = "auto",
     统一推理入口。
 
     mode:
-      "local"      → SiliconFlow（Qwen3.5-27B）
+      "local"      → SiliconFlow 本地通道（usage=call_local，控制台可切）
       "claude"     → 强制 Claude API（需 ANTHROPIC_API_KEY）
       "claudecode" → 通过文件与 Claude Code CLI 交互
       "openai"     → OpenAI 兼容端点（MiMo）
-      "auto"       → MiniMax-M3 → MiMo v2.5 → SiliconFlow DeepSeek-V4-Flash（总超时 _AUTO_TOTAL_TIMEOUT s）
+      "auto"       → MiMo（general_llm）→ SiliconFlow（同 usage 记账；总超时 _AUTO_TOTAL_TIMEOUT s）
     """
     # 思维链模型 reasoning 消耗大量 token，强制最小值保护
     max_tokens = max(max_tokens, 8192)
@@ -398,12 +407,12 @@ def reason(prompt: str, system: str = "", mode: str = "auto",
     if mode == "claudecode":
         return call_claudecode(prompt, system)
     if mode == "local":
-        return call_local(prompt, system, max_tokens, usage="local")
+        return call_local(prompt, system, max_tokens, usage="call_local")
     if mode == "claude":
         return call_claude(prompt, system, max_tokens)
     if mode == "openai":
         return call_openai_compat(prompt, system, max_tokens)
-    # auto：MiMo v2.5 → SiliconFlow DeepSeek-V4-Flash
+    # auto：MiMo（general_llm）→ SiliconFlow（call_local 通道，同 usage 记账）
     # CON-3: 用 ThreadPoolExecutor 限制整个 auto 降级链的总等待时间
     # 注意：不使用 `with` 语句，避免 __exit__ 调用 shutdown(wait=True) 使超时失效
     def _auto_chain():

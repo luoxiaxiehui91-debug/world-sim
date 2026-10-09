@@ -239,18 +239,19 @@ pre-commit install   # 在源码区 S:\world-sim\macro-scan\ 执行一次即可
 | crucix | :3117 | ~~英文地缘新闻+多源情报（FIRMS/EIA/GDELT等30源）~~ **已退场（08-12 G1 停容器）**，仅历史参考 |
 | rsshub | :12000 | 中文财经 RSS（财新/第一财经/华尔街见闻/东方财富研报）|
 
-> ⚠️ Ollama（已停用，原内网地址从略），MiniMax 已于 08-23 退役。LLM 降级链（auto）：MiMo v2.5-pro → SiliconFlow DeepSeek-V4-Flash → 纯数据报告；新闻标题翻译走 SiliconFlow Hunyuan-MT-7B。
-> **08-16 LLM 统一配置**：`核心代码/llm_usage.py` 静态清单使用点（translate_titles / general_llm / rag_embedding / sim_mc / sim_narrative；2026-09-26 前第 2 项名为 openai_compat）× 2 平台（mimo_plan / siliconflow），运行时配置 `data/llm_config.json`（开阳控制台「LLM 配置」面板读写，`GET/PUT /api/v1/control/llm-usage`）。**配置优先于 env/常量**；天璇读共享文件。翻译模型 Hunyuan-MT-7B（`fetch_news_titles.py` 走 `usage="translate_titles"`）；RAG 嵌入 `rag_engine.py` 走 `resolve_embedding()`（bge-m3）。改 `llm_usage.py`/`hybrid_llm.py` 后须重启 control_server（:8900）并 curl 验证新路由生效。
+> ⚠️ Ollama（已停用，原内网地址从略），MiniMax 已于 08-23 退役。LLM 降级链（auto）：MiMo（general_llm）→ SiliconFlow（同 usage 记账）→ 纯数据报告；新闻标题翻译走 SiliconFlow Hunyuan-MT-7B。
+> **08-16 LLM 统一配置（09 重构 P1 升级：单点化 + 四层兜底）**：`核心代码/llm_usage.py` 是模型名**唯一取值链**。9 个使用点：translate_titles / general_llm / rag_embedding / call_local / verify_llm / chronicle / readable / sim_mc / sim_narrative；运行时配置 `data/llm_config.json`（开阳控制台「LLM 配置」面板读写，`GET/PUT /api/v1/control/llm-usage`，响应含 `config_source`）。**取值链（四层兜底）：配置 → 快照 `llm_config.json.bak`（写前自动轮转）→ 模板 `config/llm_config.default.json` → 代码兜底 `_FALLBACK_MODELS`（全仓唯一模型字面量区）**，回落留痕（日志 `[FALLBACK]` + `config_source`）。天璇读共享文件。翻译走 `usage="translate_titles"`；RAG 嵌入走 `resolve_embedding()`。改 `llm_usage.py`/`hybrid_llm.py` 后须重启 control_server（:8900）并 curl 验证新路由生效。
 
 ### ⛓ 模型变更「五联同步」强制清单（ADR-0010 派生）
 > 任何 LLM 模型/平台变更，**必须同步以下五处**，缺一即视为未完成（否则必然再次漂移，参见 2026-09-03 `CHG-20260903T151756` 教训）：
 > 1. **运行区真相** `data/llm_config.json`（开阳面板 PUT 或 SSH 改 NAS，唯一真源）
 > 2. **兜底模板** `config/llm_config.default.json`（git tracked，灾难恢复用，7 使用点须一致）
-> 3. **compose/环境变量** `docker-compose.yml` + `docker-compose.example.yml`（仅当涉及 env 注入的模型；禁留 `OPENAI_COMPAT_MODEL` 类双源开关）
+> 3. **compose/环境变量** `docker-compose.yml` + `docker-compose.example.yml`（09 重构起**模型名不再经 env**：禁留 `OPENAI_COMPAT_MODEL` / `SILICONFLOW_MODEL` / `VERIFY_LLM_MODEL` 类双源开关；地址/密钥类 env 照常）
 > 4. **活跃文档** AGENTS.md / INDEX.md / 世界推演系统_人类说明文档.md / kaiyang `DATA_CONTRACT.md` `NEXT_SESSION_HANDOFF.md` / 根 `AGENTS.md` / `STATUS.md`
-> 5. **代码静态清单与 docstring** `核心代码/llm_usage.py`（`PLATFORMS` 模型列表 + `LLM_USAGES` 默认模型）、`hybrid_llm.py` / `run_macro_analysis.py` 降级链 docstring
+> 5. **代码兜底与 docstring** `核心代码/llm_usage.py`（`_FALLBACK_MODELS` / `_FALLBACK_EMBED_MODEL`——全仓唯一允许的模型字面量区）、`hybrid_llm.py` / `run_macro_analysis.py` 降级链 docstring
+> 6. **守卫闭环（09 重构新增）**：改完必须跑 `python3 scripts/check_llm_config.py`（RC=0）——覆盖 G1 代码字面量对拍 / G2 配置来源报警 / G4 模型可用性哨兵；模型名相关验收以该脚本输出为准
 >
-> 闭环验证：`grep` 全仓无残留旧模型名（MiniMax-M3 / Qwen3.5-27B / 非 pro 的 `mimo-v2.5`）；`docker compose config --quiet` 通过；历史文档（CHANGELOG/archive/reviews/ROADMAP/知识库）**严禁改动**，旧模型名仅允许以「已退役/已切换」注释形式出现。
+> 闭环验证：以 `scripts/check_llm_config.py` 输出为准（旧名残留 G3 / 代码字面量 G1 / 配置来源 G2 / 模型可用性 G4 四项）；`docker compose config --quiet` 通过；历史文档（CHANGELOG/archive/reviews/ROADMAP/知识库）**严禁改动**，旧模型名仅允许以「已退役/已切换」等豁免词注释形式出现。
 
 ---
 
