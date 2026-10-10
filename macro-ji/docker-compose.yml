@@ -13,7 +13,8 @@ services:
       dockerfile: Dockerfile
     environment:
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
-      - VERIFY_LLM_MODEL=deepseek-ai/DeepSeek-V4-Flash
+      # P2（CHG-20261010T231251）：VERIFY_LLM_MODEL 删除 —— 模型名只写配置（llm_cfg 四层链解析），
+      # env 仅作过渡兜底（原属 P3，与 P2 同窗口 recreate 零边际成本，故合并）
       - OPENCLAW_WORKSPACE=/app
       - TIANJI_DATA_DIR=/app/macro_data
       - FRED_API_KEY=${FRED_API_KEY}

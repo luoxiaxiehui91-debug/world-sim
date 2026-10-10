@@ -17,7 +17,8 @@ ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} -r requirements.txt
 
 # 天玑验证内核（纯 stdlib + pyyaml）
-COPY tianji_db.py tianji_verifier.py weight_matrix.py optim_config.py tianji_calibrator.py llm_judge.py /app/
+# P2（CHG-20261010T231251）：llm_cfg.py = 四层兜底链取值模块（llm_judge 依赖）
+COPY tianji_db.py tianji_verifier.py weight_matrix.py optim_config.py tianji_calibrator.py llm_judge.py llm_cfg.py /app/
 # watchdog：T2 共享触发文件轮询（trigger → 执行验证 → 写回）
 COPY verify_watchdog.py tianji_verify_cron.py verify_geo_auto.py verify_hypothesis.py verify_predictions.py /app/
 

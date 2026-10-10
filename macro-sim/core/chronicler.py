@@ -8,7 +8,7 @@ chronicler.py — 天璇编年史生成器（08-23）
 防幻觉：
   - prompt 明示「记录外皆不存在」；数字必须原样引用 JSONL
   - 生成后数字校验器：文中数值必须出现在该卷 JSONL 数值集合（越界重写一次）
-模型：llm_usage.resolve("chronicle")（默认 deepseek-ai/DeepSeek-V4-Flash，控制台可切）
+模型：core.llm_cfg 四层兜底链解析 chronicle 使用点（P2；控制台可切，代码零模型字面量）
 """
 import json
 import re
@@ -16,22 +16,11 @@ from pathlib import Path
 
 
 def _resolve_chronicle():
-    """解析 chronicle 调用配置。优先 llm_config.json 的 usage 配置（控制台可改），
-    key 回落 env SILICONFLOW_API_KEY。不依赖 core.llm_usage（天璇容器无此模块）。"""
-    import os
-    base, key, model = "https://api.siliconflow.cn/v1", "", "deepseek-ai/DeepSeek-V4-Flash"
-    try:
-        cfg = (json.load(open("/app/macro_data/llm_config.json", encoding="utf-8"))
-               .get("usages", {}).get("chronicle", {}))
-        if cfg:
-            base = cfg.get("base_url") or base
-            model = cfg.get("model") or model
-    except Exception:
-        pass
-    key = key or os.environ.get("SILICONFLOW_API_KEY", "")
-    if not key:
-        raise ValueError("chronicle: 无 api_key（llm_config 未配且 env 缺失）")
-    return base.rstrip("/"), key, model
+    """解析 chronicle 使用点（P2）：走 core.llm_cfg 四层兜底链
+    （L1 主配置 → L2 快照 → L3 模板 → L4 env），密钥按平台映射取 env。
+    全链无解 → raise（调用方捕获后跳过，不崩溃）。"""
+    from core import llm_cfg
+    return llm_cfg.resolve_endpoint("chronicle")
 
 
 def _call(base_url, api_key, model, prompt, max_tokens=4000):
@@ -135,7 +124,11 @@ def generate_chronicle(path, initial_world, event: str, out_path: Path) -> Path 
     if not hist:
         print("[chronicler] 无代表 run 快照，跳过")
         return None
-    base_url, api_key, model = _resolve_chronicle()
+    try:
+        base_url, api_key, model = _resolve_chronicle()
+    except Exception as e:
+        print(f"[chronicler] chronicle 配置解析失败，跳过: {e}")
+        return None
     if not api_key:
         print("[chronicler] chronicle 平台未配置 key，跳过")
         return None
@@ -188,7 +181,7 @@ def generate_chronicle(path, initial_world, event: str, out_path: Path) -> Path 
         f"终态市场情绪均值 {path.final_sentiment_mean}，信用利差均值 {path.final_credit_spread_mean}bp。"
         f"完整概率分布见正式报告路径表。\n\n"
         f"## 史官附注\n\n"
-        f"本编年史由 DeepSeek-V4-Flash 根据代表性单一路径的逐步仿真记录生成，"
+        f"本编年史由 LLM 根据代表性单一路径的逐步仿真记录生成，"
         f"所有数字均可溯源至 sim_history JSONL；叙事细节为文学化演绎，不构成预测承诺。\n")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

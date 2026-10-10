@@ -1,3 +1,32 @@
+## v3.8.69（2026-10-10）
+
+**LLM 模型配置重构 P2：天璇 / 天玑接上统一配置链（修 F-1 / F-2）** —— CHG-20261010T231251（承接 question 20261009-llm-usage-static-model-list-stale 的 P2 段；定时任务 b0be59e2 无人值守执行）
+
+准入闸门先过：P1 观察期**覆盖核查**（非唯时长）全绿 —— 守卫 RC=0；账本窗口内 `translate_titles` 412 次 / `general_llm` 4 次（含 10-09 20:00 20:05 20:17 工作日晚间重载 + 10-10 07:00 每日链路）且 `err` 0 行；6 容器 Up 且 RestartCount=0；全日志 `[FALLBACK]` 0 命中；10-10 08:10 新版守卫首次 cron 通过。
+
+改动：
+- **新增 `macro-sim/core/llm_cfg.py` + `macro-ji/llm_cfg.py`（字节一致）**：天璇/天玑侧统一取值链 = L1 主配置 `/app/macro_data/llm_config.json` → L2 快照 `.bak` → L3 git 模板 → L4 env（过渡）→ 全链无解则 raise（单次调用失败，不崩溃）；60s TTL 保留原热更行为；回落时打印 `[llm_cfg] ⚠️` 并返回 `source`。**代码中零模型名字面量**
+- **`core/llm_client.py`**：删除 4 个模型名常量（`SILICONFLOW_MODEL_GLM/QWEN/NARRATIVE/MODEL`）；`_apply_llm_config` + `_load_usage_cfg` 两条私有链合并为 `llm_cfg.resolve()`；`_resolve_client(usage_id)` 按平台映射取 key（配置永不带 key）；`test_connection()` 改测 `sim_mc`/`sim_narrative` 两个在用使用点。**`QWEN` 常量删除**（实测仅 `__main__` CLI 基准对比用途，无对应配置使用点），顺带修掉原 `max_tokens` 未定义的 NameError
+- **`core/chronicler.py` / `core/readable_report.py`**：`_resolve_chronicle()` / `_resolve_readable()` 改走链 ⇒ **F-2 前半/后半修好**；`generate_chronicle` 解析失败即跳过、`generate_readable` 解析失败降级机械模板（永远有产出）
+- **`macro-ji/llm_judge.py`**：`MODEL = os.environ.get("VERIFY_LLM_MODEL", …)` 删除，改 `llm_cfg.resolve_endpoint("verify_llm")` ⇒ **F-1 修好**（控制台改 `verify_llm` 终于生效）
+- **`macro-ji/docker-compose.yml`**：删 `VERIFY_LLM_MODEL` 注入（原属 P3，与 P2 同窗口 recreate 零边际成本故合并）；**`macro-ji/Dockerfile`** COPY 行补 `llm_cfg.py`
+- **`macro-sim/docker-compose.yml`**：补 `${MACRO_SCAN_DIR}/config:/app/shared_config:ro` —— ⚠️ **挂载点必须是 shared_config 不能是 /app/config**：镜像内 `/app/config/agents.yaml`（`run.py:31/135/973` 依赖）会被宿主 config 目录覆盖导致天璇启动即崩（方案原文写的 `/app/config` 与代码现实不符，属机械适配已就地修正）
+- **`scripts/check_llm_config.py`**：G1 扫描范围 `macro-scan/` → **全仓**（实测覆盖 190 个 .py）；新增检查项 9 **G5 跨容器副本字节一致**（防 `llm_cfg.py` 两份改一处漏另一处，红线 #81）
+
+### 验收（2026-10-10 实测）
+
+- ✅ **特征值探针实跑**：临时把 5 个使用点改成 `P2PROBE/*` → 天玑主容器与 cron 容器实跑 `llm_judge._call_llm`（urlopen 打桩不花钱不发请求），捕获外发请求体 `model=P2PROBE/verify-llm`；天璇 `_resolve_chronicle/_resolve_readable/_resolve_client` 四个使用点全部返回对应特征值。还原后 `md5` 与改前**完全一致**（`RESTORE_OK`）
+- ✅ 容器内 md5 == 真源：`llm_cfg/llm_client/chronicler/readable_report` × 天璇、`llm_cfg/llm_judge` × 天玑（主 + cron）**6/6 SAME**
+- ✅ `StartedAt`（天璇 23:20:22、天玑 23:21:18 CST）晚于真源码落盘时间（23:16:25 / 23:17:27 CST）；6 容器 RestartCount=0
+- ✅ `/api/v1/control/llm-usage` 9 使用点仍全 `config_source=truth`；控制端 health 200
+- ✅ `check_llm_config.py` RC=0（真源=模板=git；G1 全仓 0 命中；G2=truth；G4 哨兵；G5 一致）
+- ✅ **守卫实效阳性对照**：人为注入一处模型字面量 → G1 命中 1；破坏 `llm_cfg.py` 一份 → G5 命中 1，还原后 0（证明守卫不是空转）
+
+### 遗留（不阻塞闭环）
+
+- **P3**：`_local_model` base_url/key 深度统一评估；`llm_cfg` 的 L4 env 兜底（`VERIFY_LLM_MODEL`）待摘除
+- **②**：3 份低频结构文档内容刷新（仍 v3.8.54）—— 评估时点已到（P2 完成）
+
 ## v3.8.68（2026-10-09）
 
 **死防线清理 ①③：移除孤儿脚本 `check_doc_drift.py` + 运行区 `AGENTS.md` 旧副本** —— CHG-20261009T231536（承接 question 20261009-doc-sync-guard-dead 遗留段）

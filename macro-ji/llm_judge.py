@@ -3,8 +3,9 @@
 llm_judge.py — L3 行为类预测 LLM 判定器（08-23，天玑验证域）
 
 定位：L1(FRED 判定器)→L2(关键词单向确认) 都返回 None 时，用行为判定标准 +
-到期窗口内新闻标题喂 LLM（DeepSeek-V4-Flash）做三值判定（1 发生 / 0.5 部分 /
+到期窗口内新闻标题喂 LLM 做三值判定（1 发生 / 0.5 部分 /
 0 未发生 / null 证据不足）。
+模型/地址/密钥由 llm_cfg 四层兜底链解析 verify_llm 使用点（P2，修 F-1；代码零模型字面量）。
 
 防污染（保护 Brier/BSS 校准）：
   - 自动落库门槛：outcome=1 需 confidence>=0.70；
@@ -14,16 +15,15 @@ llm_judge.py — L3 行为类预测 LLM 判定器（08-23，天玑验证域）
   - 自动落库一律 verified_by="auto_llm"（与 auto/human 来源隔离，
     出现系统性误判可一条 SQL 全量回滚）
 
-依赖：SILICONFLOW_API_KEY env（macro-ji/.env）；tianji_db.get_connection()；
-predictions 表需含列 llm_outcome/llm_confidence/llm_note。
+依赖：llm_cfg（同目录，四层兜底链）；密钥按平台映射取 env（siliconflow → SILICONFLOW_API_KEY）；
+tianji_db.get_connection()；predictions 表需含列 llm_outcome/llm_confidence/llm_note。
 """
 import json
 import os
 import re
 import urllib.request
 
-MODEL = os.environ.get("VERIFY_LLM_MODEL", "deepseek-ai/DeepSeek-V4-Flash")
-SF_URL = "https://api.siliconflow.cn/v1/chat/completions"
+import llm_cfg
 
 # 行为判定标准（与 macro-sim/core/bifurcation.py _ACTION_CRITERIA 同源；跨容器复制）
 ACTION_CRITERIA = {
@@ -84,15 +84,16 @@ def fetch_window_news(due_at, keywords, limit=40):
 
 
 def _call_llm(prompt):
+    base_url, api_key, model = llm_cfg.resolve_endpoint("verify_llm")
     req = urllib.request.Request(
-        SF_URL,
+        base_url + "/chat/completions",
         data=json.dumps({
-            "model": MODEL,
+            "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": 1024,
             "temperature": 0.1,
         }).encode(),
-        headers={"Authorization": "Bearer " + os.environ["SILICONFLOW_API_KEY"],
+        headers={"Authorization": "Bearer " + api_key,
                  "Content-Type": "application/json"})
     r = json.loads(urllib.request.urlopen(req, timeout=90).read())
     return r["choices"][0]["message"]["content"]

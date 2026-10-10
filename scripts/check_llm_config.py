@@ -16,6 +16,7 @@
      唯一合法落点 = llm_usage.py 的 _FALLBACK_* 赋值区——不依赖硬编码名单，换模型自动抓
   7. G2 配置加载来源报警（09 重构新增）：get_config_source() != truth（主配置不可用已回落）
   8. G4 模型可用性哨兵（09 重构新增）：配置模型不在平台实时 /models 列表（疑似下线/改名）
+  9. G5 跨容器模块副本字节一致（P2 新增）：macro-sim/core/llm_cfg.py == macro-ji/llm_cfg.py
 
 失败 → ntfy 推送（内容不含任何密钥值）→ exit 1；全过 → 静默 exit 0。
 用法：check_llm_config.py [--heartbeat]（heartbeat=全过时也推一条，供周一心跳防「脚本死了没声音」）
@@ -195,8 +196,12 @@ def check_precommit_hook(problems: list[str]):
 
 # ── G1 / G2 / G4（09 重构，question 20261009-llm-usage-static-model-list-stale）────
 
-G1_SCAN_ROOT = REPO / "macro-scan"          # P1 扫描范围=天枢侧；P2 接完天璇/天玑后扩至全仓
+G1_SCAN_ROOT = REPO                         # P2：天璇/天玑已接配置 → 扫描范围扩至全仓
 FALLBACK_DEF_FILE = "macro-scan/核心代码/llm_usage.py"
+# G5（P2）：跨容器复制的模块副本必须字节一致（红线 #81「同族漏改」；与 llm_judge.ACTION_CRITERIA 同惯例）
+SHARED_MODULE_GROUPS = [
+    ("macro-sim/core/llm_cfg.py", "macro-ji/llm_cfg.py"),
+]
 
 
 def _collect_configured_models() -> tuple[set[str], str]:
@@ -298,6 +303,22 @@ def check_model_literals(problems: list[str]):
         problems.append(
             "G1 代码残留模型字面量（唯一合法落点=llm_usage._FALLBACK_* 区；"
             "模型名请只写配置）:\n  " + "\n  ".join(sorted(set(hits))[:10]))
+
+
+def check_shared_module_parity(problems: list[str]):
+    """检查项 9（G5）：跨容器复制的模块副本字节一致。
+    天璇（macro-sim/core/）与天玑（macro-ji/）各存一份 llm_cfg.py，改一处漏另一处
+    会静默产生「两个取值链」——这正是本次重构要消灭的问题。"""
+    for a, b in SHARED_MODULE_GROUPS:
+        pa, pb = REPO / a, REPO / b
+        try:
+            ba, bb = pa.read_bytes(), pb.read_bytes()
+        except Exception as e:
+            problems.append(f"G5 跨容器副本对拍失败（{a} / {b}）：{e}")
+            continue
+        if ba != bb:
+            problems.append(
+                f"G5 跨容器副本不一致：{a} 与 {b} 字节不同（改一处必须同步另一处）")
 
 
 def _import_runtime_llm_usage():
@@ -405,9 +426,10 @@ def main() -> int:
     check_truth_vs_template(problems)
     check_template_vs_git(problems)
     check_stale_model_names(problems)
-    check_model_literals(problems)        # G1（09 重构）
+    check_model_literals(problems)        # G1（09 重构；P2 扩至全仓）
     check_config_source(problems)         # G2（09 重构）
     check_model_availability(problems)    # G4（09 重构）
+    check_shared_module_parity(problems)  # G5（P2）
     check_secrets_safety(problems)
     check_precommit_hook(problems)
 

@@ -13,7 +13,7 @@ readable_report.py — 天璇推演「人话版」报告生成器（2026-08-24�
 用法：
   python3 readable_report.py --replay <sim_history.jsonl> --event "事件名" \
       --label 路径A [--out /app/reports/xxx.md]
-模型解析：llm_config.json usages.readable（控制台可切），缺省 DeepSeek-V4-Flash。
+模型解析：core.llm_cfg 四层兜底链解析 readable 使用点（P2；控制台可切，代码零模型字面量）。
 """
 import json
 import re
@@ -96,21 +96,11 @@ def _fmt_step_human(step_i: int, snap: dict) -> str:
 
 
 def _resolve_readable():
-    """llm_config.json usages.readable（控制台可切）；key 回落 env。缺省 V4-Flash。"""
-    import os
-    base, key, model = "https://api.siliconflow.cn/v1", "", "deepseek-ai/DeepSeek-V4-Flash"
-    try:
-        cfg = (json.load(open("/app/macro_data/llm_config.json", encoding="utf-8"))
-               .get("usages", {}).get("readable", {}))
-        if cfg:
-            base = cfg.get("base_url") or base
-            model = cfg.get("model") or model
-    except Exception:
-        pass
-    key = key or os.environ.get("SILICONFLOW_API_KEY", "")
-    if not key:
-        raise ValueError("readable: 无 api_key")
-    return base.rstrip("/"), key, model
+    """解析 readable 使用点（P2）：走 core.llm_cfg 四层兜底链
+    （L1 主配置 → L2 快照 → L3 模板 → L4 env），密钥按平台映射取 env。
+    全链无解 → raise（调用方捕获后降级机械模板，永远有产出）。"""
+    from core import llm_cfg
+    return llm_cfg.resolve_endpoint("readable")
 
 
 def _call(base_url, api_key, model, prompt, max_tokens=2000):
@@ -219,9 +209,9 @@ def generate_readable(hist, event: str, out_path: Path,
         "3. 全文 700-1000 字。宁可精炼有洞见，不要全面但像会议纪要。\n\n"
         "【背景】触发事件：" + event + "；共 " + str(n) + " 个月模拟。\n\n【推演记录】\n" + records)
 
-    base_url, api_key, model = _resolve_readable()
     md = None
     try:
+        base_url, api_key, model = _resolve_readable()
         body = _call(base_url, api_key, model, prompt, max_tokens=2000)
         # 代号残留检查：正文出现裸 agent 代号 → 提示但不拒收（附注标记）
         leaks = re.findall(r"\b(?:A\d{1,2}|S\d_[a-z]+)\b", body)
@@ -232,7 +222,7 @@ def generate_readable(hist, event: str, out_path: Path,
             note = f"\n> ⚠️ 机检提示：正文仍残留 {len(leaks)} 处代号（{sorted(set(leaks))[:5]}…），请以附录对照阅读。\n"
         md = title + body.strip() + note + conf_line
     except Exception as e:
-        print(f"[readable] LLM 失败，降级机械模板: {e}", flush=True)
+        print(f"[readable] LLM 失败或配置不可用，降级机械模板: {e}", flush=True)
         md = _fallback_template(hist, event)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

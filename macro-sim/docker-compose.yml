@@ -17,6 +17,10 @@ services:
       - ${MACRO_SCAN_DIR}/data:/app/macro_data:rw
       # 报告写入 macro-scan docs/仿真报告/（可读写）
       - ${MACRO_SCAN_DIR}/docs/仿真报告:/app/reports
+      # LLM 兜底模板（L3）=== 挂载点必须是 shared_config，不能是 /app/config ===
+      # 镜像内 /app/config 已有 agents.yaml（run.py:31/135/973 依赖），宿主 macro-scan/config 下
+      # 无该文件 —— 挂到 /app/config 会把它覆盖掉导致天璇启动即崩。P2（CHG-20261010T231251）
+      - ${MACRO_SCAN_DIR}/config:/app/shared_config:ro
     # 守护模式：常驻等待 sim_trigger.json，有则自动跑仿真
     command: ["python3", "-u", "run.py", "--daemon"]
 
