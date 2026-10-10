@@ -1,6 +1,8 @@
 # 世界推演系统 · 总览
 
-> macro-scan v3.8.54（天枢）· macro-sim **v2.0.40**（天璇）· kaiyang v1.10.8（开阳）· macro-ji v1.0.0（天玑）· as-of 2026-09-11
+> macro-scan v3.8.69（天枢）· macro-sim **v2.0.51**（天璇）· kaiyang v1.11.44（开阳）· macro-ji v1.0.0（天玑）· as-of 2026-10-10
+>
+> ⏱ 本行只是快照（不断言版本）；权威版本记录 = 各子系统 `VERSION` 文件与 CHANGELOG。
 >
 > **当前状态与待部署事项** → 见 [`handover-history.md`](archive/handover-history.md)
 > **权威版本记录** → 各子系统 CHANGELOG（本行仅总览快照，不断言版本；文档分治规范见 `docs/governance/document-governance.md`）
@@ -17,22 +19,22 @@
 
 ```
 FRED / GPR / GDELT / 新闻（RSSHub :12000；crucix 已于 2026-08-12 退场：G1 停容器，天枢不连 :3117，gscpi 改 NY Fed CSV 唯一源）
-              │  49个调度任务（I15/I30/日档/月档）
+              │  62个调度任务（I15/I30/日档/月档）〔as-of 2026-10-10 · 复核: 容器内 `python3 -c "import scheduler; print(len(scheduler.JOBS))"`〕
               ▼
         ┌─────────────┐
-        │  macro-scan  │  观测层（天枢）v3.8.54
+        │  macro-scan  │  观测层（天枢）v3.8.69
         │              │  采集 → GRV向量 → LLM分析报告 → ntfy手机
         └──────┬──────┘
                │ GRV告警时写 sim_trigger.json
                ▼
         ┌─────────────┐
-        │  macro-sim  │  仿真层（天璇）v2.0.24
+        │  macro-sim  │  仿真层（天璇）v2.0.51
         │              │  Monte Carlo×100 → 概率路径树 → ntfy手机
         └─────────────┘
                │ 落盘 data/*.json（只读契约文件）
                ▼
         ┌─────────────┐
-        │   kaiyang   │  可视化操作面板（开阳）v1.9.0
+        │   kaiyang   │  可视化操作面板（开阳）v1.11.44
         │              │  3D地球 + 经济面板 + 控制抽屉（:8080）
         └─────────────┘
                │ 落盘 data/*.json（只读契约文件）
@@ -45,10 +47,11 @@ FRED / GPR / GDELT / 新闻（RSSHub :12000；crucix 已于 2026-08-12 退场：
 
 | 子系统 | 别称 | 定位 | 容器模式 | 端口 | 详细文档 |
 |--------|------|------|----------|------|---------|
-| macro-scan | 天枢 | 观测层 | 热挂载（改代码即生效） | :8899 | `macro-scan/AGENTS.md` |
+| macro-scan | 天枢 | 观测层 | 热挂载（改代码即生效；改 `scheduler.py`/`control_server.py` 需 restart） | :8899 Web UI / :8900 Control API | `macro-scan/AGENTS.md` |
 | macro-sim | 天璇 | 仿真层 | COPY模式（改代码需重建镜像） | — | `macro-sim/AGENTS.md` |
 | kaiyang | 开阳 | 可视化面板 | nginx静态站 | :8080 | `kaiyang/AGENTS.md` |
-| macro-ji | 天玑 | 验证层 | 独立容器 `macro-scan-tianji-1`（healthy） | — | `docs/tianji-design.md` |
+| macro-ji | 天玑 | 验证层 | 独立容器 `macro-scan-tianji-1` + `macro-scan-tianji-cron-1`（同镜像，cron 跑 verify 定时任务） | — | `docs/tianji-design.md` |
+| worldsim-pg | — | 数据底座 | 独立容器（pgvector/pgvector:pg16） | 5432（内网） | — |
 
 ---
 
@@ -76,7 +79,7 @@ FRED / GPR / GDELT / 新闻（RSSHub :12000；crucix 已于 2026-08-12 退场：
 | 文档 | 路径 | 适合谁读 |
 |------|------|---------|
 | **当前状态 + 待部署** | `docs/archive/handover-history.md` | 每次维护必读，动态快照 |
-| **时间门控路线图** | `ROADMAP.md` | 下一步要做什么 |
+| **时间门控路线图** | `docs/roadmap.md` | 下一步要做什么 |
 | **本文件** | `docs/overview.md` | 任何人，架构说明（稳定部分）|
 | 天枢变更日志 | `macro-scan/CHANGELOG.md`（v3.8.25 起）／`macro-scan/TuiYan_CHANGELOG.md`（v3.8.24 及更早） | 追查具体变更 |
 | 天璇变更日志 | `macro-sim/CHANGELOG.md` | 追查具体变更 |
@@ -99,12 +102,31 @@ docker exec macro-scan-macro-scan-1 tail -20 /var/log/macro-scan/scheduler.log
 # macro-sim 日志
 docker logs macro-sim --tail 50
 
-# 重新部署（NAS 上执行）
-bash /s/world-sim/deploy.sh macro-scan   # rsync + restart
-bash /s/world-sim/deploy.sh macro-sim    # rsync + rebuild + restart
+# 重新部署（NAS 上执行）—— ⚠️ 按部署型区分，不能混用；原 `/s/world-sim/deploy.sh` 路径已不存在
+# 天枢（bind mount 型）：rsync 到运行区即生效（改 scheduler.py/control_server.py 才需 restart）
+cd /vol2/1000/software/macro-scan && bash deploy.sh
+
+# 天璇（COPY 型，无 deploy.sh）：tag 备份 → docker cp 新码 → commit → recreate
+cd /vol2/1000/software/world-sim/macro-sim && docker compose up -d --force-recreate
+
+# 天玑（COPY 型 + build 段）：先 build（Dockerfile COPY 须列出新文件）再 recreate
+cd /vol2/1000/software/world-sim/macro-ji && docker compose build && docker compose up -d --force-recreate
+
+# 开阳（前端构建）：唯一路径
+bash /vol2/1000/software/kaiyang/deploy.sh
 ```
 
 **出问题先看**：
 1. `docker ps` — 容器是否在线
 2. scheduler.log / docker logs — 最近错误
 3. `docs/archive/handover-history.md` 已知问题节
+
+---
+
+## 六、模型配置（2026-10-09 / 10-10 重构后）
+
+**模型名只写配置** —— `data/llm_config.json`（开阳控制台可改）是唯一真源，代码中不再有参与取值的模型字面量。
+
+四个子系统共用同一份配置：天枢经 `核心代码/llm_usage.py`、天璇与天玑经各自 `llm_cfg.py`（同一文件的两个跨容器副本）解析。
+取值链为**四层兜底：主配置 → `.bak` 快照 → git 模板 → env（过渡）**，回落全程留痕（`[FALLBACK]` 日志 + `config_source` 字段）。
+共 **9 个使用点**；每日 08:10 由 `scripts/check_llm_config.py` 巡检九项（含全仓模型字面量对拍、来源报警、模型可用性哨兵、跨容器副本一致）。

@@ -1,6 +1,6 @@
 # 世界推演系统 INDEX
 
-> 生成时间：2026-09-12 | 版本：v3.8.54 | **只读索引，修改请更新 CHANGELOG**
+> 生成时间：2026-10-10 | 版本：v3.8.69 | **只读索引，修改请更新 CHANGELOG**
 
 ---
 
@@ -8,14 +8,18 @@
 
 | 容器 | 镜像 | 端口 | 验证命令 | 备注 |
 |:---|:---|:---|:---|:---|
-| macro-scan-macro-scan-1 | macro-scan:v7 | 8899 (Web UI) / 8900 (Control API) | `docker ps --filter name=macro-scan --format '{{.Image}} {{.Status}}'` | 主容器，代码热挂载 S:盘；:8900 = control_server.py（A3a HTTP REST） |
+| macro-scan-macro-scan-1 | macro-scan:v8 | 8899 (Web UI) / 8900 (Control API) | `docker ps --filter name=macro-scan --format '{{.Image}} {{.Status}}'` | 主容器，代码热挂载（真源 `macro-scan/核心代码/` → `/app`）；:8900 = control_server.py（A3a HTTP REST） |
+| macro-sim | macro-sim:latest | 无端口 | `docker ps --filter name=macro-sim --format '{{.Image}} {{.Status}}'` | 天璇（COPY 型：改码须 tag→cp→commit→`compose up -d --force-recreate`）；daemon 常驻等 sim_trigger.json |
 | macro-scan-tianji-1 | macro-tianji:latest | 无端口 | `docker ps --filter name=tianji --format '{{.Image}} {{.Status}}'` | 天玑独立容器（v3.8.13 起）：tianji_db/tianji_verifier/weight_matrix 已迁出；触发 = T2 共享触发文件 |
+| macro-scan-tianji-cron-1 | macro-tianji:latest | 无端口（healthy） | `docker ps --filter name=tianji-cron --format '{{.Status}}'` | 天玑 cron 侧（同镜像，`command: tianji_verify_cron.py`）；改码须 `compose build` 且与主容器同步 |
+| macro-scan-kaiyang-1 | nginx:alpine | 8080 | `docker ps --filter name=kaiyang --format '{{.Status}}'` | 开阳只读面板；构建产物由 `kaiyang/deploy.sh` 同步 |
+| worldsim-pg | pgvector/pgvector:pg16 | 5432（内网） | `docker exec worldsim-pg psql -U worldsim_admin -d worldsim -c "SELECT 1"` | DB-first：forecast/news/public/rag/tianji 五 schema |
 
 ---
 
 ## 定时任务（scheduler.py）
 
-> 来源：`scheduler.py` JOBS 列表（共 50 条，唯一任务名 47，weak_signal×4）。所有时间 = 北京时间 (Asia/Shanghai)。
+> 来源：`scheduler.py` JOBS 列表（**共 62 条**〔as-of 2026-10-10 · 复核: 容器内 `python3 -c "import scheduler; print(len(scheduler.JOBS))"`〕，weak_signal×4）。所有时间 = 北京时间 (Asia/Shanghai)。
 > 档位说明：**I15/I30 = 事件档**（每 15/30 分钟触发，非每日定点）；其余为定点时间（HH:MM）。v3.8.13 起新增 11 job，`tianji_trigger`/`fao`/`china_meso`/`verify`/`kb_update`/`climate`/`verify_auto`/`slow_vars`/`news_prune` 为每月 1 日。
 
 | 任务 | 时间 | 频率 | 命令 | 状态 |
@@ -87,22 +91,33 @@
 | 加密交叉验证 | Binance / Kraken API（直连免key） | `data/crypto_extra_*.json` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/ \| grep crypto_extra` | 波动率交叉验证，落盘 |
 | 新闻情绪 | MarketAux / Currents / Sugra（需key降级） | `data/news_*.json` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/ \| grep news_` | 市场情绪，落盘 |
 | 人道风险 | HDX CKAN API（直连限流） | `data/hdx_*.json` | `docker exec macro-scan-macro-scan-1 ls /workspace/data/ \| grep hdx` | humanitarian_risk，落盘 |
-| pgvector 向量库 | `知识库/` (558 .md) | worldsim-pg.rag.embeddings (4156块) | `docker exec worldsim-pg psql -U worldsim_app -d worldsim -c "SELECT COUNT(*) FROM rag.embeddings WHERE collection_name='macro_kb'"` | BAAI/bge-m3 嵌入（E0-B 退役 chroma） |
-| 新闻库 | RSSHub + Crucix | `data/news.db` + `latest_news.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import sqlite3; c=sqlite3.connect('/workspace/data/news.db'); print(c.execute('SELECT COUNT(*) FROM articles').fetchone()[0])"` | 双源 |
+| pgvector 向量库 | `知识库/` (594 .md〔运行区实测 as-of 2026-10-10〕) | worldsim-pg.rag.embeddings (4156块) | `docker exec worldsim-pg psql -U worldsim_app -d worldsim -c "SELECT COUNT(*) FROM rag.embeddings WHERE collection_name='macro_kb'"` | BAAI/bge-m3 嵌入（E0-B 退役 chroma） |
+| 新闻库 | RSSHub + GDELT/多源（Crucix 已于 2026-08-12 退场）| `data/news.db` + `latest_news.json` | `docker exec macro-scan-macro-scan-1 python3 -c "import sqlite3; c=sqlite3.connect('/workspace/data/news.db'); print(c.execute('SELECT COUNT(*) FROM articles').fetchone()[0])"` | 双源 |
 | ntfy 推送 | `run_macro_analysis.py` | ntfy.sh/$NTFY_TOPIC | `curl -s ntfy.sh/$NTFY_TOPIC/json?poll=1` | 强制直连 |
 
 ---
 
-## LLM 调用链
+## LLM 调用链（v3.8.66 P1 / v3.8.69 P2 重构后）
 
-> Embedding 走硅基流动 BAAI/bge-m3（Ollama 已于 v3.5.25 移除）
+> **模型名只写配置** —— `data/llm_config.json`（开阳控制台可改）是唯一真源；代码中不再有参与取值的模型字面量。
+> 取值链（四层兜底，回落全程留痕）：**主配置 → `.bak` 快照 → git 模板 → env（过渡）→ 报错（单次调用失败，不崩溃）**。
+> 天枢走 `核心代码/llm_usage.py`；天璇 `macro-sim/core/llm_cfg.py` 与天玑 `macro-ji/llm_cfg.py` 是**同一文件的两个副本**（巡检 G5 守字节一致）。
+> ⚠️ 想知道某时点**实际**跑的哪个模型，直接查账本 `public.llm_token_usage` 的 `model` 列，不要 grep 代码（静态默认值 ≠ 运行时生效值）。
 
-| 层级 | 模型 | API 端点 | 验证命令 | 状态 |
-|:---|:---|:---|:---|:---|
-| auto 首选 | MiMo v2.5-pro（mimo_plan） | token-plan-cn.xiaomimimo.com/v1 | `grep -c "call_minimax" S:\macro-scan\核心代码\hybrid_llm.py` | ✅ |
-| auto 兜底 | DeepSeek-V4-Flash（siliconflow） | api.siliconflow.cn/v1 | `docker exec macro-scan-macro-scan-1 env \| grep OPENAI_COMPAT` | ✅ |
-| 翻译 | Hunyuan-MT-7B（siliconflow） | api.siliconflow.cn/v1 | `docker exec macro-scan-macro-scan-1 env \| grep SILICONFLOW` | ✅ |
-| 兜底 | 纯数据报告 | N/A | N/A | ✅ |
+| 使用点 | 平台 | 当前模型〔as-of 2026-10-10〕 |
+|:---|:---|:---|
+| translate_titles | siliconflow | tencent/Hunyuan-MT-7B |
+| general_llm | mimo_plan | mimo-v2.6-pro |
+| rag_embedding | siliconflow | BAAI/bge-m3（Ollama 已于 v3.5.25 移除）|
+| call_local | siliconflow | deepseek-ai/DeepSeek-V4-Flash |
+| verify_llm（天玑）| siliconflow | deepseek-ai/DeepSeek-V4-Flash |
+| chronicle / readable（天璇）| siliconflow | deepseek-ai/DeepSeek-V4-Flash |
+| sim_mc（天璇）| siliconflow | THUDM/GLM-Z1-9B-0414 |
+| sim_narrative（天璇）| siliconflow | deepseek-ai/DeepSeek-V4-Flash |
+
+验证：`curl -H "Authorization: Bearer $CONTROL_TOKEN" http://<主机>:8900/api/v1/control/llm-usage`（9 个使用点 + `config_source`）。
+
+**每日巡检**（cron 08:10，`scripts/check_llm_config.py`，九项）：真源 vs 模板 / 模板 vs git（字节级）/ 旧模型名残留 / 密钥安全面 / pre-commit hook / **G1 全仓代码模型字面量对拍（190 个 .py）** / **G2 配置来源 != truth 报警** / **G4 模型可用性哨兵（比对平台 `/models`）** / **G5 跨容器 `llm_cfg.py` 副本字节一致**。
 
 ---
 
@@ -136,13 +151,16 @@
 | **market_quotes** | `核心代码/market_quotes.py` | **市场行情快照整合**：commodity+crypto，I15 事件档 |
 | **fetch_spacetrack** | `核心代码/fetch_spacetrack.py` | **Space-Track 卫星统计**：日频 06:15 |
 | **fetch_firms** | `核心代码/fetch_firms.py` | **NASA FIRMS 火点**：日频 09:08，crucix 退场前置 |
+| **llm_usage** | `核心代码/llm_usage.py` | **模型配置单点入口**（P1）：四层兜底 + 快照轮转 + 模板再生校验 + 写入预检 + 9 使用点 |
+| **check_llm_config** | `scripts/check_llm_config.py` | **配置漂移巡检九项**（每日 08:10 cron；`scripts/` 容器内不可见，须 NAS 侧跑）|
+| **llm_cfg（天璇/天玑）** | `macro-sim/core/llm_cfg.py` ／ `macro-ji/llm_cfg.py` | **跨容器同一模块的两个副本**（P2），必须字节一致（G5 守）|
 
 ---
 
 ## 关键约束（维护铁律）
 
 1. 修改前：读 `CHANGELOG.md`（了解最新变更）
-2. 修改后：追加 `CHANGELOG.md` → bump `VERSION`（PATCH） → 更新对应文档
+2. 修改后：追加 `CHANGELOG.md` → bump `VERSION`（PATCH） → 更新对应文档。改 `核心代码/*.py` 会被 **pre-commit 第 3 关**（`check_doc_sync.py`）拦：缺 CHANGELOG/VERSION 拒绝提交（增删 .py 还须 `docs/FILE_MANIFEST.md`）
 3. 每次里程碑：打 zip 存 `备份/`
 4. ntfy 推送**强制直连**，不走代理（OUTBOUND_PROXY 仅给 FRED）
 5. `entrypoint.sh` 变更需重建镜像，文件必须无 BOM

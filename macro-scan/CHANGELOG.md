@@ -1,3 +1,21 @@
+## v3.8.70（2026-10-10）
+
+**三份低频结构文档内容刷新（v3.8.54 → v3.8.69）** —— CHG-20261010T235013（遗留 ②，P2 完成后用户拍板安排）
+
+改动（只改事实性内容，不改文档结构、不动历史记录段）：
+- **`macro-scan/世界推演系统_人类说明文档.md`**：版本头 V3.8.54→**V3.8.69**；GRV **11 维 → 17 维**（16 风险维度 + global_composite）；知识库 **558 → 594** .md（运行区实测）；「文档同步保障」改 pre-commit 第 3 关（`check_doc_sync.py`）+ 每日 08:10 配置巡检九项；架构图移除已退场的 crucix 容器、补天玑 cron / 开阳 / worldsim-pg、天枢端口补 :8900；云端 LLM 清单改配置驱动口径；故障排查表旧模型名改配置口径；第九节补 v3.8.55~v3.8.69 六条里程碑
+- **`docs/overview.md`**：版本行统一（天璇 **v2.0.51**、开阳 **v1.11.44** —— 原文首行与架构图**自相矛盾**）；调度任务 49 → **62**；部署命令按部署型重写（原 `/s/world-sim/deploy.sh` 路径**已不存在**）；路线图引用 `ROADMAP.md` → `docs/roadmap.md`；新增「六、模型配置」节
+- **`macro-scan/INDEX.md`**：头部版本与生成时间；活跃容器表补天璇 / 天玑 cron / 开阳 / worldsim-pg、镜像 `macro-scan:v7`→**v8**；定时任务 50 → **62**；知识库 558 → **594**；新闻库 crucix 标注退场；**LLM 调用链整段重写**（9 使用点 + 四层兜底 + G1/G2/G4/G5 巡检九项）；关键文件表补 `llm_usage.py` / `check_llm_config.py` / `llm_cfg.py`；维护铁律第 2 条补 pre-commit 第 3 关
+- **运行区副本同步**：`/vol2/1000/software/macro-scan/世界推演系统_人类说明文档.md` 原停在 **V3.8.53**（真源 V3.8.54），刷新后与真源字节一致
+
+### 验收（2026-10-10 实测）
+
+- ✅ 全部数字来自实测命令（`cat VERSION` / `cat macro-sim/VERSION` / `grep version kaiyang/package.json` / 容器内 `len(scheduler.JOBS)`=62 / `find 知识库 -name "*.md"`=594 / `SELECT count(*) FROM rag.embeddings`=4156 / 读 `grv_latest.json`=17 键 / `docker ps` 镜像 tag），无一项凭印象
+- ✅ 34 处替换全部 `expect==actual` 断言通过（写盘前断言，零损伤）+ 回读验证
+- ✅ 断链复扫：3 条相对链接 **0 断链**
+- ✅ 旧值残留扫描：当前态旧值（V3.8.54 / v2.0.40 / v1.10.8 / 49 个 / 558 / 11维 GRV / MiMo v2.5-pro / macro-scan:v7 / 50 条）**全部清零**；「11维叙事桶」「4156 块（558 .md）」属**叙事桶维度与 2026-06-30 历史记录行**，按红线 #29 保留不改
+- ✅ 运行区副本 md5 == 真源
+
 ## v3.8.69（2026-10-10）
 
 **LLM 模型配置重构 P2：天璇 / 天玑接上统一配置链（修 F-1 / F-2）** —— CHG-20261010T231251（承接 question 20261009-llm-usage-static-model-list-stale 的 P2 段；定时任务 b0be59e2 无人值守执行）
