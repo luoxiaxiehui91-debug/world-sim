@@ -1,3 +1,27 @@
+## v3.8.71（2026-10-13）
+
+**health 图层标题中译（卫生事件弹框标题英→中）** —— CHG-20261013T080315
+
+背景（08:00 实测）：`health_geo.json` 聚合 188 条、含 `title` 175 条，**中文占比 0%**；
+同期 GDELT 新闻图层 252/252 全有中文。根因 = 全仓仅 `fetch_news_titles.py` 一处实现翻译
+（`grep -c "translate|翻译"`：`fetch_health_geo.py` / `fetch_rss_news.py` / `fetch_news.py` **均为 0**）
+⇒ 卫生图层**从未接入翻译链路**，非故障。同期排除两条假设：① **非风控**（无 403 / 内容拒绝；
+`rateLimit` 16993 次命中实为正常日志行 `status=200 ... rateLimit_remain=N/A`）；
+② **非现网连接失败**（`翻译失败` 261 条全部集中在 08-17~08-31，09-01 至今 0 条）。
+
+改动：
+- **`核心代码/fetch_health_geo.py`**：新增 `ZH_CACHE_FILE`（`health_titles_zh.json`，doc URL→中文缓存）/ `ZH_BATCH=30` / `ZH_CACHE_MAX=2000`；新增 `_load_zh_cache` / `_save_zh_cache` / `_translate_pending` / `_backfill_title_zh`；`collect()` 两条路径在 `_backfill_titles` 后接中译；`_aggregate_by_location` 代表事件带 `title_zh`
+- 翻译**复用既有正解** `fetch_news_titles._translate_titles`（同一条 `usage=translate_titles` 配置链，模型 / 平台 / 密钥控制台可改）⇒ **不新增硬编码模型名**（守 G1）
+- **开阳**：`healthAdapter.ts` 弹框标题改 `title_zh ?? title` 优先；`contracts.ts` 补 `title_zh?`（版本 1.11.45）
+
+### 验收（2026-10-13 08:03–08:09 实测）
+
+- ✅ 真源 / 运行区 / 容器三处 `fetch_health_geo.py` md5 一致 `3f5964fff0c802405396ba82869fc79d`
+- ✅ 容器内实跑 `python3 fetch_health_geo.py` → `status=ok`，30 条中译全部 `status=200`（单条 0.5–1.2s）
+- ✅ `health_titles_zh.json` 30 条，含中文 30/30；`health_geo.json` 聚合 185 条中 18 条带 `title_zh`（全部含中文），**英文 `title` 零丢失**
+- ✅ 开阳 373 个单测全过（含 `healthAdapter.test.ts` 8 项）；`deploy.sh` 构建 + `chmod a+rX` + HTTP 复验 `index.html` / `index-CJEo0YYE.js` 均 200
+- ⏳ 存量补齐（173 条英文标题，30 条/轮 ≈ 6 轮）待完整调度周期后复查（I60）
+
 ## v3.8.70（2026-10-10）
 
 **三份低频结构文档内容刷新（v3.8.54 → v3.8.69）** —— CHG-20261010T235013（遗留 ②，P2 完成后用户拍板安排）

@@ -542,6 +542,8 @@ export interface HealthEventRaw {
   source_media?: string;
   /** 新闻标题（GDELT DOC 2.0 回填；NAS IP 限流恢复后自动生效，无则前端用中文疾病名） */
   title?: string;
+  /** 10-13：中文标题（fetch_health_geo.py LLM 中译缓存；缺失则前端回退 title） */
+  title_zh?: string;
   /** v1.1（08-22）：同地点聚合计数（fetch_health_geo.py 落盘聚合，>1 = 聚合点） */
   count?: number;
 }

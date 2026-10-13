@@ -80,6 +80,11 @@ EXCLUDE_SUBSTR = ("pandemic loan", "pandemic relief", "pandemic fraud", "pandemi
 # 保留最近 72h 事件（事件低频，累积窗口长一点）
 MAX_EVENT_AGE_HOURS = 72
 STATE_FILE = "health_geo_state.json"  # 记录上次处理 slot
+# 10-13（CHG-20261013T080315）：标题中译——复用 fetch_news_titles 同一条
+# usage=translate_titles 配置链（模型/平台/密钥控制台可改），不新增硬编码模型名。
+ZH_CACHE_FILE = "health_titles_zh.json"  # doc URL -> 中文标题缓存（避免每轮重翻）
+ZH_BATCH = 30            # 每轮最多翻译条数（I60 实测每轮新增 7~18 条，30 留余量）
+ZH_CACHE_MAX = 2000      # 缓存上限（FIFO 淘汰）
 
 
 class HealthGeoFetcher(FetcherBase):
@@ -96,6 +101,7 @@ class HealthGeoFetcher(FetcherBase):
         self.proxies = None
         self.state_path = os.path.join(data_dir, STATE_FILE)
         self.events_path = os.path.join(data_dir, OUTPUT_FILE)
+        self.zh_cache_path = os.path.join(data_dir, ZH_CACHE_FILE)
 
     # ── 网络出口：直连优先，失败回退代理 ────────────────────────
     def _download(self, url, timeout=60):
@@ -207,6 +213,7 @@ class HealthGeoFetcher(FetcherBase):
             # 08-16：无新事件也走回填 + 落盘（历史事件补 source_media / title）
             events = self._backfill_source_media(self._load_events())
             events = self._backfill_titles(events, self._fetch_pending_titles(events))
+            events = self._backfill_title_zh(events, self._translate_pending(events))
             as_of = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             events = self._persist(events, as_of)
             return {"status": Status.OK, "new_events": 0, "slots_checked": 0, "events": events}
@@ -227,6 +234,7 @@ class HealthGeoFetcher(FetcherBase):
         # 去重 + 合并历史（保留 72h）+ 标题回填（抓 doc URL 页面 <title>）
         events = self._merge_events(new_events)
         events = self._backfill_titles(events, self._fetch_pending_titles(events))
+        events = self._backfill_title_zh(events, self._translate_pending(events))
         self._save_state(cur_slot.strftime("%Y%m%d%H%M%S"))
         as_of = now.strftime("%Y-%m-%dT%H:%M:%SZ")
         events = self._persist(events, as_of)
@@ -300,6 +308,64 @@ class HealthGeoFetcher(FetcherBase):
                     e["title"] = t
         return events
 
+    def _load_zh_cache(self):
+        """10-13：中文标题缓存（doc URL -> 中文）。读失败视为空（不阻塞主流程）。"""
+        try:
+            with open(self.zh_cache_path, encoding="utf-8") as f:
+                d = json.load(f)
+            return d if isinstance(d, dict) else {}
+        except Exception:
+            return {}
+
+    def _save_zh_cache(self, cache):
+        """10-13：缓存落盘（原子写 + FIFO 淘汰）。失败仅告警，不阻塞。"""
+        try:
+            if len(cache) > ZH_CACHE_MAX:
+                for k in list(cache)[: len(cache) - ZH_CACHE_MAX]:
+                    cache.pop(k, None)
+            _tmp_zh = self.zh_cache_path + ".tmp"
+            with open(_tmp_zh, "w", encoding="utf-8") as f:
+                json.dump(cache, f, ensure_ascii=False)
+            os.replace(_tmp_zh, self.zh_cache_path)
+        except Exception as e:
+            self.logger.warning("[health_geo] 中文标题缓存落盘失败: %s", e)
+
+    def _translate_pending(self, events):
+        """10-13：英文标题 -> 中文（复用 fetch_news_titles._translate_titles，
+        与新闻图层同一条 usage=translate_titles 配置链）。
+        只译「有 title 且缓存未命中」的条目，每轮上限 ZH_BATCH；失败保留英文。"""
+        cache = self._load_zh_cache()
+        todo = {}
+        for e in events:
+            doc = (e.get("doc") or "").strip()
+            title = (e.get("title") or "").strip()
+            if doc and title and doc not in cache and doc not in todo:
+                todo[doc] = title
+            if len(todo) >= ZH_BATCH:
+                break
+        if not todo:
+            return cache
+        try:
+            from fetch_news_titles import _translate_titles
+            zh = _translate_titles(todo) or {}
+        except Exception as e:
+            self.logger.warning("[health_geo] 中文翻译不可用（保留英文）: %s", str(e)[:80])
+            return cache
+        if zh:
+            cache.update(zh)
+            self._save_zh_cache(cache)
+            self.logger.info("[health_geo] 标题中译 %d/%d", len(zh), len(todo))
+        return cache
+
+    def _backfill_title_zh(self, events, cache):
+        """10-13：事件补 title_zh（仅缓存命中才写；缺失则前端回退英文 title）。"""
+        for e in events:
+            doc = (e.get("doc") or "").strip()
+            z = cache.get(doc)
+            if z:
+                e["title_zh"] = z
+        return events
+
     def _backfill_source_media(self, events):
         """08-16：旧事件补 source_media——历史事件无 cols[3] 原始值，
         从 doc URL 提取域名（urlparse.netloc）作为媒体名兜底。原地修改并返回。"""
@@ -362,6 +428,7 @@ class HealthGeoFetcher(FetcherBase):
                 "count": max(len(evs), _max_c),
                 "date": rep.get("date"),
                 "title": rep.get("title") or "",
+                "title_zh": rep.get("title_zh") or "",
                 "keywords": rep.get("keywords") or [],
                 "doc": rep.get("doc"),
                 "source_media": rep.get("source_media"),

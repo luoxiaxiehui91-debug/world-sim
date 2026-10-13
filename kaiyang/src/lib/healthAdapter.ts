@@ -72,7 +72,8 @@ export function adaptHealth(raw: HealthGeoRaw | null): RiskPoint[] {
     const when = e.date ? `${e.date.slice(0, 4)}-${e.date.slice(4, 6)}-${e.date.slice(6, 8)} ${e.date.slice(8, 10)}:${e.date.slice(10, 12)} UTC` : '';
     // 08-16 v2：title（DOC API 回填）优先 → 弹框标题行直接是新闻标题；
     // 无 title 时中文疾病名（"霍乱疫情"），不用点开就知道发生了什么。
-    const title = (e.title ?? '').trim();
+    // 10-13（CHG-20261013T080315）：title_zh（后端 LLM 中译）优先，缺失回退英文 title。
+    const title = (e.title_zh ?? e.title ?? '').trim();
     const label = title
       ? title
       : zh
