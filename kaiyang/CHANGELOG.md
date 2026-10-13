@@ -6,6 +6,23 @@
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
 
+## [1.11.46] 2026-10-13 · 新闻卡片标题优先中文（FT / BBC 官方源中译）
+
+CHG-20261013T093037；对应 commit `9143689`；配套 macro-scan v3.8.72。
+
+**背景**：开阳「全量新闻」面板 100 篇中 **31 篇英文标题**，全部来自 **FT（16）+ BBC World（15）**；
+中文源（财新 / 第一财经 / 华尔街见闻）正常。后端 `news_all.json` 此前无翻译逻辑。
+
+**范围判定**：只中译 `news_all.json`（人看的新闻面板）；`news_export.json`（喂 macro-sim AI 推演的
+信号流）**明确不翻** —— 原文对推演更准。
+
+**改动**：
+- `src/components/NewsPanel.tsx`：卡片标题 `(item.title_zh ?? item.title ?? item.indicator ?? '（无标题）')`
+- `src/types/contracts.ts`：`NewsItem` 补 `title_zh?: string`（全文第 2 处，另一处为 1.11.45 的 `HealthEventRaw`）
+
+**验收**：`npm run test` **373 项全过**；`deploy.sh` 构建 + `chmod -R a+rX` + HTTP 复验
+`index.html` / `assets/index-DWTganDz.js` 均 **200**；产物 `title_zh` 命中 **2 处**。
+
 ## [1.11.45] 2026-10-13 · health 图层弹框标题优先中文（title_zh）
 
 CHG-20261013T080315；对应 commit `2c7e990`；配套 macro-scan v3.8.71。
