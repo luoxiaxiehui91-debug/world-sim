@@ -6,6 +6,23 @@
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
 
+## [1.11.45] 2026-10-13 · health 图层弹框标题优先中文（title_zh）
+
+CHG-20261013T080315；对应 commit `2c7e990`；配套 macro-scan v3.8.71。
+
+**背景**：开阳 health 图层弹框标题 **100% 英文** —— 后端 `health_geo.json` 175 条 `title` 中文占比 **0%**，
+而同期 GDELT 新闻图层 252/252 全有中文。根因是后端只有 `fetch_news_titles.py` 一处实现了翻译，
+卫生图层从未接入（非风控、非连接失败，见 CHG）。
+
+**改动**：
+- `src/lib/healthAdapter.ts`：`const title` 改 `(e.title_zh ?? e.title ?? '')`（中文优先，缺失回退英文）
+- `src/types/contracts.ts`：`HealthEventRaw` 补 `title_zh?: string`
+
+**验收**：
+- ✅ `npm run test` **373 项全过**（含 `healthAdapter.test.ts` 8 项）
+- ✅ `deploy.sh` 构建（`tsc --noEmit && vite build`）+ `chmod -R a+rX` + HTTP 复验 `index.html` / `assets/index-CJEo0YYE.js` 均 **200**
+- ✅ 产物 `title_zh` 行为特征命中（属性名不经 minify mangle）
+
 ## [1.11.44] 2026-10-01 · nginx `/data/` 收敛为 29 条白名单（零鉴权暴露面收窄 99.46%）
 
 CHG-20261001T144635；对应 question `20261001-world-deduction-kaiyang-data-dir-unauthenticated-exposure.md`（P2）。
