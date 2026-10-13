@@ -66,6 +66,8 @@ export interface NewsItem {
   indicator?: string;
   series_id?: string;
   title?: string;
+  /** 10-13：中文标题（news_exporter.py LLM 中译；缺失则前端回退 title） */
+  title_zh?: string;
   category?: string;
   level?: string;
   direction?: string;

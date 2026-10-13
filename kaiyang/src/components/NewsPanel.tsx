@@ -13,7 +13,8 @@ function NewsCard({ item }: { item: NewsItem }) {
       : item.level && item.level.includes('注意')
         ? 'border-amber-400/50 text-amber-300'
         : 'border-white/15 text-white/60';
-  const title = item.title ?? item.indicator ?? '（无标题）';
+  // 10-13（CHG-20261013T093037）：title_zh（news_exporter LLM 中译）优先，回退英文 title。
+  const title = item.title_zh ?? item.title ?? item.indicator ?? '（无标题）';
   const hasDetail =
     !!item.details ||
     !!item.risk_note ||

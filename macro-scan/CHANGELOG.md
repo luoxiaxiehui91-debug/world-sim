@@ -1,3 +1,28 @@
+## v3.8.72（2026-10-13）
+
+**news_all 英文标题中译（FT / BBC 官方源）** —— CHG-20261013T093037
+
+背景（09:26 实测）：`news_all.json` 100 篇中 **31 篇英文标题**，全部来自 **FT（16）+ BBC World（15）**；
+中文源（财新 / 第一财经 / 华尔街见闻）标题正常。根因 = `news_exporter.py::export_all_news()` 直出 PG `news.articles`，无翻译逻辑。
+
+范围判定（关键）：**只翻 `news_all.json`**（开阳「全量新闻」面板，人看）；
+`news_export.json`（`export_news_for_sim()` 产出、喂 macro-sim AI 推演的信号流）**明确不翻** —— 原文对推演更准，避免误伤下游。
+
+改动：
+- **`核心代码/news_exporter.py`**：新增 `ZH_CACHE_FILE="news_zh_titles.json"`（url→中文缓存）/ `ZH_BATCH=50` / `ZH_CACHE_MAX=5000`；新增 `_load_zh_cache` / `_save_zh_cache` / `_translate_zh`；`export_all_news()` 组装后中译，article 带 `title_zh`
+- 翻译复用 `fetch_news_titles._translate_titles`（同一 `usage=translate_titles` 配置链），**不新增硬编码模型名**（守 G1）
+- 缓存必要性：`news_exporter` = **I15**，不缓存则每轮重翻 ≈ 2880 次/天
+- **开阳**：`NewsPanel.tsx` 标题改 `title_zh ?? title ?? indicator`；`contracts.ts` `NewsItem` 补 `title_zh?`（版本 1.11.46）
+
+### 验收（2026-10-13 09:31–09:42 实测）
+
+- ✅ 容器内实跑 `news_exporter.py` → `标题中译 31/31`（与实测英文标题数精确吻合）
+- ✅ `news_zh_titles.json` 31 条，含中文 31/31；`news_all.json` 100 篇中 31 篇带 `title_zh`，**仍为英文且无 title_zh = 0**
+- ✅ `news_export.json` 字段集仍为 5 键 `[category, date, source, title, url]`，**无 title_zh ⇒ 信号流未误伤**
+- ✅ 英文 `title` 字段零丢失
+- ✅ 真源 / 运行区 / 容器 md5 一致 `acdc50fae4e677f0c067c7ef01a7c819`
+- ✅ 开阳 373 单测全过；`deploy.sh` 构建 + `chmod -R a+rX` + HTTP 复验 `index-DWTganDz.js` 200；产物 `title_zh` 命中 2 处
+
 ## v3.8.71（2026-10-13）
 
 **health 图层标题中译（卫生事件弹框标题英→中）** —— CHG-20261013T080315

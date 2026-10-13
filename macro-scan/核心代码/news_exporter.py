@@ -26,6 +26,15 @@ CATEGORY_MAP = {
 MAX_ARTICLES = 40
 DAYS_BACK = 7
 
+# 10-13（CHG-20261013T093037）：news_all 英文标题中译（FT / BBC 官方源）。
+# 复用 fetch_news_titles._translate_titles（同一 usage=translate_titles 配置链，守 G1）。
+# 仅作用于 export_all_news（开阳新闻面板，人看）；export_news_for_sim（news_export.json，
+# 喂 macro-sim AI 推演）不翻——原文对推演更准，避免误伤下游。
+ZH_CACHE_FILE = "news_zh_titles.json"   # url -> 中文标题缓存
+ZH_BATCH = 50            # 每轮最多翻译条数（news_all 上限 100 篇，英文约 30）
+ZH_CACHE_MAX = 5000      # 缓存上限（FIFO 淘汰）
+ZH_CACHE_PATH = os.path.join(DATA_DIR, ZH_CACHE_FILE)
+
 # E0-C: PG 占位符 %s（原 SQLite ?）；news. 前缀显式 schema
 _PLACEHOLDERS = ",".join(["%s"] * len(CATEGORY_MAP))
 # 全量新闻通道（08-14 C 方案：开阳新闻面板读 news_all.json，含未分类文章；news_export.json 保持风险信号流）
@@ -105,6 +114,62 @@ def export_news_for_sim():
     print(f"[news_exporter] exported {len(articles)} articles -> {NEWS_EXPORT_PATH}")
 
 
+def _load_zh_cache() -> dict:
+    """10-13：中文标题缓存（url -> 中文）。读失败视为空。"""
+    try:
+        with open(ZH_CACHE_PATH, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_zh_cache(cache: dict) -> None:
+    """10-13：缓存落盘（原子写 + FIFO 淘汰）。失败仅告警，不阻塞导出。"""
+    try:
+        if len(cache) > ZH_CACHE_MAX:
+            for k in list(cache)[: len(cache) - ZH_CACHE_MAX]:
+                cache.pop(k, None)
+        _tmp_zh = ZH_CACHE_PATH + ".tmp"
+        with open(_tmp_zh, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+        os.replace(_tmp_zh, ZH_CACHE_PATH)
+    except Exception as e:
+        print(f"[news_exporter] 中文标题缓存落盘失败: {e}")
+
+
+def _translate_zh(articles: list) -> None:
+    """10-13：给英文标题文章补 title_zh（原地修改）。仅「无中文且缓存未命中」才翻；
+    失败保留英文，不阻塞导出。"""
+    import re
+    cache = _load_zh_cache()
+    todo = {}
+    for a in articles:
+        url = (a.get("url") or "").strip()
+        title = (a.get("title") or "").strip()
+        if (url and title and not re.search("[一-龥]", title)
+                and url not in cache and url not in todo):
+            todo[url] = title
+        if len(todo) >= ZH_BATCH:
+            break
+    if not todo:
+        return
+    try:
+        from fetch_news_titles import _translate_titles
+        zh = _translate_titles(todo) or {}
+    except Exception as e:
+        print(f"[news_exporter] 中文翻译不可用（保留英文）: {str(e)[:80]}")
+        return
+    if zh:
+        cache.update(zh)
+        _save_zh_cache(cache)
+        print(f"[news_exporter] 标题中译 {len(zh)}/{len(todo)}")
+    for a in articles:
+        url = (a.get("url") or "").strip()
+        if url in cache:
+            a["title_zh"] = cache[url]
+
+
 def export_all_news() -> None:
     """全量新闻导出（08-14 C 方案）：最新 100 篇含未分类，供开阳新闻面板（news_all.json）。"""
     conn = pg_read.connect()
@@ -128,6 +193,8 @@ def export_all_news() -> None:
                 "category": None,   # 未分类/全量：category 交给前端兜底
                 "date":     d,
             })
+
+    _translate_zh(articles)
 
     payload = {
         "_schema_version": "1.0",
