@@ -152,18 +152,20 @@ def _translate_zh(articles: list) -> None:
             todo[url] = title
         if len(todo) >= ZH_BATCH:
             break
-    if not todo:
-        return
-    try:
-        from fetch_news_titles import _translate_titles
-        zh = _translate_titles(todo) or {}
-    except Exception as e:
-        print(f"[news_exporter] 中文翻译不可用（保留英文）: {str(e)[:80]}")
-        return
-    if zh:
-        cache.update(zh)
-        _save_zh_cache(cache)
-        print(f"[news_exporter] 标题中译 {len(zh)}/{len(todo)}")
+    if todo:
+        try:
+            from fetch_news_titles import _translate_titles
+            zh = _translate_titles(todo) or {}
+        except Exception as e:
+            print(f"[news_exporter] 中文翻译不可用（保留英文）: {str(e)[:80]}")
+            zh = {}
+        if zh:
+            cache.update(zh)
+            _save_zh_cache(cache)
+            print(f"[news_exporter] 标题中译 {len(zh)}/{len(todo)}")
+    # 回填：无论本轮是否新翻，都把缓存里的中文写进 article。
+    # 10-13 CHG-20261013T114554 缺陷修复：原实现在「缓存全命中」时
+    # if not todo: return 提前返回，漏掉回填 → title_zh 被后续轮次冲掉。
     for a in articles:
         url = (a.get("url") or "").strip()
         if url in cache:
