@@ -134,7 +134,7 @@ class HealthGeoFetcher(FetcherBase):
             cols = ln.split("\t")
             if len(cols) < 25:
                 continue
-            hay = (cols[4] + " " + cols[11] + " " + cols[24]).lower()
+            hay = (self._url_content(cols[4]) + " " + cols[11] + " " + cols[24]).lower()
             if any(k in hay for k in HEALTH_KEYWORDS):
                 if any(x in hay for x in EXCLUDE_SUBSTR):
                     continue
@@ -154,6 +154,22 @@ class HealthGeoFetcher(FetcherBase):
                     "source_media": (cols[3] or "").strip() if len(cols) > 3 else "",
                 })
         return events
+
+    @staticmethod
+    def _url_content(url: str) -> str:
+        """URL 仅保留 path+query（剔除域名段）后参与关键词匹配。
+
+        域名是站点标识、与事件内容无关（如 sentinelassam.com 含子串 'lassa'），
+        并入 haystack 会引入域名碰撞面；path/query 是文章标识（含真事件 slug），保留。
+        2026-10-13 修复；解析异常时回退原串（保守保留）。
+        """
+        try:
+            sp = urllib.parse.urlsplit(url or "")
+            if sp.netloc:
+                return (sp.path or "") + " " + (sp.query or "")
+        except Exception:
+            pass
+        return url or ""
 
     @staticmethod
     def _first_location(v1locs):

@@ -1,3 +1,36 @@
+## v3.8.74（2026-10-13）
+
+**修复 health_geo 关键词 haystack 混入 URL 域名段致域名碰撞误报** —— CHG-20261013T183000-health-geo-url-collision-fix
+
+**缺陷现象**：开阳 health 图层 `lassa` 项大量噪声 —— 印度地方报纸域名 `www.sentinelassam.com`
+含子串 `lassa`，其无关社会新闻（车祸/缉毒等）被批量收录。raw 存量 **157 条**
+（逐日持续进库：10-10 22 / 10-11 37 / 10-12 57 / 10-13 41），聚合层 192 点中 **62 点（32%）**为该噪声占位。
+
+**根因**：`fetch_health_geo.py:137` haystack = `cols[4]`(文档 URL 全串) + `cols[11]`(人名) + `cols[24]`(数量词)，
+其中 **域名段与内容无关**（`www.sentine|lassa|m.com`），子串匹配引入「域名碰撞面」；
+157 条 URL **path 段含 "lassa" 的为 0** ⇒ 100% 撞在域名段。
+
+**修复**：新增 `_url_content()` —— haystack 中 URL 仅保留 **path+query**（剔除域名段）。
+
+**为什么不是「剔除整个 URL」**（原解法候选）：抽样探针实测（8 slot / 2926 行）纯剔 URL
+**会误杀真事件**（丢 12 条中 4 条真事件：UNGA 大流行宣言 / 菲律宾登革热 19.2 万例 /
+印度 Nashik 81 例 / 欧盟沙门氏菌爆发 —— 它们靠 URL 路径段命中、内容列不含词）；
+改为剔域名后同一实测 **零损失（23/23）**。域名=站点标识（剔），path/query=文章标识（留）。
+
+**存量清洗**：raw 移除 157 条域名撞（判据与修复逻辑同源），682 → **525 条**；
+备份 `_rollback/health-geo-url-collision-20261013/health_geo_raw.json.bak-20261013T1832-pre-clean`。
+
+### 验收（2026-10-13 18:2x–19:0x）
+
+- ✅ `tests/test_fetch_health_geo.py` **8 用例全过**（域名撞不收录 / 无 www 与大小写变体 / Amounts 真事件保留 / path 命中保留 / 域名撞+真词 kw 正确 / EXCLUDE 生效 / 无坐标跳过 / Persons 列现状保持）
+- ✅ 现有 `test_fetch_*.py` 4 项仍全过（改动前基线 PASS）
+- ✅ md5 三处一致 `388ee423f5dbc6400b99c56c6ac00d7e`（真源 = 运行区 = 容器 `/app`）
+- ✅ 存量清洗复核：netloc 撞 = 0、events_count = 525、无误删警告（removed 中 title 含词 = 0）
+- 运行时首轮复核：见 CHG-20261013T183000 Post-Change（I60 轮）
+
+**教训**：haystack 不得混入 URL / 文件名等「站点标识」列——站点标识与内容无关，子串匹配必然引入碰撞面；
+且「剔 URL」时要区分**域名段（无关，剔）与路径段（内容标识、含真事件 slug，留）**。
+
 ## v3.8.73（2026-10-13）
 
 **修复 news_all 标题中译「缓存全命中时回填被跳过」的回归** —— CHG-20261013T114554
