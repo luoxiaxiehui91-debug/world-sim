@@ -1,3 +1,30 @@
+## v2.0.52 — 2026-10-14 P3-1: 摘除 llm_cfg L4 env 模型名兜底
+
+> CHG-20261014T231051（LLM 配置重构 P3 第①步）。
+> 背景：P2 同窗口已从 `macro-ji/docker-compose.yml` 摘除 `VERIFY_LLM_MODEL` 注入，
+> 三容器 env grep 全 0 ⇒ `llm_cfg` 的 L4 env 兜底成为过渡期死代码。
+
+### 修改
+
+- `macro-sim/core/llm_cfg.py`（与 `macro-ji/llm_cfg.py` G5 字节一致，新 md5 `1067b91050550db5d5402e59589d7b9f`）：
+  - 删除常量 `_ENV_MODEL_KEY = {"verify_llm": "VERIFY_LLM_MODEL"}` 及其上行注释
+  - `resolve()`：`model = u.get("model") or os.environ.get(_ENV_MODEL_KEY.get(usage_id, ""), "")`
+    → `model = u.get("model") or ""`
+  - 全链无 model 的 raise 措辞去掉「且无 env 兜底」
+  - docstring：删除「L4 env 过渡保留」行，「四层兜底链」→「三层兜底链」
+- 取值链 **L1→L2→L3→L4 变为 L1→L2→L3**；全链无解仍 raise ValueError（调用方单次降级语义不变）
+
+### 验收
+
+- 全仓引用普查：`_ENV_MODEL_KEY` / `VERIFY_LLM_MODEL` 除两处 `llm_cfg.py` 自身外**无代码消费方**
+  （余多为 `macro-scan` 侧历史文档与注释；`macro-ji/.env.example:41` 空槽位不在本次范围）
+- `scripts/check_llm_config.py` 对上述字符串 0 引用 ⇒ 守卫九项不受影响，复跑 EXIT=0
+- 运行时：天璇 `config_source('sim_mc')=truth`、`resolve('sim_mc')['model']` 与 `macro_data/llm_config.json` 一致；
+  天玑 `resolve('verify_llm')` 正常返回且 `source=truth`
+- 双容器内 md5 == 真源；`[FALLBACK]` 24h 复查 0
+
+---
+
 ## v2.0.51 — 2026-08-28 P3-3: bifurcation 极端尾部截断移除
 
 ### 修改

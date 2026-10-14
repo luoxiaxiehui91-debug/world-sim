@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""llm_cfg.py — 天璇/天玑侧 LLM 使用点配置解析（P2，与天枢 llm_usage 同构的四层兜底链）
+"""llm_cfg.py — 天璇/天玑侧 LLM 使用点配置解析（P2，与天枢 llm_usage 同构的三层兜底链）
 
 取值链（唯一入口；本文件及调用方代码中**不留任何模型名字面量**）：
 
   L1 主配置   /app/macro_data/llm_config.json            开阳控制台唯一写入目标
   L2 快照     /app/macro_data/llm_config.json.bak        控制台保存前自动轮转（last-known-working）
   L3 git 模板 /app/shared_config|/app/config/llm_config.default.json
-  L4 env      过渡保留（仅 verify_llm 有 VERIFY_LLM_MODEL；P3 摘除）
   全链无解 → raise ValueError（单次调用失败，由调用方降级；不崩溃进程）
 
 回落留痕：来源变化时打印 `[llm_cfg] ⚠️ …`；`resolve()` 返回体带 `source`
@@ -42,9 +41,6 @@ _PLATFORM_KEY_ENV = {
     "mimo_plan": "OPENAI_COMPAT_KEY",
     "mimo_api": "MIMO_API_KEY",
 }
-# 过渡期 env 模型名兜底（D2=C 后仅剩天玑历史注入，P3 摘除）
-_ENV_MODEL_KEY = {"verify_llm": "VERIFY_LLM_MODEL"}
-
 # 60s TTL：与天璇原 _apply_llm_config 行为一致（控制台改配置自动生效，不需重启）
 _CFG_TTL = 60.0
 _cache = {"ts": 0.0, "cfg": {}, "source": "none"}
@@ -105,10 +101,10 @@ def resolve(usage_id: str) -> dict:
     u = (cfg.get("usages") or {}).get(usage_id) or {}
     platform = u.get("platform") or "siliconflow"
     base_url = (u.get("base_url") or DEFAULT_BASE_URL).rstrip("/")
-    model = u.get("model") or os.environ.get(_ENV_MODEL_KEY.get(usage_id, ""), "")
+    model = u.get("model") or ""
     if not model:
         raise ValueError(
-            f"{usage_id}: 配置链（source={src}）无 model 且无 env 兜底——"
+            f"{usage_id}: 配置链（source={src}）无 model——"
             "请在开阳控制台为该使用点指定模型")
     env_name = _PLATFORM_KEY_ENV.get(platform, "SILICONFLOW_API_KEY")
     return {"base_url": base_url,

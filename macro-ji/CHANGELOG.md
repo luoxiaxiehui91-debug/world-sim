@@ -7,6 +7,26 @@
 
 ---
 
+## v1.0.7 — 2026-10-14 P3-1: 摘除 llm_cfg L4 env 模型名兜底
+
+### 修改
+
+- `llm_cfg.py`（与 `macro-sim/core/llm_cfg.py` G5 字节一致，新 md5 `1067b91050550db5d5402e59589d7b9f`）：
+  - 删除常量 `_ENV_MODEL_KEY = {"verify_llm": "VERIFY_LLM_MODEL"}` 及其上行注释
+    ——P2 同窗口已从本容器 `docker-compose.yml` 摘除 `VERIFY_LLM_MODEL` 注入，该兜底属死代码
+  - `resolve()`：`model = u.get("model") or os.environ.get(_ENV_MODEL_KEY.get(usage_id, ""), "")`
+    → `model = u.get("model") or ""`
+  - 全链无 model 的 raise 措辞去掉「且无 env 兜底」；docstring 删 L4 行、「四层兜底链」→「三层兜底链」
+- 取值链由 L1→L2→L3→L4 变为 **L1→L2→L3**（主配置 → `.bak` 快照 → git 模板）；
+  `verify_llm` 仍由开阳控制台 `data/llm_config.json` 单点决定，行为不变
+
+### 验收
+
+- `resolve('verify_llm')` 正常返回且 `source=truth`；容器内 md5 == 真源；守卫复跑 EXIT=0
+- CHG-20261014T231051（与天璇 v2.0.52 同批）
+
+---
+
 ## v1.0.6 — 2026-09-03 修复: verify_predictions.py dry-run 假实现（commit 01c08df）
 
 ### 修复
