@@ -1,3 +1,23 @@
+## v3.8.75（2026-10-15）
+
+**LLM 配置重构 P3②：`call_local` 的 base_url / api_key / 账本 platform 统一走配置链** —— CHG-20261015T232202
+
+### 改动
+- `核心代码/hybrid_llm.py`：新增 `_local_cfg()` —— model / base_url / api_key / platform 同源解析（api_key 依 ADR-0015 不落 `llm_config.json`，按 platform → env 变量名映射热读，最终回落 `_sf_key()`）；`_local_model()` 改为委托它；`_do_siliconflow_request()` 新增 `base_url` / `api_key` 可选参数（缺省回落 SiliconFlow 常量）；`call_local()` 前置检查改用 `_local_cfg()`，账本 `platform` 由硬编码 `siliconflow` 改为随配置（4 处）
+- 修的是**潜伏缺陷**：控制台把 `call_local` 切到非 SiliconFlow 平台时，模型名会跟着配置变，但请求仍打到 `api.siliconflow.cn` 且用 SF 的 key ⇒ 401/404，账本 `platform` 归因也错
+
+### 验收（2026-10-15 23:2x 实测）
+- 当前配置 `platform=siliconflow` ⇒ base_url / api_key / model / platform 四项取值与改前**逐项等价**（零行为变化）
+- 容器内运行时探针：`_local_cfg()` 四项与 `resolve("call_local")` 全 MATCH；monkeypatch 切到 `mimo_plan` 后 base_url 同步变为 `https://token-plan-cn.xiaomimimo.com/v1`（证明统一生效，非仅等价）；未打印 api_key 明文
+- md5 真源 = 运行区 = 容器内 `fa47c6920551e651ec85ad7ffab35fe4`（三处一致）；`py_compile` 通过；行数 441 → 468
+- 守卫 `scripts/check_llm_config.py` EXIT=0；24h 四容器 Traceback=0 / FALLBACK=0
+
+### 遗留（不阻塞闭环）
+- 本次**不 restart 容器**：`scheduler.py` 用 `subprocess.Popen` 拉起每个 job ⇒ 新进程自动加载新代码；常驻 `control_server` / `web_server` 于下次容器重启时加载新代码（改动等价，无差异）
+- 运行区 `macro-scan/CHANGELOG.md` 副本停在 v3.8.68（deploy.sh 不同步 .md），本次未改；真源为权威
+
+---
+
 ## v3.8.74（2026-10-13）
 
 **修复 health_geo 关键词 haystack 混入 URL 域名段致域名碰撞误报** —— CHG-20261013T183000-health-geo-url-collision-fix

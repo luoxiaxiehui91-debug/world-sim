@@ -19,10 +19,11 @@ SILICONFLOW_URL   = "https://api.siliconflow.cn/v1"
 
 
 def _local_model() -> str:
-    """call_local 使用模型（09 重构 D2=C）：统一走 llm_usage.resolve("call_local")
-    （配置优先 → .bak 快照 → 模板 → 代码兜底）；不再读 env SILICONFLOW_MODEL。
+    """call_local 使用模型（09 重构 D2=C / P3②）：统一走 _local_cfg()（见下方，
+    model / base_url / api_key / platform 同源解析）；配置优先 → .bak 快照 →
+    模板 → 代码兜底，不再读 env SILICONFLOW_MODEL。
     模型名唯一存于 llm_usage._FALLBACK_MODELS。"""
-    return (resolve("call_local") or {}).get("model") or fallback_model("siliconflow")
+    return _local_cfg()["model"]
 
 
 _PG_HOST_LLM = "worldsim-pg"
@@ -64,12 +65,29 @@ def _sf_key() -> str:
 
 # （08-23：MiniMax 平台退役，相关常量与调用函数已删除）
 
-# 平台 id → env 变量名（call_openai_compat 按 resolved.platform 取默认 key）
+# 平台 id → env 变量名（call_openai_compat 按 resolved.platform 取默认 key;
+# P3② 起 call_local 经 _local_cfg() 复用同一张表）
 _PLATFORM_ENV_KEYS = {
     "siliconflow": "SILICONFLOW_API_KEY",
     "mimo_plan": "OPENAI_COMPAT_KEY",
     "mimo_api": "MIMO_API_KEY",
 }
+
+
+def _local_cfg() -> dict:
+    """call_local 调用三件套统一解析（P3②）：model / base_url 走 resolve("call_local")
+    配置链；api_key 依 ADR-0015 不落 llm_config.json，故按 platform → env 变量名映射
+    热读（与 call_openai_compat 同范式），最终回落 _sf_key()。
+    当前配置 platform=siliconflow 时，四项取值与改前硬编码路径完全等价。"""
+    r = resolve("call_local") or {}
+    plat = r.get("platform") or "siliconflow"
+    _env_key = _PLATFORM_ENV_KEYS.get(plat, "")
+    return {
+        "model":    r.get("model") or fallback_model(plat),
+        "base_url": (r.get("base_url") or SILICONFLOW_URL).rstrip("/"),
+        "api_key":  r.get("api_key") or (get_secret(_env_key) if _env_key else None) or _sf_key(),
+        "platform": plat,
+    }
 
 # 重试配置
 _CALL_LOCAL_MAX_RETRIES = 1      # 空响应/可重试错误最多重试次数（1次重试+原始=共2次即降级）
@@ -141,17 +159,21 @@ def call_claudecode(prompt: str, system: str = "") -> str:
     raise TimeoutError(f"Claude Code 未在 {CLAUDECODE_TIMEOUT}s 内响应")
 
 
-def _do_siliconflow_request(prompt: str, system: str, max_tokens: int, model: str):
+def _do_siliconflow_request(prompt: str, system: str, max_tokens: int, model: str,
+                            base_url: str = "", api_key: str = ""):
     """执行单次 SiliconFlow API 请求，返回 (result_str, response_obj, elapsed)。
     result_str 为 None 表示空响应（需要重试）。
     抛出可重试异常（HTTPError 429/503）或不可重试异常。
-    model：由 call_local 经统一配置链解析后传入（09 重构，不再读 env）。
+    model / base_url / api_key：由 call_local 经统一配置链（_local_cfg）解析后传入
+    （09 重构不再读 env；P3② 补 base_url / api_key 参数化，缺省回落 SiliconFlow 常量）。
     """
+    _base_url = (base_url or SILICONFLOW_URL).rstrip("/")
+    _key = api_key or _sf_key()
     start_ts = time.time()
     try:
         resp = requests.post(
-            f"{SILICONFLOW_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {_sf_key()}", "Content-Type": "application/json"},
+            f"{_base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {_key}", "Content-Type": "application/json"},
             json={
                 "model": model,
                 "max_tokens": max_tokens,
@@ -210,10 +232,12 @@ def call_local(prompt: str, system: str = "", max_tokens: int = 2048,
 
     支持自动重试：空响应、429/503、超时时自动重试最多 _CALL_LOCAL_MAX_RETRIES 次。
     """
-    if not _sf_key():
-        raise ValueError("SILICONFLOW_API_KEY 未设置")
+    cfg = _local_cfg()      # P3②：model / base_url / api_key / platform 同源解析
+    if not cfg["api_key"]:
+        raise ValueError(f"SILICONFLOW_API_KEY 未设置（call_local platform={cfg['platform']}）")
 
-    model = _local_model()  # 09 重构：统一配置链（resolve → fallback），不再读 env
+    model    = cfg["model"]     # 09 重构：统一配置链（resolve → fallback），不再读 env
+    platform = cfg["platform"]  # P3②：账本 platform 随配置，不再硬编码 siliconflow
     prompt_tokens = _estimate_tokens(prompt)
     system_tokens = _estimate_tokens(system or MACRO_SYSTEM_PROMPT)
     total_tokens = prompt_tokens + system_tokens
@@ -227,7 +251,9 @@ def call_local(prompt: str, system: str = "", max_tokens: int = 2048,
             time.sleep(delay)
 
         try:
-            result, resp, elapsed = _do_siliconflow_request(prompt, system, max_tokens, model)
+            result, resp, elapsed = _do_siliconflow_request(prompt, system, max_tokens, model,
+                                                            base_url=cfg["base_url"],
+                                                            api_key=cfg["api_key"])
             if result is None:
                 # 空响应
                 print(f"[call_local] 空响应 | attempt={attempt} elapsed={elapsed:.1f}s")
@@ -237,7 +263,7 @@ def call_local(prompt: str, system: str = "", max_tokens: int = 2048,
             try:
                 _u = (resp.json() or {}).get("usage") or {}
                 _log_token_usage(
-                    usage_id=usage, platform="siliconflow", model=model,
+                    usage_id=usage, platform=platform, model=model,
                     prompt_tokens=_u.get("prompt_tokens"), completion_tokens=_u.get("completion_tokens"),
                     total_tokens=_u.get("total_tokens"),
                     call_ms=int(elapsed * 1000), ok=True,
@@ -252,17 +278,17 @@ def call_local(prompt: str, system: str = "", max_tokens: int = 2048,
         except Exception as e:
             # CHG-20260926T001031：不可重试错误直接抛出，须在此记账
             # （只在「重试耗尽」处记账会漏掉这条路径，失败在账本里不可见）
-            _log_token_usage(usage_id=usage, platform="siliconflow", model=model,
+            _log_token_usage(usage_id=usage, platform=platform, model=model,
                              prompt_tokens=total_tokens, call_ms=None, ok=False, err=e)
             raise  # 不可重试错误，直接抛出
 
     # 所有重试耗尽
     # CHG-20260926T001031：失败记账（重试中间不记，只在此处最终失败时记一次）
     if last_error:
-        _log_token_usage(usage_id=usage, platform="siliconflow", model=model,
+        _log_token_usage(usage_id=usage, platform=platform, model=model,
                          prompt_tokens=total_tokens, call_ms=None, ok=False, err=last_error)
         raise last_error
-    _log_token_usage(usage_id=usage, platform="siliconflow", model=model,
+    _log_token_usage(usage_id=usage, platform=platform, model=model,
                      prompt_tokens=total_tokens, call_ms=None, ok=False,
                      err="SiliconFlow 空响应（重试耗尽）")
     raise ValueError(f"SiliconFlow 返回空响应（模型={model}，重试{_CALL_LOCAL_MAX_RETRIES}次后仍失败）")
