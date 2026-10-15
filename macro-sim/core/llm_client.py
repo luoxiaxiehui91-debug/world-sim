@@ -90,6 +90,51 @@ def _resolve_client(usage_id: str):
 
 
 # ── 核心调用函数 ──────────────────────────────────────────
+# ── LLM 账本（P3-3，CHG-20261015T235525）：本容器调用写入 public.llm_token_usage ──
+# 记账是旁路：任何异常一律静默吞掉，绝不因记账失败影响业务调用或改变返回值。
+_LEDGER_SQL = """
+INSERT INTO public.llm_token_usage
+    (usage_id, platform, model, prompt_tokens, completion_tokens,
+     total_tokens, call_ms, ok, err)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+"""
+
+
+def _platform_of(usage_id: str):
+    """账本归因用的平台名；解析失败返回 None（不影响业务）。"""
+    try:
+        return llm_cfg.resolve(usage_id).get("platform")
+    except Exception:
+        return None
+
+
+def record_llm_usage(usage_id: str, model=None, ok: bool = True, err=None,
+                     call_ms=None, platform=None, prompt_tokens=None,
+                     completion_tokens=None, total_tokens=None):
+    """写一行 LLM 账本。缺 WORLDSIM_APP_PW / DB 不可达 / 驱动缺失均静默返回，不 raise。"""
+    try:
+        import psycopg
+        pw = os.environ.get("WORLDSIM_APP_PW")
+        if not pw:
+            return
+        if platform is None:
+            platform = _platform_of(usage_id)
+        conn = psycopg.connect(host="worldsim-pg", port=5432, dbname="worldsim",
+                               user="worldsim_app", password=pw,
+                               connect_timeout=5)
+        try:
+            with conn.cursor() as cur:
+                cur.execute(_LEDGER_SQL, (usage_id, platform, model,
+                                          prompt_tokens, completion_tokens,
+                                          total_tokens, call_ms, ok,
+                                          (str(err)[:500] if err else None)))
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        pass
+
+
 def call_llm(
     prompt: str,
     use_minimax: bool = False,
@@ -109,8 +154,10 @@ def call_llm(
         client, model = _resolve_client(usage_id)
     except Exception as e:
         print(f"[llm_client] {usage_id} 配置解析失败，本次调用放弃：{e}")
+        record_llm_usage(usage_id, ok=False, err=f"配置解析失败: {e}")
         return ""
 
+    _t0 = time.time()
     for attempt in range(max_retries):
         try:
             resp = client.chat.completions.create(
@@ -119,12 +166,22 @@ def call_llm(
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
+            _u = getattr(resp, "usage", None)
+            record_llm_usage(
+                usage_id, model=model, ok=True,
+                call_ms=int((time.time() - _t0) * 1000),
+                prompt_tokens=getattr(_u, "prompt_tokens", None),
+                completion_tokens=getattr(_u, "completion_tokens", None),
+                total_tokens=getattr(_u, "total_tokens", None),
+            )
             return resp.choices[0].message.content or ""
         except Exception as e:
             if attempt < max_retries - 1:
                 time.sleep(1)
             else:
                 print(f"[LLM 调用失败 {model}] {e}")
+                record_llm_usage(usage_id, model=model, ok=False, err=e,
+                                 call_ms=int((time.time() - _t0) * 1000))
     return ""
 
 

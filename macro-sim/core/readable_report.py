@@ -103,7 +103,16 @@ def _resolve_readable():
     return llm_cfg.resolve_endpoint("readable")
 
 
-def _call(base_url, api_key, model, prompt, max_tokens=2000):
+def _record_usage(usage_id, model, ok, err=None, call_ms=None):
+    """P3-3 账本旁路（CHG-20261015T235525）：流式响应无 usage ⇒ token 三列记 NULL；失败静默。"""
+    try:
+        from core.llm_client import record_llm_usage
+        record_llm_usage(usage_id, model=model, ok=ok, err=err, call_ms=call_ms)
+    except Exception:
+        pass
+
+
+def _call(base_url, api_key, model, prompt, max_tokens=2000, usage_id="readable"):
     """流式调用（同 chronicler._call 思路：块间空闲即超时，出字就不算失败）。"""
     import urllib.request, time as _t
     req = urllib.request.Request(
@@ -149,13 +158,19 @@ def _call(base_url, api_key, model, prompt, max_tokens=2000):
             full = "".join(parts)
             print(f"[readable] done t={_t.time()-t0:.0f}s chars={len(full)}", flush=True)
             if full:
+                _record_usage(usage_id, model, True,
+                              call_ms=int((_t.time() - t0) * 1000))
                 return full
             last_err = RuntimeError("流结束无内容")
         except Exception as e:
             last_err = e
             print(f"[readable] err: {e}", flush=True)
             if parts:
+                _record_usage(usage_id, model, True,
+                              call_ms=int((_t.time() - t0) * 1000))
                 return "".join(parts)
+    _record_usage(usage_id, model, False, err=last_err,
+                  call_ms=int((_t.time() - t0) * 1000))
     raise last_err
 
 

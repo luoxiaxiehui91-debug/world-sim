@@ -1,3 +1,35 @@
+## v2.0.53 — 2026-10-16 P3-3: LLM 调用补记账（天璇四个使用点写入 public.llm_token_usage）
+
+> CHG-20261015T235525（LLM 配置重构 P3 第③步；②③ 同晚，① 已于 10-14 结案）。
+> 背景：账本此前只覆盖天枢两个使用点（近 7 天 `translate_titles` 3481 条 / `general_llm` 28 条），
+> 天璇 4 个使用点（`sim_mc` / `sim_narrative` / `chronicle` / `readable`）**从未入账**
+> ⇒ 本容器烧了多少 token、哪次失败、用了什么模型，此前完全查不到。
+
+### 修改
+
+- `core/llm_client.py`：新增 `_LEDGER_SQL` / `_platform_of()` / `record_llm_usage()`（账本写入口，
+  复用容器内既有 `WORLDSIM_APP_PW` + psycopg3，未注入新密钥、未改 compose）；
+  `call_llm()` 成功 / 最终失败 / 配置解析早退三处记账（token 取 `resp.usage` 真值）
+- `core/chronicler.py`：新增 `_record_usage()`（懒导入 `record_llm_usage`）；`_call()` 新增
+  `usage_id` 关键字参数（默认 `chronicle`），成功 / 部分成功 / 最终失败三处记账
+- `core/readable_report.py`：同上，`usage_id` 默认 `readable`
+- 记账为**旁路**：全部包 try/except，任何失败静默吞掉，绝不 raise、绝不改变业务返回值
+- 未改任何既有调用签名（新参数带默认值），未动 `llm_cfg.py`（G5 字节一致守卫项）
+
+### 验收
+
+- 容器内运行时探针：4 条路径全部落账 —— `sim_mc`（platform=siliconflow、total_tokens=33）、
+  `chronicle`（token NULL）、`readable`（token NULL）、`chronicle` 失败行（ok=False、err=`boom-selftest`）
+- 自测行写入后全部 DELETE，残留 0；抽掉 `WORLDSIM_APP_PW` 后静默返回、不抛异常
+- md5 真源 = 容器四处一致；`check_llm_config.py` EXIT=0；20m 四容器 Traceback=0 / FALLBACK=0
+
+### 遗留
+
+- `chronicle` / `readable` 为流式响应，无 `usage` 字段 ⇒ token 三列记 NULL（归因信息完整，仅缺精确 token 数）；
+  要真数须在请求加 `"stream_options": {"include_usage": true}`，留作后续独立项
+- `test_connection()`（命令行测试入口）按设计不记账，否则会冲花账本
+- `macro-sim_人类说明文档.md` / `docs/PROGRESS.md` 版本头仍停 v2.0.24（低频结构文档，与 P3① 一致未同步）
+
 ## v2.0.52 — 2026-10-14 P3-1: 摘除 llm_cfg L4 env 模型名兜底
 
 > CHG-20261014T231051（LLM 配置重构 P3 第①步）。

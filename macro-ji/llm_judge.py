@@ -83,7 +83,35 @@ def fetch_window_news(due_at, keywords, limit=40):
         conn.close()
 
 
+def _record_verify(model, ok, err=None, call_ms=None, prompt_tokens=None,
+                   completion_tokens=None, total_tokens=None):
+    """P3-3 账本旁路（CHG-20261015T235525）：复用 tianji_db 连接写 public.llm_token_usage；失败静默。"""
+    try:
+        import tianji_db
+        platform = None
+        try:
+            platform = llm_cfg.resolve("verify_llm").get("platform")
+        except Exception:
+            pass
+        conn = tianji_db.get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO public.llm_token_usage (usage_id, platform, model,"
+                    " prompt_tokens, completion_tokens, total_tokens, call_ms, ok, err)"
+                    " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    ("verify_llm", platform, model, prompt_tokens,
+                     completion_tokens, total_tokens, call_ms, ok,
+                     (str(err)[:500] if err else None)))
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        pass
+
+
 def _call_llm(prompt):
+    import time as _time
     base_url, api_key, model = llm_cfg.resolve_endpoint("verify_llm")
     req = urllib.request.Request(
         base_url + "/chat/completions",
@@ -95,7 +123,18 @@ def _call_llm(prompt):
         }).encode(),
         headers={"Authorization": "Bearer " + api_key,
                  "Content-Type": "application/json"})
-    r = json.loads(urllib.request.urlopen(req, timeout=90).read())
+    _t0 = _time.time()
+    try:
+        r = json.loads(urllib.request.urlopen(req, timeout=90).read())
+    except Exception as e:
+        _record_verify(model, False, err=e,
+                       call_ms=int((_time.time() - _t0) * 1000))
+        raise
+    _u = r.get("usage") or {}
+    _record_verify(model, True, call_ms=int((_time.time() - _t0) * 1000),
+                   prompt_tokens=_u.get("prompt_tokens"),
+                   completion_tokens=_u.get("completion_tokens"),
+                   total_tokens=_u.get("total_tokens"))
     return r["choices"][0]["message"]["content"]
 
 

@@ -7,6 +7,25 @@
 
 ---
 
+## v1.0.8 — 2026-10-16 P3-3: LLM 调用补记账（verify_llm 写入 public.llm_token_usage）
+
+### 修改
+
+- `llm_judge.py`：新增 `_record_verify()`（复用 `tianji_db.get_connection()`，INSERT 显式带
+  `public.` schema 前缀以兼容 `search_path=tianji,public`）；`_call_llm()` 在成功（token 取响应
+  `usage` 真值）与异常（`ok=False` + err，随后原样 raise）两处记账
+- 与天璇 v2.0.53 同批；未动 `llm_cfg.py`（P3① 后双容器字节一致的 G5 守卫项）
+
+### 验收
+
+- 容器内运行时探针：`verify_llm` 成功行（platform=siliconflow、total_tokens=11）+ 失败行（ok=False）
+  均落账；自测行 3 条清理后残留 0；抽掉 `WORLDSIM_APP_PW` 静默不抛异常
+- md5 真源 = `macro-scan-tianji-1` = `macro-scan-tianji-cron-1` 三处一致 `47f7a5ac…`
+
+### 遗留
+
+- P3④（回归核查）未做；账本归因现覆盖天枢 2 + 天璇 4 + 天玑 1 = 7 个使用点
+
 ## v1.0.7 — 2026-10-14 P3-1: 摘除 llm_cfg L4 env 模型名兜底
 
 ### 修改

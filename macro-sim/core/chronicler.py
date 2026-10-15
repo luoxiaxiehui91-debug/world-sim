@@ -23,10 +23,21 @@ def _resolve_chronicle():
     return llm_cfg.resolve_endpoint("chronicle")
 
 
-def _call(base_url, api_key, model, prompt, max_tokens=4000):
+def _record_usage(usage_id, model, ok, err=None, call_ms=None):
+    """P3-3 账本旁路（CHG-20261015T235525）：流式响应无 usage ⇒ token 三列记 NULL；失败静默。"""
+    try:
+        from core.llm_client import record_llm_usage
+        record_llm_usage(usage_id, model=model, ok=ok, err=err, call_ms=call_ms)
+    except Exception:
+        pass
+
+
+def _call(base_url, api_key, model, prompt, max_tokens=4000, usage_id="chronicle"):
     """流式调用 LLM。V4-Flash 长生成存在中途停顿（SF 批处理调度），
     非流式整读会被读超时误杀——流式按块读，只要还在出字就不算失败。"""
     import urllib.request
+    import time as _time
+    _t0 = _time.time()
     req = urllib.request.Request(
         base_url + "/chat/completions",
         data=json.dumps({
@@ -65,13 +76,19 @@ def _call(base_url, api_key, model, prompt, max_tokens=4000):
                         except Exception:
                             pass
             if parts:
+                _record_usage(usage_id, model, True,
+                              call_ms=int((_time.time() - _t0) * 1000))
                 return "".join(parts)
             last_err = RuntimeError("流结束但无内容")
         except Exception as e:
             last_err = e
             if parts:
                 # 已收到部分内容但中断——有内容优于无，直接用
+                _record_usage(usage_id, model, True,
+                              call_ms=int((_time.time() - _t0) * 1000))
                 return "".join(parts)
+    _record_usage(usage_id, model, False, err=last_err,
+                  call_ms=int((_time.time() - _t0) * 1000))
     raise last_err
 
 
