@@ -1,3 +1,28 @@
+## v3.8.76（2026-10-16）
+
+**health_geo 事件单位改为「故事（story）」：修通稿转载致 count 虚高 43%** —— CHG-20261016T120806
+
+### 改动
+- `核心代码/fetch_health_geo.py`：
+  - 新增 `_story_slug(url)`：URL path 为故事身份，只剔「年(19xx/20xx)+相邻月/日」与 ISO 日期段，**不剔纯数字故事 ID**（`story/9367686/…` 保留，避免不同故事被误合）
+  - `_merge_events()` 增加 slug 级去重（原仅按 doc URL 去重，对通稿形同虚设）
+  - `_aggregate_by_location()` 的 `count` 由「同 loc 的 raw 条数」改为「同 loc 的 distinct story 数」
+  - 新增 `_is_aggregator_page()` + `AGGREGATOR_PATH_MARKS`（`/tag/` `/tags/` `/topics/` `around_the_web` `/author/`；**不含 `/category/`** —— 分类路径下有真文章）
+  - 关键词匹配加左边界约束 `_KW_RE`（`(?<![a-z0-9])`）：杀 `vlassa|kis` / `sho|zika` 类嵌词巧合，保住 `outbreaks` 复数与连字符写法
+- `tests/test_fetch_health_geo.py`：8 → **14 例**（新增嵌词不收录、复数/连字符仍收录、聚合页跳过、分类路径保留、slug 日期段剔除、merge slug 去重、count=distinct story）
+
+### 验收
+- 单测 14/14 PASS；`py_compile` 通过
+- 存量清洗（容器内执行，备份 `_rollback/health-geo-syndication-20261016/`）：raw **944 → 570**（-40%）、聚合 **244 → 232 点**、合计 count **944 → 570**
+- 用户可见修正：Macquarie Island 35 → **1**（该点 title 即"First bird flu detection on remote sub-Antarctic island"）、France 45 → 8、Australia 42 → 9、United States 41 → 21
+- 剔聚合页 2 条 + 删嵌词误报 4 条（希腊银行新闻 `sho|zika` ×3、`vlassa|kis` ×1）；残留人工复核 1 条为**真事件**（newsroomamerica 长 ID 文章页，确为美国麻疹爆发）
+- md5 真源 = 运行区 = 容器 `4419191d…`
+
+### 遗留
+- 代表事件地点串味（11/244 点主题国与地点国不相交）未修 —— 部分源于 GKG 自身地理抽取、部分源于通稿页面夹带本地内容，需另立项
+- `title_zh` 覆盖 212/232（20 条未中译，既有状态）
+- 未新增 `sources`（报道站点数）字段 —— 改 schema 需同步前端 `contracts.ts`，留待后续
+
 ## v3.8.75（2026-10-15）
 
 **LLM 配置重构 P3②：`call_local` 的 base_url / api_key / 账本 platform 统一走配置链** —— CHG-20261015T232202

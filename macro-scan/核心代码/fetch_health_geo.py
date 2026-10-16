@@ -79,6 +79,60 @@ HEALTH_KEYWORDS = (
 EXCLUDE_SUBSTR = ("pandemic loan", "pandemic relief", "pandemic fraud", "pandemic stimulus")
 # 保留最近 72h 事件（事件低频，累积窗口长一点）
 MAX_EVENT_AGE_HOURS = 72
+
+# 10-16（CHG-20261016T120806）：聚合页 / tag 页不是「事件」——目录页会把一个 tag 或
+# 栏目下所有报道算成一条卫生事件（实测 3 条：newsroomamerica.com/tag/…、
+# grandrapidsmn.com/around_the_web/…）。⚠️ 不含 "/category/"：freemalaysiatoday 等站
+# 的分类路径下是真实文章，误剔会丢真事件。
+AGGREGATOR_PATH_MARKS = ("/tag/", "/tags/", "/topics/", "around_the_web", "/author/")
+
+# 10-16：关键词左边界约束。子串巧合会把非疫情报道混入——实测
+# snowtown-james-vlassakis-serial-killer-parole-… 含 lassa ⇒ 杀手假释新闻当成拉沙热。
+# 规则：关键词之前不得是字母或数字（- / _ / . / 空格 / 行首均放行），后随任意字符
+# ⇒ 保住 outbreaks 复数、bird-flu 连字符、h5n1-2026 等同根写法。
+_KW_RE = {k: re.compile(r"(?<![a-z0-9])" + re.escape(k)) for k in HEALTH_KEYWORDS}
+
+
+def _story_slug(url: str) -> str:
+    """故事身份 = URL path（剔除日期段，保留故事 ID 段）。
+
+    同一篇通稿被几十家站点原样转载时 doc URL 各异、path slug 相同
+    （实测 942 条 raw 中 406 条属 40 个故事的转载）⇒ 以 slug 作为
+    「一个事件」的单位：否则同一事件在地图上炸成多点、count 虚高成转载数。
+
+    只剔「年(19xx/20xx)+相邻月/日」与 ISO 日期段（YYYY-MM-DD）；
+    **不剔纯数字故事 ID**（如 story/9367686/…、…/74123159），避免不同故事被误合。
+    """
+    try:
+        segs = [s for s in (urllib.parse.urlsplit(url or "").path or "").split("/") if s]
+    except Exception:
+        return (url or "").lower()
+    out, i = [], 0
+    while i < len(segs):
+        s = segs[i]
+        if re.fullmatch(r"(?:19|20)\d{2}", s):
+            j = i + 1
+            if j < len(segs) and re.fullmatch(r"\d{1,2}", segs[j]):
+                j += 1
+                if j < len(segs) and re.fullmatch(r"\d{1,2}", segs[j]):
+                    j += 1
+            i = j
+            continue
+        if re.fullmatch(r"(?:19|20)\d{2}-\d{1,2}-\d{1,2}", s):
+            i += 1
+            continue
+        out.append(s)
+        i += 1
+    return "/".join(out).lower()
+
+
+def _is_aggregator_page(url: str) -> bool:
+    """聚合页 / tag 页 / 栏目目录页判定（非文章，不应计为事件）。"""
+    try:
+        p = urllib.parse.urlsplit(url or "").path.lower()
+    except Exception:
+        return False
+    return any(m in p for m in AGGREGATOR_PATH_MARKS)
 STATE_FILE = "health_geo_state.json"  # 记录上次处理 slot
 # 10-13（CHG-20261013T080315）：标题中译——复用 fetch_news_titles 同一条
 # usage=translate_titles 配置链（模型/平台/密钥控制台可改），不新增硬编码模型名。
@@ -134,14 +188,17 @@ class HealthGeoFetcher(FetcherBase):
             cols = ln.split("\t")
             if len(cols) < 25:
                 continue
+            if _is_aggregator_page(cols[4]):
+                continue  # 目录页 / tag 页不是事件
             hay = (self._url_content(cols[4]) + " " + cols[11] + " " + cols[24]).lower()
-            if any(k in hay for k in HEALTH_KEYWORDS):
+            hits = [k for k in HEALTH_KEYWORDS if _KW_RE[k].search(hay)]
+            if hits:
                 if any(x in hay for x in EXCLUDE_SUBSTR):
                     continue
                 loc = self._first_location(cols[9])
                 if loc is None:
                     continue
-                kw = sorted({k for k in HEALTH_KEYWORDS if k in hay})
+                kw = sorted(hits)
                 events.append({
                     "doc": cols[4],
                     "date": cols[1],
@@ -409,11 +466,19 @@ class HealthGeoFetcher(FetcherBase):
     def _merge_events(self, new_events):
         old = self._backfill_source_media(self._load_events())
         seen = {e["doc"] for e in old}
+        # 10-16：同一故事（path slug）只留一条——通稿被几十家站点原样转载时 doc URL
+        # 各异，仅按 doc 去重形同虚设（实测 43% raw 是转载）。
+        seen_slug = {_story_slug(e.get("doc") or "") for e in old}
         merged = list(old)
         for e in new_events:
-            if e["doc"] not in seen:
-                merged.append(e)
-                seen.add(e["doc"])
+            if e["doc"] in seen:
+                continue
+            slug = _story_slug(e.get("doc") or "")
+            if slug in seen_slug:
+                continue
+            merged.append(e)
+            seen.add(e["doc"])
+            seen_slug.add(slug)
         # 保留最近 MAX_EVENT_AGE_HOURS（按 date 前缀截断排序）
         cutoff = (datetime.datetime.utcnow() - datetime.timedelta(hours=MAX_EVENT_AGE_HOURS)).strftime("%Y%m%d%H%M%S")
         merged = [e for e in merged if e["date"] >= cutoff]
@@ -423,7 +488,10 @@ class HealthGeoFetcher(FetcherBase):
     def _aggregate_by_location(self, events):
         """v1.1（08-22）：按 loc_name 同城聚合——一城一点 + count + 代表事件。
         明细保留在内存（标题回填用），落盘只写聚合结果（开阳 health 图层 2145→~340 点）。
-        代表 = date 最新一条（title/关键词/坐标/原文 URL）。"""
+        代表 = date 最新一条（title/关键词/坐标/原文 URL）。
+        10-16（CHG-20261016T120806）：count 语义由「同 loc 的 raw 条数」改为
+        「同 loc 的 distinct story 数」——原值把通稿转载数当事件数（实测 France 45→9、
+        Macquarie Island 35→2），前端 note 直接显示「共 N 起卫生事件」故用户可见。"""
         groups = {}
         for e in events:
             loc = (e.get("loc_name") or "").strip()
@@ -434,14 +502,15 @@ class HealthGeoFetcher(FetcherBase):
         for loc, evs in groups.items():
             evs.sort(key=lambda e: str(e.get("date", "")), reverse=True)
             rep = evs[0]
-            # v1.1.1：count = max(同 loc 条数, 事件自带 count)——raw 迁移期保留旧快照，
-            # 72h 滚动淘汰后自然回落到真实条数（避免迁移即 count 归 1）。
+            # v1.1.1：count = max(同 loc distinct story 数, 事件自带 count)——raw 迁移期
+            # 保留旧快照，72h 滚动淘汰后自然回落到真实条数（避免迁移即 count 归 1）。
             _max_c = max((int(e.get("count") or 1) for e in evs), default=1)
+            _stories = len({_story_slug(e.get("doc") or "") for e in evs})
             out.append({
                 "loc_name": loc,
                 "lat": rep.get("lat"),
                 "lng": rep.get("lng"),
-                "count": max(len(evs), _max_c),
+                "count": max(_stories, _max_c),
                 "date": rep.get("date"),
                 "title": rep.get("title") or "",
                 "title_zh": rep.get("title_zh") or "",
