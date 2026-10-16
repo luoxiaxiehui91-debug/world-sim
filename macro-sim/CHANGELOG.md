@@ -1,3 +1,26 @@
+## v2.0.54 — 2026-10-17 全量代码审查修复（天璇）
+
+> CHG-20261017T030000。与 v3.8.77 同批全项目审查，仅收录已实证项。
+
+### 修改
+
+- `core/agents/sovereign.py`：**删除重复且行为更旧的 `_eval_trigger` 定义**（原 51–79 行）。
+  该本地 def 覆盖了同文件第 24 行从 `core.agents.base` 的 import（名字遮蔽），且模块内零调用点（死代码）。
+  实测行为差异：base 版支持 `_BUILTIN_FUNCS` 白名单，而旧版会把 `abs(market_sentiment) > 0.5` 替换成
+  `0.0(-0.8) > 0.5` → `except` 静默吞掉返回 **False** ⇒ 含内置函数的 soul 触发条件**永不命中**。
+  删除后统一走 base 版（含 `missing_strategy`）。AST 复核：本地 def 0 个、import 保留 1 个
+- `core/readable_report.py:187`：`_zh_action(str(a))` 传的是 agent id 而非动作值，导致 LLM 失败降级模板
+  输出「美联储美联储」类名重复。改为对 dict 的 value 取值（`for aid, act in ...`）
+
+### 验收
+- `ast.parse` 通过；`ruff` 无新增告警
+- `ast.parse` 复核 `sovereign.py`：本地 def 0 个、保留 import 1 个；全仓 `F821` 归零
+
+### 遗留
+- `macro-sim/core/llm_client.py:163` LLM 调用无 timeout（SDK 默认 600s × max_retries=2 ≈ 20 分钟阻塞）
+- `Board` 模块级状态是否跨 MC run 污染（n_runs 循环外只初始化一次）—— 判据互相矛盾，**待确认后另立 Patch**
+
+
 ## v2.0.53 — 2026-10-16 P3-3: LLM 调用补记账（天璇四个使用点写入 public.llm_token_usage）
 
 > CHG-20261015T235525（LLM 配置重构 P3 第③步；②③ 同晚，① 已于 10-14 结案）。

@@ -28,6 +28,8 @@ fetch_crypto_extra.py — 加密冗余行情（Binance / Kraken 公共端，P1�
 import os
 import json
 
+from fetcher_base import FetcherBase
+
 try:
     from optim_config import DATA_DIR, PROXY_URL, BINANCE_API_BASE, KRAKEN_API_BASE
 except ImportError:
@@ -44,8 +46,6 @@ except ImportError:
     PROXY_URL = _cfg["PROXY_URL"]
     BINANCE_API_BASE = _cfg["BINANCE_API_BASE"]
     KRAKEN_API_BASE = _cfg["KRAKEN_API_BASE"]
-
-from fetcher_base import FetcherBase
 
 HIST_DIR = os.path.join(DATA_DIR, "crypto_history")
 OUTPUT_FILE = "crypto_extra_latest.json"

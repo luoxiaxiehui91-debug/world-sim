@@ -7,6 +7,27 @@
 
 ---
 
+## v1.0.9 — 2026-10-17 全量代码审查修复（天玑）
+
+> CHG-20261017T030000。与天枢 v3.8.77 / 天璇 v2.0.54 同批全项目审查，仅收录已实证项。
+
+### 修改
+
+- `tianji_db.py`：修复排序比较元组的**第二项 dict** 所致潜在 `TypeError`。
+  原 `scored.sort(reverse=True)` 对 `(float, dict)` 元组排序：当两个 score 相等时 Python 会继续比较 dict → 抛错。
+  而 `hours_age = 999` 的异常兜底会让多条记录的 `score` **完全相同**（`exp(-999/tau)` 同值），故此路径真实可达，
+  一旦命中将使整个检索流程失败。改为只按首元素排序：`scored.sort(key=lambda _it: _it[0], reverse=True)`
+
+### 验收
+- `ast.parse` 通过；`ruff` 无新增告警
+
+### 遗留（本批未改）
+- `llm_judge.py:183` `outcome=0` 自动落库分支与 `fetch_window_news(limit=40)` 自相矛盾（要求 window_total>=200）→ 该分支不可达
+- `llm_judge.py:199` LLM 判「证据不足」写入 NULL，下月仍会被选中重判 → 成本无上限且无批次上限
+- `tianji_verifier.py:374` Brier 降权方向**疑似反向**（保留 `group_mean <= 0.8×global_mean` 的**优组**并降权 15%），
+  因涉及反哺语义的业务决策且结果只进人工审批闸，未擅自改，待用户确认意图后处理
+
+
 ## v1.0.8 — 2026-10-16 P3-3: LLM 调用补记账（verify_llm 写入 public.llm_token_usage）
 
 ### 修改

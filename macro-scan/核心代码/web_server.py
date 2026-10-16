@@ -37,6 +37,39 @@ if _APP_DIR not in sys.path:
 
 app = FastAPI(title="世界推演系统", docs_url=None, redoc_url=None)
 
+# ── /ask 防滥用（2026-10-17 全量审查修复）────────────────────────────────────
+# 背景：8899 端口无鉴权且绑定 0.0.0.0，POST /ask 每次触发一次真实 LLM 调用，
+#   question 无长度上限、无频率限制 ⇒ 局域网内任意来源可循环打该端点持续烧 token。
+# 此处做「会烧 token 的写入型端点」所需的最小必要防护：长度上限 + 来源 IP 滑动窗口限流。
+# 说明：本端口定位为内网 Web UI，故不对读端点强制鉴权（否则浏览器无法直接使用）；
+#   若日后需暴露到不可信网络，必须复用 control_server._check_token 的 fail-closed 鉴权。
+_ASK_MAX_QUESTION_LEN = 500      # 单条提问字符上限（超出直接拒绝，不进 LLM）
+_ASK_WINDOW_SECONDS   = 60       # 限流窗口
+_ASK_MAX_PER_WINDOW   = 10       # 同一来源每窗口最多调用次数
+_ASK_SOURCES: dict = {}          # {来源IP: [时间戳, ...]}；内存态，重启清零（可接受）
+
+
+def _source_key(request: Request) -> str:
+    """取来源标识。
+
+    刻意**不**采用 X-Forwarded-For：本端口由浏览器直连（8899 前无反向代理），
+    XFF 是客户端可任意伪造的请求头，一旦采信即可通过轮换该头绕过限流。
+    这里直接用 TCP 对端地址 `request.client.host`（不可伪造）。
+    """
+    return (request.client.host if request.client else "") or "unknown"
+
+
+def _ask_rate_exceeded(source: str) -> bool:
+    """滑动窗口限流：窗口内调用数超限返回 True（并顺带清理过期条目）。"""
+    now = datetime.now().timestamp()
+    stamps = [t for t in _ASK_SOURCES.get(source, []) if now - t < _ASK_WINDOW_SECONDS]
+    if len(stamps) >= _ASK_MAX_PER_WINDOW:
+        _ASK_SOURCES[source] = stamps
+        return True
+    stamps.append(now)
+    _ASK_SOURCES[source] = stamps
+    return False
+
 # ── HTML 前端 ─────────────────────────────────────────────────────────────────
 _HTML = """<!DOCTYPE html>
 <html lang="zh">
@@ -354,11 +387,27 @@ async def health():
 
 @app.post("/ask")
 async def ask(request: Request):
-    """自由提问：注入当前快照 context，调用 LLM 回答。"""
+    """自由提问：注入当前快照 context，调用 LLM 回答。
+
+    2026-10-17 加固：先做来源限流与提问长度校验，再进 LLM。
+    （本端点每次调用都会真实产生 token 消耗，必须防循环滥用）
+    """
+    # ① 来源限流（在读 body 之前，避免为超限请求付出解析与 LLM 成本）
+    source = _source_key(request)
+    if _ask_rate_exceeded(source):
+        return JSONResponse(
+            {"error": f"提问过于频繁，请稍后再试（每{_ASK_WINDOW_SECONDS}秒最多{_ASK_MAX_PER_WINDOW}次）"},
+            status_code=429,
+        )
+
     body = await request.json()
     question = (body.get("question") or "").strip()
     if not question:
         return JSONResponse({"error": "问题不能为空"}, status_code=400)
+
+    # ② 长度上限（防止超长 prompt 放大单次成本）
+    if len(question) > _ASK_MAX_QUESTION_LEN:
+        question = question[:_ASK_MAX_QUESTION_LEN]
 
     try:
         context_parts = []

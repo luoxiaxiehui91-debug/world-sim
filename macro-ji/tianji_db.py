@@ -290,7 +290,9 @@ def get_narrative_chunks_for_dimension(
         score = math.exp(-hours_age / tau)
         scored.append((score, row))
 
-    scored.sort(reverse=True)
+    # 只按 score 排序：若整元组比较，score 相同会落到 dict 比较抛 TypeError
+    # （hours_age=999 兜底会让多条 score 完全相同，此路径真实可达）
+    scored.sort(key=lambda _it: _it[0], reverse=True)
 
     result = []
     used_tokens = 0

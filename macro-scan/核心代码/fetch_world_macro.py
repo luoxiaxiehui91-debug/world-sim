@@ -19,6 +19,8 @@ import argparse
 import datetime
 from typing import Optional
 
+from fetcher_base import FetcherBase, RetryOnMissingMixin
+
 try:
     from optim_config import DATA_DIR, PROXY_URL
 except ImportError:
@@ -31,8 +33,6 @@ except ImportError:
     )
     DATA_DIR = _cfg["DATA_DIR"]
     PROXY_URL = _cfg["PROXY_URL"]
-
-from fetcher_base import FetcherBase, RetryOnMissingMixin
 
 HIST_DIR = os.path.join(DATA_DIR, "world_history")
 

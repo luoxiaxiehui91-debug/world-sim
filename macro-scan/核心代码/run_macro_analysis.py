@@ -3194,6 +3194,10 @@ def score_global_recession_risk() -> str:
 
 
 
+# 2026-10-17 全量审查修复：该函数原先丢失 def 行，导致函数体被并入上方
+# score_global_recession_risk 的末尾（因其第 3193 行无条件 return 而成为不可达代码），
+# 进而使 __main__ 中 --sensitivity 分支调用时抛 NameError。此处补回 def 头。
+def compute_feedback_sensitivity(base_indicators: dict, n_sim: int = 3000) -> str:
     """
     反馈回路敏感性分析：量化每个反馈回路触发对衰退概率的边际影响。
 

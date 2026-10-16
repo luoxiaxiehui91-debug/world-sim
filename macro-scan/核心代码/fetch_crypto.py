@@ -10,6 +10,8 @@ fetch_crypto.py — 加密资产快照（CoinGecko Demo 免费 key）
 """
 import os
 
+from fetcher_base import FetcherBase
+
 try:
     from optim_config import DATA_DIR, COINGECKO_API_KEY, PROXY_URL
 except ImportError:
@@ -24,8 +26,6 @@ except ImportError:
     DATA_DIR = _cfg["DATA_DIR"]
     COINGECKO_API_KEY = _cfg["COINGECKO_API_KEY"]
     PROXY_URL = _cfg["PROXY_URL"]
-
-from fetcher_base import FetcherBase
 
 HIST_DIR = os.path.join(DATA_DIR, "crypto_history")
 CG_BASE = "https://api.coingecko.com/api/v3/coins/markets"

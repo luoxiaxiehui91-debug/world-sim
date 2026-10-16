@@ -9,6 +9,8 @@ fetch_fx.py — 汇率快照（Frankfurter / ECB，真免key）
 """
 import os
 
+from fetcher_base import FetcherBase
+
 try:
     from optim_config import DATA_DIR, PROXY_URL
 except ImportError:
@@ -21,8 +23,6 @@ except ImportError:
     )
     DATA_DIR = _cfg["DATA_DIR"]
     PROXY_URL = _cfg["PROXY_URL"]
-
-from fetcher_base import FetcherBase
 
 HIST_DIR = os.path.join(DATA_DIR, "fx_history")
 FX_BASE = "https://api.frankfurter.dev/v1/latest"

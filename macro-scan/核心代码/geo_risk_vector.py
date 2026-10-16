@@ -252,7 +252,7 @@ def _compute_gdelt_risk_daily() -> float | None:
                 daily[i] += rank / max(1, n - 1) * 100 / len(RISK_GDELT_DIMS)
         return round(daily[-1], 1)
     except Exception as _e:
-        logger.warning(f"[GRV] gdelt_risk_daily 计算失败（非阻断，退旧公式）: {_e}")
+        _get_logger().warning(f"[GRV] gdelt_risk_daily 计算失败（非阻断，退旧公式）: {_e}")
         return None
 
 

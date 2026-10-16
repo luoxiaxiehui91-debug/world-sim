@@ -35,6 +35,8 @@ import os
 import json
 import datetime
 
+from fetcher_base import FetcherBase
+
 try:
     from optim_config import DATA_DIR, USGS_EARTHQUAKE_URL, PROXY_URL
 except ImportError:
@@ -52,8 +54,6 @@ except ImportError:
     DATA_DIR = _cfg["DATA_DIR"]
     USGS_EARTHQUAKE_URL = _cfg["USGS_EARTHQUAKE_URL"]
     PROXY_URL = _cfg["PROXY_URL"]
-
-from fetcher_base import FetcherBase
 
 OUTPUT_FILE = "earthquake_risk.json"
 WINDOW_HOURS = 24

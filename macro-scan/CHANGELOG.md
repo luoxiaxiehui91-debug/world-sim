@@ -1,3 +1,38 @@
+## v3.8.77（2026-10-17）
+
+**全量代码审查修复：控制令牌止血 + Web 端点加固 + 日志轮转 + 静态扫描清零** —— CHG-20261017T030000
+
+> 来源：全项目代码审查（604 文件 / 8 万行源码 + 配置 + 构建脚本 + 依赖清单）。
+> 本批仅收录**已实证核实**的缺陷，未经核实的疑似项列入「遗留」，不入版本。
+
+### 改动
+- `核心代码/web_server.py`：**8899 端点零鉴权 + POST /ask 无限流**（实证：无凭证 curl `/health` `/status`
+  `/grv` 均 200，对照组 8900 返回 401）——新增 `/ask` 来源级滑动窗口限流（60 秒 10 次）与提问长度上限 500 字符；
+  刻意**不**采信 `X-Forwarded-For`（本端口无反向代理，该头可伪造绕过限流），改用 `request.client.host`。
+  读端点保持开放以保证浏览器直连可用；注释中标明「若暴露到不可信网络须复用 `_check_token` fail-closed 鉴权」
+- `entrypoint.sh`：**日志无轮转、无上界增长**（实证：`logs/` 102MB / 77 文件 / 0 个轮转产物，最大 26MB）。
+  各进程输出以 `>>` 重定向到挂载卷文件，docker `json-file max-size` 对其无效。新增启动时轮转
+  （>20MB 的 `.log` 后挪为 `.1`/`.2`，最多保留 2 代）；依托路由器每日 03:30 重启 ⇒ 近似每日生效。
+  已在本地构造 1MB/25MB 日志连跑 4 个周期回归验证：小文件不受影响、大文件稳定保留 2 代
+- `核心代码/run_macro_analysis.py`：`compute_feedback_sensitivity` 的 **def 行丢失**，函数体被并入上方
+  `score_global_recession_risk` 末尾（该行因第 3193 行无条件 `return` 而不可达），导致 `--sensitivity`
+  分支抛 `NameError`。补回 def 头后：`score_global_recession_risk` 正确止于 3193，新函数独立为 3200–3275
+- `核心代码/geo_risk_vector.py:255`：except 分支误用未定义的裸 `logger`（模块仅提供 `_get_logger()`），
+  使「本可优雅降级为 None」的计算失败二次抛 `NameError`
+- `核心代码/fetch_{crypto,crypto_extra,earthquake,energy,fx,hdx,sanctions,world_macro}.py`：
+  `from fetcher_base import FetcherBase` 原位于 try 块**之后**，而 `except ImportError` 分支却引用它 ⇒
+  `optim_config` 不可用时降级路径抛 `NameError`。已将 import 前移至 try 之前（`fetcher_base` 仅依赖标准库，无环）
+
+### 验收
+- `ruff --select F821`：25 → **0**（25 处 undefined-name 分别对应上述三类问题）
+- 全仓 `py_compile`：207 文件 **0 失败**
+- `entrypoint.sh` `bash -n` 通过；轮转逻辑离线回归 4 周期行为符合预期
+
+### 遗留（本批**未**改，待定）
+- 8899/8900/8080 均绑定 `0.0.0.0`（含 IPv6），建议评估是否收窄到 `127.0.0.1` + 本地隧道（改动会中断局域网直连，需用户确认）
+- `CONTROL_TOKEN` 曾以明文出现在前端 bundle（已在本批清除产物，但令牌本身过去可获取）——**是否轮换待用户确认**
+
+
 ## v3.8.76（2026-10-16）
 
 **health_geo 事件单位改为「故事（story）」：修通稿转载致 count 虚高 43%** —— CHG-20261016T120806

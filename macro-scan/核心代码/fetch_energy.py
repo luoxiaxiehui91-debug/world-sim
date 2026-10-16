@@ -32,6 +32,8 @@ fetch_energy.py — 能源 / 电网 / 气象外生冲击（P1 归并模块）
 import os
 import json
 
+from fetcher_base import FetcherBase
+
 try:
     from optim_config import (
         DATA_DIR, PROXY_URL,
@@ -64,8 +66,6 @@ except ImportError:
     NREL_PVWATTS_URL = _cfg["NREL_PVWATTS_URL"]
     AEMET_API_KEY = _cfg["AEMET_API_KEY"]
     AEMET_BASE = _cfg["AEMET_BASE"]
-
-from fetcher_base import FetcherBase
 
 OUTPUT_FILE = "energy_risk.json"
 # 碳强度映射边界（gCO2/kWh）：典型 20(绿)–320(脏)；经验边界 30/320

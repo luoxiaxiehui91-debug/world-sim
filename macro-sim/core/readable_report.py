@@ -184,7 +184,7 @@ def _fallback_template(hist, event):
              f"## 一句话结论\n未来{n}个月，全球风险指数从 {g0} 分{'升至' if trend == '上升' else '降至'} {g1} 分。\n",
              f"## 最紧张的时刻\n第 {worst+1} 个月市场情绪最低（读数 {hist[worst].get('market_sentiment')}），"
              f"当月主要动向：" + "；".join(
-                 f"{_zh_agent(a)}{_zh_action(str(a))}" for a, x in (hist[worst].get("actions") or {}).items()) + "。\n",
+                 f"{_zh_agent(aid)}{_zh_action(str(act))}" for aid, act in (hist[worst].get("actions") or {}).items()) + "。\n",
              "\n> 注：AI 叙事生成失败，以上为词典机械替换的最小可用版本。"]
     return "\n".join(lines)
 

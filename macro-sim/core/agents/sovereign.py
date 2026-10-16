@@ -47,37 +47,6 @@ def board_clear():
     BOARD.clear()
 
 
-# ── 辅助：解析 soul 中的触发条件字符串 ──────────────────────────
-def _eval_trigger(trigger_str: str, ctx: dict) -> bool:
-    """
-    简单解析 soul 文件中的触发条件字符串。
-    支持：变量名 > 数值、变量名 < 数值、AND、OR
-    示例："russia_europe > 70 OR taiwan_strait > 75"
-    不支持复杂嵌套；解析失败返回 False。
-    """
-    if not trigger_str:
-        return False
-    try:
-        # 用安全的方式解析：只允许 ctx 中的数值变量和简单比较
-        # 将条件字符串转换为可求值表达式
-        expr = trigger_str
-        # 替换变量名为 ctx.get("var", 0)
-        import re
-        # 找出所有变量名（字母/数字/下划线，不以数字开头）
-        vars_in_expr = re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', expr)
-        for var in vars_in_expr:
-            if var in ("AND", "OR", "NOT", "and", "or", "not"):
-                continue
-            val = ctx.get(var, 0.0)
-            if isinstance(val, (int, float)):
-                expr = re.sub(r'\b' + var + r'\b', str(float(val)), expr)
-        # 替换 AND/OR
-        expr = expr.replace(" AND ", " and ").replace(" OR ", " or ")
-        return bool(eval(expr))  # noqa: S307 — 已限制为数值比较，无注入风险
-    except Exception:
-        return False
-
-
 # ── SovereignAgent 基类 ─────────────────────────────────────────
 @dataclass
 class SovereignAgent(LLMPilotMixin, MacroAgent):

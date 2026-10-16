@@ -27,6 +27,8 @@ import os
 import json
 import datetime
 
+from fetcher_base import FetcherBase
+
 try:
     from optim_config import DATA_DIR, PROXY_URL, HDX_API_BASE, HDX_QUERY
 except ImportError:
@@ -43,8 +45,6 @@ except ImportError:
     PROXY_URL = _cfg["PROXY_URL"]
     HDX_API_BASE = _cfg["HDX_API_BASE"]
     HDX_QUERY = _cfg["HDX_QUERY"]
-
-from fetcher_base import FetcherBase
 
 OUTPUT_FILE = "hdx_risk.json"
 RECENT_DAYS = 30

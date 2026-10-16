@@ -59,6 +59,8 @@ import json
 import math
 import time
 
+from fetcher_base import FetcherBase
+
 try:
     from optim_config import DATA_DIR, OPEN_SANCTIONS_DATA_URL, PROXY_URL
 except ImportError:
@@ -76,8 +78,6 @@ except ImportError:
     DATA_DIR = _cfg["DATA_DIR"]
     OPEN_SANCTIONS_DATA_URL = _cfg["OPEN_SANCTIONS_DATA_URL"]
     PROXY_URL = _cfg["PROXY_URL"]
-
-from fetcher_base import FetcherBase
 
 # 20 个跟踪国（ISO 3166-1 alpha-3）
 TRACKED_COUNTRIES = [
