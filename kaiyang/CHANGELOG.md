@@ -8,7 +8,7 @@
 
 ## [1.11.47] 2026-10-16 · feed 源级 status 告警（空图层不再被误读成「无事发生」）
 
-CHG-20261016T234234；对应 commit 待填。
+CHG-20261016T234234；对应 commit `45fcf80`。
 
 **背景**：各 fetcher 的 JSON 顶层带 `status` 字段，降级时写 `status: "unavailable"` +
 `events: []`。而前端 `useFeed` 只做 schema_version / 时间戳校验，**从不读顶层 status**；
