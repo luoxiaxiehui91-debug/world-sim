@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FEEDS, type FeedConfig } from '@/config/dataSources';
 import { fetchCsv, fetchJson } from '@/lib/readLayer';
-import { useStatus } from '@/state/StatusContext';
+import { useStatus, type Warning } from '@/state/StatusContext';
 
 export interface FeedState<T> {
   data: T | null;
@@ -14,9 +14,25 @@ export interface FeedState<T> {
  * 通过 feed 名称从注册表取配置，底层经 readLayer 拉取；新增 feed 不改此 hook。
  * 同时完成 schema_version 校验、时间戳采集、缺失/失败告警上报。
  */
+/**
+ * 源级 status 判定（各 feed JSON 顶层 status 字段）—— 10-16 CHG-20261016T234234。
+ *
+ * fetcher 降级时写 `status: "unavailable"` + `events: []`：HTTP 200、JSON 合法、数组为空，
+ * 与「真没事件」在数据形状上无法区分。若不读顶层 status，前端只会显示一个空图层，
+ * 用户看到的是「这里没有事件」而不是「数据源不可用」—— 监控系统里最坏的失效模式。
+ *
+ * `ok` / 字段缺失 → null（不告警，与既有行为一致）。
+ */
+export function sourceStatusWarning(feed: string, path: string, status: unknown): Warning | null {
+  if (status === undefined || status === null) return null;
+  const s = String(status);
+  if (s === 'ok') return null;
+  return { feed, field: 'status', message: `${path} 数据源标记不可用（status=${s}）` };
+}
+
 export function useFeed<T = unknown>(feedName: string): FeedState<T> {
   const cfg: FeedConfig | undefined = FEEDS[feedName];
-  const { report, setTimestamp, setDataVersion } = useStatus();
+  const { report, setTimestamp, setDataVersion, clearField } = useStatus();
   const [state, setState] = useState<FeedState<T>>({
     data: null,
     loading: true,
@@ -43,7 +59,7 @@ export function useFeed<T = unknown>(feedName: string): FeedState<T> {
           return;
         }
 
-        const obj = data as { schema_version?: string; _schema_version?: string; updated?: unknown; gdelt_updated?: unknown };
+        const obj = data as { schema_version?: string; _schema_version?: string; updated?: unknown; gdelt_updated?: unknown; status?: unknown };
         // schema_version 校验：兼容带下划线前缀（_schema_version）和不带（schema_version）两种写法
         const sv = obj.schema_version ?? obj._schema_version;
         if (!sv) {
@@ -72,6 +88,12 @@ export function useFeed<T = unknown>(feedName: string): FeedState<T> {
           setTimestamp(`${cfg.name}_gdelt`, obj.gdelt_updated == null ? null : String(obj.gdelt_updated));
         }
 
+        // 源级 status（10-16 CHG-20261016T234234）：fetcher 降级写 unavailable + 空数组时，
+        // 空图层不得被误读成「无事发生」；源恢复后清除该字段告警，避免陈旧告警永久残留。
+        const statusWarn = sourceStatusWarning(cfg.name, cfg.path, obj.status);
+        if (statusWarn) report(statusWarn);
+        else clearField(cfg.name, 'status');
+
         setState({ data: data as T, loading: false, error: null });
       } catch (e) {
         if (cancelled) return;
@@ -99,7 +121,7 @@ export function useFeed<T = unknown>(feedName: string): FeedState<T> {
       cancelled = true;
       if (timer) clearInterval(timer);
     };
-  }, [feedName, cfg, report, setTimestamp, setDataVersion]);
+  }, [feedName, cfg, report, setTimestamp, setDataVersion, clearField]);
 
   return state;
 }

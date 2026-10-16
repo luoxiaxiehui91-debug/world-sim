@@ -15,12 +15,22 @@ export interface Warning {
   message: string;
 }
 
+/**
+ * 告警过滤（纯函数，供 clear / clearField 复用与单测）。
+ * field 省略 → 移除该 feed 全部告警；传入 field → 只移除该 feed:field 一条。
+ */
+export function filterOutWarning(list: Warning[], feed: string, field?: string): Warning[] {
+  return list.filter((w) => !(w.feed === feed && (field === undefined || w.field === field)));
+}
+
 interface StatusApi {
   warnings: Warning[];
   /** 上报告警（按 feed:field 去重） */
   report: (w: Warning) => void;
   /** 清除某 feed 的全部告警 */
   clear: (feed: string) => void;
+  /** 清除某 feed 的指定字段告警（源恢复后消陈旧告警，避免永久残留） */
+  clearField: (feed: string, field: string) => void;
   /** 各 feed 数据时间戳 */
   timestamps: Record<string, string | null>;
   setTimestamp: (key: string, t: string | null) => void;
@@ -50,10 +60,15 @@ export function StatusProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clear = useCallback((feed: string) => {
-    setWarnings((prev) => prev.filter((x) => x.feed !== feed));
+    setWarnings((prev) => filterOutWarning(prev, feed));
     for (const k of Array.from(seen.current)) {
       if (k.startsWith(`${feed}:`)) seen.current.delete(k);
     }
+  }, []);
+
+  const clearField = useCallback((feed: string, field: string) => {
+    setWarnings((prev) => filterOutWarning(prev, feed, field));
+    seen.current.delete(`${feed}:${field}`);
   }, []);
 
   const setTimestamp = useCallback((key: string, t: string | null) => {
@@ -69,6 +84,7 @@ export function StatusProvider({ children }: { children: ReactNode }) {
       warnings,
       report,
       clear,
+      clearField,
       timestamps,
       setTimestamp,
       simTrigger,
@@ -76,7 +92,7 @@ export function StatusProvider({ children }: { children: ReactNode }) {
       dataVersions,
       setDataVersion,
     }),
-    [warnings, report, clear, timestamps, setTimestamp, simTrigger, dataVersions, setDataVersion],
+    [warnings, report, clear, clearField, timestamps, setTimestamp, simTrigger, dataVersions, setDataVersion],
   );
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;

@@ -6,6 +6,37 @@
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
 
+## [1.11.47] 2026-10-16 · feed 源级 status 告警（空图层不再被误读成「无事发生」）
+
+CHG-20261016T234234；对应 commit 待填。
+
+**背景**：各 fetcher 的 JSON 顶层带 `status` 字段，降级时写 `status: "unavailable"` +
+`events: []`。而前端 `useFeed` 只做 schema_version / 时间戳校验，**从不读顶层 status**；
+`healthAdapter` 更把点级 status 硬编码为 `'ok'`。
+
+后果：数据源真挂时 HTTP 200 + JSON 合法 + 事件数组为空 ⇒ 图层**静默显示为空**，
+用户看到的是「这里没有卫生事件」而不是「卫生数据源不可用」—— 监控系统里最坏的失效模式。
+
+**改动**：
+- `src/hooks/useFeed.ts`：新增纯函数 `sourceStatusWarning(feed, path, status)`
+  （`ok` / 字段缺失 → `null`；其它 → 告警对象），并在解析成功分支接线 ——
+  有告警走 `report()`，源恢复走 `clearField(feed, 'status')`（避免陈旧告警永久残留）
+- `src/state/StatusContext.tsx`：`StatusApi` 新增 `clearField(feed, field)`；
+  `clear` / `clearField` 共用纯函数 `filterOutWarning(list, feed, field?)`
+- 新增测试：`src/hooks/useFeed.test.ts`（6 例）、`src/state/StatusContext.test.tsx`（7 例）
+
+**验收**：`vitest run` **386 项全过**（新增 13 项，基线 311+ 只增不减）；
+`tsc --noEmit` 通过；node 容器内 `npm run build` 绿（`VITE_CONTROL_API_TOKEN` 经挂载文件注入，
+token_len=48，不在命令行出现）；部署后 index.html / 活动 bundle / CSS / **21 个 feed 全 200**；
+产物内 grep 命中新告警文案「数据源标记不可用」；当前各 feed status 实测为 `ok` 或缺该字段
+⇒ **不产生伪告警**（`ok` 与字段缺失均返回 null）。
+
+**遗留**：
+- 多数 feed 根本不写顶层 `status`（实测 21 个里 13 个无该字段）⇒ 该项只对**写了 status 的
+  fetcher** 生效（health_geo / airtraffic_opensky / spacelaunch / spacetrack 等）。
+  要全覆盖需给各 fetcher 补降级契约，属后端事项。
+- 上一版 bundle `index-DWTganDz.js` 按 DEPLOYMENT.md §3 保留作回滚件（当前 2 版 ≤ 3 版上限，未清理）。
+
 ## [1.11.46] 2026-10-13 · 新闻卡片标题优先中文（FT / BBC 官方源中译）
 
 CHG-20261013T093037；对应 commit `9143689`；配套 macro-scan v3.8.72。
