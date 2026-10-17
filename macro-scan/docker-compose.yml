@@ -7,7 +7,7 @@ services:
 
     ports:
       - "8899:8899"      # Web UI (Phase 3A)
-      - "8900:8900"      # Control API (A3a)
+      - "127.0.0.1:8900:8900"  # Control API (A3a) — CHG-20261017 S3：收窄至宿主回环，对外统一经 8080 nginx 反代
 
     volumes:
       - ./核心代码:/app
