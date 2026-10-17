@@ -7,7 +7,8 @@ tianji_verifier.py — 天玑 V1 月度验证运行器
   2. 量化预测：自动拉 FRED/GRV 历史数据，计算 Brier Score
   3. 地缘预测：推送 ntfy 请求人工确认
   4. 计算 Brier Skill Score（BSS）和锐度
-  5. 触发反哺检查：连续N条同类信源+同类目标 Brier 差 → 生成待审批建议
+  5. 触发反哺检查：同类信源+同类目标样本≥30 且 Brier 显著差于其余样本
+     → 生成待审批下调建议（2026-10-17 修正方向与显著性门槛）
 
 用法：
   python tianji_verifier.py          # 月度验证
@@ -38,8 +39,18 @@ from tianji_db import (
 NTFY_URL = os.environ.get("NTFY_URL", "")
 GRV_HISTORY_PATH = os.path.join(DATA_DIR, "grv_history.jsonl")
 
-# 触发反哺的最小样本量
-MIN_TRIGGER_N = 8
+# ── 反哺调权参数（集中在此，便于后续调参）─────────────────────────────────
+# 2026-10-17 修正三处统计缺陷：
+#   ① 方向反了：原判据选中「更准」的组（Brier 低）却降权，reason 却写「差于」；
+#   ② 样本量不足：n=8 时正确识别好坏的仅 65.8%（蒙特卡洛 4000 次），约 1/3 判反；
+#   ③ 取样随意：briers[:8] 依赖 verified_at 排序，同组数据换个顺序结论相反。
+# 现行口径：全量样本 + 显著性检验（z>=1.96）+ 按差距分档调幅。
+# 调参：MIN_GROUP_SAMPLE 不建议低于 30；档位乘数须 >=0.80
+#       （weight_matrix.MAX_CHANGE_RATE=0.25 会再兜底一次）。
+MIN_TRIGGER_N = 30          # 全局最少已核实样本（原 8）
+MIN_GROUP_SAMPLE = 30       # 单组最少样本（原复用 MIN_TRIGGER_N 且只取前 8 条）
+SIGNIFICANCE_Z = 1.96       # 95% 双侧：仅显著差于其余样本才降权
+WEIGHT_DOWN_TIERS = ((1.50, 0.80), (1.20, 0.90), (1.05, 0.98))  # (Brier 比值下限, 乘数)
 
 
 # ── L2 新闻自动判定（并入 verify_geo_auto.py 孤儿逻辑，2026-08-22）──────────────
@@ -295,7 +306,9 @@ def _push_geopolitical_verify_request(pred: dict):
 def check_and_generate_reweight_suggestions():
     """
     检查是否有信源应该触发降权建议。
-    触发条件：连续 N=8 条同信源+同预测目标类型，Brier 均值 < 全体均值 × 80%。
+    触发条件（2026-10-17 修正）：同信源+同预测目标类型样本数 >= MIN_GROUP_SAMPLE，
+    且 Brier 均值经 Welch z 检验**显著大于**其余样本（z >= SIGNIFICANCE_Z）——
+    即只有「确实更差」才下调，按 Brier 比值分档决定下调幅度。
     """
     # Bug B 修复：按活跃校准版本过滤，避免不同模型版本预测混合计算 BSS。
     # calibration_versions 表不存在时静默降级为不过滤（graceful degradation）。
@@ -368,10 +381,23 @@ def check_and_generate_reweight_suggestions():
 
     suggestions = []
     for (src, tgt), briers in groups.items():
-        if len(briers) < MIN_TRIGGER_N:
+        if len(briers) < MIN_GROUP_SAMPLE:
             continue
-        group_mean = sum(briers[:MIN_TRIGGER_N]) / MIN_TRIGGER_N
-        if group_mean > global_mean * 0.8:  # 差于全体均值 80%
+        rest = [b for (_s, _t), _v in groups.items() if (_s, _t) != (src, tgt) for b in _v]
+        stat = _welch_z(briers, rest)
+        if stat is None:
+            continue
+        group_mean, rest_mean, z_score = stat
+        # 方向修正：Brier 越大越差，只有「显著更差」才下调
+        if z_score < SIGNIFICANCE_Z:
+            continue
+        ratio = group_mean / rest_mean if rest_mean > 0 else 1.0
+        factor = 1.0
+        for _floor, _mult in WEIGHT_DOWN_TIERS:
+            if ratio >= _floor:
+                factor = _mult
+                break
+        if factor >= 1.0:
             continue
         # 读取当前权重
         current_weight = _read_current_weight(src, tgt)
@@ -380,11 +406,15 @@ def check_and_generate_reweight_suggestions():
             "target_type":    tgt,
             "sample_count":   len(briers),
             "group_brier":    round(group_mean, 4),
+            "rest_brier":     round(rest_mean, 4),
             "global_brier":   round(global_mean, 4),
-            "ratio":          round(group_mean / global_mean, 3) if global_mean > 0 else 1.0,
+            "ratio":          round(ratio, 3),
+            "z_score":        round(z_score, 2),
             "weight_before":  current_weight,
-            "weight_after":   round(max(0.05, current_weight * 0.85), 4),
-            "reason":         f"连续{MIN_TRIGGER_N}条 Brier={group_mean:.3f}，差于全体均值({global_mean:.3f})的80%",
+            "weight_after":   round(max(0.05, current_weight * factor), 4),
+            "reason":         (f"{len(briers)}条样本 Brier={group_mean:.3f}，显著差于其余样本"
+                               f"({rest_mean:.3f})：z={z_score:.2f}>={SIGNIFICANCE_Z}，"
+                               f"按 {ratio:.2f}x 档位下调 {(1 - factor) * 100:.0f}%"),
         })
 
     if suggestions:
@@ -426,6 +456,25 @@ def check_and_generate_reweight_suggestions():
                 pass
 
     return suggestions
+
+
+def _welch_z(group: list, rest: list):
+    """组均值相对「其余样本」的 Welch z 值（纯标准库正态近似，n>=30 足够）。
+
+    返回 (group_mean, rest_mean, z)；样本不足或标准误为 0 时返回 None。
+    z 越大表示该组 Brier 越大（越差）。方向修正于 2026-10-17。
+    """
+    n1, n2 = len(group), len(rest)
+    if n1 < 2 or n2 < 2:
+        return None
+    m1 = sum(group) / n1
+    m2 = sum(rest) / n2
+    v1 = sum((x - m1) ** 2 for x in group) / (n1 - 1)
+    v2 = sum((x - m2) ** 2 for x in rest) / (n2 - 1)
+    se = math.sqrt(v1 / n1 + v2 / n2)
+    if se <= 1e-12:
+        return None
+    return m1, m2, (m1 - m2) / se
 
 
 def _read_current_weight(signal_name: str, target_type: str) -> float:
