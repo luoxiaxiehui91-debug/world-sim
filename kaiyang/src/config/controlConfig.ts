@@ -7,11 +7,12 @@ import type { ScheduleOption } from '@/types/control';
 
 // ── API Base URL ───────────────────────────────────────────
 
-/** 控制 API 默认 Base URL — 指向天枢 control_server.py（:8900） */
-const DEFAULT_API_BASE_URL =
-  typeof window === 'undefined'
-    ? 'http://localhost:8900/api/v1/control/'
-    : `${window.location.protocol}//${window.location.hostname}:8900/api/v1/control/`;
+/**
+ * 控制 API 默认 Base URL — **同源相对路径**。
+ * CHG-20261017 端口合并：请求打到开阳自身（:8080），由 nginx 在容器网络内
+ * 反代到天枢 control_server.py（:8900）。8900 不再对外，浏览器无法直连。
+ */
+const DEFAULT_API_BASE_URL = '/api/v1/control/';
 
 /**
  * 控制 API Base URL。
@@ -20,7 +21,12 @@ const DEFAULT_API_BASE_URL =
 export const API_BASE_URL: string = (() => {
   try {
     const stored = localStorage.getItem('kaiyang_control_api_base_url');
-    if (stored) return stored;
+    // 端口合并迁移：旧版落盘的直连 :8900 地址在收窄后已不可达，丢弃并回落同源
+    if (stored && stored.includes(':8900')) {
+      localStorage.removeItem('kaiyang_control_api_base_url');
+    } else if (stored) {
+      return stored;
+    }
   } catch {
     /* localStorage 不可用时静默忽略 */
   }
