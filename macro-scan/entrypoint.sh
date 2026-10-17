@@ -42,9 +42,6 @@ if [ -n "${NTFY_CMD_TOPIC}" ]; then
     echo "[entrypoint] ntfy listener started (topic=${NTFY_CMD_TOPIC})"
 fi
 
-# Start Web UI (Phase 3A, port 8899)
-cd /app && python3 web_server.py >> /var/log/macro-scan/web.log 2>&1 &
-echo "[entrypoint] web server started (http://0.0.0.0:8899)"
 
 # Start Control API (A3a, port 8900)
 cd /app && python3 control_server.py >> /var/log/macro-scan/control.log 2>&1 &
