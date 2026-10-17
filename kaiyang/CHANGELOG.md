@@ -1,10 +1,38 @@
 # Changelog · 开阳（Kaiyang）操作面板
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）
-> 最后核对时间：2026-10-01（记录类文档随部署持续更新）
+> 最后核对时间：2026-10-17（记录类文档随部署持续更新）
 
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
+
+## [1.11.48] 2026-10-17 · 控制 API 改走同源相对路径（端口合并 S2）
+
+CHG-20261017T231000；对应 commit `451ccd1`。
+
+**背景**：控制 API（天枢 `control_server.py`）监听 `:8900`，前端 `controlConfig.ts`
+按 `window.location.hostname` 拼出 `${hostname}:8900/api/v1/control/` —— 即浏览器
+**直连 8900**。配合「8900 收窄至宿主回环」的改造，这条直连路径必须改掉，
+否则手机与局域网内其他设备访问面板时控制功能全部失效。
+
+**改动**（`kaiyang/src/config/controlConfig.ts`）：
+
+- `DEFAULT_API_BASE_URL`：`${protocol}//${hostname}:8900/...` → `/api/v1/control/`
+  请求打到开阳自身（:8080），由 nginx 在容器网络内反代到天枢 :8900（见 S1 同批提交）。
+  顺带去掉 SSR 分支（`typeof window === 'undefined'`）——本项目是纯静态 SPA，无 SSR。
+- **迁移兼容**：`localStorage` 中残留的旧直连地址（含 `:8900`）判定为过期并清除，
+  回落同源默认值。已访问过面板的浏览器无需手动清理即可自动切换
+  （该键无 UI 写入入口，仅 DevTools 可手填，清除不影响任何既有功能）。
+
+**依赖**：S1（nginx 反代）必须先于本改动上线，否则同源路径无后端承接。
+
+**验证**：
+
+- `tsc --noEmit && vite build` 通过，新产物 `index-DTcO80c0.js`（1.71 MB）
+- 新产物含 `/api/v1/control/`；残留 `:8900` 仅 3 处且均为非端口含义
+  （1 处为迁移判断 `includes(":8900")`，2 处为 CSS 颜色常量 `lightskyblue:8900346` / `skyblue:8900331`）
+- 控制令牌精确值在全部 5 个产物中命中 **0**
+- 旧产物 `index-Cp1seavU.js` → 404；新产物、首页、反代控制接口均 200
 
 ## [1.11.47] 2026-10-16 · feed 源级 status 告警（空图层不再被误读成「无事发生」）
 
