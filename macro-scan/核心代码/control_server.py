@@ -12,8 +12,9 @@ control_server.py — 天枢控制 API（A3a）
   POST /api/v1/control/fetchers/{id}/resume        — 恢复
   PUT  /api/v1/control/fetchers/{id}/schedule      — 调整频率
   GET  /api/v1/control/operations/{id}             — 查操作状态
+  POST /api/v1/control/ask                         — LLM 问答（2026-10-17 S4 自 8899 迁入，走 token）
 
-鉴权：Bearer Token（CONTROL_TOKEN 环境变量，未设置则跳过鉴权）
+鉴权：Bearer Token（CONTROL_TOKEN 环境变量，未设置则拒绝所有控制操作 / fail-closed）
 """
 import html
 import ipaddress
@@ -28,6 +29,11 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    from pydantic import BaseModel
+except ImportError:  # pragma: no cover
+    BaseModel = None  # type: ignore
 
 try:
     from fastapi import FastAPI, HTTPException, Depends, Request
@@ -716,6 +722,164 @@ async def verify_prediction(request: Request):
     except Exception:
         pass
     return {"ok": True, "updated": cur.rowcount, "outcome": outcome, "brier": brier, "note": note}
+
+
+# ── 问答（2026-10-17 S4：自 web_server.py:8899 迁入控制面）────────────────────
+# 迁移动机：8899 的 /ask 无鉴权（仅有限流），迁入 8900 后自动获得 Bearer Token 校验。
+# 每次调用真实消耗 token，故限流与长度上限一并迁移，不可放宽。
+
+_ASK_MAX_QUESTION_LEN = 500      # 单条提问字符上限
+_ASK_WINDOW_SECONDS   = 60       # 限流窗口
+_ASK_MAX_PER_WINDOW   = 10       # 同一来源每窗口最多调用次数
+_ASK_SOURCES: dict = {}          # {来源: [时间戳, ...]}；内存态，重启清零（可接受）
+
+
+def _ask_source_key(request) -> str:
+    """问答限流的来源标识（反代场景适配，与 web_server.py 原实现不同）。
+
+    - 本服务经 8080 nginx 反代访问，`request.client.host` 恒为 kaiyang 容器 IP
+      ⇒ 直接用会让所有来源共用一个限流桶（一人超限、全员被封）。
+    - **不采信 X-Forwarded-For**：nginx 的 `$proxy_add_x_forwarded_for` 是「追加」语义，
+      客户端伪造的 XFF 会保留在左侧，取左仍可被绕过。
+    - 优先取 **X-Real-IP**：nginx 以 `proxy_set_header X-Real-IP $remote_addr` 无条件覆盖，
+      `$remote_addr` 是 TCP 对端真实地址，客户端无法伪造。
+    - 未经反代的直连（宿主回环调试）无该头，回退 `request.client.host`。
+    """
+    real_ip = (request.headers.get("X-Real-IP") or "").strip()
+    if real_ip:
+        return real_ip
+    return (request.client.host if request.client else "") or "unknown"
+
+
+def _ask_rate_exceeded(source: str) -> bool:
+    """滑动窗口限流：窗口内调用数超限返回 True（顺带清理过期条目）。"""
+    now = time.time()
+    stamps = [t for t in _ASK_SOURCES.get(source, []) if now - t < _ASK_WINDOW_SECONDS]
+    if len(stamps) >= _ASK_MAX_PER_WINDOW:
+        _ASK_SOURCES[source] = stamps
+        return True
+    stamps.append(now)
+    _ASK_SOURCES[source] = stamps
+    return False
+
+
+def _ask_build_context() -> str:
+    """拼装当前数据快照上下文（GRV / 情境事件 / 弱信号 / 气候 / 灾害）。
+
+    各段独立 try：任一数据源缺失或格式异常不应影响其余部分。
+    """
+    context_parts = []
+
+    # GRV
+    try:
+        grv_path = os.path.join(DATA_DIR, "grv_latest.json")
+        if os.path.exists(grv_path):
+            with open(grv_path, encoding="utf-8") as f:
+                grv = json.load(f)
+            grv_lines = ["[地缘风险 GRV]"]
+            for k, label in [("taiwan_strait", "台海"), ("us_china_strategic", "中美"),
+                             ("russia_europe", "俄欧"), ("middle_east_energy", "中东能源")]:
+                v = grv.get(k)
+                if v is not None:
+                    grv_lines.append(f"  {label}: {v:.1f}")
+            context_parts.append("\n".join(grv_lines))
+    except Exception:
+        pass
+
+    # 情境事件
+    try:
+        from situation_tracker import get_context as _gc
+        ctx = _gc(max_events=5)
+        if ctx:
+            context_parts.append(ctx)
+    except Exception:
+        pass
+
+    # 最新弱信号
+    try:
+        sig_path = os.path.join(DATA_DIR, "weak_signal_log.json")
+        if os.path.exists(sig_path):
+            with open(sig_path, encoding="utf-8") as f:
+                log = json.load(f)
+            recent = (log if isinstance(log, list) else [])[-5:]
+            if recent:
+                sig_lines = ["[近期弱信号]"]
+                for s in recent:
+                    sig_lines.append(
+                        f"  {s.get('indicator_name','')} {s.get('level','')} {s.get('value','')}")
+                context_parts.append("\n".join(sig_lines))
+    except Exception:
+        pass
+
+    # 气候信号
+    try:
+        if os.path.exists(os.path.join(DATA_DIR, "climate_signals.json")):
+            from fetch_climate_signals import get_context as _cc
+            cc = _cc()
+            if cc:
+                context_parts.append(cc)
+    except Exception:
+        pass
+
+    # 自然灾害信号
+    try:
+        if os.path.exists(os.path.join(DATA_DIR, "disaster_signals.json")):
+            from fetch_disaster_signals import get_context as _ddc
+            ddc = _ddc()
+            if ddc:
+                context_parts.append(ddc)
+    except Exception:
+        pass
+
+    return "\n\n".join(context_parts) if context_parts else "（当前无缓存数据）"
+
+
+if BaseModel is not None:
+    class AskPayload(BaseModel):
+        question: str = ""
+else:  # pragma: no cover
+    AskPayload = None  # type: ignore
+
+
+@app.post("/api/v1/control/ask")
+def ask(payload: AskPayload, request: Request):
+    """自由提问：注入当前数据快照上下文，调用 LLM 回答。
+
+    2026-10-17 S4：自 8899 的 `/ask` 迁入控制面，走 Bearer Token 鉴权。
+    同步 def：FastAPI 会自动放入线程池执行，LLM 阻塞不会拖住其它端点的事件循环。
+    """
+    _check_token(request)
+
+    # ① 限流（在解析与调 LLM 之前，避免为超限请求付出成本）
+    source = _ask_source_key(request)
+    if _ask_rate_exceeded(source):
+        return JSONResponse(
+            {"error": f"提问过于频繁，请稍后再试（每{_ASK_WINDOW_SECONDS}秒最多{_ASK_MAX_PER_WINDOW}次）"},
+            status_code=429,
+        )
+
+    question = (getattr(payload, "question", "") or "").strip()
+    if not question:
+        return JSONResponse({"error": "问题不能为空"}, status_code=400)
+
+    # ② 长度上限（防止超长 prompt 放大单次成本）
+    if len(question) > _ASK_MAX_QUESTION_LEN:
+        question = question[:_ASK_MAX_QUESTION_LEN]
+
+    try:
+        context = _ask_build_context()
+        prompt = (
+            f"用户问题：{question}\n\n"
+            f"当前系统数据快照：\n{context}\n\n"
+            "请根据以上数据直接回答用户问题，用中文，简洁准确，250字以内。"
+            "如果数据不足以回答，明确说明缺少哪方面的数据，不要猜测。"
+        )
+        from hybrid_llm import reason
+        system = "你是宏观世界分析助手，回答基于提供的数据快照，言简意赅，区分已知事实和推断。"
+        answer = reason(prompt, system=system, mode="auto", max_tokens=500)
+        return {"answer": (answer or "").strip()}
+    except Exception as e:
+        return JSONResponse({"error": f"处理失败：{str(e)}"}, status_code=500)
 
 
 if __name__ == "__main__":

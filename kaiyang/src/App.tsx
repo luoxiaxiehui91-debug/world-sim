@@ -37,6 +37,7 @@ function buildDefaultLayout(): Layout[] {
     'reports':        { x: 0,  y: 32 },
     'financial':      { x: 7,  y: 32 },
     'risk-signals':   { x: 0,  y: 39 },
+    'ask':            { x: 0,  y: 44 },
   };
 
   const panels = PANELS.filter((p) => p.visible).sort((a, b) => a.order - b.order);

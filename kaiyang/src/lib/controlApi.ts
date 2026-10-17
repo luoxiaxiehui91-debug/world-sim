@@ -192,7 +192,13 @@ const TRUSTED_CONTROL_HOSTS = new Set([
 
 function isTrustedControlBase(): boolean {
   try {
-    const u = new URL(API_BASE_URL);
+    // 2026-10-17 修复：API_BASE_URL 改为同源相对路径（如 /api/v1/control/）后，
+    // `new URL(相对路径)` 会抛错 → 走 catch 返回 false → **所有请求都不带 Bearer Token**
+    // → 控制面全部 401、控制台整体失效。此处以当前页面 origin 作为 base 解析后再比较。
+    const u = new URL(
+      API_BASE_URL,
+      typeof window === 'undefined' ? undefined : window.location.origin,
+    );
     return TRUSTED_CONTROL_HOSTS.has(u.hostname);
   } catch {
     return false;
@@ -520,4 +526,21 @@ export async function verifyPrediction(
 /** 获取 LLM token 用量统计（只读；09-29 开阳用量面板） */
 export async function getLlmTokenStats(days = 7): Promise<LlmTokenStats | null> {
   return apiFetch<LlmTokenStats>(`/llm-token-stats?days=${days}`, {}, true);
+}
+
+/** POST /control/ask 响应 */
+export interface AskResponse {
+  answer: string;
+}
+
+
+/** POST /control/ask — 基于当前数据快照提问（2026-10-17 S4 自 8899 迁入，走 token）。
+ *  服务端有限流（60s/10 次）与长度上限，前端做对应的错误提示即可。 */
+export async function askQuestion(question: string): Promise<string> {
+  if (MOCK_ENABLED) return '[MOCK] 已收到提问：' + question;
+  const res = await apiFetch<AskResponse>('/ask', {
+    method: 'POST',
+    body: JSON.stringify({ question }),
+  });
+  return res?.answer ?? '';
 }

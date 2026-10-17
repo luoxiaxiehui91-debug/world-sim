@@ -13,6 +13,7 @@ import { MarketsPanel } from '@/components/MarketsPanel';
 import { ReportsPanel } from '@/components/ReportsPanel';
 import { FinancialPanel } from '@/components/FinancialPanel';
 import { RiskSignalsPanel } from '@/components/RiskSignalsPanel';
+import { AskPanel } from '@/components/AskPanel';
 
 /** 面板注册项（扩展标准 #2）：新增面板只加一项，布局无需改动。 */
 export interface PanelRegistration {
@@ -136,5 +137,11 @@ export const PANELS: PanelRegistration[] = [
     id: 'risk-signals', title: '风险信号', feed: 'climate_signals', order: 14, visible: true,
     className: 'lg:col-span-12', component: RiskSignalsPanel,
     defaultLayout: { w: 12, h: 5, minW: 6, minH: 3 },
+  },
+  // ── 1.11.48 追加（2026-10-17 S4）：智能问答（自 8899 的 /ask 迁入控制面）──
+  {
+    id: 'ask', title: '智能问答', feed: 'grv', order: 15, visible: true,
+    className: 'lg:col-span-12', component: AskPanel,
+    defaultLayout: { w: 12, h: 6, minW: 4, minH: 4 },
   },
 ];
