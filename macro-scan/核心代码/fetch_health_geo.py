@@ -141,6 +141,39 @@ ZH_BATCH = 30            # 每轮最多翻译条数（I60 实测每轮新增 7~1
 ZH_CACHE_MAX = 2000      # 缓存上限（FIFO 淘汰）
 
 
+def compute_advance(slot_results, fail_counts, max_fail):
+    """计算增量应推进到哪个 slot —— 最大连续成功前缀 + 连续失败上限。
+
+    CHG-20261018 T1/F4+F5：slot_results 为按时间升序的 (slot_key, ok) 序列，
+    slot_key 为字符串。
+
+    设计要点（两条缺一不可）：
+      · 只推进到「连续成功段」的末尾 ⇒ 失败的 slot 下次仍会被重试，
+        而不是像旧代码那样被永久跳过（旧代码推进到最后一个成功/或当前 slot）。
+      · 单个 slot 连续失败达 max_fail 次则强制跳过 ⇒ 否则某个长期不可用的
+        slot 会把增量永久卡死，那比旧行为更糟。有此上限后，「空洞」才变成
+        「可见的已知缺口」而非「无声的停滞」。
+
+    返回 (advance_to, forced_count, fail_counts, forced_keys)；
+    advance_to 为 None 表示本次不推进（首段即失败且未达上限）。
+    """
+    advance_to = None
+    forced_keys = []
+    for key, ok in slot_results:
+        if ok:
+            advance_to = key
+            fail_counts.pop(key, None)
+            continue
+        n = fail_counts.get(key, 0) + 1
+        if n >= max_fail:
+            fail_counts.pop(key, None)
+            advance_to = key
+            forced_keys.append((key, n))
+            continue
+        fail_counts[key] = n
+        break
+    return advance_to, len(forced_keys), fail_counts, forced_keys
+
 class HealthGeoFetcher(FetcherBase):
     """GDELT GKG 卫生事件地理提取器。"""
 
@@ -252,14 +285,36 @@ class HealthGeoFetcher(FetcherBase):
         except Exception:
             return {"last_slot": None}
 
-    def _save_state(self, last_slot):
+    def _save_state(self, last_slot=None, failed_slots=None, last_as_of=None):
+        """落盘增量状态。
+
+        CHG-20261018 T1/F4：last_slot=None 表示本次不推进（保留原值），
+        并额外记录各 slot 的连续失败次数与上次成功时的 as_of。
+        """
         try:
+            prev = {}
+            try:
+                with open(self.state_path, encoding="utf-8") as f:
+                    prev = json.load(f)
+            except Exception:
+                prev = {}
+            payload = {
+                "last_slot": last_slot or prev.get("last_slot"),
+                "failed_slots": failed_slots or {},
+                "last_as_of": last_as_of or prev.get("last_as_of"),
+            }
             _tmp_177 = self.state_path + ".tmp"
             with open(_tmp_177, "w", encoding="utf-8") as f:
-                json.dump({"last_slot": last_slot}, f)
+                json.dump(payload, f)
             os.replace(_tmp_177, self.state_path)
         except Exception as e:
             self.logger.warning("[health_geo] state 落盘失败: %s", e)
+
+    # ── CHG-20261018 T1/F4 ──────────────────────────────
+    # 单个 slot 连续失败达到该次数后强制跳过。
+    # 没有它，只做「连续前缀推进」会让某个长期不可用的 slot 把增量永久卡死
+    # —— 那比现状（跳过失败 slot 继续走）更糟。有它，「空洞」变成「可见的已知缺口」。
+    MAX_SLOT_FAIL = 3
 
     # ── 采集入口 ─────────────────────────────────────────────
     def collect(self):
@@ -293,25 +348,53 @@ class HealthGeoFetcher(FetcherBase):
 
         new_events = []
         checked = 0
+        ok_count = 0
+        # CHG-20261018 T1/F4：逐个记录 slot 成败，供「最大连续成功前缀」推进使用
+        slot_results = []
+        fail_counts = dict(state.get("failed_slots") or {})
         for s in slots[-8:]:  # 最多拉 8 slot（2h），防长时间停机后一次拉爆
-            url = f"{GKG_BASE}{s.strftime('%Y%m%d%H%M%S')}.gkg.csv.zip"
+            key = s.strftime("%Y%m%d%H%M%S")
+            url = f"{GKG_BASE}{key}.gkg.csv.zip"
             data = self._download(url)
             checked += 1
             if data:
                 parsed = self._parse_slot(data)
                 new_events += parsed
+                ok_count += 1
+                slot_results.append((key, True))
                 self.logger.info("[health_geo] slot %s: %d 条卫生事件",
                                  s.strftime("%H%M"), len(parsed))
             else:
+                slot_results.append((key, False))
                 self.logger.warning("[health_geo] slot %s 下载失败", s.strftime("%H%M"))
         # 去重 + 合并历史（保留 72h）+ 标题回填（抓 doc URL 页面 <title>）
         events = self._merge_events(new_events)
         events = self._backfill_titles(events, self._fetch_pending_titles(events))
         events = self._backfill_title_zh(events, self._translate_pending(events))
-        self._save_state(cur_slot.strftime("%Y%m%d%H%M%S"))
-        as_of = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-        events = self._persist(events, as_of)
-        return {"status": Status.OK, "new_events": len(new_events), "slots_checked": checked, "events": events}
+
+        # ── 推进到「最大连续成功前缀」的最后一个 slot ──────────────
+        # 原实现无条件推进到 cur_slot ⇒ 失败的 slot 此后再也取不到，数据永久丢失
+        # 且无从察觉（面板照样显示"ok"）。改为只推进到连续成功段末尾，让失败
+        # slot 下次仍会被重试；连续失败达 MAX_SLOT_FAIL 次则强制跳过，避免停滞。
+        advance_to, forced, fail_counts, forced_keys = compute_advance(
+            slot_results, fail_counts, self.MAX_SLOT_FAIL)
+        for key, n in forced_keys:
+            self.logger.error(
+                "[health_geo] slot %s 连续失败 %d 次（达上限），强制跳过 —— 该时段为已知数据缺口",
+                key, n)
+
+        # 全失败时不刷新 as_of：数据确实没更新，刷新会绕过陈旧判定让旧数据看着新鲜
+        all_failed = (ok_count == 0 and checked > 0)
+        if all_failed:
+            as_of = state.get("last_as_of") or now.strftime("%Y-%m-%dT%H:%M:%SZ")
+            collect_status = Status.UNAVAILABLE
+        else:
+            as_of = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+            collect_status = Status.PARTIAL if (forced or ok_count < checked) else Status.OK
+        self._save_state(advance_to, fail_counts, as_of)
+        events = self._persist(events, as_of, status=collect_status)
+        return {"status": collect_status, "new_events": len(new_events),
+                "slots_checked": checked, "slots_ok": ok_count, "events": events}
 
     # ── 合并/持久化 ──────────────────────────────────────────
     def _fetch_doc_titles(self):
@@ -520,11 +603,11 @@ class HealthGeoFetcher(FetcherBase):
             })
         return out
 
-    def _persist(self, events, as_of):
+    def _persist(self, events, as_of, status=Status.OK):
         raw_count = len(events)
         # v1.1.1：明细持久化到 RAW_FILE（合并/回填源），展示文件只存聚合
         raw_payload = {
-            "status": Status.OK,
+            "status": status,
             "source": "GDELT 2.0 GKG (health keyword filter, raw)",
             "as_of": as_of,
             "scope": "global",
@@ -535,7 +618,7 @@ class HealthGeoFetcher(FetcherBase):
         self.save_json(RAW_FILE, raw_payload)
         aggregated = self._aggregate_by_location(events)
         payload = {
-            "status": Status.OK,
+            "status": status,
             "source": "GDELT 2.0 GKG (health keyword filter)",
             "as_of": as_of,
             "scope": "global",

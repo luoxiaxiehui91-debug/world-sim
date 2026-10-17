@@ -15,9 +15,12 @@
 import os
 import json
 import time
+import logging
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 from typing import Dict, List, Tuple, Optional
 
 # =========================
@@ -103,6 +106,39 @@ def _get_kb_dir_hash(kb_dir: str) -> str:
 
 
 # =========================
+# 有痕降级（CHG-20261018 T1/F1）
+# =========================
+# 替代 `except Exception: pass`。原写法把「缓存读不到 / 时间戳算错 / 状态解析失败」
+# 一律静默吞掉，调用方拿到的是默认值，表现与「本来就没有」完全一致 —— 于是
+# 面板显示"一切正常"而数据其实是空的。改为：控制流不变（仍走降级路径、不抛），
+# 但降级这件事本身变为可观测（计数 + 有节流的 warning）。
+
+_DEGRADE_COUNTS: Dict[str, int] = {}
+_DEGRADE_WARN_EVERY = 10  # 首次 + 之后每 N 次各告警一条，避免日志洪水
+
+
+def _degrade(what: str, exc: BaseException) -> None:
+    """记录一次静默降级（不抛、不改变控制流）。"""
+    n = _DEGRADE_COUNTS.get(what, 0) + 1
+    _DEGRADE_COUNTS[what] = n
+    if n == 1 or n % _DEGRADE_WARN_EVERY == 0:
+        logger.warning("[degrade] %s 走降级路径（累计 %d 次）: %s", what, n, exc)
+
+
+def get_degrade_stats() -> Dict[str, int]:
+    """导出降级计数快照（供控制面 / 巡检读取）。"""
+    return dict(_DEGRADE_COUNTS)
+
+
+def _elapsed_days(ts: datetime) -> int:
+    """计算 ts 距今的天数（非负）。
+    aware 串必须用 aware 的 now 相减 —— naive - aware 会直接抛 TypeError。
+    """
+    now = datetime.now(timezone.utc) if ts.tzinfo is not None else datetime.now()
+    return max(0, int((now - ts).total_seconds() // 86400))
+
+
+# =========================
 # Layer A: 数据获取层
 # =========================
 
@@ -112,8 +148,9 @@ def _load_cache() -> Dict:
         if os.path.exists(CACHE_FILE):
             with open(CACHE_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-    except Exception:
-        pass
+    except Exception as _e:
+        # CHG-20261018 T1/F1：缓存读不到是「数据源可能已断」的信号，不可静默
+        _degrade("cache.load", _e)
     return {}
 
 
@@ -153,22 +190,23 @@ def _cache_age_days(key: str) -> float:
     entry = cache.get(key)
     if not entry:
         return -1
-    # 优先用 _meta.last_update，否则用条目的 date 字段推算
+    # CHG-20261018 T1/F2：原实现 `datetime.now() - ts` 中 now 为 naive、
+    # 而 _meta.last_update 由 now_iso_utc() 写成 aware(+00:00) ⇒ 必抛 TypeError
+    # ⇒ 被 except:pass 吞掉 ⇒ 恒返回 -1 ⇒ _is_cache_stale 恒判「无缓存=过期」
+    # ⇒ API 挂掉时永远不会回落到缓存。现按 ts 是否 aware 选用对应的 now。
     last_update = cache.get("_meta", {}).get("last_update")
     if last_update:
         try:
-            ts = datetime.fromisoformat(last_update)
-            return (datetime.now() - ts).days
-        except Exception:
-            pass
+            return _elapsed_days(datetime.fromisoformat(last_update))
+        except Exception as _e:
+            _degrade("cache.age", _e)
     # fallback: 用条目 date 字段
     entry_date = entry.get("date", "")
     if entry_date and len(entry_date) >= 10:
         try:
-            d = datetime.strptime(entry_date[:10], "%Y-%m-%d")
-            return (datetime.now() - d).days
-        except Exception:
-            pass
+            return _elapsed_days(datetime.strptime(entry_date[:10], "%Y-%m-%d"))
+        except Exception as _e:
+            _degrade("cache.age.fallback", _e)
     return -1
 
 

@@ -877,16 +877,85 @@ def compute_grv() -> dict:
     return grv
 
 
-def save_grv(grv: dict) -> None:
+# =========================
+# 写入守卫（CHG-20261018 T1/F3）
+# =========================
+# 原实现：save_grv / append_grv_history 均无校验，全源失败（source_quality=stub）
+# 时照样把退化值写进 grv_latest.json 与 grv_history.jsonl —— 后者用于 delta 与趋势
+# 判断，一旦被污染不可回退。现改为：不覆盖指标、不写历史，并在文件上标记
+# status=stale。前端 useFeed 的 sourceStatusWarning() 对任何非 ok/非缺失的 status
+# 都会告警（10-16 CHG-20261016T234234 建立的通道），故无需另造告警机制。
+#
+# 注意：本守卫是「保留好值 + 显式标记陈旧」，而不是「不写文件」。后者会让用户
+# 看着一份旧数据却以为它是新鲜的 —— 那仍是静默失败，只是换了种形式。
+
+_GRV_KEY_DIMS = (
+    "taiwan_strait",
+    "us_china_strategic",
+    "russia_europe",
+    "middle_east_energy",
+    "global_composite",
+)
+
+
+def _is_degenerate(grv: dict) -> bool:
+    """判定本次 GRV 是否为「全源失败产物」。
+
+    两条判据：
+      ① 质量标记为 stub；
+      ② 标记非 stub 但关键维度全 None —— 防各源自报 ok 却交空值的情况。
+    """
+    if grv.get("source_quality") == "stub":
+        return True
+    vals = [grv.get(k) for k in _GRV_KEY_DIMS]
+    return bool(vals) and all(v is None for v in vals)
+
+
+def _now_iso_local() -> str:
+    return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def save_grv(grv: dict, prev=None) -> bool:
+    """写入 grv_latest.json。
+
+    退化产物时保留上一份可用值并标记 status=stale（不污染数据、也不让旧值被
+    误读为新鲜）；正常时照常写入并清除 stale 标记。
+
+    返回 True 表示指标已更新，False 表示本次走了保留路径。
+    """
     os.makedirs(DATA_DIR, exist_ok=True)
     tmp = GRV_OUTPUT + ".tmp"
+
+    if _is_degenerate(grv):
+        _get_logger().error(
+            "[GRV] 本次为全源失败产物（source_quality=%s），保留上一份可用值并标记 stale",
+            grv.get("source_quality"),
+        )
+        out = dict(prev) if prev else dict(grv)
+        out["status"] = "stale"
+        out["stale_since"] = out.get("stale_since") or _now_iso_local()
+        # 不刷新 updated —— 数据确实没有更新，让陈旧可被下游察觉
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(out, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, GRV_OUTPUT)
+        return False
+
+    grv.pop("status", None)
+    grv.pop("stale_since", None)
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(grv, f, ensure_ascii=False, indent=2)
     os.replace(tmp, GRV_OUTPUT)
+    return True
 
 
 def append_grv_history(grv: dict) -> None:
-    """追加一条 GRV 快照到 grv_history.jsonl（每行一个 JSON 对象）。"""
+    """追加一条 GRV 快照到 grv_history.jsonl（每行一个 JSON 对象）。
+
+    退化产物不写入 —— 历史序列用于 delta 与趋势判断，污染后不可回退。
+    """
+    if _is_degenerate(grv):
+        _get_logger().warning("[GRV] 跳过历史写入（本次为退化产物，避免污染趋势序列）")
+        return
     os.makedirs(DATA_DIR, exist_ok=True)
     today = grv.get("updated", "")[:10]  # YYYY-MM-DD
     if today and os.path.exists(GRV_HISTORY):
@@ -943,7 +1012,8 @@ def main():
         pass
 
     grv = compute_grv()
-    save_grv(grv)
+    # CHG-20261018 T1/F3：传入改前值，供退化时保留
+    save_grv(grv, prev_grv)
     append_grv_history(grv)
     print(f"[GRV] 已写入 {GRV_OUTPUT}")
     print(f"  台海:      {grv['taiwan_strait']}")

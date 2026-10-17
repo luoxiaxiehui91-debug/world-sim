@@ -12,6 +12,25 @@ import io
 import json
 import math
 import os
+
+
+class _SkipSqlite(Exception):
+    """CHG-20261018 T1/F7：WORLDSIM_SQLITE_OFF=1 时的内部控制流跳过信号。"""
+
+def get_alert_type(cat: str) -> str:
+    """根据预警类别关键词映射 alert_type：CRISIS / STRESS / WARNING.
+
+    CHG-20261018 T1/F7：level 取值域实测仅 "[警报]"/"[注意]"（见 :163/:397/:520
+    /:667/:1194/:1260 六处赋值），与下列关键词原先毫无交集 ⇒ 任何预警都会落到
+    WARNING，排序与展示因此失去区分度。现把这两级并入关键词表。
+    """
+    cat_l = cat.lower()
+    if any(k in cat_l for k in ["衰退", "危机", "崩盘", "警报", "crisis", "recession", "crash"]):
+        return "CRISIS"
+    if any(k in cat_l for k in ["压力", "违约", "注意", "stress", "default"]):
+        return "STRESS"
+    return "WARNING"
+
 import time
 import zipfile
 from collections import defaultdict
@@ -1445,15 +1464,6 @@ def save_latest_news_json(all_alerts: list, json_path: str = None) -> None:
         except:
             filtered.append(a)  # 日期解析失败则保留
     
-    # 确保每条预警都有 alert_type 字段
-    def get_alert_type(cat: str) -> str:
-        """根据预警类别关键词映射 alert_type：CRISIS / STRESS / WARNING（供 latest_news.json 消费）。"""
-        cat_l = cat.lower()
-        if any(k in cat_l for k in ["衰退", "危机", "崩盘", "crisis", "recession", "crash"]):
-            return "CRISIS"
-        if any(k in cat_l for k in ["压力", "违约", "stress", "default"]):
-            return "STRESS"
-        return "WARNING"
     
     for a in filtered:
         # 补全 title 字段（format_news_for_prompt 依赖）
@@ -1484,8 +1494,11 @@ def run_scan():
     """
     from optim_config import ensure_dirs, DATA_DIR as _DATA_DIR
     ensure_dirs()
-    if os.environ.get("WORLDSIM_SQLITE_OFF") == "1":
-        print("[PG-only] 跳过 SQLite 初始化（news.db 已退役，读写走 worldsim-pg）")
+    # CHG-20261018 T1/F7：原实现该开关只 print 一句，后面的 news.db 初始化与
+    # 写入照常执行，与「news.db 已退役」的约定相冲突。现改为整段跳过。
+    _sqlite_off = (os.environ.get("WORLDSIM_SQLITE_OFF") == "1")
+    if _sqlite_off:
+        print("[PG-only] WORLDSIM_SQLITE_OFF=1：本次跳过 news.db 初始化与写入（读写走 worldsim-pg）")
     print(f"[弱信号扫描] {date.today().isoformat()}")
 
     fred_alerts = []
@@ -1517,6 +1530,8 @@ def run_scan():
     _db_hash_to_id: dict = {}
     _db_cat_to_ids: dict = {}
     try:
+        if _sqlite_off:
+            raise _SkipSqlite("WORLDSIM_SQLITE_OFF=1")
         import os as _os
         from news_db import (init_db as _ndb_init, write_scan_context as _ndb_ctx,
                              insert_articles as _ndb_art, tag_articles as _ndb_tag,
@@ -1537,6 +1552,8 @@ def run_scan():
         _db_ctx_id = _ndb_ctx(_db_path, vix=_vix, t10y2y=_t10y2y, baa10y=_baa10y, dff=_dff,
                                vix_regime=_vix_regime, data_quality=_dq or None)
         print(f"  [news.db] scan_context 写入完成 (id={_db_ctx_id}, vix={_vix})")
+    except _SkipSqlite:
+        print("  [news.db] 已按 WORLDSIM_SQLITE_OFF=1 跳过（PG-only 模式）")
     except Exception as _e:
         print(f"  [news.db] 初始化/宏观快照写入失败（非阻断）: {_e}")
     # ─────────────────────────────────────────────────────────────────────────

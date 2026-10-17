@@ -238,6 +238,9 @@ def should_run(sched_hhmm, sched_wd, sched_dom=None):
 last_run = {}  # (job_name, sched_hhmm) -> last_run_ts
 _last_run_ts = {}   # job_name -> last fired timestamp（供状态落盘）
 _last_run_ok = {}   # job_name -> bool（最近一次是否成功；P0-D 修复：不再默认 True 占位，由真实 spawn 结果驱动）
+# CHG-20261018 T1/F6：登记已 spawn 但尚未结束的子进程，供主循环 reaper
+# 按真实退出码回填 _last_run_ok（原实现 spawn 成功即记 True，且永不再更新）
+_live_procs = {}
 # P0-D 修复：状态/暂停文件统一走 DATA_DIR（optim_config 单点），落持久卷 /workspace/data
 _STATE_PATH  = os.path.join(DATA_DIR, "scheduler_state.json")
 _PAUSE_PATH  = os.path.join(DATA_DIR, "control_pause.json")
@@ -305,6 +308,27 @@ def _load_last_run():
         log(f"[scheduler] C7 恢复 last_run_ts: {recovered} 个 job 从状态文件恢复")
     except Exception as e:
         log(f"[scheduler] C7 恢复失败（首次部署或无状态文件，非阻断）: {e}")
+
+
+def _reap_procs():
+    """回收已结束的子进程，用真实退出码回填 _last_run_ok（CHG-20261018 T1/F6）。
+
+    原实现 spawn 成功即记 True 且永不再更新 ⇒ 任务跑到 exit 1 时，
+    control_server 仍按 last_ok=True 输出 last_status=success，
+    前端 FetcherCard 照常渲染 ✅。这里 poll() 非阻塞地收割已结束者：
+      · 仍在执行 → 保持原值（面板显示 running，不误报）
+      · rc == 0  → True
+      · rc != 0  → 记 False 并留痕，面板翻转为 error / ❌
+    """
+    for job_name, proc in list(_live_procs.items()):
+        if proc.poll() is None:
+            continue
+        rc = proc.returncode
+        _last_run_ok[job_name] = (rc == 0)
+        if rc != 0:
+            log(f"Job FAILED rc={rc}: {job_name}")
+            job_log(job_name, f"Job finished with rc={rc} (FAILED)")
+        del _live_procs[job_name]
 
 
 def main():
@@ -384,8 +408,11 @@ def main():
                     )
                     log(f"Job spawned PID={proc.pid}: {job_name}")
                     job_log(job_name, f"Job PID={proc.pid}")
-                    # P0-D：spawn 成功即记 last_ok=True（真实结果，非硬编码 True）
+                    # CHG-20261018 T1/F6：此处 True 仅表示「已启动」，真实结果由
+                    # 主循环 reaper 在进程结束后按退出码回填。原实现永久停在 True，
+                    # 任务跑到 exit 1 时面板仍显示 ✅（FetcherCard 按 last_status 渲染）。
                     _last_run_ok[job_name] = True
+                    _live_procs[job_name] = proc
                     # T1-2: 任务触发计数
                     if observe:
                         try:
@@ -396,6 +423,8 @@ def main():
                 log(f"Job spawn failed: {job_name} {e}")
                 job_log(job_name, f"Job spawn ERROR: {e}")
                 _last_run_ok[job_name] = False
+
+        _reap_procs()
 
         # A3a: 定期落盘调度器状态供 control_server 读取
         _dump_state()

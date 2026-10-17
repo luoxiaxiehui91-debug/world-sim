@@ -1,3 +1,79 @@
+## v3.8.79（2026-10-18）
+
+**静默失败根治（T1）：7 条「不报错、但结果是假的」缺陷** —— CHG-20261018T005900
+
+### 背景
+2026-10-17 全量代码审查列出 7 条候选，但第三节那批**未经二次实证**。
+本轮逐条读码复核，实证结果与报告有出入，已按证据重新定级（T1.4 降级、T1.1 加重）。
+共同点：都不会抛异常，只会让面板显示"一切正常"而数据是空的/旧的/假的 ——
+按项目一贯判断（多 agent 巡检教训），**假的好消息比真坏消息危险**。
+
+### 改动
+
+**F1 有痕降级模式**（`data_fetcher.py`）
+- 新增 `_degrade(what, exc)` + `get_degrade_stats()`：替代 `except: pass`，
+  计数 + 有节流（首次 + 每 10 次）的 warning。控制流不变，但降级变为可观测。
+- 本次应用到 `cache.load` / `cache.age` 两条路径；全仓其余 `except:pass`
+  （数十处）登记为观察项，不在本批铺开（防流程通胀）。
+
+**F2 缓存兜底（HIGH）**
+- `_cache_age_days()`：`now_iso_utc()` 写的是 **aware** `+00:00`，而读取端用
+  **naive** `datetime.now()` 相减 ⇒ **必抛 TypeError** ⇒ 被 `except:pass` 吞掉
+  ⇒ 恒返回 -1 ⇒ `_is_cache_stale` 恒判"无缓存=过期" ⇒ API 挂掉时永不回落缓存。
+- 改为按 `ts.tzinfo` 选用对应的 now（aware 侧用 `datetime.now(timezone.utc)`），
+  并抽出 `_elapsed_days()` 保证非负；两条路径（_meta / entry.date）同时修正。
+
+**F3 GRV 写入守卫（HIGH，报告漏项已补）**
+- `save_grv()` / `append_grv_history()` 原均无校验，全源失败（`source_quality=stub`）
+  照样把退化值写进 `grv_latest.json` 与 `grv_history.jsonl`。
+  **报告只提"覆盖上次好值"，实证发现历史序列同样被污染**（后者用于 delta 与趋势，不可逆）。
+- 新增 `_is_degenerate()`（两条判据：stub 标记 / 关键维度全 None —— 后者防"自报 ok 却交空值"）。
+- 退化时**保留上一份可用值 + 标记 `status=stale` + 不刷新 `updated` + 跳过历史写入**；
+  恢复后自动清除标记。front-end 侧复用 10-16 建立的 `sourceStatusWarning` 通道
+  （对任何非 ok/非缺失的 status 告警），无需另造告警机制。
+
+**F4 + F5 增量 slot 推进（HEALTH / GDELT）**
+- 原：health_geo 无条件推进到 `cur_slot`、gdelt_geo 用 `slots_ok[-1]`（最后一个成功）
+  ⇒ 失败的 slot 此后再也取不到，**数据永久丢失且无从察觉**。
+- 改为推进到**最大连续成功前缀**的末尾，使失败 slot 下次仍会被重试。
+- ⚠️ **本批最关键的设计补充（报告未提）**：只做连续前缀而不设上限，某个长期不可用
+  的 slot 会把增量**永久卡死** —— 比旧行为更糟。故加 `MAX_SLOT_FAIL = 3`，
+  达上限后强制跳过并 ERROR，把"无声停滞"变成"可见的已知缺口"。
+- 抽出纯函数 `compute_advance()`（两文件同源、可单测）。
+- 附：health_geo `_persist()` 内 `"status": Status.OK` **硬编码两处**（raw + aggregated）
+  才是"全失败仍显示 ok"的真正落点，改为按实际状态传参；状态扩展为
+  OK / PARTIAL / UNAVAILABLE。
+
+**F6 调度器真实退出码（MED）**
+- `scheduler.py` spawn 成功即记 `_last_run_ok=True` 且**永不再更新**；
+  而 control_server 据此输出 `last_status=success`，前端 `FetcherCard` 照常渲染 ✅。
+- 新增 `_reap_procs()`（主循环每轮非阻塞 poll）：仍在执行保持原值（不误报）、
+  rc=0 记 True、rc≠0 记 False 并留痕，面板翻转为 error / ❌。
+
+**F7 告警分级 + SQLite 开关（LOW）**
+- `get_alert_type()`：level 取值域实测仅 `[警报]`/`[注意]`，与关键词表毫无交集
+  ⇒ 恒落 WARNING，排序与展示失去区分度。把两级并入关键词表。
+- `WORLDSIM_SQLITE_OFF=1`：**原实现只有 print、没有任何跳过**，news.db 照常初始化与写入，
+  与"news.db 已退役"的约定冲突。改为整段跳过（内部信号 `_SkipSqlite`）。
+- 两处均提到模块级，便于单测。
+
+### 验收（隔离验证，共 30 项，全过）
+- F2 缓存年龄 8 项：含**对照实验**证实原写法确实抛
+  `can't subtract offset-naive and offset-aware datetimes`（排除假阳性）
+- F3 GRV 守卫 6 项：保留好值 / status=stale / updated 不刷新 / 历史不增 / ERROR 日志 / 恢复清除
+- F4+F5 slot 推进 7 项：中间失败停在 s1（旧行为跳到 s3 永久丢失）、第 3 次达上限强制跳过
+- F6 收割 4 项：运行中保留 / rc=0 True / rc=1 False / 混合三态
+- F7 分级 9 项：`[警报]`→CRISIS、`[注意]`→STRESS、排序 CRISIS 居首
+- 全部用真实函数 + mock 数据，缓存/状态/日志路径重定向到 `/tmp`，生产文件 mtime 未变
+
+### 遗留
+1. 全仓 `except:pass` 仍有数十处（本批只改 2 条），登记为观察项
+2. `_last_run_ok` 仍是**纯内存**，容器重启后面板会误显 error（既有缺陷，本批未动）
+3. F3 的"单源可用（gdelt_only/gpr_only）是否算可保存"按 D6 建议值处理为"仍可保存"；
+   GRV 退化时前端只告警不阻断，需观察是否有误报
+4. `MAX_SLOT_FAIL=3` 为建议值（D9），实际值待运行一段时间后按观测调整
+5. 回滚件：`_rollback/t1-silent-fail-20261018T005900/`（7 个文件）
+
 ## v3.8.78（2026-10-18）
 
 **端口合并 S4：`/ask` 自 8899 迁入控制面 8900，走 token 鉴权** —— CHG-20261017T231000

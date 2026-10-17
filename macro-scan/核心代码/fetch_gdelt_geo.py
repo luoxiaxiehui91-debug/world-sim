@@ -373,6 +373,45 @@ STATE_KEY_TOTAL_EVENTS = "total_events_persisted"
 STATE_KEY_RUN_COUNT = "run_count"
 STATE_KEY_SCHEMA = "schema_version"
 STATE_KEY_FAIL_SLOTS = "consecutive_fail_slots"
+# CHG-20261018 T1/F5：per-slot 连续失败计数（与累计计数 FAIL_SLOTS 分工）
+STATE_KEY_SLOT_FAILS = "slot_fail_counts"
+# 单个 slot 连续失败达该次数后强制跳过。没有它，「只推进连续成功前缀」会让
+# 某个长期不可用的 slot 把增量永久卡死 —— 那比现状更糟。
+MAX_SLOT_FAIL = 3
+
+def compute_advance(slot_results, fail_counts, max_fail):
+    """计算增量应推进到哪个 slot —— 最大连续成功前缀 + 连续失败上限。
+
+    CHG-20261018 T1/F4+F5：slot_results 为按时间升序的 (slot_key, ok) 序列，
+    slot_key 为字符串。
+
+    设计要点（两条缺一不可）：
+      · 只推进到「连续成功段」的末尾 ⇒ 失败的 slot 下次仍会被重试，
+        而不是像旧代码那样被永久跳过（旧代码推进到最后一个成功/或当前 slot）。
+      · 单个 slot 连续失败达 max_fail 次则强制跳过 ⇒ 否则某个长期不可用的
+        slot 会把增量永久卡死，那比旧行为更糟。有此上限后，「空洞」才变成
+        「可见的已知缺口」而非「无声的停滞」。
+
+    返回 (advance_to, forced_count, fail_counts, forced_keys)；
+    advance_to 为 None 表示本次不推进（首段即失败且未达上限）。
+    """
+    advance_to = None
+    forced_keys = []
+    for key, ok in slot_results:
+        if ok:
+            advance_to = key
+            fail_counts.pop(key, None)
+            continue
+        n = fail_counts.get(key, 0) + 1
+        if n >= max_fail:
+            fail_counts.pop(key, None)
+            advance_to = key
+            forced_keys.append((key, n))
+            continue
+        fail_counts[key] = n
+        break
+    return advance_to, len(forced_keys), fail_counts, forced_keys
+
 
 
 def _utcnow_ts() -> int:
@@ -1084,6 +1123,7 @@ def run_incremental(num_slots: int = 4) -> Dict[str, Any]:
     slots_failed: List[str] = []
     total_bytes = 0
     urls_ok = 0
+    slot_results = []  # CHG-20261018 T1/F5：按时间序记录成败，供连续前缀推进使用
     for url, slot_s in zip(urls, now_slots):
         if slot_s not in new_slots:
             continue
@@ -1091,6 +1131,7 @@ def run_incremental(num_slots: int = 4) -> Dict[str, Any]:
         content = _fetch_gdelt_export(url, GDELT_PROXY_URL, timeout=30)
         if content is None:
             slots_failed.append(slot_s)
+            slot_results.append((slot_s, False))
             continue
         urls_ok += 1
         total_bytes += len(content)
@@ -1100,6 +1141,7 @@ def run_incremental(num_slots: int = 4) -> Dict[str, Any]:
         if not ok:
             log.warning("validate_columns 失败，跳过该槽 %s", slot_s)
             slots_failed.append(slot_s)
+            slot_results.append((slot_s, False))
             continue
         for r in rows:
             if _filter_row(r, WATCH_FIPS):
@@ -1108,6 +1150,7 @@ def run_incremental(num_slots: int = 4) -> Dict[str, Any]:
                     ev["seen_slot"] = slot_s  # YYYYMMDDHHmmss ISO-like
                     all_events.append(ev)
         slots_ok.append(slot_s)
+        slot_results.append((slot_s, True))
 
     # CHG-20261001T143514：流式合并，只把派生所需窗口内的行留在内存
     window_start = int(now.timestamp()) - NEWS_GEO_WINDOW_HOURS * 3600
@@ -1120,7 +1163,18 @@ def run_incremental(num_slots: int = 4) -> Dict[str, Any]:
         except Exception as exc:
             log.warning("[retention-probe] 落盘失败（不阻断主流程）: %s", exc)
 
-    state[STATE_KEY_LAST_SLOT] = slots_ok[-1] if slots_ok else state.get(STATE_KEY_LAST_SLOT)
+    # CHG-20261018 T1/F5：推进到「最大连续成功前缀」的最后一个 slot。
+    # 原为 slots_ok[-1]（最后一个成功的），导致中间失败的 slot 被永久跳过且无从察觉。
+    # 连续失败达 MAX_SLOT_FAIL 次则强制跳过，避免增量停滞；否则保留在下次重试范围内。
+    slot_fail_counts = dict(state.get(STATE_KEY_SLOT_FAILS) or {})
+    advance_to, forced, slot_fail_counts, forced_keys = compute_advance(
+        slot_results, slot_fail_counts, MAX_SLOT_FAIL)
+    for key, n in forced_keys:
+        log.error(
+            "[gdelt_geo] slot %s 连续失败 %d 次（达上限），强制跳过 —— 该时段为已知数据缺口",
+            key, n)
+    state[STATE_KEY_LAST_SLOT] = advance_to or state.get(STATE_KEY_LAST_SLOT)
+    state[STATE_KEY_SLOT_FAILS] = slot_fail_counts
     state[STATE_KEY_LAST_RUN_AT] = _utcnow_ts()
     state[STATE_KEY_TOTAL_SLOTS] = state.get(STATE_KEY_TOTAL_SLOTS, 0) + len(slots_ok)
     # CHG-20261002T004002：启用保留窗口后真实存量 = written（after 仍 = before+added）
@@ -1146,8 +1200,11 @@ def run_incremental(num_slots: int = 4) -> Dict[str, Any]:
         log.error("[news_geo.json] 生成异常（不阻断增量主流程）: %s", exc)
         export_events, export_written = [], False
 
+    # CHG-20261018 T1/F5：部分失败也须可见（原只有 ok / all_failed 两态）
+    _run_status = ("all_failed" if not slots_ok
+                   else ("partial" if (forced or slots_failed) else "ok"))
     result = {
-        "status": "ok" if slots_ok else "all_failed",
+        "status": _run_status,
         "slots_pulled": slots_ok,
         "slots_failed": slots_failed,
         "new_events": len(all_events),
