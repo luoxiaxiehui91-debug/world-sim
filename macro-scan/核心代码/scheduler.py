@@ -293,19 +293,37 @@ def _load_last_run():
     持久化语义：job 级 last_run_ts 写入 state 文件（_dump_state 每 60s 落盘），
     重启后从这里恢复内存表；若文件不存在（首次部署）则保持空 dict。
     与未来 worldsim-pg 方案的映射：此恢复逻辑未来切 PG 时改为读状态表。
+
+    CHG-20261018T155200（D7）：对称恢复 last_ok。
+
+    原实现只恢复 last_run_ts 而漏掉 last_ok —— 同一份文件、同一个循环，两个字段只恢复
+    一个。叠加 _dump_state() 的 .get(job_name, False) 默认 False，容器重启后所有
+    "未再触发"的 job 在 state 文件里都是 last_ok=False，control_server 据此输出
+    last_status=failed，开阳面板误显 ❌（实测 58 个 job 中 12 个、约 20%；
+    路由器每日 03:30 重启 ⇒ 每日发生）。
+
+    语义：保持重启前后状态连续 —— 重启前 True 的仍显示 running，重启前 False（真失败）
+    的继续告警。既消误报，也不把历史失败"洗白"。
     """
-    global last_run, _last_run_ts
+    global last_run, _last_run_ts, _last_run_ok
     try:
         with open(_STATE_PATH, encoding="utf-8") as f:
             st = json.load(f)
         recovered = 0
+        recovered_ok = 0
         for job_name, meta in st.items():
             if isinstance(meta, dict) and "last_run_ts" in meta:
                 lr = meta.get("last_run_ts")
                 if lr is not None:
                     _last_run_ts[job_name] = lr
                     recovered += 1
+                # D7：对称恢复 last_ok（与 last_run_ts 同一循环，见函数 docstring）
+                lo = meta.get("last_ok")
+                if lo is not None:
+                    _last_run_ok[job_name] = bool(lo)
+                    recovered_ok += 1
         log(f"[scheduler] C7 恢复 last_run_ts: {recovered} 个 job 从状态文件恢复")
+        log(f"[scheduler] D7 恢复 last_ok: {recovered_ok} 个 job（避免重启后面板误显 failed）")
     except Exception as e:
         log(f"[scheduler] C7 恢复失败（首次部署或无状态文件，非阻断）: {e}")
 

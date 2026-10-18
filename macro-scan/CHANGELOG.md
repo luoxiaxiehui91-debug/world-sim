@@ -1,3 +1,66 @@
+## v3.8.80（2026-10-18）
+
+**D7：`scheduler._last_run_ok` 落盘恢复 —— 消除容器重启后面板误显 job 失败** —— CHG-20261018T155200
+
+### 背景
+2026-10-18 午间状态核查发现：58 个 job 中 **12 个（约 20%）在开阳面板显示 ❌**。
+逐个取这 12 个的 `last_run` 与容器启动时刻（10-17 17:22:05Z）比对，
+**12 个全部早于启动时刻、0 个是重启后的真实失败** ⇒ 全部为重启造成的假警报。
+路由器每日 03:30 重启 ⇒ 该误显**每日发生**，直到各 job 自然触发后才逐个恢复。
+
+性质：与"静默失败"是同一枚硬币的两面 —— 一边漏报真故障、一边误报假故障，
+两者都让运维对面板失去信任。
+
+### 根因
+`_last_run_ok` 是**纯内存字典**（`scheduler.py:240`）。数据链：
+
+`_last_run_ok`（内存）→ `_dump_state()` 每 60s 落盘
+`"last_ok": _last_run_ok.get(job_name, False)` → `control_server._job_to_fetcher()`
+读 state 输出 `last_status="failed"` → 前端 `FetcherCard.tsx:291` 渲染 ❌。
+
+**关键不对称**：`_load_last_run()`（C7 修复）在启动时从同一份 state 文件
+**恢复了 `last_run_ts`，但没有恢复 `last_ok`** —— 同文件、同循环、两字段只恢复一个。
+叠加 `.get(job_name, False)` 默认 False ⇒ 重启后所有"未再触发"的 job 落盘为 False。
+
+**与历史同类的边界**：`archived/20260804-world-deduction-control-panel-zero.md`
+（v3.8.13 P0-D）修的是 `_STATE_PATH` 落非持久卷 `/data` + `last_ok` 硬编码默认 True，
+均已修复且本次复核确认仍有效；本轮根因不同（内存字典未恢复），为独立修复。
+
+### 改动
+`scheduler.py` `_load_last_run()`：在恢复 `last_run_ts` 的**同一循环内**对称恢复 `last_ok`
+（约 5 行 + docstring 说明）。
+
+```python
+global last_run, _last_run_ts, _last_run_ok
+...
+    lo = meta.get("last_ok")
+    if lo is not None:
+        _last_run_ok[job_name] = bool(lo)
+```
+
+**语义**：保持重启前后状态连续 —— 重启前 True 的仍显示 running，重启前 False（真失败）的
+继续告警。既消误报，也不把历史失败"洗白"。
+
+**不变式**：不改 `_dump_state()` 落盘格式、不改 `control_server` 读取端、不改 `_reap_procs()`
+（T1/F6，管"跑完之后"；本修管"重启之后"，二者互补）、不加文件。
+
+### 验收（隔离验证 7 项全过，真实函数 + mock state 文件）
+| # | 项 | 结果 |
+|---|---|---|
+| 1 | True/False 均正确恢复 | PASS |
+| 2 | **线上 12 个场景复现**：恢复后 True=8 / False=4（修复前 12 个全 False） | PASS |
+| 3 | 真失败不被洗白（重启前 False 仍 False） | PASS |
+| 4 | 无 state 文件（首次部署）不崩溃 | PASS |
+| 5 | 非 job 键（updated/heartbeat/jobs）被忽略 | PASS |
+| 6 | `last_run_ts` 与 `last_ok` 恢复数量一致（对称性） | PASS |
+| 7 | 旧格式 state（无 `last_ok` 字段）向后兼容 | PASS |
+
+### 遗留
+- 重启后"已恢复的状态"是重启前最后一次落盘值；若某 job 在重启前恰好处于 False
+  且其真实故障已自行恢复，需等下次触发才刷新 —— 可接受（保留告警比提前洗白更安全）。
+- 附带观察（非本批）：`kb_update`/`news_prune`/`fao`/`china_meso`/`slow_vars` 五个 job 的
+  `last_run` 停留在 10-01，疑为月频任务，待确认频率配置。
+
 ## v3.8.79（2026-10-18）
 
 **静默失败根治（T1）：7 条「不报错、但结果是假的」缺陷** —— CHG-20261018T005900
