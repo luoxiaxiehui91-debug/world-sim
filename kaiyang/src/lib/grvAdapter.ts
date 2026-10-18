@@ -2,7 +2,7 @@ import { GRV_DIMENSIONS } from '@/config/grvDimensions';
 import type { GrvDimension, GrvRaw } from '@/types/contracts';
 
 /**
- * 将 GRV 原始契约适配为统一内部模型（11 维 + 坐标 + 缺失状态 + 地理/综合分类）。
+ * 将 GRV 原始契约适配为统一内部模型（12 维 + 坐标 + 缺失状态 + 地理/综合分类）。
  * - 上游无 lat/lng：使用 grvDimensions.ts 内置默认坐标（composite 维度无坐标）。
  * - 上游无不确定区间字段：按 8% 比例估算并标记 estimated（契约要求该字段，Wave1 数据未提供）。
  * - 上游缺少某维度：status='missing'，供状态条告警与降级渲染。

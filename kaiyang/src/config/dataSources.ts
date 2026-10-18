@@ -51,7 +51,7 @@ export const FEEDS: Record<string, FeedConfig> = {
     path: 'grv_latest.json',
     type: 'json',
     schemaVersion: '1.0',
-    description: 'GRV 11 维风险状态（含不确定区间）',
+    description: 'GRV 12 维风险状态（含不确定区间）',
   },
   news: {
     name: 'news',

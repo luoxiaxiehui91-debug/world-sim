@@ -1,3 +1,41 @@
+## v1.11.50（2026-10-18）
+
+**P1 B 类补映射：`japan_monetary` 进前端 —— 消除「看不见却影响综合分」** —— CHG-20261018T230000-world-deduction
+
+### 背景
+GRV 三层脱节对账（question `20261018-...-grv-dimension-three-layer-disconnect.md`）发现的 **B 类**：
+`japan_monetary`（42.6）**不在前端映射、不上地图**，却占 `global_composite` 的**净权重 10.5%**
+（公式 `(GPR×0.85 + japan_monetary×0.15)×0.7 + GDELT×0.3`，GDELT 缺失时为 15%）
+⇒ 面板上完全看不到它，它却在悄悄改变全球综合分。这是三类中最隐蔽的一类
+（A 类「算了不用」至少自洽，B 类会让人对结论的成因产生误解）。
+
+### 改动
+`src/config/grvDimensions.ts` 新增 1 条维度（`GRV_DIMENSIONS` 11 → **12**）：
+
+```ts
+{
+  id: 'japan_monetary', label: '日本货币压力', group: '综合', kind: 'composite',
+  sourceKey: 'japan_monetary',
+  note: '日元套息平仓压力对全球流动性的影响；占全球综合分净权重 10.5%（GDELT 缺失时为 15%），无地理位置'
+}
+```
+
+选 `kind='composite'` 而非 `geographic`：该维度**无地理含义**，给它编坐标会在 3D 地球/平面地图上造出
+一个假点位（`grvDimensions.ts` 文件头注释已警示过「非洲孤点」问题）。
+
+### 影响面（预先声明的副作用）
+- **可见位置**：GRV 面板顶部「综合指数」卡组，与「全球综合 / 全球南方」并列（`GrvPanel.tsx:152-158` 渲染
+  `model.composite`）。
+- **不进地图**：composite 维度无坐标，不上 3D 地球/平面地图。
+- **不重排风险摘要**：`RiskSummaryPanel.tsx:47` 是 `topRisks(model.geographic, 6)`，只取 geographic 维度
+  ⇒ 本次**不会**改变 top-6 榜面（与 A 类补映射的必然副作用形成对照）。
+- **不改任何数值**：`global_composite` 公式未动，本次纯展示层补映射。
+- 注释计数同步：`grvDimensions.ts`（11→12）、`grvAdapter.ts`（11→12）、`dataSources.ts`（11→12）。
+
+### 验证
+`npm run build`（tsc --noEmit + vite build）绿；`npm test` 过；产物含「日本货币压力」字样；页脚显示 v1.11.50；
+面板 HTTP 200。
+
 # Changelog · 开阳（Kaiyang）操作面板
 
 > 文档类别：实录（RECORD）· CHANGELOG（每条绑定 commit hash，写后即验）

@@ -1,5 +1,5 @@
 /**
- * GRV 11 维风险点定义（内置默认坐标映射）。
+ * GRV 12 维风险点定义（内置默认坐标映射）。
  * 若上游 grv_latest.json 不含 lat/lng，则使用此处预设锚点（扩展标准：坐标容错）。
  *
  * 维度分类（Wave1 视觉增强新增）：
@@ -49,6 +49,16 @@ export const GRV_DIMENSIONS: GrvDimDef[] = [
     kind: 'composite',
     sourceKey: 'global_composite',
     note: '全球综合风险指数，无地理位置，不投影到地图',
+  },
+  {
+    // v1.11.50 补映射（P1 B 类）：japan_monetary 占 global_composite 净权重 10.5%（0.15×0.7），
+    // 此前既不在前端映射也不上地图 ⇒「面板看不到、却悄悄影响全球综合分」。
+    id: 'japan_monetary',
+    label: '日本货币压力',
+    group: '综合',
+    kind: 'composite',
+    sourceKey: 'japan_monetary',
+    note: '日元套息平仓压力对全球流动性的影响；占全球综合分净权重 10.5%（GDELT 缺失时为 15%），无地理位置',
   },
   { id: 'climate_risk', label: '气候风险', group: '非传统', kind: 'geographic', lat: 74.0, lng: 10.0, sourceKey: 'climate_risk', note: '锚点：北极圈（气候变化最敏感区）；不画常驻柱，改为事件触发式告警柱', renderBar: false },
   { id: 'disaster_risk', label: '自然灾害', group: '非传统', kind: 'geographic', lat: -2.0, lng: -80.0, sourceKey: 'disaster_risk', note: '锚点：环太平洋地震带；不画常驻柱，改为事件触发式告警柱', renderBar: false },
