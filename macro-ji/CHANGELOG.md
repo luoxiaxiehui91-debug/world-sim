@@ -7,6 +7,68 @@
 
 ---
 
+## v1.0.11 — 2026-10-18 · LLM 评判成本防线与 outcome=0 分支修复（T3）
+
+> CHG-20261018T181500。与 macro-scan v3.8.80 / macro-sim v2.0.55 同批 T 系列修复。
+> 版本锚点：无 VERSION 文件，以镜像 `macro-tianji:latest` + 上线时间计版本。
+
+**背景**：2026-10-17 全量审查列出 2 条 LLM 成本防线问题，本轮逐条读码核实，
+实证结论比报告描述更严重（见下）。
+
+### 改动
+
+**T3.1 `llm_judge.py`：`window_total` 拆分为「真实覆盖数」与「prompt 样本数」**
+
+原实现 `window_total = len(fetch_window_news(...))`，而 `fetch_window_news` 默认
+**limit=40** ⇒ `window_total ≤ 40`，永远达不到 `outcome=0` 分支要求的
+`window_total >= 200` ⇒ **该分支永不可达**。
+
+后果不只是"分支不可达"：**负面结论（outcome=0）永远无法自动落库，全部堆给人工**，
+而正面结论（outcome=1）只需 `conf>=0.70` 即可自动落库 —— 系统性偏向
+"只自动确认发生了的"。实测真实覆盖数可达 287（mock 实测）。
+
+改法：新增 `count_window_news()`（同 WHERE、**不带 LIMIT**）取真实覆盖度；
+`fetch_window_news` 仍只取 40 条进 prompt（控制 token，行为不变）。两个概念自此分离。
+
+**T3.2 `llm_judge.py`：LLM 判定失败加重试上限（防重复烧 token）**
+
+原实现：`judge_prediction` 返回 None（无标准/零候选/**解析失败**）或抛异常时，
+**不写 `llm_outcome`** ⇒ 下次运行 SQL 的 `llm_outcome IS NULL` 再次选中 ⇒ **再次调 LLM**。
+"解析失败"类条目会每次运行都调一次，成本无上限。当前
+`awaiting_human AND llm_outcome IS NULL` 共 **320 条**（成本面）。
+
+改法（**不改表结构**，复用 `llm_note` 前缀编码）：
+- 新增 `MAX_LLM_ATTEMPTS = 3` 与 `_record_failure()`；
+- 失败时写 `LLMFAIL:<n>:...`（下次重试），连续 3 次后写 `LLMFAIL_FINAL:...`（停止重试、留人工）；
+- 选择 SQL 增加 `AND (llm_note IS NULL OR llm_note NOT LIKE 'LLMFAIL_FINAL%')`；
+- 选择列增加 `llm_note` 供计数。
+
+### 验收（隔离验证 10 项全过，mock DB）
+| # | 项 | 结果 |
+|---|---|---|
+| 1 | `count_window_news` 返回真实总数且 SQL 无 LIMIT（实测 287） | PASS |
+| 2 | `fetch_window_news` 仍带 LIMIT=40（prompt 样本不变） | PASS |
+| 3 | 原缺陷确认：样本上限 40 < 门槛 200（分支不可达） | PASS |
+| 4 | 首次失败 → `LLMFAIL:1:` | PASS |
+| 5 | 第二次 → `LLMFAIL:2:` | PASS |
+| 6 | 第三次达上限 → `LLMFAIL_FINAL:` | PASS |
+| 7 | 终态后不再改写（无 UPDATE，FINAL 保持） | PASS |
+| 8 | 人工备注不被当成失败计数 | PASS |
+| 9 | 选择 SQL 含 `llm_note` 且排除 `LLMFAIL_FINAL` | PASS |
+| 10 | `MAX_LLM_ATTEMPTS = 3` | PASS |
+
+⚠️ 测试实证抓到的真 bug：首版漏了终态判断 —— `LLMFAIL_FINAL:` 不匹配
+`LLMFAIL:(\d+):` 正则，会被覆盖回 `LLMFAIL:1:` 重新进入重试循环。已补
+`if prev.startswith("LLMFAIL_FINAL"): return`。
+（另有一处测试断言本身写错：期望"写出 FINAL"，而正确语义是"不改写"，已修正。）
+
+### 遗留
+- `MAX_LLM_ATTEMPTS = 3` 为建议值，待观测调整。
+- `LLMFAIL_*` 标记占用了 `llm_note`（该字段原为人工建议备注）；若将来 `llm_note`
+  有正式人工用途，需迁移到独立列。
+- 320 条 `awaiting_human AND llm_outcome IS NULL` 的存量未处理（下次运行自然进入新逻辑）。
+
+
 ## v1.0.10 — 2026-10-17 反哺调权判据统计修正
 
 > CHG-20261017T1955。审查报告 MED-A 第 1 条（`tianji_verifier.py:374` Brier 降权方向）的实证与修正。

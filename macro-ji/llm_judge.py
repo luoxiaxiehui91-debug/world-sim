@@ -83,6 +83,35 @@ def fetch_window_news(due_at, keywords, limit=40):
         conn.close()
 
 
+def count_window_news(due_at, keywords):
+    """窗口内命中检索词的**真实总数**（不带 LIMIT）。
+
+    CHG-20261018T181500 T3.1：原 `window_total = len(fetch_window_news(...))` 取的是
+    prompt 样本数（limit=40），导致 `outcome=0` 分支要求的 `window_total >= 200`
+    **永不可达**（40 < 200）⇒ 负面结论永远无法自动落库、全部堆给人工，
+    而正面结论 conf>=0.70 即可自动落库 —— 系统性偏向"只自动确认发生了的"。
+
+    现将两个概念拆开：本函数给真实覆盖度（可 hundreds），
+    `fetch_window_news` 仍只取 limit=40 条进 prompt（控制 token）。
+    """
+    from tianji_db import get_connection
+
+    conds = " OR ".join(["title ILIKE %s"] * len(keywords))
+    sql = (
+        "SELECT count(*) AS n FROM news.articles "
+        "WHERE published_at BETWEEN (%s)::timestamptz - interval '90 days' "
+        "AND (%s)::timestamptz + interval '30 days' AND (" + conds + ")"
+    )
+    params = [due_at, due_at] + ["%" + k + "%" for k in keywords]
+    conn = get_connection()
+    try:
+        cur = conn.execute(sql, params)
+        row = cur.fetchone()
+        return int(row["n"] if isinstance(row, dict) else row[0])
+    finally:
+        conn.close()
+
+
 def _record_verify(model, ok, err=None, call_ms=None, prompt_tokens=None,
                    completion_tokens=None, total_tokens=None):
     """P3-3 账本旁路（CHG-20261015T235525）：复用 tianji_db 连接写 public.llm_token_usage；失败静默。"""
@@ -138,6 +167,44 @@ def _call_llm(prompt):
     return r["choices"][0]["message"]["content"]
 
 
+# CHG-20261018T181500 T3.2：同一条预测的 LLM 判定连续失败达该次数后写终态标记，
+# 后续运行不再重试（否则「解析失败」类条目会每次运行都调一次 LLM，成本无上限）。
+MAX_LLM_ATTEMPTS = 3
+
+
+def _record_failure(pred, reason=""):
+    """记录一次 LLM 判定失败（无标准/零候选/解析失败/异常）。
+
+    用 llm_note 前缀编码次数，不改表结构：
+      - 未达上限：`LLMFAIL:<n>:...`（下次运行会重试）
+      - 达上限：  `LLMFAIL_FINAL:...`（SQL 排除，停止重试，留人工）
+    """
+    prev = (pred.get("llm_note") or "") if hasattr(pred, "get") else ""
+    # 已终态则不再改写。注意：LLMFAIL_FINAL 不匹配下面的 LLMFAIL:(\d+): 正则，
+    # 若无此判断会被覆盖回 LLMFAIL:1: 重新进入重试循环（回归测试实证发现）。
+    if prev.startswith("LLMFAIL_FINAL"):
+        return
+    m = re.match(r"LLMFAIL:(\d+):", prev)
+    n = (int(m.group(1)) + 1) if m else 1
+    if n >= MAX_LLM_ATTEMPTS:
+        note = ("LLMFAIL_FINAL:连续 %d 次 LLM 判定失败（%s），已停止自动重判，留人工。"
+                % (n, reason[:80] or "未知原因"))
+    else:
+        note = ("LLMFAIL:%d:LLM 判定失败（第 %d/%d 次：%s），下次运行将重试。"
+                % (n, n, MAX_LLM_ATTEMPTS, reason[:60]))
+    try:
+        from tianji_db import get_connection
+        conn = get_connection()
+        try:
+            conn.execute("UPDATE predictions SET llm_note=%s WHERE id=%s",
+                         (note, pred["id"]))
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        print("[llm_judge] 失败标记写入异常: " + str(e)[:120])
+
+
 def judge_prediction(pred):
     """单条判定。返回 dict 或 None（无标准/零候选/解析失败——均留人工）。"""
     ak = pred.get("action_key") or ""
@@ -146,7 +213,8 @@ def judge_prediction(pred):
         return None
     hints = KEYWORD_HINTS.get(ak) or [criteria]
     arts = fetch_window_news(pred.get("due_at"), hints)
-    window_total = len(arts)
+    # CHG-20261018T181500 T3.1：用真实覆盖数而非样本数（样本 limit=40，见 count_window_news）
+    window_total = count_window_news(pred.get("due_at"), hints)
     if window_total == 0:
         return None
     titles = "\n".join(
@@ -194,9 +262,11 @@ def run_expired_judgments(dry_run=False):
     conn = get_connection()
     try:
         cur = conn.execute(
-            "SELECT id, action_key, content, due_at, final_prob FROM predictions "
+            # CHG-20261018T181500 T3.2：选 llm_note 供失败计数；排除已写终态标记的
+            "SELECT id, action_key, content, due_at, final_prob, llm_note FROM predictions "
             "WHERE status='awaiting_human' AND action_key IS NOT NULL "
-            "AND due_at IS NOT NULL AND due_at <= NOW() AND llm_outcome IS NULL")
+            "AND due_at IS NOT NULL AND due_at <= NOW() AND llm_outcome IS NULL "
+            "AND (llm_note IS NULL OR llm_note NOT LIKE 'LLMFAIL_FINAL%')")
         rows = cur.fetchall()
     finally:
         conn.close()
@@ -207,9 +277,11 @@ def run_expired_judgments(dry_run=False):
         except Exception as e:
             print("[llm_judge] " + str(pred["id"]) + " 异常: " + str(e)[:120])
             stat["skipped"] += 1
+            _record_failure(pred, "异常:" + str(e)[:60])
             continue
         if r is None:
             stat["skipped"] += 1
+            _record_failure(pred, "返回 None（无标准/零候选/解析失败）")
             continue
         if dry_run:
             print("[llm_judge][DRY] " + str(pred["id"]) + " " + str(pred["action_key"])
