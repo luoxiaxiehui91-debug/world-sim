@@ -453,7 +453,11 @@ def gm_resolve_rules(
             tgt_mag = agents[tgt_id].params.magnitude
             # 只传导该 Agent 自己产生的 delta（per_agent_delta），不跨 Agent 叠加
             for key, val in src_delta.items():
-                if isinstance(val, float):
+                # CHG-20261018T172000 T2.2：原 isinstance(val, float) 实为恒真的死代码 ——
+                # per_agent_delta 的值都由 `... .get(key, 0.0) + val` 累加而来（初值 0.0 是 float，
+                # float + int 恒得 float），故当前不会丢数据。改为显式白名单：防止将来有人把
+                # 累加初值改成 int 0 时，int 型 delta（如 add("A1","fed_rate_change",-50)）被静默过滤。
+                if isinstance(val, (int, float)):
                     delta[key] = delta.get(key, 0.0) + val * coeff * attenuation * tgt_mag
 
     # ── 正反馈环 ──────────────────────────────────────────

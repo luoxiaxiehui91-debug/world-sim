@@ -16,7 +16,10 @@ import { PANELS } from '@/panels/registry';
 const ResponsiveGridLayout = WidthProvider(Responsive);
 const STORAGE_KEY = 'kaiyang.v6.panelLayout';
 const LAYOUT_KEY_PREFIX = 'kaiyang.';
-const APP_VERSION = '1.11.27';
+// CHG-20261018T172000 T2.3：版本号改从 package.json 导入，消除硬编码漂移
+// （原硬编码 1.11.27，与 package.json 相差 21 个版本；曾长期无人察觉）
+import pkg from '../package.json';
+const APP_VERSION: string = pkg.version;
 
 /** 从 panelRegistry 推导初始布局（3 行 × 12 栅格，Bloomberg/Grafana 情报面板范式）。 */
 function buildDefaultLayout(): Layout[] {

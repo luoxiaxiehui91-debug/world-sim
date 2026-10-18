@@ -1,3 +1,56 @@
+## v2.0.55 — 2026-10-18 触发求值逻辑词修复（T2.1/T2.2）
+
+> CHG-20261018T172000。与开阳 v1.11.49 同批全项目 T2 修复。
+
+**背景**：2026-10-17 全量审查列出 3 条「零成本确定性 bug」，本轮逐条读码核实，
+实证结论与报告有一处关键出入（T2.2 为误报，见下），已按证据重新定级。
+
+### 改动
+
+**T2.1 `core/agents/base.py` `_eval_trigger()`：逻辑词转换重构**
+
+原实现：`expr.replace(" AND ", " and ").replace(" OR ", " or ").replace(" == ", " == ")`
+
+两处问题：
+- ① `.replace(" == ", " == ")` 是**自替换（空操作）**；
+- ② 只转 AND/OR，**完全漏了 NOT** ⇒ soul 写 `NOT x` 时，NOT 既不在变量替换范围
+  （排除列表含 `"NOT"`）也不被转成 Python 关键字 ⇒ `eval("NOT 0.5")` 抛 NameError
+  ⇒ 被函数最外层 `except Exception: return False` 吞掉 ⇒ **该触发恒 False 且无任何痕迹**
+  （结构性静默）。
+
+且改用**词边界正则**而非带空格 replace —— 逻辑词可能位于表达式开头/结尾
+（如 `"NOT market_sentiment > 0.5"` 的 NOT 在串首、无前导空格），带空格 replace 会漏转。
+**此条由本次新增回归测试实证发现**（首版用带空格 replace，测试即失败）。
+
+**T2.2 `core/simulation.py:456`：类型白名单（报告误报，降级为健壮性改进）**
+
+报告称 `isinstance(val, float)` 会过滤掉 int 型 delta 使其静默失效。**实证为误报**：
+`per_agent_delta` 的值都由 `... .get(key, 0.0) + val` 累加而来，初值 `0.0` 是 float，
+`float + int` 恒得 float ⇒ 该 isinstance 恒真、是死代码，**当前不丢任何数据**。
+
+仍改为 `isinstance(val, (int, float))` 显式白名单：防止将来有人把累加初值改成 `int 0` 时，
+int 型 delta（如 `add("A1", "fed_rate_change", -50)`）被静默过滤。属防御性改进，无行为变化。
+
+### 验收
+
+新增 `tests/test_trigger_eval_20261018.py`（6 项，容器内实跑全过）：
+
+| # | 项 | 覆盖 |
+|---|---|---|
+| 1 | **NOT 真求否**（核心） | `-0.8 > 0.5` 取反为 True；`0.9 > 0.5` 取反为 False；NOT+AND 组合 |
+| 2 | AND / OR / == 不回归 | 三种写法逐组断言 |
+| 3 | 内置函数保护不回归 | `abs(-0.8) > 0.5`、`max(40,25) > 30`（v3 阶段 2 修复） |
+| 4 | 缺失变量策略 | optimistic / conservative 两种语义 |
+| 5 | 边界输入 | 空串、纯空白 |
+| 6 | T2.2 白名单语义 | int/float 均接受 + 累加恒得 float 的根因锁定 |
+
+运行方式：`docker cp tests/... macro-sim:/tmp/ && docker exec macro-sim python3`
+（容器内无 pytest，tests 目录亦不在镜像内，故用 docker cp）。
+
+### 遗留
+- soul 文件中是否已有 `NOT` 写法的触发规则**未全量排查**（修复后即使有也能正确求值，
+  但若历史上因恒 False 而被绕过的设计意图，需人工确认）。已登记待办。
+
 ## v2.0.54 — 2026-10-17 全量代码审查修复（天璇）
 
 > CHG-20261017T030000。与 v3.8.77 同批全项目审查，仅收录已实证项。

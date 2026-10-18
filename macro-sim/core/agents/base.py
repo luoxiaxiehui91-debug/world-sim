@@ -119,7 +119,20 @@ def _eval_trigger(trigger_str: str, ctx: dict, missing_strategy: str = "optimist
                 expr = re.sub(r'\b' + var + r'\b', "_MISSING_", expr)
             elif isinstance(val, (int, float)):
                 expr = re.sub(r'\b' + var + r'\b', str(float(val)), expr)
-        expr = expr.replace(" AND ", " and ").replace(" OR ", " or ").replace(" == ", " == ")
+        # CHG-20261018T172000 T2.1：逻辑词转 Python 关键字。
+        #
+        # 原实现两处问题：
+        # ① `.replace(" == ", " == ")` 是自替换（空操作）；
+        # ② 只转了 AND/OR，**完全漏了 NOT** ⇒ soul 写 "NOT x" 时 NOT 既不在变量替换范围
+        #    （上方排除列表含 "NOT"）也不被转关键字 ⇒ eval("NOT 0.5") 抛 NameError
+        #    ⇒ 被本函数最外层 `except Exception: return False` 吞掉 ⇒ 触发恒 False 且无痕迹。
+        #
+        # 且必须用**词边界正则**而非带空格的 replace：逻辑词可能位于表达式开头或结尾
+        # （如 "NOT market_sentiment > 0.5" 的 NOT 在串首，无前导空格），带空格的 replace
+        # 会漏转它 —— 这一条由本次新增的回归测试实证发现。
+        expr = re.sub(r'\bAND\b', 'and', expr)
+        expr = re.sub(r'\bOR\b', 'or', expr)
+        expr = re.sub(r'\bNOT\b', 'not', expr)
 
         if missing:
             if missing_strategy == "optimistic":

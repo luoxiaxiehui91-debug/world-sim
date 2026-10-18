@@ -6,6 +6,32 @@
 本文件记录开阳的每次变更，遵循 Keep a Changelog 精神，版本号与 `VERSION` 绑定（SemVer 取向）。
 
 
+## [1.11.49] 2026-10-18 · 版本号注入 + 修 package.json 漂移（T2.3）
+
+CHG-20261018T172000；与天璇 v2.0.55 同批 T2 修复。
+
+**背景**：`src/App.tsx:19` 硬编码 `const APP_VERSION = '1.11.27'`，而 `package.json`
+为 `1.11.47` —— **相差 21 个版本**，页面页脚长期显示错误版本号。
+
+排查中顺带发现一处**自造漂移**：10-17 端口合并 S4 升级 `VERSION` 文件到 1.11.48 时
+**漏改了 `package.json`**（仍为 1.11.47），违背「三处版本行」纪律。本批一并修正。
+
+### 改动
+- `src/App.tsx`：`const APP_VERSION = '1.11.27'` → `import pkg from '../package.json';
+  const APP_VERSION: string = pkg.version;`（`tsconfig.json` 已有 `resolveJsonModule: true`，
+  无需改构建配置）。版本号今后**单一真源 = package.json**，不再有第二处硬编码。
+- `package.json`：`1.11.47` → `1.11.49`（对齐 VERSION 并含本次变更）。
+- `VERSION`：`1.11.48` → `1.11.49`。
+
+### 验收
+- 构建通过（`tsc --noEmit` + vite build）。
+- 产物中不得残留 `1.11.27` / `1.11.47` 硬编码；页面版本号须与 package.json 一致。
+- 三处版本行（VERSION / package.json / INDEX.md）对齐 1.11.49。
+
+### 遗留
+- `App.tsx` 之外的组件若还有硬编码版本需另行排查（本轮 grep `1.11.27` 全仓仅此一处）。
+
+
 ## [1.11.48] 2026-10-17 · 控制 API 改走同源相对路径（端口合并 S2）
 
 CHG-20261017T231000；对应 commit `451ccd1`。
