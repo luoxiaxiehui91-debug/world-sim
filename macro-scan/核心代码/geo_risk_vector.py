@@ -655,7 +655,10 @@ def compute_grv() -> dict:
                 _cyd = json.load(_cy)
             if _cyd.get("status") in ("ok", "partial"):
                 commodities = _cyd.get("commodities", {})
-                _energy = (commodities.get("natural_gas") or commodities.get("ng")
+                # 键名以 fetch_commodity_yahoo.py 写入为准（nat_gas）；natural_gas/ng 为历史别名保留兼容。
+                # v3.8.81 修复：此前只查 natural_gas/ng，永不命中 ⇒ 恒落 Brent，energy_grid_risk 长期假饱和。
+                _energy = (commodities.get("nat_gas") or commodities.get("natural_gas")
+                           or commodities.get("ng")
                            or commodities.get("brent") or commodities.get("wti"))
                 if _energy and isinstance(_energy.get("price"), (int, float)):
                     e_price = float(_energy["price"])

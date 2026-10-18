@@ -1,3 +1,44 @@
+## v3.8.81（2026-10-18）
+
+**能源读取链键名修复：`energy_grid_risk` 假饱和消除（P1 第 0 步）** —— CHG-20261018T220650
+
+### 背景
+`grv_latest.json` 的 `energy_grid_risk` 长期为 **99.8**（贴近满分的"能源风险"），来源始终是 Brent 原油
+（`(109.86−50)/60×100 = 99.8`），而非该维度本应优先读取的天然气。
+根因是**键名不匹配**：`fetch_commodity_yahoo.py:51` 写入的键是 **`nat_gas`**（实测 `NG=F`，3.116 USD/MMBtu，
+`commodity_yahoo.json` status=ok），而 `geo_risk_vector.py:658` 只查 `natural_gas` / `ng` ⇒ 前两个键永不命中，
+恒回退到 Brent。**99.8 是回退造成的假饱和值，不是真实能源风险水位。**
+
+该缺陷之所以长期未暴露：此维度既不在前端 `GRV_DIMENSIONS` 映射、也不进 `global_composite`
+（A 类「算了完全不用」），且 `grv_threshold.py` 的 `DIM_LABELS` 不监控它。
+
+### 改动
+`核心代码/geo_risk_vector.py:658` 读取链改为以 fetcher 写入键为准、保留历史别名：
+
+```python
+_energy = (commodities.get("nat_gas") or commodities.get("natural_gas")
+           or commodities.get("ng")
+           or commodities.get("brent") or commodities.get("wti"))
+```
+
+优先级：天然气（`nat_gas`）→ 历史别名 → Brent → WTI。单位判定逻辑不变（`USD/MMBtu` 走 `(price−2)/6×100`
+的气价区间，`USD/bbl` 走 `(price−50)/60×100` 的油价区间）。
+
+### 影响与断裂（重要）
+- **生效日 2026-10-18**：修复前的 `grv_history.jsonl` 序列为 **Brent 口径**，之后为**气价口径**，两者定义不同。
+  **不回填历史**（气价历史未落盘，逐日重建不可行，用假值回填等同造假）。
+- **下游影响**：天璇 `macro-sim/core/world_state.py` 的 `_grv_keys` 含 `energy_grid_risk`，参与 3 个月移动平均
+  并进入仿真 `ctx` 与校准输入 ⇒ 断裂会被平滑带进随后 3 个月。方向为**纠偏**（假 99.8 → 真 ~18.6），
+  用户 22:05 拍板接受。
+- **不受影响**：`global_composite` 不依赖该维度（`(GPR×0.85 + japan_monetary×0.15)×0.7 + GDELT×0.3`）；
+  `grv_threshold.py` 不监控该维度 ⇒ 断崖不会误触发 delta 告警。
+- **遗留**：该维度仍属 P1 的 A 类「算了完全不用」，是否补前端映射 / 不再算 / 降级标注，待 P1 主体决策
+  （**必须在本次真值基础 18.6 上判断，不能再用 99.8**）。
+
+### 验证
+重跑 `geo_risk_vector.py` 后：`energy_grid_risk` 由 99.8 → **18.6**（对应当前天然气 3.116 USD/MMBtu）；
+`grv_history.jsonl` 607 → 608 行且新增行与 `grv_latest.json` 一致；`global_composite` 仍 54.9、其余 16 个数值键逐键未变。
+
 ## v3.8.80（2026-10-18）
 
 **D7：`scheduler._last_run_ok` 落盘恢复 —— 消除容器重启后面板误显 job 失败** —— CHG-20261018T155200
