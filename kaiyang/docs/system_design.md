@@ -383,7 +383,7 @@ sequenceDiagram
 
     App->>ControlContext: 初始化 (mount)
     ControlContext->>ControlContext: 读取优先级链
-    Note over ControlContext: VITE_CONTROL_API_TOKEN env
+    Note over ControlContext: VITE_CONTROL_API_TOKEN env（构建时不再注入；仅 localStorage 路径生效）
     Note over ControlContext: → localStorage('kaiyang_control_token')
     Note over ControlContext: → null（需手动输入）
     alt token 已配置
@@ -457,7 +457,8 @@ sequenceDiagram
 #### 8.1 Token 管理
 
 ```
-优先级链：VITE_CONTROL_API_TOKEN (构建时 env) → localStorage('kaiyang_control_token') → null
+优先级链：VITE_CONTROL_API_TOKEN (构建时 env，**2026-10-17 起不再注入**) → localStorage('kaiyang_control_token') → null
+> ⚠️ 2026-10-17 废止「构建注入」：`VITE_` 变量会被内联进匿名可下载的产物（ADR-0018）。实际生效路径为 localStorage 手填；env 分支保留仅为兼容，构建时不得传。
 - Token 存在但 API 返回 401 → Toast "Token 无效，请重新配置" + 清空存储的 Token
 - Token 未配置 → 抽屉内天枢 Tab 顶部显示黄色警告横幅：「⚠ 未配置 API Token，请点击⚙设置」
 - Token 保存后立即生效，无需刷新页面

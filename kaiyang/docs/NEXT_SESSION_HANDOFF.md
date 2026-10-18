@@ -92,7 +92,7 @@ Wave2 ├─ 线 a：控制面 ──────── P0 ✅（T01-T03），A3
 - 默认 API 地址 `http://192.168.31.108:8900/api/v1/control/`（`src/config/controlConfig.ts`）
 - `MOCK_ENABLED=false`；开发调试用 `VITE_CONTROL_MOCK=true` 恢复 mock
 - **Token 配置 UI（v1.11.12）**：`control/TokenSetup.tsx`（折叠式输入/保存/清除）+ 401 错误态内联重试 + `useFetchers` 依赖 token 自动重拉
-- **内置 token（v1.11.15）**：构建时注入 `VITE_CONTROL_API_TOKEN`（**不进 git**），`getEnvToken()` 优先；**构建必须带此参数**（见 DEPLOYMENT.md §1）
+- **内置 token（v1.11.15）**：~~构建时注入 `VITE_CONTROL_API_TOKEN`~~ **2026-10-17 起废止** —— `VITE_` 前缀变量会被 Vite 静态内联进产物，而产物经 `8080(0.0.0.0)` 匿名可下载 ⇒ 等于公开控制面凭据（ADR-0018）。**构建禁止带任何 `VITE_` env，走 `deploy.sh`**；令牌由用户在 UI 手填一次（`localStorage['kaiyang_control_token']`）
 - **H02 信任校验（v1.11.14）**：`buildHeaders()` 仅对 `192.168.31.108 / localhost / 127.0.0.1` 附带 Bearer token（防 localStorage 注入恶意 URL 外泄）
 
 ### 3.7 地图交互关键约束（v1.11.24/25 踩坑沉淀）
@@ -143,7 +143,7 @@ B0 ✅  B1 ✅  B2 ✅  B3 ✅  B4 ✅（审查 High 全部清完）
 探针 31 项全绿      git 干净
 ```
 
-- **P0-A 密钥轮换**：触发条件 = 仓库转公开/外部共享前（GitHub PAT + FRED/LLM/EIA/ntfy；轮换时同步更新 `VITE_CONTROL_API_TOKEN` 构建参数）
+- **P0-A 密钥轮换**：触发条件 = 仓库转公开/外部共享前（GitHub PAT + FRED/LLM/EIA/ntfy）；**轮换时无需更新构建参数**（构建已不再注入 token），改的是运行区 `CONTROL_TOKEN` 与浏览器 localStorage 一次手填
 - **P2 门控（自动化）**：每月 13 日 09:00（2026-11-13 起）检查天璇预测 90 天到期 → MIN_TRIGGER_N=8 → 玉衡 V2 启动（automation 已设）
 - **Medium 置顶**：M33（bifurcation n_clusters==1 强拆 3 簇）、M09（Herfindahl 恒 1.0 恒不告警）——天璇侧，非开阳
 - **GED 数据决策**（P2 门控内）：跑 ETL + 裁决"冻结禁作当前信号"冲突
@@ -187,7 +187,7 @@ B0 ✅  B1 ✅  B2 ✅  B3 ✅  B4 ✅（审查 High 全部清完）
 | [`DESIGN.md`](./DESIGN.md) | 设计总纲 §2.1 进度表 |
 | [`DATA_CONTRACT.md`](./DATA_CONTRACT.md) | 数据契约（§1 注册表 / §2.7 news_geo / §2.11 health_geo / §2.12 news_titles） |
 | [`A3a-控制API-开阳对接文档.md`](./A3a-控制API-开阳对接文档.md) | 控制 API 端点（含 news-title） |
-| [`DEPLOYMENT.md`](./DEPLOYMENT.md) | 部署规范（**构建必须带 VITE_CONTROL_API_TOKEN**） |
+| [`DEPLOYMENT.md`](./DEPLOYMENT.md) | 部署规范（**构建禁带 `VITE_` env；走 `deploy.sh`**） |
 | [`../AGENTS.md`](../AGENTS.md) | AI session 入口，硬约束 |
 | [`../CHANGELOG.md`](../CHANGELOG.md) | 变更记录 |
 | `../../docs/decisions/audit-todo-20260815.md` | 审查批次状态（B0-B5 + Medium） |
@@ -236,7 +236,7 @@ B0 ✅  B1 ✅  B2 ✅  B3 ✅  B4 ✅（审查 High 全部清完）
 1. bump `VERSION` + `package.json` version
 2. `CHANGELOG.md` 追加（改了什么 / 为什么 / **明确没改什么**）
 3. 同步 `docs/DESIGN.md` + `docs/DATA_CONTRACT.md`
-4. `npm run build` 绿（**带 VITE_CONTROL_API_TOKEN**）+ `npm test` 全绿（基线 = `src/` 下 20 个测试文件）
+4. `npm run build` 绿（**不带任何 `VITE_` env**；NAS 走 `deploy.sh`）+ `npm test` 全绿（基线 = `src/` 下 20 个测试文件）
 
 ### 7.5 ⚠ CHANGELOG 承诺 ≠ 代码实际落盘
 

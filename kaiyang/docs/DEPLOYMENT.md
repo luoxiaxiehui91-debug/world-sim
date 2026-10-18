@@ -9,13 +9,14 @@
   1. 本地（Windows）`npm run build`（`tsc --noEmit && vite build`）
   2. SSH 到 NAS 在非 SMB 挂载路径构建
 - 构建前 `npm test` 必须全绿（基线 311+，只增不减）。
-- **⛔ 构建必须带 `VITE_CONTROL_API_TOKEN`**（v1.11.15 起，控制台开箱即用）：
-  ```bash
-  VITE_CONTROL_API_TOKEN=<运行区 compose 的 CONTROL_TOKEN> npm run build
-  ```
-  - 不带此参数 → 产物无内置 token → 控制台 401（除非用户在浏览器 localStorage 手填）。
-  - **token 轮换（P0-A）时必须同步更新此构建参数**。
-  - 注入值**不进 git**（构建参数传入，`getEnvToken()` 优先于 localStorage 读取）。
+- **⛔ 构建禁止带任何 `VITE_` 环境变量**（2026-10-17 起废止，旧规则「必带 `VITE_CONTROL_API_TOKEN`」已作废）：
+  - 原因：Vite 会把 `VITE_` 前缀变量**静态内联进产物**；产物经 `8080(0.0.0.0)` **匿名可下载**
+    ⇒ 内联 token 等于把控制面凭据公开（10-17 实测命中过真 token，依据 ADR-0018 及其 10-17 Amendment）。
+  - 正确做法 = **唯一部署路径 `deploy.sh`**（NAS 部署区脚本，内部 `docker run node:20-slim npm run build`，
+    **不带任何 env**）。
+  - 不带 token 的后果 ≠ 不可用：前端回落 `localStorage['kaiyang_control_token']`，
+    用户在 UI 手填一次即可（`src/config/controlConfig.ts:41-61`）。
+  - **轮换 `CONTROL_TOKEN` 时无需改构建参数**（因为不再有构建参数），只需按 ADR-0018 的重评条件判断。
 
 ## 2. 部署（nginx 静态托管）
 

@@ -46,7 +46,7 @@
 | **改后必做** | bump `VERSION` + `package.json` → 追加 `CHANGELOG.md` → `npm run build` 绿 + `npm test` 全过 |
 | **dist/ 不进 git** | 构建产物在 .gitignore，NAS 部署需手动 `npm run build` + scp |
 | **MOCK_ENABLED** | 默认 `false`（v1.7.2+），连接真实控制 API（HTTP REST :8900）；调试时用 `VITE_CONTROL_MOCK=true` 恢复 mock |
-| **⛔ 构建必带 token** | `VITE_CONTROL_API_TOKEN=<compose 的 CONTROL_TOKEN> npm run build`（v1.11.15+，控制台开箱即用；不带 → 前端无内置 token → 控制台 401；token 轮换同步更新，见 `docs/DEPLOYMENT.md` §1） |
+| **⛔ 构建禁带 `VITE_` 环境变量** | **不要**用 `VITE_CONTROL_API_TOKEN=... npm run build`（2026-10-17 起废止）：Vite 会把 `VITE_` 前缀变量**静态内联进产物**，而产物经 `8080(0.0.0.0)`**匿名可下载** ⇒ 等于把控制面凭据公开（10-17 实测：旧 bundle 中命中过真 token，见 ADR-0018）。正确做法 = 走**唯一部署路径** `deploy.sh`（不带任何 env）；令牌由用户在 UI 手填一次（`localStorage['kaiyang_control_token']`，`controlConfig.ts:41-61`）|
 | **LLM 配置面板** | 控制台 TokenSetup 下方「LLM 使用点 N 个 · 配置」——7 使用点 × 2 平台（MiMo Plan/SiliconFlow）可换平台+模型+API key（后端 `llm_usage.py`，写 `data/llm_config.json` 原子写；key 不回显明文）；改动后端 `llm_usage.py` / `hybrid_llm.py` 后须重启 control_server（:8900）并 curl 验证新路由生效 |
 | **d3 事件 + React 重渲染** | 在 d3 元素挂 click 且 handler 触发 setState → 节点重建 → 冒泡到祖先时 target detached → closest 误判。**子元素 handler 有副作用必须 `event.stopPropagation()`**（v1.11.24→25 血泪）；验证用真实鼠标序列（dispatchEvent 会假通过） |
 
@@ -82,7 +82,7 @@
 |:-----|:-----|:-------|
 | `docs/DATA_CONTRACT.md` | 数据契约权威标准（字段/路径/schema_version，含 §2.12 news_titles / §2.13 llm_config） | 消费新数据源时 |
 | `docs/A3a-控制API-开阳对接文档.md` | 控制 API 对接规范（HTTP REST :8900 / 命令格式 / news-title / llm-usage 端点） | 改控制面逻辑时 |
-| `docs/DEPLOYMENT.md` | 部署规范（构建必带 VITE_CONTROL_API_TOKEN / scp 覆盖 / 清理规则） | 构建部署时 |
+| `docs/DEPLOYMENT.md` | 部署规范（**构建禁带 `VITE_` env**，走 `deploy.sh` / scp 覆盖 / 清理规则） | 构建部署时 |
 | `docs/NEXT_SESSION_HANDOFF.md` | **接手快照**（版本链 / 重点 / gotcha，比本文档更细） | 新 session 必读 |
 | `docs/DESIGN.md` | 设计总纲（定位/边界/技术栈/Wave规划） | 做架构决策时 |
 | `docs/ARCH_1.8.0.md` | v1.8.0 架构计划（**ARCHIVED**：Leaflet 迁移方案未实施，实际用 D3 geoNaturalEarth1 重写；react-grid-layout 已实现） | 规划下个版本时（先看 ARCHIVED 标注，勿按 Leaflet 方案执行） |
