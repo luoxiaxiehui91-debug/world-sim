@@ -150,7 +150,7 @@ export function GrvPanel() {
       <div className="panel-title">📊 GRV 维度风险（含不确定区间）</div>
 
       {model.composite.length > 0 && (
-        <div className="mb-2 flex gap-2">
+        <div className="mb-2 flex flex-wrap gap-2">
           {model.composite.map((d) => (
             <CompositeCard key={d.id} dim={d} />
           ))}

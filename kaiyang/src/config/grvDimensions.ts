@@ -53,6 +53,26 @@ export const GRV_DIMENSIONS: GrvDimDef[] = [
     note: '全球综合风险指数，无地理位置，不投影到地图',
   },
   {
+    // v1.11.52 补映射（P1 A 类，用户 10-20 拍板）：实测有真实波动（标准差 6.81 / 近 30 天极差 25.1），
+    // 选 composite 而非 geographic —— composite 不进风险摘要 top-6 排行，不会挤占榜面。
+    id: 'social_stress',
+    label: '社会压力',
+    group: '综合',
+    kind: 'composite',
+    sourceKey: 'social_stress',
+    note: '社会情绪压力；不进全球综合分，仅供参考',
+  },
+  {
+    // v1.11.52 补映射（P1 A 类，用户 10-20 拍板）：实测有真实波动（标准差 5.80 / 近 30 天极差 20.7），
+    // 同上，选 composite 以免挤占风险摘要排行。
+    id: 'cultural_friction',
+    label: '文化摩擦',
+    group: '综合',
+    kind: 'composite',
+    sourceKey: 'cultural_friction',
+    note: '外交/文化摩擦（非军事维度）；不进全球综合分，仅供参考',
+  },
+  {
     // v1.11.50 补映射（P1 B 类）：japan_monetary 占 global_composite 净权重 10.5%（0.15×0.7），
     // 此前既不在前端映射也不上地图 ⇒「面板看不到、却悄悄影响全球综合分」。
     id: 'japan_monetary',
