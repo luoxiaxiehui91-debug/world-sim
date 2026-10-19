@@ -1,6 +1,29 @@
+## v1.11.51（2026-10-19）
+
+**推导维度 note 去掉写死的置信度 —— 消除「同一事实两处不同值」** —— CHG-20261019T220921
+
+### 背景
+4 条推导维度（`south_china_sea` / `korean_peninsula` / `india_pacific` / `global_south`）的 note 文案里
+**写死了置信度与缺失国家**（0.50/0.65/0.70/≤0.60 与 VNM-PHL-IDN 等），
+而 `grv_latest.json._derived_meta` 的运行时实际值是 **0.29 / 0.33 / 0.47 / 0.6**
+⇒ 同一事实在两处显示不同值（悬浮提示按运行时显示 29%，文案里却写 0.50）。
+
+### 改动
+note 只保留**语义解释**（推导值如何构成、不代表什么），置信度与缺失国家**一律运行时注入**：
+`grvAdapter.ts:73` 注入 `derivedConfidence`/`derivedMissing` → `GrvPanel.tsx:94-99` 渲染
+「置信度 XX%」+「缺失国家：…」。同时在 `GrvDimDef.isDerived` 的注释里加**禁令**：
+禁止在文案写死这两项。
+
+### 影响
+- 纯文案，不改数值/公式/映射 ⇒ 不影响综合分、top-6 排行、地图。
+- 信息**不丢失**：悬浮提示本来就是按运行时渲染的，删掉的是冗余且矛盾的写死值。
+
+### 验证
+构建绿；产物残留写死串 0、令牌精确值命中 0；HTTP 200；浏览器实看 tooltip 仍显示运行时置信度与缺失国家。
+
 ## v1.11.50（2026-10-18）
 
-**P1 B 类补映射：`japan_monetary` 进前端 —— 消除「看不见却影响综合分」** —— CHG-20261018T230000-world-deduction
+**P1 B 类补映射：`japan_monetary` 进前端 —— 消除「看不见却影响综合分」** —— CHG-20261018T225612-world-deduction
 
 ### 背景
 GRV 三层脱节对账（question `20261018-...-grv-dimension-three-layer-disconnect.md`）发现的 **B 类**：
