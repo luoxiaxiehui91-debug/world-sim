@@ -16,6 +16,10 @@
   3. 【综合分黑箱】参与 global_composite 的 grv 字段（从 geo_risk_vector.py 动态解析）
      若不在前端映射 ⇒ 告警（B 类「看不见却影响结论」的直接守门）
   4. 【仪器自检】输入不可读 / 映射表解析为空 ⇒ **响亮失败**（防止守卫自己变成静默失败源）
+  5. 【名单腐化自检】「待拍板」名单里的维度若已被映射 ⇒ 打印「应从待决集合移除」（提示，不算失败）
+
+失败判定（2026-10-19 分级）：只有「**新**漂移」「映射了但上游缺」「参与综合分却未映射」才算失败 exit 1；
+**已登记待拍板**的未映射维度只列出、不判失败（否则每天刷屏，反而淹没真信号）。
 
 失败 → ntfy 推送（内容不含任何密钥值）→ exit 1；全过 → 静默 exit 0。
 用法：check_grv_dimensions.py [--heartbeat]（heartbeat=全过时也推一条，供心跳防「脚本死了没声音」）
@@ -44,9 +48,16 @@ NON_DIMENSION_KEYS = {
     "updated", "gdelt_updated", "gpr_twn_raw", "gpr_twn_date", "source_quality",
 }
 
-# 已裁定「暂不映射」的维度（A 类待用户逐维决策；决策落地后应从本集合移除并补映射）。
-# ⚠️ 这里不是豁免缺陷，只是把「已知未决」与「新漂移」区分开，避免告警文案误导。
-DECIDED_UNMAPPED = set()
+# 已登记为「待用户拍板」的未映射维度（A 类 5 维，见 backlog/world-deduction.md
+# 「2026-10-18 待拍板迁移」段）。**不是豁免**：它们在每次运行中仍会被列出，只是不计为失败，
+# 以免已决策在途的事项刷屏、淹没真正的「新漂移」。
+#
+# 🔴 维护义务（否则名单腐化 = 该维度永远不再被提醒，比不分级更糟）：
+#    · 某维度一旦处置落地（补了映射 / 后端不再算 / 明确降级），**必须**从本集合移除；
+#    · 若它已被补上映射而仍留在本集合，脚本会打印「应从待决集合移除」提示（见下面第 4 项）。
+DECIDED_UNMAPPED = {
+    "energy_grid_risk", "sanctions_risk", "social_stress", "seismic_risk", "cultural_friction",
+}
 
 
 def _push(title: str, message: str) -> None:
@@ -142,23 +153,29 @@ def main() -> int:
     print(f"[GRV 对账] ②映射了但上游缺失 {len(missing_upstream)}: {sorted(missing_upstream)}")
     print(f"[GRV 对账] ③进综合分却未映射 {len(blind_in_composite)}: {sorted(blind_in_composite)}")
 
+    known = sorted(unmapped & DECIDED_UNMAPPED)
+    fresh = sorted(unmapped - DECIDED_UNMAPPED)
+    stale_list = sorted(DECIDED_UNMAPPED & mapped)   # 名单腐化：已映射却仍在待决名单里
+
     problems = []
-    if unmapped:
-        known = sorted(unmapped & DECIDED_UNMAPPED)
-        fresh = sorted(unmapped - DECIDED_UNMAPPED)
-        if fresh:
-            problems.append(f"① 上游算了但前端未映射（新）{len(fresh)}: {fresh}")
-        if known:
-            problems.append(f"① 已登记未决（A 类待处置）{len(known)}: {known}")
+    if fresh:
+        problems.append(f"① 上游算了但前端未映射（**新**，需处理）{len(fresh)}: {fresh}")
     if missing_upstream:
         problems.append(f"② 前端映射但上游无数据 {len(missing_upstream)}: {sorted(missing_upstream)}")
     if blind_in_composite:
         problems.append(f"③ 参与综合分但未映射（看不见却影响结论）{len(blind_in_composite)}: "
                         f"{sorted(blind_in_composite)}")
 
+    if known:
+        print(f"[GRV 对账] ①已登记待拍板（不计失败）{len(known)}: {known}")
+    if stale_list:
+        print(f"[GRV 对账] ⚠️ 名单待维护：以下维度已映射，应从 DECIDED_UNMAPPED 移除: {stale_list}")
+
     if not problems:
         if heartbeat:
-            _push("GRV 维度守卫 · 心跳", "三项对账全过：无未映射 / 无缺失 / 综合分输入均可见")
+            _push("GRV 维度守卫 · 心跳",
+                  f"对账通过：新漂移 0 / 上游缺失 0 / 综合分输入均可见；"
+                  f"已登记待拍板 {len(known)}: {known}")
         return 0
 
     msg = "\n".join(problems)
