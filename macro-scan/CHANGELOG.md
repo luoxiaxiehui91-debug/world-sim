@@ -1,3 +1,29 @@
+## v3.8.82（2026-10-20）
+
+**删除 `seismic_risk` 维度 —— 消除「两个地震指标打架」** —— CHG-20261020T230654
+
+### 背景
+A 类处置中 `seismic_risk` 裁定为「后端不再算」。它与面板独立的「地震风险」卡**重复且冲突**：
+同一时刻 GRV 这份 5.6，而面板卡读 `earthquake_risk.json` 为 **24.8**（相差 4 倍以上），
+两个同名指标并存会误导判断。面板那张卡信息更全（含 24h 事件数、各震级计数）⇒ 保留它、删 GRV 这份。
+
+### 改动（四处联动，缺一不可）
+1. `geo_risk_vector.py`：删除接入代码块 + 输出字典项 + 控制台打印项（**不删打印会 KeyError 崩**）。
+2. `config/source_dimension_map.yaml`：`usgs` 的 `primary` 由 `seismic_risk` 改 `disaster_risk`
+   （地震属灾害类）—— 不改会让启动校验失败 ⇒ **scheduler FATAL**。
+3. `startup_checks.py`：`KNOWN_GRV_DIMENSIONS` 移除该维度。
+4. 天璇 `macro-sim/core/world_state.py`：`_grv_keys` 及 8 处读写一并移除（否则缺失会静默降级仿真输入），
+   天璇 `AGENTS.md` 维度清单同步 16+1 → 15+1。
+
+### 影响
+- `grv_latest.json` 数值键 18 → **17**（维度 17 → 16）；`grv_history` 历史行不动。
+- **面板「地震风险」卡不受影响**：它读的是 `earthquake_risk.json`，不是 GRV 输出；`fetch_earthquake.py` 保留。
+- 综合分不受影响（`seismic_risk` 本就不进 `global_composite`）。
+
+### 验证
+启动校验通过、调度日志无 FATAL、心跳正常；`grv_latest.json` 已无该键；天璇重建后 `_grv_keys` 与真源一致；
+守卫名单 3 → 2 且 exit 0；面板地震卡仍正常。
+
 ## v3.8.81（2026-10-18）
 
 **能源读取链键名修复：`energy_grid_risk` 假饱和消除（P1 第 0 步）** —— CHG-20261018T220650

@@ -37,7 +37,6 @@ class MacroWorldState:
     climate_risk: float = 0.0       # 气候风险 [0,100]，来自 fetch_climate_signals
     disaster_risk: float = 0.0      # 灾害风险 [0,100]，来自 fetch_disaster_signals
     sanctions_risk: float = 0.0     # 制裁风险 [0,100]，来自 fetch_sanctions
-    seismic_risk: float = 0.0       # 地震压力 [0,100]，来自 fetch_earthquake
     energy_grid_risk: float = 0.0   # 能源电网压力 [0,100]，来自 fetch_energy
     japan_monetary: float = 0.0     # 日元货币压力 [0,100]，来自 DEXJPUS+JGB
     social_stress: float = 0.0      # 社会情绪压力 [0,100]，来自 gdelt_scores（R09，v3.8.3）
@@ -118,7 +117,6 @@ class MacroWorldState:
             # D7: 制裁风险和地震/灾害压力影响全球避险情绪
             ctx["sanctions_risk"]  = round(self.sanctions_risk / 100.0, 3)
             ctx["disaster_risk"]   = round(self.disaster_risk / 100.0, 3)
-            ctx["seismic_risk"]    = round(self.seismic_risk / 100.0, 3)
 
         if agent_role == "fed":
             ctx["fed_rate_change"] = self.fed_rate_change
@@ -232,7 +230,6 @@ class MacroWorldState:
             "climate_risk":     round(self.climate_risk, 1),
             "disaster_risk":    round(self.disaster_risk, 1),
             "sanctions_risk":   round(self.sanctions_risk, 1),
-            "seismic_risk":     round(self.seismic_risk, 1),
             "energy_grid_risk": round(self.energy_grid_risk, 1),
             "japan_monetary":   round(self.japan_monetary, 1),
             "social_stress":    round(self.social_stress, 1),
@@ -389,7 +386,6 @@ def load_monthly_history(
                         "climate_risk":     float(d.get("climate_risk") or 0.0),
                         "disaster_risk":    float(d.get("disaster_risk") or 0.0),
                         "sanctions_risk":   float(d.get("sanctions_risk") or 0.0),
-                        "seismic_risk":     float(d.get("seismic_risk") or 0.0),
                         "energy_grid_risk": float(d.get("energy_grid_risk") or 0.0),
                         "japan_monetary":   float(d.get("japan_monetary") or 0.0),
                         "social_stress":    float(d.get("social_stress") or 0.0),
@@ -436,7 +432,7 @@ def load_monthly_history(
     _grv_keys = (
         "grv", "grv_energy", "grv_military", "grv_trade", "us_china_grv",
         # D7 扩展维度随主维度一起平滑，保持校准期与预测期输入空间一致
-        "climate_risk", "disaster_risk", "sanctions_risk", "seismic_risk",
+        "climate_risk", "disaster_risk", "sanctions_risk",
         "energy_grid_risk", "japan_monetary", "social_stress", "cultural_friction",
     )
     _raw_grv_seq = [grv_monthly[d] for d in valid_dates]
@@ -470,7 +466,6 @@ def load_monthly_history(
             "climate_risk":     grv_d.get("climate_risk", 0.0),
             "disaster_risk":    grv_d.get("disaster_risk", 0.0),
             "sanctions_risk":   grv_d.get("sanctions_risk", 0.0),
-            "seismic_risk":     grv_d.get("seismic_risk", 0.0),
             "energy_grid_risk": grv_d.get("energy_grid_risk", 0.0),
             "japan_monetary":   grv_d.get("japan_monetary", 0.0),
             "social_stress":    grv_d.get("social_stress", 0.0),
@@ -511,7 +506,6 @@ def make_world_from_history_row(row: dict, prev_row: dict = None, label: str = "
         climate_risk=_f(row.get("climate_risk"), 0.0),
         disaster_risk=_f(row.get("disaster_risk"), 0.0),
         sanctions_risk=_f(row.get("sanctions_risk"), 0.0),
-        seismic_risk=_f(row.get("seismic_risk"), 0.0),
         energy_grid_risk=_f(row.get("energy_grid_risk"), 0.0),
         japan_monetary=_f(row.get("japan_monetary"), 0.0),
         social_stress=_f(row.get("social_stress"), 0.0),
@@ -565,7 +559,6 @@ def load_from_macro_scan(
     climate_risk     = float(grv.get("climate_risk") or 0.0)
     disaster_risk    = float(grv.get("disaster_risk") or 0.0)
     sanctions_risk   = float(grv.get("sanctions_risk") or 0.0)
-    seismic_risk     = float(grv.get("seismic_risk") or 0.0)
     energy_grid_risk = float(grv.get("energy_grid_risk") or 0.0)
     japan_monetary   = float(grv.get("japan_monetary") or 0.0)
     # R09/R10：social_stress/cultural_friction 现在由 geo_risk_vector 透传到 grv_latest.json
@@ -718,7 +711,6 @@ def load_from_macro_scan(
         climate_risk=climate_risk,
         disaster_risk=disaster_risk,
         sanctions_risk=sanctions_risk,
-        seismic_risk=seismic_risk,
         energy_grid_risk=energy_grid_risk,
         japan_monetary=japan_monetary,
         social_stress=social_stress,

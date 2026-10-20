@@ -106,7 +106,9 @@ sources:
     tau: 240
     type: official_data
   usgs:
-    primary: seismic_risk
+    # 2026-10-20：seismic_risk 维度已删除（与面板独立地震卡重复且数值冲突 5.6 vs 24.8）
+    # ⇒ USGS 地震数据改归 disaster_risk（地震本就属灾害类，与 fetch_disaster_signals 同源语义）
+    primary: disaster_risk
     tau: 24
     type: official_data
   unknown:

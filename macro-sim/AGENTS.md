@@ -221,7 +221,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 **macro-scan → macro-sim 数据文件：**
 
 - `grv_history.jsonl`：GRV 快照序列（1985~2026-06 月频，2026-07 起日频），校准循环读取。⚠️ **读基线时应按日期范围（6个月前）查找，不应用行偏移 `lines[-N]`**
-- `grv_latest.json`：当前 GRV，需含 `_schema_version: "1.0"`。完整 16+1 维（16 个风险子维度 + 1 个合成 global_composite；D7 fix 后全部接入 MacroWorldState）：taiwan_strait / us_china_strategic / russia_europe / middle_east_energy / global_composite / climate_risk / disaster_risk / sanctions_risk / seismic_risk / energy_grid_risk / japan_monetary / social_stress / cultural_friction / global_south / india_pacific / korean_peninsula / south_china_sea。social_stress / cultural_friction 由 geo_risk_vector.py 从 gdelt_scores 聚合后写入此文件
+- `grv_latest.json`：当前 GRV，需含 `_schema_version: "1.0"`。完整 15+1 维（16 个风险子维度 + 1 个合成 global_composite；D7 fix 后全部接入 MacroWorldState）：taiwan_strait / us_china_strategic / russia_europe / middle_east_energy / global_composite / climate_risk / disaster_risk / sanctions_risk / energy_grid_risk / japan_monetary / social_stress / cultural_friction / global_south / india_pacific / korean_peninsula / south_china_sea。social_stress / cultural_friction 由 geo_risk_vector.py 从 gdelt_scores 聚合后写入此文件
 - `fred_history/T10Y2Y.csv` / `BAA10Y.csv` / `DFF.csv`：FRED 日度数据，单位 `%`，读取后 ×100 转 bp
 - `news_export.json`：近7天新闻，需含 `_schema_version: "1.0"`
 - `sim_trigger.json`：触发文件，格式 `{"level":3,"event":"...","triggered_at":"..."}`

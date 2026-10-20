@@ -623,27 +623,6 @@ def compute_grv() -> dict:
     except Exception as _e:
         logger.warning(f"[GRV] 制裁信号读取失败（非阻断）: {_e}")
 
-    # ── 接入地震压力（seismic_risk）──────────────────────────
-    # 来源：fetch_earthquake.py（USGS Earthquake feed，全局地震压力指数 0–100）。
-    # 与 fetch_disaster_signals.py 的 disaster_risk（事件级告警）互补：
-    # 此处为全局结构性压力基线，喂 GRV 的 energy/grid 外生冲击维度。
-    seismic_risk = None
-    try:
-        eq_path = os.path.join(DATA_DIR, "earthquake_risk.json")
-        if os.path.exists(eq_path):
-            with open(eq_path, encoding="utf-8") as _eq:
-                _ed = json.load(_eq)
-            if _ed.get("status") == "ok":
-                s = _ed.get("seismic_risk")
-                if isinstance(s, (int, float)):
-                    seismic_risk = round(float(s), 1)
-                else:
-                    logger.warning("[GRV] seismic_risk 全局值缺失/类型异常，留空")
-            else:
-                logger.info("[GRV] 地震数据 status=%s，seismic_risk 留空", _ed.get("status"))
-    except Exception as _e:
-        logger.warning(f"[GRV] 地震信号读取失败（非阻断）: {_e}")
-
     # ── 接入能源/电网压力（energy_grid_risk）──────────────────
     # 优先天然气（NG，USD/MMBtu）；不存在时依次回退 Brent → WTI（USD/bbl）。
     # Brent/WTI 归一化：[50, 110] → [0, 100]；天然气：[2, 8] → [0, 100]。
@@ -852,7 +831,6 @@ def compute_grv() -> dict:
         "climate_risk":       climate_risk,
         "disaster_risk":      disaster_risk,
         "sanctions_risk":     sanctions_risk,
-        "seismic_risk":       seismic_risk,
         "energy_grid_risk":   energy_grid_risk,
         "japan_monetary":     japan_monetary,
         "social_stress":      social_stress_val,      # R09：社会情绪压力（gdelt_scores 聚合均值）
@@ -1027,7 +1005,6 @@ def main():
     print(f"  气候风险:  {grv['climate_risk']}")
     print(f"  灾害风险:  {grv['disaster_risk']}")
     print(f"  制裁风险:  {grv['sanctions_risk']}")
-    print(f"  地震压力:  {grv['seismic_risk']}")
     print(f"  能源电网:  {grv['energy_grid_risk']}")
     print(f"  日元压力:  {grv['japan_monetary']}")
     print(f"  社会压力:  {grv['social_stress']}")

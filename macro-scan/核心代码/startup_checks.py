@@ -33,7 +33,6 @@ KNOWN_GRV_DIMENSIONS = {
     "disaster_risk",
     "climate_risk",
     "japan_monetary",
-    "seismic_risk",
     "social_stress",      # R09：社会情绪压力（v3.8.3 接入）
     "cultural_friction",  # R10：文化摩擦（v3.8.3 接入）
 }
