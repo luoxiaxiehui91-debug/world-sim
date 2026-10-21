@@ -271,40 +271,54 @@ def _apply_lambda_rules(f: Path, rules: list, name: str):
         os.replace(tmp, f)
 
 
-def rebuild_rag_index():
-    """重建向量索引"""
+def rebuild_rag_index() -> bool:
+    """重建向量索引。返回 True=成功 / False=失败（供调用方 fail-loud）。"""
     idx_script = APP_DIR / "build_rag_index.py"
     if not idx_script.exists():
         log.warning("build_rag_index.py 不存在，跳过向量索引重建")
-        return
+        return True   # 脚本本就不存在属环境既定状态，不算本次失败
     import subprocess
     log.info("重建 RAG 向量索引...")
-    r = subprocess.run([sys.executable, str(idx_script)], capture_output=True, text=True, timeout=300)
+    try:
+        r = subprocess.run([sys.executable, str(idx_script)],
+                           capture_output=True, text=True, timeout=300)
+    except Exception as e:
+        log.error(f"  ✗ 向量索引重建异常: {e}")
+        return False
     if r.returncode == 0:
         log.info("  ✓ 向量索引重建完成")
-    else:
-        log.warning(f"  ✗ 向量索引重建失败: {r.stderr[:200]}")
+        return True
+    # 诊断信息：stderr 常常为空（子进程把错误打到 stdout），两个都记
+    log.error(f"  ✗ 向量索引重建失败 rc={r.returncode}")
+    log.error(f"    stderr: {(r.stderr or '')[:300]}")
+    log.error(f"    stdout: {(r.stdout or '')[:300]}")
+    return False
 
 
-def send_ntfy(title: str, body: str):
+def send_ntfy(title: str, body: str) -> bool:
+    """推送通知。返回 True=已发送 / False=失败（供调用方 fail-loud）。
+
+    用 `requests.put(json=...)`：标题与正文走 **JSON body**，不进 HTTP header ⇒ 中文不会
+    触发 latin-1 编码错误（旧写法 `headers={"Title": title}` 对中文标题必然抛
+    `UnicodeEncodeError`，见 question 20261018-...-kb-update-silent-failure.md）。
+    模板来源：`scripts/check_llm_config.py::_push`（周一心跳实测可发中文）。
+    """
+    if not NTFY_TOPIC:
+        log.warning("NTFY_TOPIC 未配置，跳过推送")
+        return False
     try:
-        import urllib.request
-        proxies = {"https": OUTBOUND_PROXY} if OUTBOUND_PROXY else {}
-        req = urllib.request.Request(
+        import requests
+        proxies = {"https": OUTBOUND_PROXY, "http": OUTBOUND_PROXY} if OUTBOUND_PROXY else None
+        requests.put(
             f"https://ntfy.sh/{NTFY_TOPIC}",
-            data=body.encode(),
-            headers={"Title": title, "Priority": "default"},
-            method="POST"
+            json={"topic": NTFY_TOPIC, "title": title, "message": body},
+            timeout=15,
+            proxies=proxies,
         )
-        if OUTBOUND_PROXY:
-            opener = urllib.request.build_opener(
-                urllib.request.ProxyHandler({"https": OUTBOUND_PROXY})
-            )
-            opener.open(req, timeout=10)
-        else:
-            urllib.request.urlopen(req, timeout=10)
+        return True
     except Exception as e:
-        log.warning(f"ntfy 发送失败: {e}")
+        log.error(f"ntfy 发送失败: {e}")
+        return False
 
 
 # ── 主流程 ─────────────────────────────────────────────────
@@ -359,7 +373,7 @@ def main():
     update_geo_events_meta()
 
     # 3. 重建 RAG 索引
-    rebuild_rag_index()
+    ok_rag = rebuild_rag_index()
 
     # 4. 通知
     today = datetime.now().strftime("%Y-%m-%d")
@@ -372,12 +386,19 @@ def main():
         "⚠️ 叙事段落、地缘事件需人工/AI审阅",
         "参考：知识库/KB_UPDATE_GUIDE.md",
     ]
-    send_ntfy(
+    ok_ntfy = send_ntfy(
         f"知识库数值已自动更新 {today}",
         "\n".join(summary_lines)
     )
 
     log.info("=" * 50)
+    # fail-loud：任一环节失败 ⇒ 退出码非 0，不再无条件打印「完成。」
+    # （旧行为：失败也打印「完成。」且 exit 0 ⇒ 面板显示 ✅，属静默失败）
+    if not (ok_rag and ok_ntfy):
+        failed = [n for n, ok in (("RAG 索引重建", ok_rag), ("ntfy 推送", ok_ntfy)) if not ok]
+        log.error(f"未完成：{('、'.join(failed))} 失败 —— 脚本以非零退出码结束（面板将如实标记为失败）")
+        log.info("=" * 50)
+        sys.exit(1)
     log.info("完成。叙事段落和地缘事件请参考 KB_UPDATE_GUIDE.md 进行人工审阅。")
     log.info("=" * 50)
 

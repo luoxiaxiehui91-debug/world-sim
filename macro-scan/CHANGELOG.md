@@ -1,3 +1,33 @@
+## v3.8.84（2026-10-21）
+
+**`kb_update` 静默失败根治 —— fail-loud + 补诊断 + ntfy 中文标题可发** —— CHG-20261021T232520
+
+### 背景
+月频任务 `kb_update`（每月 1 日）在 09-01、10-01 连续两次：RAG 索引重建失败（**stderr 为空，拿不到原因**）、
+ntfy 推送失败（`'latin-1' codec can't encode characters`），**却仍打印「完成。」且退出码 0**
+⇒ 面板显示 ✅（T1 批次未扫到这个脚本）。
+
+### 改动
+1. `rebuild_rag_index()`：由"只 warning"改为**返回成败**；失败时同时记录 `stderr` **与 `stdout`**
+   （线上 stderr 常为空，错误其实在 stdout ⇒ 诊断信息不再丢失）。
+2. `send_ntfy()`：由 `urllib` + `headers={"Title": title}` 改为 **`requests.put(json=...)`** ——
+   标题/正文走 JSON body，不进 HTTP 头 ⇒ 中文不再触发 latin-1 编码错误。
+   模板来源：`scripts/check_llm_config.py::_push`（周一心跳实测可发中文）。
+   代理沿用本脚本既有的 `OUTBOUND_PROXY`（未照抄 `proxies=None`）。
+3. 收尾：**任一环节失败 ⇒ 打印明确失败行并 `sys.exit(1)`**（不再无条件打印「完成。」）。
+
+### 影响
+- 下月（11-01）若 RAG 重建再失败，面板会**如实显示失败**（不再是假 ✅）——这是预期行为。
+- 未改动调度记账，未改动其他通知点。
+
+### 验证（离线，未跑生产）
+真跑 `main()` 但把知识库写入重定向到临时目录（`KB_ROOT` 环境变量）、网络全部打桩：
+- RAG 失败 ⇒ `SystemExit(1)` 且日志含 `stdout` 诊断；
+- 全部成功 ⇒ 正常返回（rc 0）；
+- ntfy 请求体核对：中文标题 `知识库数值已自动更新 …` 走 JSON body；
+- 生产知识库未被触碰（临时目录写入，生产文件数无变化）。
+⇒ 真实效果待 **11-01** 触发时复核。
+
 ## v3.8.83（2026-10-21）
 
 **修 `silent_probe` 每天一次假告警 —— observability 快照检查的时点逻辑错** —— CHG-20261021T232146
