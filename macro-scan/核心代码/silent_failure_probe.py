@@ -221,13 +221,23 @@ def check_artifacts() -> list:
         else:
             out.append((OK, f"artifact {rel}: {_fmt_age(age)} 前更新"))
 
-    # 当日 observability 快照
-    day = time.strftime("%Y-%m-%d")
-    obs = os.path.join(DATA_DIR, f"observability_{day}.json")
-    if not os.path.exists(obs):
-        out.append((WARN, f"artifact observability_{day}.json: 当日快照缺失"))
+    # observability 日终快照：由「日终清洗」在当日 23:59 才写入，
+    # 因此**不能**检查"当日文件是否存在"（00:01 跑探针时必然尚未生成，每天都假告警）。
+    # 改为检查「最近一份快照是否存在且新鲜」：≤24h OK，24~48h WARN，>48h 或一份都没有 CRIT。
+    import glob as _glob
+    _snaps = sorted(_glob.glob(os.path.join(DATA_DIR, "observability_*.json")))
+    if not _snaps:
+        out.append((CRIT, "artifact observability_*.json: 无任何快照（日终清洗疑似从未成功）"))
     else:
-        out.append((OK, f"artifact observability_{day}.json: 存在"))
+        _latest = max(_snaps, key=os.path.getmtime)
+        _age = now - os.path.getmtime(_latest)
+        _rel = os.path.basename(_latest)
+        if _age > 48 * 3600:
+            out.append((CRIT, f"artifact {_rel}: 最近快照陈旧 {_fmt_age(_age)}（>48h，日终清洗疑似失败）"))
+        elif _age > 24 * 3600:
+            out.append((WARN, f"artifact {_rel}: 最近快照陈旧 {_fmt_age(_age)}（>24h）"))
+        else:
+            out.append((OK, f"artifact {_rel}: 最近快照 {_fmt_age(_age)} 前更新"))
     return out
 
 
