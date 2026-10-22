@@ -108,7 +108,7 @@ docker ps --filter name=macro-scan-tianji-1   # 期待 (healthy)
 
 ## 七、中央知识库同步（CHG 五步，2026-08-30 起）
 
-任何非只读变更（改代码 / 改配置 / 部署 / 归档 / 文档修改）都要走中央 CHG 生命周期（格式真源 = `S:\docs\AGENTS.md` §operations/ 系统日志）：
+任何非只读变更（改代码 / 改配置 / 部署 / 归档 / 改既有文档）都要走中央 CHG 生命周期（格式真源 = `S:\docs\AGENTS.md` §operations/ 系统日志）：
 
 1. **实施前**：建 `S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-macro-ji.md`（9 字段 frontmatter + `## Pre-Change` 写完冻结）
 2. **实施**：改代码 + 按版本同步清单更新（macro-ji 清单 = `VERSION` + `CHANGELOG.md` + 本文件顶部版本号 + `S:\docs\INDEX.md` 版本状态表）
