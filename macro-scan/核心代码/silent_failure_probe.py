@@ -820,7 +820,11 @@ def main():
     n_bad = sum(1 for l, _ in results if _RANK[l] >= _RANK[WARN])
     print(f"PROBE verdict={worst} checks={len(results)} bad={n_bad}"
           f"{' (dry)' if DRY else ''}")
-    sys.exit(1 if _RANK[worst] >= _RANK[WARN] else 0)
+    # 退出码语义：**只有 CRIT（真故障）才算任务失败**。
+    # WARN/INFO 属"提示"级别 —— 它们已在 run_probe() 内通过 ntfy 推送（`worst >= WARN` 即推），
+    # 若再让 job 判失败，会让面板几乎每天出现 ❌（FRED 系列滞后几天属常态波动，阈值偏紧）
+    # ⇒ 噪声会淹没真正的失败信号。
+    sys.exit(1 if _RANK[worst] >= _RANK[CRIT] else 0)
 
 
 if __name__ == "__main__":
