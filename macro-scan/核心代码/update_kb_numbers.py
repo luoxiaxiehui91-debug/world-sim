@@ -111,7 +111,15 @@ def fetch_china_data() -> dict:
 
 
 def get_current_regime() -> str:
-    """读取最新 regime_history.json，返回当前体制字符串"""
+    """读取最新 regime_history.json，返回当前体制字符串。
+
+    ⚠️ 已知契约缺口（2026-10-24 实测，未修，见 CHG-20261024T*）：
+    `regime_detector._save_history()` 落盘的记录只有
+    `{quarter, vix, baa10y, t10y2y, unrate_3m, vix_z, baA_z, t10_z}` —— **没有 `regime` 键**；
+    当前体制存在模块级 `_prev_regime` 里，从不写文件。
+    ⇒ 本函数**恒返回 "unknown"**。调用方（`update_sector_rotation`）据此跳过写入，
+    宁可不更新也不把 `unknown` 塞进知识库。要真正恢复需统一读写契约（落盘 regime）。
+    """
     try:
         hist_file = DATA_DIR / "regime_history.json"
         if hist_file.exists():
@@ -260,23 +268,44 @@ def update_sector_rotation(regime: str):
         "crisis":        "危机期（VIX>40，流动性冲击）",
         "soft_landing":  "软着陆（增速温和，通胀回落）",
     }
-    label = regime_labels.get(regime, regime)
     today = datetime.now().strftime("%Y-%m")
+    rules = []
 
-    rules = [
-        (
-            r"(体制：\*\*)[^*]+(\*\*)",
-            r"\g<1>" + label + r"\2",
-            f"当前体制 → {label}"
-        ),
-        (
-            # v3.8.86：闭合括号原写成半角 `\)`，文档实为全角 `）` ⇒ 永久 0 命中
-            r"(当前体制映射（)\d{4}-\d{2}(）)",
-            r"\g<1>" + today + r"\2",
-            f"体制映射日期 → {today}",
-            True,
-        ),
-    ]
+    # 🔴 regime 拿不到有效值时**不写**（v3.8.87）：
+    # `regime_detector` 把当前体制存在模块级 `_prev_regime`、**从不落盘**，
+    # 而本脚本去读 `regime_history.json` 的 `regime` 键（那批记录里根本没有该键）
+    # ⇒ 恒拿不到，旧逻辑会把 `体制：**unknown**` 写进知识库并被 RAG 向量化。
+    # 拿不到就跳过 + warning，宁可不更新也不塞垃圾。
+    if regime and regime != "unknown":
+        label = regime_labels.get(regime, regime)
+        # label 形如 "后期周期 / 滞胀边界（增速放缓+通胀粘性）" —— 名称 + 内层描述括号；
+        # 文档原结构是 `**名称**（描述）`。旧写法只替换 `**…**` 内部，
+        # 外层 `（描述）` 留着 ⇒ 写成 `**…（描述）**（描述）`，括号重复（v3.8.87 修）。
+        if "（" in label and label.endswith("）"):
+            name, _, rest = label.partition("（")
+            desc = rest[:-1]
+        else:
+            name, desc = label, ""
+
+        def _repl(m, nm=name, ds=desc):
+            return m.group(1) + nm + m.group(2) + (("（%s）" % ds) if ds else "")
+
+        rules.append((
+            r"(体制：\*\*)[^*]*(\*\*)(（[^）]*）)?",
+            _repl,
+            f"当前体制 → {name}（{desc}）" if desc else f"当前体制 → {name}",
+        ))
+    else:
+        log.warning(f"体制值为 {regime!r}（regime_history.json 无 regime 键 / 读不到），"
+                    f"跳过体制规则，不写入知识库")
+
+    rules.append((
+        # v3.8.86：闭合括号原写成半角 `\)`，文档实为全角 `）` ⇒ 永久 0 命中
+        r"(当前体制映射（)\d{4}-\d{2}(）)",
+        r"\g<1>" + today + r"\2",
+        f"体制映射日期 → {today}",
+        True,
+    ))
     return _apply_rules(f, rules, "板块轮动与经济周期.md")
 
 
