@@ -163,8 +163,8 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 
 ## 维护铁律
 
-1. **实施前先建 CHG**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-macro-sim.md`（9 字段 frontmatter + `## Pre-Change` 冻结；格式见 `S:\docs\AGENTS.md` §operations/ 系统日志）
-2. 改动后必须 bump `VERSION` + 追加 `CHANGELOG.md`；完成后 CHG 补 `## Post-Change` + status `completed`
+1. **实施前先建 CHG**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-world-deduction.md`（＝中央 KB 项目名，非组件名）；**生命周期细则（9 字段 / Pre-Change 冻结 / Post-Change / 24h / `completed` 后追加）一律以真源为准**——`S:\docs\AGENTS.md §operations/ 系统日志`，本行不存规则正文
+2. 改动后必须 bump `VERSION` + 追加 `CHANGELOG.md`；CHG 收口按真源 §operations/ 系统日志 执行
 3. `config/agents.yaml` 通过 `COPY` 打包进镜像，**修改后需重新部署**（NAS 手动 docker build，见"修改工作流"）
 4. FRED 数据读取后需 ×100 转 bp（T10Y2Y / BAA10Y）
 5. 校准期误差计算权重（v2.0.20 起为**内生变量**权重）：market_sentiment×0.35 + bank_credit_tightening×0.30 + liquidity_premium×0.20 + em_capital_outflow×0.15（旧外生权重 grv×0.4+credit_spread×0.3+t10y2y×0.2+dff×0.1 已废弃）
@@ -179,7 +179,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 
 | 改了什么 | 必须同时更新 |
 |---|---|
-| **任何变更（改代码 / 部署 / 改配置）** | **中央 CHG 文件**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-macro-sim.md`（实施前 `## Pre-Change` 冻结 → 完成后 `## Post-Change` + status `completed`；纯报问题建档不建 CHG）|
+| **任何变更（改代码 / 部署 / 改配置）** | **中央 CHG 文件**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-world-deduction.md`（＝中央 KB 项目名，非组件名；实施前建；纯报问题建档不建 CHG；生命周期细则以真源 §operations/ 系统日志 为准）|
 | 任何 `core/*.py` | `VERSION`（PATCH）+ `CHANGELOG.md` |
 | 任何 `core/*.py`（版本号变更时）| + `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
 | 任何 `core/*.py`（版本号变更时）| + `macro-sim_人类说明文档.md` 文件头版本号 |

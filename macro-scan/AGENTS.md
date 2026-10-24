@@ -161,8 +161,8 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 ## 维护铁律
 
 1. **改前必读** `CHANGELOG.md`（了解最新状态；v3.8.24 及更早见 `TuiYan_CHANGELOG.md`）
-2. **实施前先建 CHG**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-world-deduction.md（=中央 KB 项目名，非组件名）`（9 字段 frontmatter + `## Pre-Change` 冻结；格式见 `S:\docs\AGENTS.md` §operations/ 系统日志）
-3. **改后必追加** `CHANGELOG.md` → bump `VERSION` → 按联动矩阵更新对应文档 → 版本变更时同步更新 `S:\docs\INDEX.md` 版本状态行 → CHG 补 `## Post-Change` + status `completed`
+2. **实施前先建 CHG**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-world-deduction.md`（＝中央 KB 项目名，非组件名）；**生命周期细则（9 字段 / Pre-Change 冻结 / Post-Change / 24h / `completed` 后追加）一律以真源为准**——`S:\docs\AGENTS.md §operations/ 系统日志`，本行不存规则正文
+3. **改后必追加** `CHANGELOG.md` → bump `VERSION` → 按联动矩阵更新对应文档 → 版本变更时同步更新 `S:\docs\INDEX.md` 版本状态行 → CHG 收口按真源 §operations/ 系统日志 执行
 4. **绝对不要** `git rm`（不加 `--cached`）知识库或 data 下的文件
 5. **绝对不要** 把 `核心代码/` 内的 .py 分子目录
 6. **ntfy 推送强制直连**，不走代理

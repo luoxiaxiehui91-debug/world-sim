@@ -3,7 +3,7 @@
 > 容器：`macro-scan-tianji-1` · 镜像：`macro-tianji:latest` · 版本：**v1.0.11**（2026-10-18 T3 LLM 评判成本防线 —— `window_total` 拆分真实覆盖数/prompt 样本数，修 `outcome=0` 分支永不可达；LLM 判定失败加重试上限 3 次防重复烧 token）｜ v1.0.10：Brier 权重下调判据方向修正 + 统计显著性门槛（Welch z≥1.96、样本量 8→30、全量样本替代 `[:8]`、调幅按比值分档；可调参数集中于文件头）｜ v1.0.9：全量审查确定性缺陷修复（`tianji_db.py` `scored.sort()` 缺 key：`hours_age=999` 使 score 相同 → 比较 dict 抛 TypeError）｜ v1.0.8：P3③ LLM 调用补记账 —— verify_llm 写入 `public.llm_token_usage`（v1.0.1–v1.0.7 见 CHANGELOG.md）
 > 代码目录：`/vol2/1000/software/world-sim/macro-ji/`（NAS 仓库）
 
-> **跨项目知识库入口**：中央知识库 = `S:\docs\`（NAS 侧 `/vol2/1000/software/docs/`）；规则真源 = `S:\docs\AGENTS.md`（问题流程 / CHG 变更日志 / 文档写作规范）。改代码 / 部署后**必须按文末「七、中央知识库同步（CHG 五步）」同步中央知识库**（2026-08-30 CHG 体系）。
+> **跨项目知识库入口**：中央知识库 = `S:\docs\`（NAS 侧 `/vol2/1000/software/docs/`）；规则真源 = `S:\docs\AGENTS.md`（问题流程 / CHG 变更日志 / 文档写作规范）。改代码 / 部署后**必须按文末「七、中央知识库同步（触发条件 + 指针）」同步中央知识库**（2026-08-30 CHG 体系）。
 
 ---
 
@@ -106,14 +106,17 @@ docker ps --filter name=macro-scan-tianji-1   # 期待 (healthy)
 | `weight_matrix.py` | `init_weights_from_prior()` / `get_weight()` / `apply_weight_adjustment()` / `run_health_check()` / `approve_adjustment()` | `--init` / `--health` / `--pending` |
 | `verify_watchdog.py` | `main()`（3s 轮询循环） | 容器 CMD |
 
-## 七、中央知识库同步（CHG 五步，2026-08-30 起）
+## 七、中央知识库同步（触发条件 + 指针，2026-10-23 起）
 
-任何非只读变更（改代码 / 改配置 / 部署 / 归档 / 改既有文档）都要走中央 CHG 生命周期（格式真源 = `S:\docs\AGENTS.md` §operations/ 系统日志）：
+**任何非只读变更（改代码 / 改配置 / 部署 / 归档 / 改既有文档）都要在实施前建中央 CHG**，文件：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-world-deduction.md（＝中央 KB 项目名，非组件名）`（NAS 侧 `/vol2/1000/software/docs/operations/`）。
 
-1. **实施前**：建 `S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-macro-ji.md`（9 字段 frontmatter + `## Pre-Change` 写完冻结）
-2. **实施**：改代码 + 按版本同步清单更新（macro-ji 清单 = `VERSION` + `CHANGELOG.md` + 本文件顶部版本号 + `S:\docs\INDEX.md` 版本状态表）
-3. **同步**：更新 `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）+ `S:\docs\questions\world-deduction\` 相关 question 状态
-4. **收尾**：CHG 追加 `## Post-Change`（完成时间 / 实施摘要 / 验证），frontmatter status 改 `completed`
-5. **边界**：纯报问题建档（question doc + INDEX 加行）**不建 CHG**——CHG 只覆盖实施变更，不覆盖记录「发现」
+> **生命周期与细则（frontmatter 9 字段 / Pre-Change 冻结 / Post-Change / 24h 延期 / `completed` 后追加 / 跨执行者连续变更 / 归档确认）一律以真源为准**：`S:\docs\AGENTS.md §operations/ 系统日志`；归档确认另见 `§问题归档操作命令`。**本节不存规则正文，与真源冲突时本节作废。**
 
-NAS 侧路径等价：`/vol2/1000/software/docs/`。问题归属统一建在 `questions/world-deduction/`。
+本项目约定：
+- **实施**：改代码 + 按版本同步清单更新（macro-ji 清单 = `VERSION` + `CHANGELOG.md` + 本文件顶部版本号 + `S:\docs\INDEX.md` 版本状态表）
+- **同步**：更新 `S:\docs\INDEX.md` 项目版本状态表（版本号 + 日期 + 一行摘要）+ `S:\docs\questions\world-deduction\` 相关 question 状态
+- **边界**：纯报问题建档（question doc + INDEX 加行）**不建 CHG**——CHG 只覆盖实施变更，不覆盖记录「发现」
+- 问题归属统一建在 `questions/world-deduction/`；NAS 侧路径等价 `/vol2/1000/software/docs/`
+
+> **对齐注记**：2026-10-23 / 真源 542 行 / §operations/ 系统日志（本节由「CHG 五步规则副本」改为「触发条件 + 指针」，repo 层自此退出细则同步清单）
+

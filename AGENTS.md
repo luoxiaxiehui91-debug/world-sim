@@ -1,6 +1,6 @@
 # world-sim — AI 工作入口
 
-> **跨项目知识库入口**：中央知识库 = `S:\docs\`（NAS 侧 `/vol2/1000/software/docs/`）；规则真源 = `S:\docs\AGENTS.md`（问题流程 / CHG 变更日志 / 文档写作规范）。本仓库改代码 / 部署后**必须按下方「中央知识库同步（CHG 五步）」节同步中央知识库**（2026-08-30 CHG 体系）。
+> **跨项目知识库入口**：中央知识库 = `S:\docs\`（NAS 侧 `/vol2/1000/software/docs/`）；规则真源 = `S:\docs\AGENTS.md`（问题流程 / CHG 变更日志 / 文档写作规范）。本仓库改代码 / 部署后**必须按下方「中央知识库同步（触发条件 + 指针）」节同步中央知识库**（2026-08-30 CHG 体系）。
 
 **系统定位**：macro-scan 持续观测全球宏观信号 → macro-sim 演化未来路径（不是推理，是演化）→ kaiyang 只读可视化 + 控制台。
 
@@ -8,12 +8,14 @@
 
 ## 三个子系统
 
-| 子系统 | 定位 | 容器模式 | 版本（as-of 2026-08-18） | NAS 运行目录 |
+| 子系统 | 定位 | 容器模式 | 版本真源（**不在此维护数字**） | NAS 运行目录 |
 |:-------|:-----|:---------|:-----|:-------------|
-| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 维度向量（18 项，含 global_composite 汇总 + 4 GDELT 国别推导维度 + gpr_twn_raw，08-07 实测）；**地缘预测自动验证（verify_geo_auto L1/L2，08-18）+ GRV 分数常态基准校准（#134，08-18）** | **热挂载**（改代码即生效；scheduler.py 改动需 restart） | **v3.8.49** · [CHANGELOG](macro-scan/CHANGELOG.md) | `/vol2/1000/software/macro-scan` |
-| `macro-sim`  | 仿真引擎层：**20个 Agent**（13 金融 A1-A13 + 7 主权 S1-S7，08-18 实测），Monte Carlo×100，月度时间步长；**soul 政权分片 + 内生更迭引擎（08-17）** | **COPY 模式**（改代码需 rebuild 镜像；deploy.sh 仓库直构） | **v2.0.41** · [CHANGELOG](macro-sim/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-sim` |
-| `macro-ji`   | 验证层（天玑）：读天枢 data 做推演验证/反哺（T2 共享触发文件驱动，2026-08-04 独立容器上线） | **COPY 模式**（macro-ji/ 目录 rebuild） | v1.0.0 · [CHANGELOG](macro-ji/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-ji` |
-| `kaiyang`    | 可视化操作面板：只读展示天枢数据 + 控制台（:8080，control API :8900）；**控制面三 tab 中天璇/天玑已上线只读+人工验证（v1.11.29+）** | nginx 静态站（MOCK_ENABLED=false，A3a 已接入，index.html no-cache） | **v1.11.34** · [CHANGELOG](kaiyang/CHANGELOG.md) | `/vol2/1000/software/kaiyang` |
+| `macro-scan` | 数据观测层：实时抓取 FRED/GPR/新闻/地缘信号，生成 GRV 维度向量（18 项，含 global_composite 汇总 + 4 GDELT 国别推导维度 + gpr_twn_raw，08-07 实测）；**地缘预测自动验证（verify_geo_auto L1/L2，08-18）+ GRV 分数常态基准校准（#134，08-18）** | **热挂载**（改代码即生效；scheduler.py 改动需 restart） | 见 [`VERSION`](macro-scan/VERSION) · [`CHANGELOG`](macro-scan/CHANGELOG.md) | `/vol2/1000/software/macro-scan` |
+| `macro-sim`  | 仿真引擎层：**20个 Agent**（13 金融 A1-A13 + 7 主权 S1-S7，08-18 实测），Monte Carlo×100，月度时间步长；**soul 政权分片 + 内生更迭引擎（08-17）** | **COPY 模式**（改代码需 rebuild 镜像；deploy.sh 仓库直构） | 见 [`VERSION`](macro-sim/VERSION) · [`CHANGELOG`](macro-sim/CHANGELOG.md) | `/vol2/1000/software/world-sim/macro-sim` |
+| `macro-ji`   | 验证层（天玑）：读天枢 data 做推演验证/反哺（T2 共享触发文件驱动，2026-08-04 独立容器上线） | **COPY 模式**（macro-ji/ 目录 rebuild） | 见 [`CHANGELOG`](macro-ji/CHANGELOG.md)（macro-ji 无 VERSION 文件，以 CHANGELOG 顶栏 + 镜像名计） | `/vol2/1000/software/world-sim/macro-ji` |
+| `kaiyang`    | 可视化操作面板：只读展示天枢数据 + 控制台（:8080，control API :8900）；**控制面三 tab 中天璇/天玑已上线只读+人工验证（v1.11.29+）** | nginx 静态站（MOCK_ENABLED=false，A3a 已接入，index.html no-cache） | 见 [`VERSION`](kaiyang/VERSION) · [`CHANGELOG`](kaiyang/CHANGELOG.md) | `/vol2/1000/software/kaiyang` |
+
+> **版本列为什么是指针（2026-10-23 改）**：本表曾存具体版本号，4 项全线滞后 11–37 版（macro-scan 标 v3.8.49 实际已 3.8.86），因各组件「改后必追加」联动清单里没有「同步本表」这一条，每次 bump 都漏。**数字的唯一真源 = 各子项目 `VERSION` / `CHANGELOG.md` 顶栏**，本表不维护数字以免成为第 N 处真相。复核：`ssh nas 'for f in macro-sim macro-scan kaiyang; do echo -n "$f "; cat /vol2/1000/software/world-sim/$f/VERSION; done'`（macro-ji 无 VERSION，看 `macro-ji/CHANGELOG.md` 顶栏）。同步纪律见 `S://docs//AGENTS.md` §状态源清单「子项目版本基线」行。
 
 **数据流**：macro-scan 每日写入 `data/*.json` → macro-sim 只读消费 → kaiyang 只读展示；天玑（macro-ji）读天枢 data / worldsim-pg（E0-C 起读路径统一 PG）做验证闭环。
 
@@ -69,24 +71,26 @@
 | kaiyang 构建 | 改 src/ 后需 `npm run build`（在 kaiyang/ 目录），dist/ 不进 git，需手动 scp 到 NAS |
 | deploy.sh macro-scan | 只做 rsync + `docker compose restart`（不重建镜像） |
 | 改前必读 | 改任何文件前先读对应子系统的 CHANGELOG（两个系统都有各自铁律） |
-| 改后必追加 | 追加 CHANGELOG + bump VERSION + 按联动矩阵更新联动文档 + 按「中央知识库同步（CHG 五步）」节建 CHG |
+| 改后必追加 | 追加 CHANGELOG + bump VERSION + 按联动矩阵更新联动文档 + 按「中央知识库同步（触发条件 + 指针）」节建 CHG |
 | R4 治理红线 | 校准引擎：接受线/EPS_TGT/weighted 0.60 冻结禁调；断言数不降禁 skip/.only；CACHE 每轮 bump；验收以容器实测为准 |
 | soul 路径 P0 | 探针/实验 config 必须放容器真实目录 `/app/config`（`load_agents` 的 soul 路径 = `dirname(config_path)/../souls`，放 /tmp 会静默丢 A3 soul → 假复现，结果可差 0.11） |
 | 校准评审实录 | `docs/calib/`（calib-*.md 评审/裁决/验收存档）+ `macro-sim/docs/operations/`（天璇操作日志，按日追加） |
 
 ---
 
-## 中央知识库同步（CHG 五步，2026-08-30 起）
+## 中央知识库同步（触发条件 + 指针，2026-10-23 起）
 
-任何非只读变更（改代码 / 改配置 / 部署 / 归档 / 改既有文档）都要走中央 CHG 生命周期（格式真源 = `S:\docs\AGENTS.md` §operations/ 系统日志）：
+**任何非只读变更（改代码 / 改配置 / 部署 / 归档 / 改既有文档）都要在实施前建中央 CHG**，文件：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-world-deduction.md（＝中央 KB 项目名，非组件名）`（NAS 侧 `/vol2/1000/software/docs/operations/`）。
 
-1. **实施前**：建 `S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-<project>.md`（9 字段 frontmatter + `## Pre-Change` 写完冻结）
-2. **实施**：改代码 + 按对应子系统 AGENTS.md 的版本同步清单更新 CHANGELOG / VERSION
-3. **同步**：更新 `S:\docs\INDEX.md` 项目版本状态表（版本号 + 日期 + 一行摘要）+ `S:\docs\questions\world-deduction\` 相关 question 状态
-4. **收尾**：CHG 追加 `## Post-Change`（完成时间 / 实施摘要 / 验证），frontmatter status 改 `completed`
-5. **边界**：纯报问题建档（question doc + INDEX 加行）**不建 CHG**——CHG 只覆盖实施变更，不覆盖记录「发现」
+> **生命周期与细则（frontmatter 9 字段 / Pre-Change 冻结 / Post-Change / 24h 延期 / `completed` 后追加 / 跨执行者连续变更 / 归档确认）一律以真源为准**：`S:\docs\AGENTS.md §operations/ 系统日志`；归档确认另见 `§问题归档操作命令`。**本节不存规则正文，与真源冲突时本节作废。**
 
-NAS 侧路径等价：`/vol2/1000/software/docs/`。问题归属统一建在 `questions/world-deduction/`。
+本项目约定：
+- **实施**：改代码 + 按对应子系统 AGENTS.md 的版本同步清单更新 CHANGELOG / VERSION
+- **同步**：更新 `S:\docs\INDEX.md` 项目版本状态表（版本号 + 日期 + 一行摘要）+ `S:\docs\questions\world-deduction\` 相关 question 状态
+- **边界**：纯报问题建档（question doc + INDEX 加行）**不建 CHG**——CHG 只覆盖实施变更，不覆盖记录「发现」
+- 问题归属统一建在 `questions/world-deduction/`；NAS 侧路径等价 `/vol2/1000/software/docs/`
+
+> **对齐注记**：2026-10-23 / 真源 542 行 / §operations/ 系统日志（本节由「CHG 五步规则副本」改为「触发条件 + 指针」，repo 层自此退出细则同步清单）
 
 ---
 
