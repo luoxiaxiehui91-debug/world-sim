@@ -1,3 +1,52 @@
+## v3.8.88（2026-10-27）
+
+**修复 news 入库停摆 10 天：删去 dc9e0c3 在 `_db_ctx_id` 赋值前的 `raise _SkipSqlite`，并补「入库时效」探针** —— CHG-20261027T232506
+
+### 背景
+v3.8.79（`dc9e0c3`，10-18 01:21）为「静默失败根治 T1」在 `scan_weak_signals.py` 的
+`run_scan()` 里加了 `if _sqlite_off: raise _SkipSqlite(...)`，意图是 PG-only 下整段跳过
+news.db 初始化与写入。但它抛在 `_db_ctx_id` 赋值**之前**，于是 `_db_ctx_id` 恒为 `None`，
+下方门禁 `if _db_ctx_id is not None and articles:` 把 `news_db.insert_articles` /
+`write_scan_context` 一并卡死 —— 而这两个函数内部 `if _PG_ONLY:` 本就是正确的 PG 写入器。
+
+实测：`news.articles` `max(ingested_at) = 2026-10-17 16:04 UTC`；按日 count 10-18~10-27
+全 0（基线 ~340/天）；`scan_contexts` `max(scan_time) = 10-17 16:11`。`scan.log` 中
+`[PG-only] ... 跳过` 命中 410 次，而 `文章入库` / `scan_context 写入完成` 在 10-18 后 0 次。
+
+未被任何探针发现的原因：`news_export.json` 只按 mtime 判（空数组也刷）、`news_risk.json`
+是 GDELT 另一条链路（一直新鲜）、`check_dualwrite` 只验 PG 可达且 `count>0`（存量 2.7w
+行恒 >0）。三项都不看「内容非空 + 时效 + 增长」。
+
+### 改动
+1. `scan_weak_signals.py`：删去 `if _sqlite_off: raise _SkipSqlite(...)` 两行。
+   `news.db` 不复活已由 `news_db.init_db` 的 `if _PG_ONLY: return` 保证（08-14 P0 修复），
+   此处无需再挡。
+2. `scan_weak_signals.py`：`write_scan_context` 返回 0 时不再静默 —— 打印严重告警并照常
+   传入 0（让 PG FK 失败暴露），而非置 `None` 复现门禁跳过。
+3. `silent_failure_probe.py`：新增 `check_news_ingest_growth()`，判据改为
+   `max(ingested_at)` 年龄 >8h WARN / >14h CRIT、24h 入库 <20 篇 CRIT、
+   `scan_contexts` >14h CRIT。已注册进 `run_probe()` 的函数元组。
+   阈值依据：`weak_signal` 每天 4 次（0000/0600/1200/1800），漏 1 次 = 6h。
+
+### 刻意不做
+- **不回填 10-18~10-27 的 articles**：`fetch_rss_news` 的 `RSS_ROUTES` 时间窗为 3/7/14 天，
+  且 RSS 只保留最近数十条，回填量远低于基线；禁止伪造 `ingested_at`。修复后首次运行会
+  自然捞回各源 feed 里仍留存的部分。
+- **不改 `news_db.py` / `pg_write_collection.py`**：两文件在 10-18 后零改动，且该路径历史
+  成功 715 次（每次入库 150~183 篇），无需动。
+- **不给 `_SkipSqlite` 换哨兵值 / 后移 raise**：哨兵会在 `_ndb_art`/`_ndb_tag` 尚未 import
+  时抛 `NameError` 被 `except Exception` 吞掉，制造二次静默失败。
+
+### 验证
+- 链路实测（生产库，1 条 `__PROBE__` 记录，验后已删）：`write_scan_context` 返回 `ctx=735`，
+  `insert_articles` 返回 `{hash: 52694}`；删除后 `art_maxid` 回到 52693、`max(ingested_at)`
+  回到 10-17 16:04，库已复原。
+- 探针在停摆态实测报 3 条 CRIT：`最新一篇已 239.3h 未更新` / `24h 仅 0 篇` /
+  `scan_context 已 239.2h 未写入`。
+- 容器内 `py_compile` 两文件通过；真源与运行区 md5 一致；`__pycache__` 对应条目已清。
+- **待验收**：下一个 `weak_signal` 周期（00:00）出现 `scan_context 写入完成` 与
+  `文章入库 N 篇`，且 PG `max(ingested_at)` 前移；连续 2 个周期（00:00、06:00）才算通过。
+
 ## v3.8.87（2026-10-24）
 
 **首跑前堵住两处写入损坏：体制 label 括号重复 + regime 无效时不写垃圾** —— CHG-20261024T135200

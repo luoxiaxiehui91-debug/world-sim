@@ -1494,8 +1494,9 @@ def run_scan():
     """
     from optim_config import ensure_dirs, DATA_DIR as _DATA_DIR
     ensure_dirs()
-    # CHG-20261018 T1/F7：原实现该开关只 print 一句，后面的 news.db 初始化与
-    # 写入照常执行，与「news.db 已退役」的约定相冲突。现改为整段跳过。
+    # CHG-20261027 T1：dc9e0c3 曾在此处 raise _SkipSqlite 以求「整段跳过」，但它在
+    # _db_ctx_id 赋值前跳出，导致下方门禁把 news_db 的 PG 写入器一并卡死（10-18~10-27
+    # 零入库）。news.db 不复活已由 news_db.init_db 的 _PG_ONLY fail-fast 保证，无需此处再挡。
     _sqlite_off = (os.environ.get("WORLDSIM_SQLITE_OFF") == "1")
     if _sqlite_off:
         print("[PG-only] WORLDSIM_SQLITE_OFF=1：本次跳过 news.db 初始化与写入（读写走 worldsim-pg）")
@@ -1530,8 +1531,6 @@ def run_scan():
     _db_hash_to_id: dict = {}
     _db_cat_to_ids: dict = {}
     try:
-        if _sqlite_off:
-            raise _SkipSqlite("WORLDSIM_SQLITE_OFF=1")
         import os as _os
         from news_db import (init_db as _ndb_init, write_scan_context as _ndb_ctx,
                              insert_articles as _ndb_art, tag_articles as _ndb_tag,
@@ -1551,8 +1550,13 @@ def run_scan():
                if v is None}
         _db_ctx_id = _ndb_ctx(_db_path, vix=_vix, t10y2y=_t10y2y, baa10y=_baa10y, dff=_dff,
                                vix_regime=_vix_regime, data_quality=_dq or None)
-        print(f"  [news.db] scan_context 写入完成 (id={_db_ctx_id}, vix={_vix})")
-    except _SkipSqlite:
+        if not _db_ctx_id:
+            # CHG-20261027 T1：不再静默跳过。ctx_id=0 说明 PG 写 scan_context 失败，
+            # 文章入库会因 FK 失败而整批落空 —— 必须让它响出来。
+            print("  [news.db] 严重：scan_context 写入未返回 id（PG 不可用？）—— 文章入库将失败")
+        else:
+            print(f"  [news.db] scan_context 写入完成 (id={_db_ctx_id}, vix={_vix})")
+    except _SkipSqlite:  # 兼容历史路径；dc9e0c3 的 raise 已于 CHG-20261027 移除
         print("  [news.db] 已按 WORLDSIM_SQLITE_OFF=1 跳过（PG-only 模式）")
     except Exception as _e:
         print(f"  [news.db] 初始化/宏观快照写入失败（非阻断）: {_e}")

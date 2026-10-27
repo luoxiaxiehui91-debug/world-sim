@@ -784,10 +784,88 @@ def check_feed_status() -> list:
     return out
 
 
+# ── news 入库时效 ─────────────────────────────────────────────────────────────
+# weak_signal 每天 4 次（0000/0600/1200/1800）：漏 1 次 = 6h，留 2h 缓冲 => 8h WARN
+NEWS_INGEST_WARN_H = 8.0     # 漏 1 次
+NEWS_INGEST_CRIT_H = 14.0    # 漏 2 次
+NEWS_INGEST_MIN_24H = 20     # 24h 入库下限（基线 ~340/天；单次入库 150~183 篇）
+
+
+def check_news_ingest_growth() -> list:
+    """news 入库时效与增长（P0 停摆盲区补齐）。
+
+    为什么必须另立一项：现有三项都识别不出「进程在跑、退出码 0、但零入库」——
+      - news_export.json 只看 mtime（空数组也照刷）
+      - news_risk.json 是 GDELT 另一条链路（一直新鲜，不代表 articles 有写入）
+      - check_dualwrite 只验 PG 可达且 count>0（存量 2.7w 行恒 >0）
+    2026-10-18~10-27 停摆 10 天正是这个盲区：三个 job 全绿、scan.log 只打「已跳过」。
+    本项改判「内容/时效/增长」：max(ingested_at) 年龄 + 24h 行数 + scan_contexts 时效。
+    """
+    from datetime import datetime as _dt, timezone as _tz
+    out = []
+    try:
+        import psycopg
+    except Exception as e:
+        out.append((WARN, f"news 入库: psycopg 不可用，跳过（{e}）"))
+        return out
+    try:
+        p = psycopg.connect(**PG_DSN)
+    except Exception as e:
+        out.append((WARN, f"news 入库: PG 连接失败 {e}"))
+        return out
+    try:
+        with p.cursor() as c:
+            c.execute("SELECT MAX(ingested_at), "
+                      "COUNT(*) FILTER (WHERE ingested_at > now() - interval '24 hours') "
+                      "FROM news.articles")
+            max_ing, n24 = c.fetchone()
+            n24 = int(n24 or 0)
+            c.execute("SELECT MAX(scan_time) FROM news.scan_contexts")
+            max_ctx = c.fetchone()[0]
+    except Exception as e:
+        out.append((WARN, f"news 入库: 读取失败 {e}"))
+        return out
+    finally:
+        try:
+            p.close()
+        except Exception:
+            pass
+
+    now = _dt.now(_tz.utc)
+    if max_ing is None:
+        out.append((CRIT, "news 入库: news.articles 空表（从未成功入库）"))
+    else:
+        if max_ing.tzinfo is None:
+            max_ing = max_ing.replace(tzinfo=_tz.utc)
+        age_h = (now - max_ing).total_seconds() / 3600.0
+        if age_h > NEWS_INGEST_CRIT_H:
+            out.append((CRIT, f"news 入库: 最新一篇已 {age_h:.1f}h 未更新"
+                              f"（>{NEWS_INGEST_CRIT_H:.0f}h，weak_signal 疑连漏 2 次以上）"))
+        elif age_h > NEWS_INGEST_WARN_H:
+            out.append((WARN, f"news 入库: 最新一篇已 {age_h:.1f}h 未更新"
+                              f"（>{NEWS_INGEST_WARN_H:.0f}h）"))
+        else:
+            out.append((OK, f"news 入库: 最新 {age_h:.1f}h 前，24h 内 {n24} 篇"))
+
+    if n24 < NEWS_INGEST_MIN_24H:
+        out.append((CRIT, f"news 入库: 24h 仅 {n24} 篇（基线 ~340，下限 {NEWS_INGEST_MIN_24H}）"))
+
+    if max_ctx is None:
+        out.append((CRIT, "news 入库: scan_contexts 空表（扫描快照从未写入）"))
+    else:
+        if max_ctx.tzinfo is None:
+            max_ctx = max_ctx.replace(tzinfo=_tz.utc)
+        ctx_h = (now - max_ctx).total_seconds() / 3600.0
+        if ctx_h > NEWS_INGEST_CRIT_H:
+            out.append((CRIT, f"news 入库: scan_context 已 {ctx_h:.1f}h 未写入"
+                              f"（>{NEWS_INGEST_CRIT_H:.0f}h）"))
+    return out
+
+
 def run_probe(alert: bool = True) -> tuple:
     """执行全部检查。返回 (worst_level, results)。"""
     results = []
-    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_tianxuan_grv, check_sqlite_gone, check_feed_fresh, check_predictions_chain, check_ged_stale, check_llm_config, check_feed_status):
+    for fn in (check_dualwrite, check_artifacts, check_backup, check_fred_lag, check_news_risk, check_tianxuan_grv, check_sqlite_gone, check_feed_fresh, check_predictions_chain, check_ged_stale, check_llm_config, check_feed_status, check_news_ingest_growth):
         try:
             results.extend(fn())
         except Exception as e:
