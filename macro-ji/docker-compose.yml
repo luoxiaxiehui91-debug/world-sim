@@ -54,7 +54,9 @@ services:
       # 04_分析框架 需可写：verify_hypothesis --update-weights 写回 propagation_paths.yaml
       - ${MACRO_SCAN_DIR}/知识库/财经知识库/04_分析框架:/app/知识库/财经知识库/04_分析框架:rw
       # WIKI_FILE 路径兼容：verify_hypothesis 按 WORKSPACE/data 找 scenario_wiki.md
-      - ${MACRO_SCAN_DIR}/data:/app/data:ro
+      # 2026-10-29：改 rw —— --commit 需回写 scenario_wiki.md（只读时 EROFS 抛出未捕获异常，
+      # 导致 update_path_weights 永不执行）。同一宿主目录已以 /app/macro_data:rw 挂载，非新增能力
+      - ${MACRO_SCAN_DIR}/data:/app/data:rw
     command: ["python3", "tianji_verify_cron.py"]
     healthcheck:
       # 08-18 P0-1 强化：真实 PG 连接（此前仅 import 模块 → env 空也 healthy 假象）
