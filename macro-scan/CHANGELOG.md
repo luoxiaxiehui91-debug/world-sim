@@ -1,3 +1,37 @@
+## v3.8.89（2026-10-29）
+
+**FCI `data_vintage` 探针假阳性止血：文案改「非故障」+ 独立阈值 7 天 + 降优先级** ——— CHG-20261029T132500
+
+### 背景
+`fred_freshness.py` 的 `fci_probe()` 只读 `fci_latest.json` 的 `data_vintage` 一个字段判「FCI 计算是否停摆」，
+而该字段在 `compute_fci.py:268` 定义为 `min(m['last'] for m in meta)`＝**所有输入序列里最旧的那个日期**。
+FCI panel 含 `BAMLH0A0HYM2`（HY OAS），FRED 侧天然滞后 3-5 天 ⇒ **该字段长期不动属常态**，
+而旧阈值为共用的 `CRITICAL_CONSECUTIVE = 2` ⇒ **必然假阳性**。
+
+实测（2026-10-29）：`fci_latest.json` 的 `as_of=10-29T05:35`、`date=10-28`、`fci_revised=-1.032`，**计算完全正常**；
+仅 `data_vintage=10-23` 滞后 5 天，`freeze_days` 恰达 2 即于 05:40:21 推送
+「[critical] …建议：检查 compute_fci / FRED 拉取是否停摆」——**指示排查一个没停摆的任务**。
+
+### 改动
+1. 新增独立常量 `FCI_VINTAGE_FREEZE_DAYS = 7`（紧邻 `CRITICAL_CONSECUTIVE`，注释写明**不可混用**）。
+   阈值取 7：覆盖 HY OAS 等序列 3-5 天的正常滞后。
+2. `fci_probe()` 增读 `latest_date = latest.get("date")`。
+3. 判据 `CRITICAL_CONSECUTIVE` → `FCI_VINTAGE_FREEZE_DAYS`；
+   文案改为「[提示] …属常态、不是故障…FCI 本身运行正常：最新数据日 X…→ 无需排查 compute_fci」；
+   `_push(4, …)` → `_push(3, …)`（4=high 置顶，3=default）。
+
+### 验证
+双路径实测（mock `_push` 不真发声）：
+- **假阳性消除**：真实 state（`freeze_days=2`）→ 返回 0 条 / 推送 0 次 ✓
+- **阳性对照**：构造 `freeze_days=7` → 返回 1 条 / 推送 1 次，`priority=3` ✓（文案含最新数据日与「无需排查」）
+
+`py_compile` 通过。`bind mount`（`核心代码 → /app`）⇒ 无需 build/重启，次日 05:40 调度自动生效。
+双仓 md5 一致：`8add873f65af3c7d9c68939df8e55ebf`。
+
+### 遗留
+方案 A（探针改读 `date`）/ 方案 C（`compute_fci` 增 `slowest_symbol`）未实施。
+**真停摆的权威判据是 `fci_latest.json` 的 `date` 字段**（新文案已明示）。
+
 ## v3.8.88（2026-10-27）
 
 **修复 news 入库停摆 10 天：删去 dc9e0c3 在 `_db_ctx_id` 赋值前的 `raise _SkipSqlite`，并补「入库时效」探针** —— CHG-20261027T232506

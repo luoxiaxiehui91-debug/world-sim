@@ -37,7 +37,8 @@ FCI_LATEST_FILE = os.path.join(DATA_DIR, "fci_latest.json")
 FRESH_SYMBOLS = ["DCOILWTICO", "BAMLH0A0HYM2", "DGS3MO", "ICSA"]
 TOLERANCE_TRADING_DAYS = 1      # 与 FRED 源最新允许的最大交易日落后
 STALE_TRADING_DAYS = 3           # 距今 >3 交易日 → stale
-CRITICAL_CONSECUTIVE = 2         # 连续 2 日 stale → critical
+CRITICAL_CONSECUTIVE = 2         # 连续 2 日 stale → critical（symbol 级，L224 用）
+FCI_VINTAGE_FREEZE_DAYS = 7      # FCI 探针专用：data_vintage 连续 N 日不动才提示。# 该字段 = min(各输入序列 last)，HY OAS 等 FRED 序列天然滞后 3-5 天 ⇒ 阈值须大于正常滞后，# 否则必然假阳性（2026-10-29 实测：date=10-28 计算正常，vintage=10-23 滞后 5 天却被判 critical）
 
 
 def _busday_diff(d1: date, d2: date) -> int:
@@ -243,6 +244,7 @@ def fci_probe() -> list:
         with open(FCI_LATEST_FILE, encoding="utf-8") as f:
             latest = json.load(f)
         vintage = str(latest.get("data_vintage", ""))
+        latest_date = str(latest.get("date", ""))
     except Exception:
         return []
     if not vintage:
@@ -258,12 +260,15 @@ def fci_probe() -> list:
         "freeze_days": freeze_days,
         "checked": datetime.now().astimezone().isoformat(timespec="seconds"),
     })
-    if freeze_days >= CRITICAL_CONSECUTIVE:
+    if freeze_days >= FCI_VINTAGE_FREEZE_DAYS:
         msg = (
-            f"[critical] FCI data_vintage 连续 {freeze_days} 日冻结于 {vintage}。"
-            "建议：检查 compute_fci / FRED 拉取是否停摆。"
+            f"[提示] FCI data_vintage 连续 {freeze_days} 日停在 {vintage}。"
+            "该字段 = 各输入序列里最旧的那个日期（compute_fci 取 min(各序列 last)），"
+            "HY OAS 等 FRED 序列天然滞后 3-5 天即可触发，**属常态、不是故障**。"
+            f"FCI 本身运行正常：最新数据日 {latest_date or '未知'}，as_of 每日更新。"
+            "→ 无需排查 compute_fci。若确要确认是否真停摆，只看 fci_latest.json 的 date 字段有没有停滞。"
         )
-        _push(4, "FCI data_vintage 冻结", msg)
+        _push(3, "FCI vintage 滞后（非故障）", msg)
         return [msg]
     return []
 
