@@ -86,7 +86,7 @@
 
 本项目约定：
 - **实施**：改代码 + 按对应子系统 AGENTS.md 的版本同步清单更新 CHANGELOG / VERSION
-- **同步**：更新 `S:\docs\INDEX.md` 项目版本状态表（版本号 + 日期 + 一行摘要）+ `S:\docs\questions\world-deduction\` 相关 question 状态
+- **同步**：更新 `S:\docs\INDEX.md` 对应项目的「近期变化摘要」列前缀（该表 2026-10-29 起无独立版本列）+ `S:\docs\questions\world-deduction\` 相关 question 状态
 - **边界**：纯报问题建档（question doc + INDEX 加行）**不建 CHG**——CHG 只覆盖实施变更，不覆盖记录「发现」
 - 问题归属统一建在 `questions/world-deduction/`；NAS 侧路径等价 `/vol2/1000/software/docs/`
 

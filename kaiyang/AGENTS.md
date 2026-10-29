@@ -138,8 +138,8 @@ npm run build         # 构建产物到 dist/（dist/ 不进 git）
 > **生命周期与细则（frontmatter 9 字段 / Pre-Change 冻结 / Post-Change / 24h 延期 / `completed` 后追加 / 跨执行者连续变更 / 归档确认）一律以真源为准**：`S:\docs\AGENTS.md §operations/ 系统日志`；归档确认另见 `§问题归档操作命令`。**本节不存规则正文，与真源冲突时本节作废。**
 
 本项目约定：
-- **实施**：改代码 + 按版本同步清单更新（kaiyang 清单 = `VERSION` + `package.json` + `CHANGELOG.md` + `S:\docs\INDEX.md` 版本状态表）
-- **同步**：更新 `S:\docs\INDEX.md` 项目版本状态表（版本号 + 日期 + 一行摘要）+ `S:\docs\questions\world-deduction\` 相关 question 状态
+- **实施**：改代码 + 按版本同步清单更新（kaiyang 清单 = `VERSION` + `package.json` + `CHANGELOG.md` + `S:\docs\INDEX.md` 对应项目的「近期变化摘要」列前缀）
+- **同步**：更新 `S:\docs\INDEX.md` 对应项目的「近期变化摘要」列前缀（该表 2026-10-29 起无独立版本列）+ `S:\docs\questions\world-deduction\` 相关 question 状态
 - **边界**：纯报问题建档（question doc + INDEX 加行）**不建 CHG**——CHG 只覆盖实施变更，不覆盖记录「发现」
 - 问题归属统一建在 `questions/world-deduction/`；NAS 侧路径等价 `/vol2/1000/software/docs/`
 

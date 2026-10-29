@@ -181,7 +181,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 |---|---|
 | **任何变更（改代码 / 部署 / 改配置）** | **中央 CHG 文件**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-world-deduction.md`（＝中央 KB 项目名，非组件名；实施前建；纯报问题建档不建 CHG；生命周期细则以真源 §operations/ 系统日志 为准）|
 | 任何 `core/*.py` | `VERSION`（PATCH）+ `CHANGELOG.md` |
-| 任何 `core/*.py`（版本号变更时）| + `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
+| 任何 `core/*.py`（版本号变更时）| + `S:\docs\INDEX.md` 对应项目行的「近期变化摘要」列前缀（`vX.Y.Z：` + 一行摘要；该表 2026-10-29 起无独立版本列）|
 | 任何 `core/*.py`（版本号变更时）| + `macro-sim_人类说明文档.md` 文件头版本号 |
 | 任何 `core/*.py`（版本号变更时）| + `S:\world-sim\docs\overview.md` 头部版本行（`macro-sim vX.Y.Z`）+ 架构图版本号 |
 | 任何 `core/*.py`（版本号变更时）| + `docs/PROGRESS.md`（版本号 + 版本历史表）|
