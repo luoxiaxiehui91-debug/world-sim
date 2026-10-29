@@ -304,9 +304,12 @@ def main():
     if args.update_weights and summary.get("results"):
         print("\n[Phase 3C] 开始贝叶斯权重更新...")
         n_updated = len(update_path_weights(summary["results"], commit=args.commit) or {})
-    print(f"[SUMMARY] 总 {summary['total']} / 已验证 {summary['already_verified']} / "
-          f"待校准 {summary['pending_calibration']} / 等待结果 {summary['waiting_outcome']} / "
-          f"路径写回 {n_updated} 条")
+    # 兼容 run_verification 的早退分支（wiki 不存在时返回 entries/verified/pending 三键）
+    _tot = summary.get("total", summary.get("entries", 0))
+    _ver = summary.get("already_verified", summary.get("verified", 0))
+    _pen = summary.get("pending_calibration", summary.get("pending", 0))
+    _wai = summary.get("waiting_outcome", 0)
+    print(f"[SUMMARY] 总 {_tot} / 已验证 {_ver} / 待校准 {_pen} / 等待结果 {_wai} / 路径写回 {n_updated} 条")
 
 
 if __name__ == "__main__":
