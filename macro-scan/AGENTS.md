@@ -6,48 +6,8 @@
 
 世界推演系统观测层（天枢）：全球宏观情报自动采集 + LLM分析推演 + 地缘风险向量引擎，运行在 NAS Docker 容器中。
 
-**当前版本**：v3.8.54（2026-09-12）
-**主要变更**：
-- v3.8.54（09-12）：GDELT DOC 拉取加固（realtime 提案 R1：sleep 限速 + 429/503 退避重试 + 窗口语义诚实化 + 计数摘要，CHG-20260912T184954）
-- v3.8.53（09-12）：hypothesis 模板页脚占位符发送前填充（realtime 提案 R6；实测输出零污染，属契约卫生修正，CHG-20260912T144128）
-- v3.8.52（09-12）：fetcher_base 日志目录可配置 + 不可写回退（`LOG_DIR` 硬编码 `/var/log/macro-scan` 致**非 root 环境 PermissionError**、CI 7 测试失败、**开源后必崩**；改 `MACRO_SCAN_LOG_DIR` 可覆盖 + 回退 `<data_dir>/logs` 并 WARN 留痕，CHG-20260912T111307）
-- v3.8.51（09-12）：删除密钥守卫的失效规则 1（黑名单为脱敏遗留占位符 `REDACTED_*`，对真实凭证命中概率恒为 0；却对含注释全文做子串匹配，误报 `fetch_spacetrack.py:4` 注释致 CI 假阳性；规则 2/3 活体守卫保留，CHG-20260912T101550）
-- v3.8.50（09-12）：entrypoint.sh 补可执行位（git 索引 100644→100755；compose 单文件 bind mount 覆盖镜像内 `chmod +x`，从零 clone `up -d` 必报 `permission denied`；附带查明 `core.fileMode=false` 使模式位改动长期进不了仓库，CHG-20260912T004907）
-- v3.8.49（09-11）：静默探针预测链 state 写入失败留痕（`except: pass` → 仅写入失败时 WARN，CHG-20260911T140226）
-- v3.8.48（09-11）：静默探针预测链判据修正——绝对行数增量 `cnt > last_cnt` 改 `MAX(created_at)` 单调游标（基线回退导致告警永不复位，CHG-20260911T111143）
-- v3.8.47（09-11）：开源收尾 + 全量检查发现项清理（Windows 路径脱敏 3 处、删 133MB 测试目录，CHG-20260911T104000）
-- v3.8.46（09-11）：从零 clone 实测（开源阶段 5）——pip 源 tuna→aliyun、补 2 个 `.env.example` 变量，CHG-20260911T081125
-- v3.8.45（09-11）：可运行性（开源阶段 4）——根 README 重写 Quick Start + `scripts/init_db.sh` + 3 个 Dockerfile ARG，CHG-20260911T004121
-- v3.8.44（09-10）：知识库外置（开源阶段 3）——`KB_ROOT` + `scripts/init_kb.py`，CHG-20260910T234442
-- v3.8.43（09-10）：路径参数化（开源阶段 2），CHG-20260910T232600
-- v3.8.42（09-10）：ntfy 主题名轮换 + 注入层环境变量化（开源前置），CHG-20260910T181638
-- v3.8.41（09-09）：展望简报索引刷新遗漏（v3.8.40 晨间首验发现），CHG-20260909T080058
-- v3.8.40（09-08）：展望简报「改名 + 报告 TTL」（question monthly-outlook-daily-and-no-ttl 方案 C），CHG-20260908T232303
-- v3.8.39（09-08）：MOF 日频源治本（question fred-japan-jgb-lag-probe-spam 解法 A），CHG-20260908T203337
-- v3.8.38（09-08）：`fetch_spacetrack` 登录校验与失败态（backlog），CHG-20260908T192626
-- v3.8.37（09-08）：question kaiyang-spacewatch-spacetrack-zeroed，CHG-20260908T130113
-- v3.8.36（09-08）：question fred-japan-jgb-lag-probe-spam 解法 B，CHG-20260908T111550
-- v3.8.35（09-03）：llm-key-ui-write-path + llm-config-doc-drift Enforcement，CHG-20260903T164000，ADR-0015
-- v3.8.34（09-03）：llm-config-doc-drift（P1，用户路由清扫），CHG-20260903T151756
-- v3.8.33（09-03）：L4 尾部情景建模（question l4-tail-scenario-modeling，方案 C 降级折中版，用户拍板）
-- v3.8.32（09-03）：calibration-score-no-decay + 前置阻塞 bug（P2-5）
-- v3.8.31（09-03）：天枢 news_ttl_cleanup 批次入库（PG news.articles 90 天 TTL，08-30 已部署，本次补 git 记录）
-- v3.8.30（09-03）：P5 退役——天枢 verify 域三旧脚本退役（验证功能 08-24 已迁天玑收编）
-- v3.8.29（09-03）：开阳报告索引时序竞态修复（save_report() 落盘后就近刷新开阳数据源）
-- v3.8.27（09-02）：LLM 平台收敛——mimo_plan/mimo_api 拆分 + openai_compat 模型固化 config + 移除预置 OpenAI 平台
-- v3.8.26（08-28）：PG news.articles TTL 清理（P2）
-- v3.8.25（08-27）：天璇 GRV 轨迹 feed 导出（F1 commit 2）
-- v3.8.24（08-27）：F1 天璇推演→开阳可视化通道（commit 2/3，24 月 GRV 多路径轨迹出图）
-- v3.8.23（08-23）：密钥轮换后主模型切换（Qwen3.5-27B 下线 / DeepSeek-V4-Flash 上线）+ 控制台/翻译优化五连
-- v3.8.22（08-23）：P0-A 密钥安全整改第二阶段——compose 明文改 `${VAR}` 引用 + 轮换泄露 key + 废弃 MiniMax
-- v3.8.21（08-22）：health 图层同城聚合 + 双文件明细架构（注：commit 只标 health v1.1.1，实际同时动了天枢 VERSION）
-- v3.8.20（08-18 晚）：GDELT scale 事故修复（calibrator v2 透传 SCALE_REF，`8c2ddc4c`）+ LLM 链路三修复（翻译重试/set_usage 预填充/check_llm_config，`24e3b5f7`）+ llm_config 默认模板入库（`ad5dc3792`）+ GRV 分数常态基准校准 #134（climate FIRMS 阈值/seismic scale，`0e59cd758`）
-- v3.8.19（08-18）：global_composite 混入 GDELT 日频（#77，`913a8f7e`）+ delta 阈值 6→12
-- v3.8.18（08-16/17/18）：卫生事件标题绕开 DOC API（`fetch_health_geo.py` 直接抓 `<title>`，`17cf5d55`）；天玑汇总导出 `tianji_summary_export.py`（I30，`62000504`）；control_server 人工验证端点（`defc5e31`）；**地缘预测自动验证 `verify_geo_auto.py`**（scheduler 0930——L1 FRED 判定器 DFF/利差/VIX 分位 + L2 新闻关键词判定器 PG news.articles，`0ced51c9`+`4d22e6e2`）；死循环预测存档清理（predictions 1102→70）
-- v3.8.17（08-11）：开阳地图空渲染根治（fetch_gdelt_geo.py --incremental 派生 news_geo.json）
-- v3.8.15（08-05）：开阳全链路时间审计 6 修复（FRED manifest 孤儿复活 / news 假时刻 / FCI 拉取闸 / sim_trigger `triggered` 字段 / news_geo `updated` 契约 / freshness `fresh`+`lag_days` 语义）
-- v3.8.14（08-05）：`market_quotes` 0630 日频 → I15（整合导出提频，零外部请求）；kaiyang 前端 parseTs/fmtRelative 时区语义修复
-- v3.8.13（08-04）：**天玑三内核（tianji_db/tianji_verifier/weight_matrix）迁出 macro-ji 独立容器**（macro-scan-tianji-1，镜像 macro-tianji:latest）；`control_server.py` :8900 上线（A3a HTTP REST）；`fred_freshness.py`/`write_tianji_trigger.py` 新建；scheduler 删 tianji_verify/weight_health job，新增 11 job（compute_fci 0535 / fred_freshness 0540 / compute_probit 0540 / tianji_trigger 0942 / firms 0908 / narrative_proc 0710 / defense_rss 0712 / news_geo_feed 0715 / slow_vars 0935 / spacetrack 0615 / market_quotes I15）；FRED 恢复至 48 CSV + manifest.json；compute_fci.py 源码重建（pycdc 反编译）
+**当前版本**：见 `VERSION`（`cat VERSION`）—— 本文件不维护版本数字，防漂（2026-10-29 改指针式）
+**主要变更**：见 `CHANGELOG.md`（v3.8.25 起；本文件不维护版本列表；v3.8.24 及更早见 `TuiYan_CHANGELOG.md`）
 **运维参考**：`世界推演系统_人类说明文档.md`  
 **变更日志**：`CHANGELOG.md`（v3.8.25 起；改前必读，改后必追加）。v3.8.24 及更早的历史条目见 `TuiYan_CHANGELOG.md`（历史归档，不再追加）
 
@@ -162,7 +122,7 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 
 1. **改前必读** `CHANGELOG.md`（了解最新状态；v3.8.24 及更早见 `TuiYan_CHANGELOG.md`）
 2. **实施前先建 CHG**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-world-deduction.md`（＝中央 KB 项目名，非组件名）；**生命周期细则（9 字段 / Pre-Change 冻结 / Post-Change / 24h / `completed` 后追加）一律以真源为准**——`S:\docs\AGENTS.md §operations/ 系统日志`，本行不存规则正文
-3. **改后必追加** `CHANGELOG.md` → bump `VERSION` → 按联动矩阵更新对应文档 → 版本变更时同步更新 `S:\docs\INDEX.md` 版本状态行 → CHG 收口按真源 §operations/ 系统日志 执行
+3. **改后必追加** `CHANGELOG.md` → bump `VERSION` → 按联动矩阵更新对应文档 → 版本变更时更新 `S:\docs\INDEX.md` 对应项目的「近期变化摘要」列前缀（该表 2026-10-29 起无独立版本列） → CHG 收口按真源 §operations/ 系统日志 执行
 4. **绝对不要** `git rm`（不加 `--cached`）知识库或 data 下的文件
 5. **绝对不要** 把 `核心代码/` 内的 .py 分子目录
 6. **ntfy 推送强制直连**，不走代理
@@ -177,9 +137,9 @@ git -C /s/world-sim -c http.proxy=http://192.168.31.108:7890 push origin main
 
 | 改了什么 | 必须同时更新 |
 |:---|:---|
-| **任何变更（改代码 / 部署 / 改配置）** | **中央 CHG 文件**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-world-deduction.md（=中央 KB 项目名，非组件名）`（实施前 `## Pre-Change` 冻结 → 完成后 `## Post-Change` + status `completed`；纯报问题建档不建 CHG）|
+| **任何变更（改代码 / 部署 / 改配置）** | **中央 CHG 文件**：`S:\docs\operations\CHG-<YYYYMMDDTHHmmss>-world-deduction.md`（＝中央 KB 项目名，非组件名；实施前 `## Pre-Change` 冻结 → 完成后 `## Post-Change` + status `completed`；纯报问题建档不建 CHG）|
 | ★ 任何 `核心代码/*.py` | `CHANGELOG.md` + `VERSION` |
-| `VERSION` 变更时（无论何种改动触发）| `S:\docs\INDEX.md` 版本状态行（版本号 + 日期 + 一行摘要）|
+| `VERSION` 变更时（无论何种改动触发）| `S:\docs\INDEX.md` 对应项目行的「近期变化摘要」列前缀（`vX.Y.Z：` + 一行摘要；2026-10-29 起该表无独立版本列，版本真值看 `VERSION`）|
 | **结构 / 对外能力实质变化时**（非每次版本变更）| 低频结构文档三份（⚠️ 2026-10-09 校准，最后全面修订 = v3.8.54 / 2026-09-12）：`世界推演系统_人类说明文档.md`（头部版本号 + "当前能力"节 + 状态表）/ `S:\world-sim\docs\overview.md`（头部版本行 + 架构图版本号）/ `macro-scan/INDEX.md`（头部版本号）|
 | `核心代码/scheduler.py` | + `INDEX.md`（运行 `gen_docs.py --target scheduler` 刷新）|
 | `核心代码/hybrid_llm.py` | + `INDEX.md`（LLM调用链表手动更新）|
