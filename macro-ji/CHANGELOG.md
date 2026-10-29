@@ -7,6 +7,20 @@
 
 ---
 
+## v1.0.12 — 2026-10-29 · 权重写回落盘修复 + 日志自证（P1-2 / P2）
+
+> CHG-20261029T223321。
+> 版本锚点：无 VERSION 文件，以镜像 `macro-tianji:latest` + 上线时间计版本。
+
+- **修复（P1）**：`verify_hypothesis.py` 写回分支 `PATHS_FILE + ".tmp"` 对 `pathlib.Path` 抛 TypeError 被 `except` 吞 ⇒ `propagation_paths.yaml` 的 `calibration_score` 自 2026-09-03 起永不落盘（天枢 `hypothesis_engine.py:602` 按该分数加权，权重自适应长期失效）。改为 `PATHS_FILE.with_name(...)`。
+- **配套（配置）**：`docker-compose.yml` 两个服务此前把整库挂成 `:ro`，仅修代码会转成 `EROFS` 同样被吞 ⇒ 追加 `知识库/财经知识库/04_分析框架` 目录级 `:rw` 嵌套挂载（整库仍只读，实测父目录仍不可写）。
+- **日志自证（P2）**：`tianji_verify_cron.py` 只记子进程 stdout 末行，规模数却在首/中段 ⇒ 日志「0 条」无法区分「无输入」与「全被跳过」。两脚本各补末行 `[SUMMARY]`（`verify_hypothesis`：总/已验证/待校准/等待结果/路径写回；`verify_geo_auto`：待人工/已到期/自动验证/跳过）。
+- **守卫恢复**：`tests/test_audit_ji_path_str.py` 摘 `xfail(strict=True)`，转为活体守卫（此前它只是把 bug 标成预期失败）。
+- **⚠️ 不改变生产即时行为**：`scenario_wiki.md` 当前 `pending`（verified=false 且已填实际结果）= **0 条**，下次 1 日 09:15 仍不会写文件；本次修复确保「下次有数据时不再静默丢弃」。
+- 验证：隔离环境（`OPENCLAW_WORKSPACE` 指向 `/tmp`）注入 1 条 pending → `calibration_score` 0.700→0.730、0.300→0.370 落盘；生产文件 md5 保持 `05f9fc35…` 未变；`pytest tests/test_audit_ji_path_str.py` → 1 passed。
+
+---
+
 ## v1.0.11 — 2026-10-18 · LLM 评判成本防线与 outcome=0 分支修复（T3）
 
 > CHG-20261018T181500。与 macro-scan v3.8.80 / macro-sim v2.0.55 同批 T 系列修复。

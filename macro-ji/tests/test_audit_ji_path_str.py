@@ -7,8 +7,7 @@
 导致 propagation_paths.yaml 的 calibration_score 永不落盘。
 
 本测试断言【正确】行为: commit=True 时更新后的 calibration_score 真正写入
-yaml 文件。因 bug 仍存在, 用 xfail(strict=True) 标注 —— 修复后会 xpass 触发
-strict 失败, 强制摘掉标记, 转为活体守卫。
+yaml 文件。2026-10-29 修复（CHG-20261029T223321）后已摘掉 xfail 标记，转为活体守卫。
 
 顶部自注入 sys.path 使 verify_hypothesis 可在任意 cwd 下 import。
 """
@@ -25,11 +24,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import verify_hypothesis  # noqa: E402
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="审计发现 #4: update_path_weights 用 `Path + str` 抛 TypeError 被吞, "
-    "calibration_score 永不落盘",
-)
 def test_update_path_weights_persists_calibration_score(tmp_path, monkeypatch):
     # 构造一个合法的 propagation_paths.yaml, 含一条会被路由命中的路径
     paths_file = tmp_path / "propagation_paths.yaml"

@@ -330,6 +330,7 @@ def main() -> int:
 
     print(f"[verify_geo_auto] 自动验证 {auto_ok} 条，跳过（L2/L3/数据不足）{auto_skip} 条"
           f"{'（dry-run 未写库）' if args.dry_run else '（已写库）'}")
+    print(f"[SUMMARY] 待人工 {len(rows)} / 已到期 {len(due_rows)} / 自动验证 {auto_ok} / 跳过 {auto_skip}")
     return 0
 
 

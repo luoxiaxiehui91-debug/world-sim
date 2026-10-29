@@ -28,6 +28,8 @@ services:
       # config 目录（grv_weights.yaml / prior.yaml —— weight_matrix 与 tianji_verifier 依赖）
       - ${MACRO_SCAN_DIR}/config:/app/config:rw
       - ${MACRO_SCAN_DIR}/知识库:/app/知识库:ro
+      # 04_分析框架 需可写：verify_hypothesis --update-weights 写回 propagation_paths.yaml
+      - ${MACRO_SCAN_DIR}/知识库/财经知识库/04_分析框架:/app/知识库/财经知识库/04_分析框架:rw
 
   verify-cron:
     image: macro-tianji:latest
@@ -49,6 +51,8 @@ services:
       - ${MACRO_SCAN_DIR}/data:/app/macro_data:rw
       - ${MACRO_SCAN_DIR}/config:/app/config:rw
       - ${MACRO_SCAN_DIR}/知识库:/app/知识库:ro
+      # 04_分析框架 需可写：verify_hypothesis --update-weights 写回 propagation_paths.yaml
+      - ${MACRO_SCAN_DIR}/知识库/财经知识库/04_分析框架:/app/知识库/财经知识库/04_分析框架:rw
       # WIKI_FILE 路径兼容：verify_hypothesis 按 WORKSPACE/data 找 scenario_wiki.md
       - ${MACRO_SCAN_DIR}/data:/app/data:ro
     command: ["python3", "tianji_verify_cron.py"]

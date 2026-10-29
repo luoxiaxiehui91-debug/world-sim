@@ -1,6 +1,6 @@
 # macro-ji — AI 工作入口（天玑验证评估层）
 
-> 容器：`macro-scan-tianji-1` · 镜像：`macro-tianji:latest` · 版本：**v1.0.11**（2026-10-18 T3 LLM 评判成本防线 —— `window_total` 拆分真实覆盖数/prompt 样本数，修 `outcome=0` 分支永不可达；LLM 判定失败加重试上限 3 次防重复烧 token）｜ v1.0.10：Brier 权重下调判据方向修正 + 统计显著性门槛（Welch z≥1.96、样本量 8→30、全量样本替代 `[:8]`、调幅按比值分档；可调参数集中于文件头）｜ v1.0.9：全量审查确定性缺陷修复（`tianji_db.py` `scored.sort()` 缺 key：`hours_age=999` 使 score 相同 → 比较 dict 抛 TypeError）｜ v1.0.8：P3③ LLM 调用补记账 —— verify_llm 写入 `public.llm_token_usage`（v1.0.1–v1.0.7 见 CHANGELOG.md）
+> 容器：`macro-scan-tianji-1` · 镜像：`macro-tianji:latest` · 版本：**v1.0.12**（2026-10-29 权重写回落盘修复：`Path+str` TypeError 与只读挂载双重阻断，两脚本末行加 `[SUMMARY]` 规模数；CHG-20261029T223321）｜ v1.0.11：T3 LLM 评判成本防线 —— `window_total` 拆分真实覆盖数/prompt 样本数，修 `outcome=0` 分支永不可达；LLM 判定失败加重试上限 3 次防重复烧 token）｜ v1.0.10：Brier 权重下调判据方向修正 + 统计显著性门槛（Welch z≥1.96、样本量 8→30、全量样本替代 `[:8]`、调幅按比值分档；可调参数集中于文件头）｜ v1.0.9：全量审查确定性缺陷修复（`tianji_db.py` `scored.sort()` 缺 key：`hours_age=999` 使 score 相同 → 比较 dict 抛 TypeError）｜ v1.0.8：P3③ LLM 调用补记账 —— verify_llm 写入 `public.llm_token_usage`（v1.0.1–v1.0.7 见 CHANGELOG.md）
 > 代码目录：`/vol2/1000/software/world-sim/macro-ji/`（NAS 仓库）
 
 > **跨项目知识库入口**：中央知识库 = `S:\docs\`（NAS 侧 `/vol2/1000/software/docs/`）；规则真源 = `S:\docs\AGENTS.md`（问题流程 / CHG 变更日志 / 文档写作规范）。改代码 / 部署后**必须按文末「七、中央知识库同步（触发条件 + 指针）」同步中央知识库**（2026-08-30 CHG 体系）。

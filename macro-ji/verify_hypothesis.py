@@ -279,7 +279,7 @@ def update_path_weights(results: list, commit: bool = False) -> dict:
     if commit and updates:
         try:
             import yaml
-            _tmp_281 = PATHS_FILE + ".tmp"
+            _tmp_281 = PATHS_FILE.with_name(PATHS_FILE.name + ".tmp")
             with open(_tmp_281, "w", encoding="utf-8") as f:
                 yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
             os.replace(_tmp_281, PATHS_FILE)
@@ -300,9 +300,13 @@ def main():
                         help="Phase 3C：同时更新 propagation_paths.yaml 的 calibration_score")
     args = parser.parse_args()
     summary = run_verification(commit=args.commit)
+    n_updated = 0
     if args.update_weights and summary.get("results"):
         print("\n[Phase 3C] 开始贝叶斯权重更新...")
-        update_path_weights(summary["results"], commit=args.commit)
+        n_updated = len(update_path_weights(summary["results"], commit=args.commit) or {})
+    print(f"[SUMMARY] 总 {summary['total']} / 已验证 {summary['already_verified']} / "
+          f"待校准 {summary['pending_calibration']} / 等待结果 {summary['waiting_outcome']} / "
+          f"路径写回 {n_updated} 条")
 
 
 if __name__ == "__main__":
