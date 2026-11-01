@@ -7,6 +7,18 @@
 
 ---
 
+## v1.0.13 — 2026-11-01 · 权重写回保留注释（round-trip）+ 写前自动备份
+
+> CHG-20261101T100700。
+
+- **修复**：写回用 PyYAML `yaml.dump()` 整文件重生成，注释不在 AST ⇒ 11-01 09:15 首次成功写回把 `propagation_paths.yaml` 的 **60 行注释**（1-22 头部说明 + 10 组逐条说明）全部抹掉。改 `ruamel.yaml` round-trip，仅改 `calibration_score`，注释 / 键序 / 引号风格全保留。
+- **加固**：写回前自动 `cp` 为 `propagation_paths.yaml.bak-<YYYYMMDDTHHMMSS>`（此前无备份，回滚只能靠人工留的 bak）。
+- **一次性数据修复**：从 `data/backup/propagation_paths.yaml.bak-20261029T2233` 恢复 60 行注释，并按 round-trip 风格归一缩进（顶层 `- ` 顶格、键 2 空格）；25 条分数保持 11-01 09:15 的值。
+- **验证**：隔离环境以带注释备份为输入跑一次写回 → 注释仍 **60 行**、diff **仅 4 行且全为 `calibration_score`**（0.70→0.73、0.30→0.37）；生产合并后注释 60 行、25 条分数逐一相等。
+- **依赖**：`requirements.txt` 新增 `ruamel.yaml>=0.18`。
+
+---
+
 ## v1.0.12 — 2026-10-29 · 权重写回落盘修复 + 日志自证（P1-2 / P2）
 
 > CHG-20261029T223321。

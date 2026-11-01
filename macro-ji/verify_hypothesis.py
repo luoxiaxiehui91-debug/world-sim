@@ -24,6 +24,7 @@ verify_hypothesis.py — M2-4 假设推演校准闭环工具 + Phase 3C 贝叶�
 import os
 import re
 import json
+import shutil
 import argparse
 import datetime
 from pathlib import Path
@@ -278,12 +279,37 @@ def update_path_weights(results: list, commit: bool = False) -> dict:
 
     if commit and updates:
         try:
-            import yaml
+            # round-trip 写回：保留注释 / 键序 / 引号风格（PyYAML 的 dump 会整文件重生成、注释全丢）
+            from ruamel.yaml import YAML as _RTYAML
+            _rt = _RTYAML()
+            _rt.preserve_quotes = True
+            # 与原文风格一致：序列顶格 `- `、键 2 空格
+            try:
+                _rt.indent(mapping=2, sequence=2, offset=0)
+            except Exception:
+                pass
+            with open(PATHS_FILE, encoding="utf-8") as f:
+                _rdoc = _rt.load(f)
+            if isinstance(_rdoc, list):
+                _rpaths = _rdoc
+            elif isinstance(_rdoc, dict):
+                _rpaths = _rdoc.get("paths", _rdoc.get("propagation_paths", []))
+            else:
+                _rpaths = []
+            _applied = 0
+            for _p in _rpaths:
+                _pid = _p.get("id", "")
+                if _pid in updates:
+                    _p["calibration_score"] = updates[_pid]["new"]
+                    _applied += 1
+            _bak = PATHS_FILE.with_name(
+                PATHS_FILE.name + ".bak-" + datetime.datetime.now().strftime("%Y%m%dT%H%M%S"))
+            shutil.copy2(PATHS_FILE, _bak)
             _tmp_281 = PATHS_FILE.with_name(PATHS_FILE.name + ".tmp")
             with open(_tmp_281, "w", encoding="utf-8") as f:
-                yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+                _rt.dump(_rdoc, f)
             os.replace(_tmp_281, PATHS_FILE)
-            print(f"  [PATH_UPDATE] propagation_paths.yaml 已更新 {len(updates)} 条路径")
+            print(f"  [PATH_UPDATE] propagation_paths.yaml 已更新 {_applied} 条路径（备份 {_bak.name}）")
         except Exception as e:
             print(f"  [PATH_UPDATE] 写入失败: {e}")
     elif updates:
