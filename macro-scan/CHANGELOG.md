@@ -1,3 +1,25 @@
+## v3.8.91（2026-11-03）
+
+**降级链文档勘误：`MiMo v2.5-pro` → `MiMo v2.6-pro`** ——— CHG-20261103T162506
+
+### 背景
+`run_macro_analysis.py` 模块 docstring 与 `docs/FILE_MANIFEST.md` 的降级链描述仍写 `MiMo v2.5-pro`，
+而运行事实是 `mimo-v2.6-pro`（`data/llm_config.json` + `llm_usage.py PLATFORMS["mimo_plan"]` 均为 v2.6-pro；
+账本 `general_llm` 近 36 次全部 v2.6-pro，末次 2026-11-03 07:34）。属 v3.8.90 模型升级的配套勘误。
+
+### 改动
+`run_macro_analysis.py:13`（git 真源 + 运行区两份）与 `docs/FILE_MANIFEST.md:84`：`MiMo v2.5-pro` → `MiMo v2.6-pro`。
+纯注释/文档字符串，无运行时行为。
+
+### 验证
+- `grep -c "v2.5-pro"` → 两文件均 **0**
+- `python3 -m py_compile run_macro_analysis.py` → **OK**
+- `check_llm_config.py` → **RC=0**（全过）
+
+`STATUS.md:67` 的历史里程碑陈述保留未改（带日期，属历史记录）。
+
+---
+
 ## v3.8.90（2026-11-03）
 
 **LLM 模型升级：`DeepSeek-V4-Flash` → `DeepSeek-V4.1-Flash`（五联同步全量）** ——— CHG-20261103T161054
