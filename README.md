@@ -240,6 +240,7 @@ world-sim/
 | [AGENTS.md](AGENTS.md) | AI 协作入口（系统定位 / 操作约束） |
 | [macro-scan/CHANGELOG.md](macro-scan/CHANGELOG.md) | 版本变更记录 |
 | [CHANGELOG.md](CHANGELOG.md) | **仓库级变更记录**（子系统变更见各自 CHANGELOG） |
+| [RELEASES.md](RELEASES.md) | **版本摘要（给人看：每版 3–5 行，只写能感知的变化）** |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南（环境 / 部署模型差异 / 测试 / 提交约定） |
 | [SECURITY.md](SECURITY.md) | 安全策略（私有报告渠道 / 部署者须知） |
 

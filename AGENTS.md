@@ -123,6 +123,7 @@ macro-scan 每日按时写入，macro-sim 只读消费，kaiyang 只读展示：
 ## 人类文档导航（非 AI 用）
 
 - **系统总览**（推荐入口）→ [`docs/overview.md`](docs/overview.md)
+- **版本摘要（给人看）** → [`RELEASES.md`](RELEASES.md)（每版 3–5 行，不写根因/文件清单）
 - **实时交接状态** → [`STATUS.md`](STATUS.md)（08-10 起权威；[docs/archive/handover-history.md](docs/archive/handover-history.md) 为 08-07 历史快照）
 - **时间门控路线图** → [`docs/roadmap.md`](docs/roadmap.md)
 - **校准评审实录** → [`docs/calib/`](docs/calib/)（calib-*.md）+ 天璇操作日志 `macro-sim/docs/operations/`
