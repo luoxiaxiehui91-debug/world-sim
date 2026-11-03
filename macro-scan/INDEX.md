@@ -109,11 +109,11 @@
 | translate_titles | siliconflow | tencent/Hunyuan-MT-7B |
 | general_llm | mimo_plan | mimo-v2.6-pro |
 | rag_embedding | siliconflow | BAAI/bge-m3（Ollama 已于 v3.5.25 移除）|
-| call_local | siliconflow | deepseek-ai/DeepSeek-V4-Flash |
-| verify_llm（天玑）| siliconflow | deepseek-ai/DeepSeek-V4-Flash |
-| chronicle / readable（天璇）| siliconflow | deepseek-ai/DeepSeek-V4-Flash |
+| call_local | siliconflow | deepseek-ai/DeepSeek-V4.1-Flash |
+| verify_llm（天玑）| siliconflow | deepseek-ai/DeepSeek-V4.1-Flash |
+| chronicle / readable（天璇）| siliconflow | deepseek-ai/DeepSeek-V4.1-Flash |
 | sim_mc（天璇）| siliconflow | THUDM/GLM-Z1-9B-0414 |
-| sim_narrative（天璇）| siliconflow | deepseek-ai/DeepSeek-V4-Flash |
+| sim_narrative（天璇）| siliconflow | deepseek-ai/DeepSeek-V4.1-Flash |
 
 验证：`curl -H "Authorization: Bearer $CONTROL_TOKEN" http://<主机>:8900/api/v1/control/llm-usage`（9 个使用点 + `config_source`）。
 

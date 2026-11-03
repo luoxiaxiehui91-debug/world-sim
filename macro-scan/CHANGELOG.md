@@ -1,3 +1,36 @@
+## v3.8.90（2026-11-03）
+
+**LLM 模型升级：`DeepSeek-V4-Flash` → `DeepSeek-V4.1-Flash`（五联同步全量）** ——— CHG-20261103T161054
+
+### 背景
+运行区配置自 09-03 起锁在 `deepseek-ai/DeepSeek-V4-Flash`；SiliconFlow 上游已上线 V4.1-Flash（两个 ID 并存，2026-11-03 `/v1/models` 实测），
+项目侧**没有「上游出新一代」的发现机制** ⇒ 落后 25 天无人察觉，直至旧 key 异常用量复盘时才被撞见（question 20261103）。
+计费侧 V4.1-Flash 全面更低（一手来源 `siliconflow.cn/pricing`）：输入 ¥2.00/M（vs ¥3.00，−33%）、输出 ¥8.00/M（vs ¥9.00，−11%）、
+缓存 ¥0.04/M（vs ¥0.30，−87%）；2–8 点低档 ¥1.00/¥4.00/¥0.02，晨报 07:30 与扫描 06:00 正落该档。
+
+### 改动
+1. `_FALLBACK_MODELS["siliconflow"]` → `deepseek-ai/DeepSeek-V4.1-Flash`（`llm_usage.py:61`，全仓唯一允许的模型字面量区）。
+2. `run_macro_analysis.py:13` 降级链 docstring 同步 V4.1。
+3. 运行区 5 个使用点（`call_local` / `verify_llm` / `chronicle` / `readable` / `sim_narrative`）经控制台
+   `PUT /api/v1/control/llm-usage/{id}` 切换：`data/llm_config.json` 原子写 + `.bak` 快照轮转，
+   `config/llm_config.default.json` 由 `_regen_default_template()` 自动再生（五联第②联自动化）。
+4. 活跃文档同步：git 真源模板 / `INDEX.md` / `kaiyang/docs/DATA_CONTRACT.md` /
+   `世界推演系统_人类说明文档.md` / `docs/FILE_MANIFEST.md`。
+5. 运行区 `docker-compose.example.yml` 删除失效项 `SILICONFLOW_MODEL=deepseek-ai/DeepSeek-V4-Flash`
+   （五联第③联：09 重构后模型名不再经 env，该行属遗留双源开关）。
+
+### 验证
+- `python3 scripts/check_llm_config.py` → `[llmcheck] 全过（真源=模板=git；文档无旧模型名；G1 字面量收敛；G2 配置来源=truth；.env 安全面 OK；hook 在位）` **RC=0**
+- `data/llm_config.json` 与 `config/llm_config.default.json`：旧名 **0** / 新名 **5**
+- 容器内 `resolve()`：5 个使用点全部 `deepseek-ai/DeepSeek-V4.1-Flash`，`get_config_source()` = `truth`
+- 实调：`call_local("只回复两个字：正常")` → `status=200 elapsed=1.3s` / `REPLY: '正常'`；账本 `16:13:36 | chronicle | V4.1 | ok=t`
+- 配置热读（`load_config()` 每次读文件、无模块级缓存）⇒ **未 recreate 容器**，下一个 job 即生效
+
+### 未改
+`STATUS.md` 2 处（L17 / L67）为带日期的里程碑陈述、`data/reports/*` 4 份历史报告 —— 按五联第④联「历史文档严禁改动」保留原样。
+
+---
+
 ## v3.8.89（2026-10-29）
 
 **FCI `data_vintage` 探针假阳性止血：文案改「非故障」+ 独立阈值 7 天 + 降优先级** ——— CHG-20261029T132500

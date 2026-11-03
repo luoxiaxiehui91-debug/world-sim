@@ -394,9 +394,9 @@
 | `general_llm` | 通用 LLM 通道 | mimo_plan | mimo-v2.6-pro | hybrid_llm.call_openai_compat 无显式 usage（含宏观分析，auto 链首选）；2026-09-26 前名为 `openai_compat` |
 | `rag_embedding` | 知识库嵌入 | siliconflow | BAAI/bge-m3 | rag_engine.py（resolve_embedding，`{base_url}/embeddings`） |
 | `sim_mc` | 天璇 Monte Carlo | siliconflow | GLM-Z1-9B-0414 | macro-sim llm_client.call_llm(use_minimax=False) |
-| `sim_narrative` | 天璇 叙事合成 | siliconflow | deepseek-ai/DeepSeek-V4-Flash | macro-sim llm_client.call_llm(use_minimax=True 叙事路径) |
-| `verify_llm` | 天玑行为判定器 | siliconflow | deepseek-ai/DeepSeek-V4-Flash | macro-ji llm_judge.py（L3 行为类预测自动验证） |
-| `chronicle` | 天璇编年史生成 | siliconflow | deepseek-ai/DeepSeek-V4-Flash | macro-sim core/chronicler.py（编年史分章生成） |
+| `sim_narrative` | 天璇 叙事合成 | siliconflow | deepseek-ai/DeepSeek-V4.1-Flash | macro-sim llm_client.call_llm(use_minimax=True 叙事路径) |
+| `verify_llm` | 天玑行为判定器 | siliconflow | deepseek-ai/DeepSeek-V4.1-Flash | macro-ji llm_judge.py（L3 行为类预测自动验证） |
+| `chronicle` | 天璇编年史生成 | siliconflow | deepseek-ai/DeepSeek-V4.1-Flash | macro-sim core/chronicler.py（编年史分章生成） |
 | `sim_minimax` | 天璇 MiniMax | minimax | MiniMax-M3 | ⚠️ 已退役（08-23 MiniMax 平台下线），配置中保留空壳无活跃调用方 |
 
 > 平台 = OpenAI 兼容 `/chat/completions` 或 `/embeddings` 端点；Anthropic 协议（call_claude）**不纳入**（08-16 移除，系统无 ANTHROPIC key）。

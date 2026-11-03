@@ -20,22 +20,22 @@
     },
     "call_local": {
       "platform": "siliconflow",
-      "model": "deepseek-ai/DeepSeek-V4-Flash",
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash",
       "base_url": "https://api.siliconflow.cn/v1"
     },
     "verify_llm": {
       "platform": "siliconflow",
-      "model": "deepseek-ai/DeepSeek-V4-Flash",
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash",
       "base_url": "https://api.siliconflow.cn/v1"
     },
     "chronicle": {
       "platform": "siliconflow",
-      "model": "deepseek-ai/DeepSeek-V4-Flash",
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash",
       "base_url": "https://api.siliconflow.cn/v1"
     },
     "readable": {
       "platform": "siliconflow",
-      "model": "deepseek-ai/DeepSeek-V4-Flash",
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash",
       "base_url": "https://api.siliconflow.cn/v1"
     },
     "sim_mc": {
@@ -45,7 +45,7 @@
     },
     "sim_narrative": {
       "platform": "siliconflow",
-      "model": "deepseek-ai/DeepSeek-V4-Flash",
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash",
       "base_url": "https://api.siliconflow.cn/v1"
     }
   }

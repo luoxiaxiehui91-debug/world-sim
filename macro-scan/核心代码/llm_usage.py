@@ -58,7 +58,7 @@ PLATFORM_ENV_KEYS = {
 # 职责：三层配置全部不可用时「别崩」，**不是**「用最新」——升级模型请走控制台/配置，
 # 不要改这里；本区变动须同步跑 scripts/check_llm_config.py（G1 字面量对拍）。
 _FALLBACK_MODELS = {                     # 平台 → 兜底模型（chat 用途）
-    "siliconflow": "deepseek-ai/DeepSeek-V4-Flash",
+    "siliconflow": "deepseek-ai/DeepSeek-V4.1-Flash",
     "mimo_plan": "mimo-v2.6-pro",
     "mimo_api": "mimo-v2.6-pro",
 }
