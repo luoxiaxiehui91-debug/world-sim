@@ -2,7 +2,7 @@
 
 ## 新 session 冷启动（3 分钟，防迷路）
 
-> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：2026-08-27 10:xx GMT+8（GRV 锚定已修 + F1 天璇可视化通道全线打通并 push，详见下方「当前主线（08-27）」）。
+> 任何新会话先读本区块，再读 `README.md`（结构/部署导航）与 `.workbuddy/memory/MEMORY.md`（长期红线/部署拓扑）。最后更新：**2026-11-03 16:30 GMT+8**（LLM 模型全量升级 V4-Flash→V4.1-Flash + MiMo 版本勘误，详见下方「2026-11-03 更新」；08-23 起的既有主线见「当前主线（08-23）」，其模型名已过时）。
 
 **项目是什么**：world-sim 世界推演系统——个人内部宏观推演系统（非商业产品）。逻辑 5 层：天枢（观测采集）→ 天璇（仿真，20 Agent：A1-A13 + S1-S7）→ 天玑（验证）→ 玉衡（权重，未运转）→ 开阳（展示）；横切 crucix 信号总线（AGPL，**已退场 2026-08-12 G1 停容器**）+ 摇光 SRE。
 
@@ -12,6 +12,16 @@
 - NAS 运行区：天枢热挂载 `/vol2/1000/software/macro-scan/核心代码/`（改 .py 即生效，scheduler.py 需 docker restart）；开阳 `/vol2/1000/software/kaiyang/dist`；crucix `/vol2/1000/software/Crucix/`（**已退场 08-12 停容器，禁抄源码 AGPL，仅历史参考）
 - 容器：`macro-scan-macro-scan-1`（天枢）/ `macro-sim`（天璇，COPY 模式）/ `macro-scan-tianji-1`（天玑）/ `macro-scan-kaiyang-1`（开阳 :8080）
 - SSH：`ssh nas`（**必须 Git 自带 ssh，Windows OpenSSH 已坏**）；容器内部操作（docker exec / 读运行时数据极强实时性）走 SSH——非因 SMB 不可靠（SMB 本身可靠，仅容器刚写完即刻读时有 ~10s 客户端缓存滞后）
+
+**2026-11-03 更新（LLM 模型换代 + 治理）**：
+- **模型升级**：5 个使用点（`call_local` / `verify_llm` / `chronicle` / `readable` / `sim_narrative`）
+  由 `deepseek-ai/DeepSeek-V4-Flash` 升 `deepseek-ai/DeepSeek-V4.1-Flash`；平台默认（`_FALLBACK_MODELS`）同步。
+  **成本反向下降**：输入 ¥2.00/M（−33%）、输出 ¥8.00/M（−11%）、缓存 ¥0.04/M（−87%）。
+  详见 `operations/CHG-20261103T161054-world-deduction.md` 与 `macro-scan/CHANGELOG.md` v3.8.90。
+- **文档勘误**：降级链 docstring/FILE_MANIFEST 的 `MiMo v2.5-pro` → `MiMo v2.6-pro`（v3.8.91）。
+- **模型治理**：立 `decisions/world-deduction/0019`（**proposed**）—— 上游同系列出新版须 7 日内评估升/不升并留痕。
+- ⚠️ **下方「当前主线（08-23）」及更早段落均为历史快照**，其中的 `DeepSeek-V4-Flash`、`MiMo v2.5-pro`、
+  `SF 87 个/mimo 2 个` 等字样已过时，**现状以本段为准**（历史陈述按规矩不改）。
 
 **当前主线（08-23）**：
 1. **LLM 栈收敛完成（08-22~23）**：全仓只依赖两家云——硅基流动（GLM-Z1-9B=天璇 MC / DeepSeek-V4-Flash=叙事+auto 兜底 / Hunyuan-MT-7B=翻译 / bge-m3=RAG）+ 小米 mimo（mimo-v2.5-pro=auto 链首选，09-02 固化）。Ollama/MiniMax/Claude 全部退役零调用；开阳控制台 LLM 面板支持「选厂商→填 key→选模型」三步热切换，模型下拉为上游 /models 实时清单（SF 87 个/mimo 2 个，1h 缓存）。
